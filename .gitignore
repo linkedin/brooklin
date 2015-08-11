@@ -1,0 +1,7 @@
+build/
+*classes
+.gradle/
+*.iml
+datastream.ipr
+datastream.iws
+out/

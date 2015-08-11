@@ -1,0 +1,2 @@
+include 'datastream-client',
+        'datastream-avro'

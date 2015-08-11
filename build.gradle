@@ -1,0 +1,63 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    apply from: file('gradle/buildscript.gradle'), to: buildscript
+}
+
+
+apply from: file('gradle/license.gradle')
+apply from: file('gradle/environment.gradle')
+apply from: file("gradle/dependency-versions.gradle")
+
+allprojects {
+    group = "com.github.datastream"
+
+    apply plugin: 'eclipse'
+    apply plugin: 'idea'
+    apply plugin: 'project-report'
+
+    idea {
+      project {
+        languageLevel = '1.8'
+      }
+    }
+
+  repositories {
+        mavenCentral()
+        mavenLocal()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    dependencies {
+        compile "log4j:log4j:$log4jVersion"
+        compile "org.slf4j:slf4j-api:$slf4jVersion"
+        compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
+        testCompile "junit:junit:$junitVersion"
+    }
+}
+
+project(':datastream-avro') {
+    dependencies {
+        compile "org.apache.avro:avro:$avroVersion"
+    }
+}
+
+
+project(':datastream-client') {
+    dependencies {
+        compile "com.google.guava:guava:$guavaVersion"
+        compile "com.codahale.metrics:metrics-core:$metricsVersion"
+        compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+        compile "commons-codec:commons-codec:$commonsVersion"
+        compile "org.json:json:$jsonVersion"
+        compile "org.apache.avro:avro:$avroVersion"
+        compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
+        compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+
+        compile project(':datastream-avro')
+    }
+}
