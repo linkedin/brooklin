@@ -3,7 +3,7 @@ Datastream is a framework for change data capture system built on top of kafka. 
 
 ## Documentation
 
-Check out the datastream documentation at <http://go/datastream/>
+Check out the datastream documentation at <http://go/datastream>
 
 ## Getting Started
 
@@ -13,7 +13,7 @@ To Build datastream, you need to build kafka first.
 
 #### Building and publishing kafka 
 
-Please follow the instructions at <https://github.com/apache/kafka/blob/trunk/README.md/> to clone and build kafka on your local machine. Once kafka is built, you can publish the kafka binaires to local maven repository by running 
+Please follow the instructions at <https://github.com/apache/kafka/blob/trunk/README.md> to clone and build kafka on your local machine. Once kafka is built, you can publish the kafka binaires to local maven repository by running 
 
 ```shell
 ./gradlew install 
@@ -35,4 +35,10 @@ You can release the datastream binaries into local maven repository by running
 ```shell
 ./gradlew publishToMavenLocal
 ```
+
+### Contributing and submitting patches
+
+Contributions are accepted in the form of pull requests, please use this <https://help.github.com/articles/using-pull-requests/> on how to submit the pull request. 
+
+Before you submit the pull request, ensure that your changes in your fork builds and tests run with the latest changes from upstream. To sync the changes from the main repository into your fork you can follow the instructions here <https://help.github.com/articles/syncing-a-fork/>
 
