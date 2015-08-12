@@ -1,7 +1,7 @@
 package com.linkedin.datastream;
 
 /**
- * Created by spunuru on 8/11/15.
+ * Datastream REST Client
  */
 public class DatastreamRestClient {
 

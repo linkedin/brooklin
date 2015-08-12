@@ -36,3 +36,9 @@ You can release the datastream binaries into local maven repository by running
 ./gradlew publishToMavenLocal
 ```
 
+### Contributing and submitting patches
+
+Contributions are accepted in the form of pull requests, please use this <https://help.github.com/articles/using-pull-requests/> on how to submit the pull request. 
+
+Before you submit the pull request, ensure that your changes in your fork builds and tests run with the latest changes from upstream. To sync the changes from the main repository into your fork you can follow the instructions here <https://help.github.com/articles/syncing-a-fork/>
+
