@@ -9,18 +9,6 @@ Check out the datastream documentation at <http://go/datastream>
 
 ### Building
 
-To Build datastream, you need to build kafka first.
-
-#### Building and publishing kafka 
-
-Please follow the instructions at <https://github.com/apache/kafka/blob/trunk/README.md> to clone and build kafka on your local machine. Once kafka is built, you can publish the kafka binaires to local maven repository by running 
-
-```shell
-./gradlew install 
-```
-
-Once the kafka binaries are published. 
-
 #### Building and publishing Datastream
 
 Clone the datastream repository into /path/to/Datastream/localrepo and run the following commands
@@ -35,6 +23,16 @@ You can release the datastream binaries into local maven repository by running
 ```shell
 ./gradlew publishToMavenLocal
 ```
+
+### Developing using Idea
+
+You can use intellij for developing datastream. You can build the intellij project files by running
+
+```shell
+./gradlew idea
+```
+
+Once the intellij project files (*.ipr) are created, You can open them using Intellij and Start developing.
 
 ### Contributing and submitting patches
 
