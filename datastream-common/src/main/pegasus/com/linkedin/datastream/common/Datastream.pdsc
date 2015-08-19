@@ -1,0 +1,41 @@
+{
+        "type": "record",
+        "name": "Datastream",
+        "namespace": "com.linkedin.datastream.common",
+        "doc": "Extensible data model of Datastream",
+        "fields": [
+                {
+                        "name": "name",
+                        "doc": "This is the name of the Datastream.",
+                        "type": "string"
+                },
+                {
+                        "name": "connectorType",
+                        "doc": "Type of the connector to be used for reading the real time change capture events from the source, e.g. Oracle, Espresso, Mysql etc..",
+                        "type": "string"
+                },
+                {
+                        "name": "connectionString",
+                        "doc": "Connection string that connector can use to connect to the database.",
+                        "type": "string"
+                },
+                {
+                        "name": "topicName",
+                        "doc": "Name of the topic to be used for writing the change capture events. Populated by connector",
+                        "type": "string",
+                        "optional": true
+                },
+                {
+                        "name": "kafkaMetadataBrokers",
+                        "doc": "Comma separated list of kafka metadata brokers in which the output topic needs to be written. Populated by connector",
+                        "type": "string",
+                        "optional": true
+                },
+                {
+                        "name": "owner",
+                        "doc": "Owner of the Datastream.",
+                        "type": "string",
+                        "optional": true
+                }
+        ]
+}

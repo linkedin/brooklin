@@ -1,10 +1,4 @@
-package com.linkedin.datastream.avro;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
-import java.nio.ByteBuffer;
+package com.linkedin.datastream.common;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
@@ -19,6 +13,9 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 
 /**
@@ -52,7 +49,7 @@ public class AvroUtils {
    * @param eventBytes
    * @param <T>
    * @return
-   * @throws IOException
+   * @throws java.io.IOException
    */
   public static <T> T decodeAvroSpecificRecord(Class<T> cls, byte[] eventBytes) throws IOException {
     DatumReader<T> reader = new SpecificDatumReader<T>(cls);
