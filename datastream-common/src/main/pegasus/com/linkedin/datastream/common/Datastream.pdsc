@@ -15,26 +15,37 @@
                         "type": "string"
                 },
                 {
-                        "name": "connectionString",
-                        "doc": "Connection string that connector can use to connect to the database.",
+                        "name": "source",
+                        "doc": "Source string that connector can use to properly connect to the database.",
                         "type": "string"
                 },
                 {
-                        "name": "topicName",
-                        "doc": "Name of the topic to be used for writing the change capture events. Populated by connector",
-                        "type": "string",
-                        "optional": true
+                        "name": "target",
+                        "doc": "Target kafka cluster and topic connector will use for this Datastream. Will be populated by connector by default.",
+                        "optional": true,
+                        "type": [
+                                {
+                                        "type": "record",
+                                        "name": "KafkaConnection",
+                                        "fields": [
+                                                {
+                                                        "name": "topicName",
+                                                        "doc": "Name of the kafka topic.",
+                                                        "type": "string"
+                                                },
+                                                {
+                                                        "name": "kafkaMetadataBrokers",
+                                                        "doc": "Comma separated list of kafka metadata brokers.",
+                                                        "type": "string"
+                                                }
+                                        ]
+                                }
+                        ]
                 },
                 {
-                        "name": "kafkaMetadataBrokers",
-                        "doc": "Comma separated list of kafka metadata brokers in which the output topic needs to be written. Populated by connector",
-                        "type": "string",
-                        "optional": true
-                },
-                {
-                        "name": "owner",
-                        "doc": "Owner of the Datastream.",
-                        "type": "string",
+                        "name": "metadata",
+                        "doc": "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user-defined name/value pair.",
+                        "type": { "type": "map", "values": "string"},
                         "optional": true
                 }
         ]
