@@ -1,14 +1,13 @@
+apply from: file('gradle/license.gradle')
+apply from: file('gradle/environment.gradle')
+apply from: file("gradle/dependency-versions.gradle")
+
 buildscript {
     repositories {
         mavenCentral()
     }
     apply from: file('gradle/buildscript.gradle'), to: buildscript
 }
-
-
-apply from: file('gradle/license.gradle')
-apply from: file('gradle/environment.gradle')
-apply from: file("gradle/dependency-versions.gradle")
 
 allprojects {
     group = "com.github.datastream"
@@ -40,12 +39,32 @@ subprojects {
     }
 }
 
-project(':datastream-avro') {
+project(':datastream-common') {
+    apply plugin: 'pegasus'
+
+    spec = [
+            'product' : [
+                    'pegasus' : [
+                            'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
+                            'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
+                            'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
+                    ]
+            ]
+    ]
+    afterEvaluate {
+        // add the standard pegasus dependencies wherever the plugin is used
+        dependencies {
+            dataTemplateCompile spec.product.pegasus.data
+            restClientCompile spec.product.pegasus.restliClient
+
+            // needed for Gradle 1.9+
+            restClientCompile spec.product.pegasus.restliCommon
+        }
+    }
     dependencies {
         compile "org.apache.avro:avro:$avroVersion"
     }
 }
-
 
 project(':datastream-client') {
     dependencies {
@@ -58,6 +77,14 @@ project(':datastream-client') {
         compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
         compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
-        compile project(':datastream-avro')
+        compile project(':datastream-common')
+    }
+}
+
+project(':datastream-server') {
+    dependencies {
+        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+
+        compile project(':datastream-common')
     }
 }

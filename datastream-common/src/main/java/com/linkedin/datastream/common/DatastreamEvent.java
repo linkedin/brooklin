@@ -3,7 +3,7 @@
  * 
  * DO NOT EDIT DIRECTLY
  */
-package com.linkedin.datastream.avro;
+package com.linkedin.datastream.common;
 
 @SuppressWarnings("all")
 public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
@@ -11,20 +11,20 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
   /** This is the time the event is sent to Kafka by the KET */
   public long timestamp;
   /** This is the name of the datastream to which the event belongs */
-  public java.lang.CharSequence datastream;
+  public CharSequence datastream;
   /** The database name to which the event belongs */
-  public java.lang.CharSequence database;
+  public CharSequence database;
   /** The partition to which the event belongs */
   public int partition;
   /** The specific table within that partition. */
-  public java.lang.CharSequence table;
+  public CharSequence table;
   /** The system change number (unique, monotonically increasing) that identifies this event */
   public long scn;
   /** A unique identifier to identify this event within a transaction (same SCN) */
   public int part_num;
-  public com.linkedin.datastream.avro.EventOperation operation;
+  public EventOperation operation;
   /** Binary flags set for the event. E.g. if the event is replicated */
-  public java.lang.Integer flags;
+  public Integer flags;
   /** Key encoded in avro */
   public java.nio.ByteBuffer key;
   /** Actual value */
@@ -36,8 +36,8 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
   /** payload schema version */
   public int schema_version;
   public org.apache.avro.Schema getSchema() { return SCHEMA$; }
-  // Used by DatumWriter.  Applications should not call. 
-  public java.lang.Object get(int field$) {
+  // Used by DatumWriter.  Applications should not call.
+  public Object get(int field$) {
     switch (field$) {
     case 0: return timestamp;
     case 1: return datastream;
@@ -56,24 +56,24 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
-  // Used by DatumReader.  Applications should not call. 
+  // Used by DatumReader.  Applications should not call.
   @SuppressWarnings(value="unchecked")
-  public void put(int field$, java.lang.Object value$) {
+  public void put(int field$, Object value$) {
     switch (field$) {
-    case 0: timestamp = (java.lang.Long)value$; break;
-    case 1: datastream = (java.lang.CharSequence)value$; break;
-    case 2: database = (java.lang.CharSequence)value$; break;
-    case 3: partition = (java.lang.Integer)value$; break;
-    case 4: table = (java.lang.CharSequence)value$; break;
-    case 5: scn = (java.lang.Long)value$; break;
-    case 6: part_num = (java.lang.Integer)value$; break;
-    case 7: operation = (com.linkedin.datastream.avro.EventOperation)value$; break;
-    case 8: flags = (java.lang.Integer)value$; break;
+    case 0: timestamp = (Long)value$; break;
+    case 1: datastream = (CharSequence)value$; break;
+    case 2: database = (CharSequence)value$; break;
+    case 3: partition = (Integer)value$; break;
+    case 4: table = (CharSequence)value$; break;
+    case 5: scn = (Long)value$; break;
+    case 6: part_num = (Integer)value$; break;
+    case 7: operation = (EventOperation)value$; break;
+    case 8: flags = (Integer)value$; break;
     case 9: key = (java.nio.ByteBuffer)value$; break;
     case 10: payload = (java.nio.ByteBuffer)value$; break;
     case 11: previous_payload = (java.nio.ByteBuffer)value$; break;
-    case 12: event_timestamp = (java.lang.Long)value$; break;
-    case 13: schema_version = (java.lang.Integer)value$; break;
+    case 12: event_timestamp = (Long)value$; break;
+    case 13: schema_version = (Integer)value$; break;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }

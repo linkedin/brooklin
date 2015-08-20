@@ -10,4 +10,5 @@ ext {
     jacksonVersion = "1.8.5"
     avroVersion = "1.4.0"
     guavaVersion = "15.0"
+    pegasusVersion= "1.15.4"
 }

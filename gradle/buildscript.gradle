@@ -9,4 +9,5 @@ repositories {
 
 dependencies {
     classpath 'nl.javadude.gradle.plugins:license-gradle-plugin:0.6.1'
+    classpath 'com.linkedin.pegasus:gradle-plugins:1.15.4'
 }

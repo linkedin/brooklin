@@ -1,5 +1,7 @@
 package com.linkedin.datastream;
 
+import com.linkedin.datastream.common.Datastream;
+
 /**
  * Datastream REST Client
  */

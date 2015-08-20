@@ -5,7 +5,7 @@ import java.util.Map;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 
-import com.linkedin.datastream.avro.DatastreamEvent;
+import com.linkedin.datastream.common.DatastreamEvent;
 
 
 /**
