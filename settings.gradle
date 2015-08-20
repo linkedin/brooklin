@@ -1,2 +1,3 @@
-include 'datastream-client',
-        'datastream-avro'
+include 'datastream-common'
+include 'datastream-client'
+include 'datastream-server'

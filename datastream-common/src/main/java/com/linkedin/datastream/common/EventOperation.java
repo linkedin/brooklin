@@ -3,7 +3,7 @@
  * 
  * DO NOT EDIT DIRECTLY
  */
-package com.linkedin.datastream.avro;
+package com.linkedin.datastream.common;
 
 @SuppressWarnings("all")
 public enum EventOperation { 
