@@ -1,7 +1,9 @@
+gradlew.bat
 build/
 *classes
 .gradle/
 *.iml
 datastream.ipr
 datastream.iws
+datastream-common/src/mainGeneratedDataTemplate/
 out/
