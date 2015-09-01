@@ -18,11 +18,12 @@ allprojects {
 
     idea {
       project {
+        jdkName = '1.8'
         languageLevel = '1.8'
       }
     }
 
-  repositories {
+    repositories {
         mavenCentral()
         mavenLocal()
     }
@@ -31,10 +32,34 @@ allprojects {
 subprojects {
     apply plugin: 'java'
 
+    test {
+        useTestNG()
+
+        beforeTest { descriptor ->
+            logger.lifecycle("Running test: " + descriptor)
+        }
+
+        onOutput { descriptor, event ->
+            logger.lifecycle("Test: " + descriptor + " produced standard out/err: " + event.message )
+        }
+
+        afterTest { test, result ->
+            logger.lifecycle("testFinished: $test, result: $result.resultType")
+        }      
+
+        //all standard error messages from tests will get routed to 'DEBUG' level messages.
+        logging.captureStandardError(LogLevel.DEBUG)
+        //all standard output messages from tests will get routed to 'DEBUG' level messages.
+        logging.captureStandardOutput(LogLevel.DEBUG)
+
+        maxParallelForks = 10
+    }
+
     dependencies {
         compile "log4j:log4j:$log4jVersion"
         compile "org.slf4j:slf4j-api:$slf4jVersion"
         compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
+        testCompile "org.testng:testng:$testngVersion"
         testCompile "junit:junit:$junitVersion"
     }
 }
@@ -63,6 +88,7 @@ project(':datastream-common') {
     }
     dependencies {
         compile "org.apache.avro:avro:$avroVersion"
+        compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     }
 }
 
@@ -84,7 +110,8 @@ project(':datastream-client') {
 project(':datastream-server') {
     dependencies {
         compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-
+        compile "com.101tec:zkclient:$zkclientVersion"
+        
         compile project(':datastream-common')
     }
 }

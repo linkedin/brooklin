@@ -9,13 +9,20 @@ Check out the datastream documentation at <http://go/datastream>
 
 ### Building
 
-#### Building and publishing Datastream
+#### Building, testing and publishing Datastream
 
 Clone the datastream repository into /path/to/Datastream/localrepo and run the following commands
 
 ```shell
 cd /path/to/Datastream/localrepo
 ./gradlew clean build
+```
+
+To run unit tests:
+
+```shell
+cd /path/to/Datastream/localrepo
+./gradlew test
 ```
 
 You can release the datastream binaries into local maven repository by running 
