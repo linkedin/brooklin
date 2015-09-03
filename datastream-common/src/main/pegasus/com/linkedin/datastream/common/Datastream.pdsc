@@ -28,7 +28,7 @@
                                         "name": "KafkaConnection",
                                         "fields": [
                                                 {
-                                                        "name": "topicName",
+                                                        "name": "target",
                                                         "doc": "Name of the kafka topic.",
                                                         "type": "string"
                                                 },
