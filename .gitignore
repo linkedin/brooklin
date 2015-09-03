@@ -5,5 +5,4 @@ build/
 *.iml
 datastream.ipr
 datastream.iws
-datastream-common/src/mainGeneratedDataTemplate/
 out/
