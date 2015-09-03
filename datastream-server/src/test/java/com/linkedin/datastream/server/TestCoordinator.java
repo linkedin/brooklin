@@ -22,6 +22,7 @@ package com.linkedin.datastream.server;
 import java.io.IOException;
 import java.util.List;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import org.apache.log4j.Logger;
@@ -73,6 +74,11 @@ public class TestCoordinator {
         @Override
         public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
 
+        }
+
+        @Override
+        public DatastreamTarget getDatastreamTarget(Datastream stream) {
+            return null;
         }
 
         @Override
