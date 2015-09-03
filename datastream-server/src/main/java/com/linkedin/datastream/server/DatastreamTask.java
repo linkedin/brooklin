@@ -49,4 +49,8 @@ public class DatastreamTask {
     public String getConnectorType() {
         return _connectorType;
     }
+
+    public List<Datastream> getDatastreams() {
+        return _streams;
+    }
 }

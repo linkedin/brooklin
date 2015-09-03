@@ -19,6 +19,5 @@ package com.linkedin.datastream.server;
  * under the License.
  */
 
-public class DatastreamContext {
-
+public interface DatastreamContext {
 }
