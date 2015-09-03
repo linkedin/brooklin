@@ -20,33 +20,62 @@ package com.linkedin.datastream.server;
  */
 
 import com.linkedin.datastream.common.Datastream;
-import org.apache.log4j.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class DatastreamTask {
 
-    private static final Logger LOG = Logger.getLogger(Coordinator.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
 
-    // connector type. Type of the connector to be used for reading the change capture events
-    // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
-    // Mysql-Change etc..
-    // All datastreams wrapped in one assignable DatastreamTask must belong to the same connector type.
-    private String _connectorType;
+  // connector type. Type of the connector to be used for reading the change capture events
+  // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
+  // Mysql-Change etc..
+  // All datastreams wrapped in one assignable DatastreamTask must belong to the same connector type.
+  private String _connectorType;
 
-    private List<Datastream> _streams = new ArrayList<>();
+  private List<DatastreamChannel> _streams = new ArrayList<>();
 
-    public DatastreamTask() {
+  /**
+   * Simple class pairing the Datastream with its channel
+   */
+  public static class DatastreamChannel {
+    private final Datastream _datastream;
+    private final DatastreamWritableChannel _channel;
 
+    public DatastreamChannel(Datastream stream, DatastreamWritableChannel channel) {
+      _datastream = stream;
+      _channel = channel;
     }
 
-    public DatastreamTask(Datastream datastream) {
-        _streams.add(datastream);
-        _connectorType = datastream.getConnectorType();
+    public DatastreamWritableChannel getChannel() {
+      return _channel;
     }
 
-    public String getConnectorType() {
-        return _connectorType;
+    public Datastream getDatastream() {
+      return _datastream;
     }
+  }
+
+  public void addStream(Datastream datastream, DatastreamWritableChannel channel) {
+    if (_connectorType == null) {
+      _connectorType = datastream.getConnectorType();
+    } else if (_connectorType != datastream.getConnectorType()) {
+      LOG.error(String.format("Adding %s datastream into % task",
+        datastream.getConnectorType(), _connectorType));
+      throw new IllegalArgumentException();
+    }
+      _streams.add(new DatastreamChannel(datastream, channel));
+  }
+
+  public String getConnectorType() {
+      return _connectorType;
+  }
+
+  public List<DatastreamChannel> getDatastreamChannels() {
+      return _streams;
+  }
 }
