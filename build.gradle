@@ -65,7 +65,7 @@ subprojects {
 }
 
 project(':datastream-common') {
-    apply plugin: 'pegasus'
+    // apply plugin: 'pegasus'
 
     spec = [
             'product' : [
@@ -76,7 +76,8 @@ project(':datastream-common') {
                     ]
             ]
     ]
-    afterEvaluate {
+    // comment this out so the java files don't get auto-generated every time
+    /* afterEvaluate {
         // add the standard pegasus dependencies wherever the plugin is used
         dependencies {
             dataTemplateCompile spec.product.pegasus.data
@@ -85,10 +86,11 @@ project(':datastream-common') {
             // needed for Gradle 1.9+
             restClientCompile spec.product.pegasus.restliCommon
         }
-    }
+    } */
     dependencies {
         compile "org.apache.avro:avro:$avroVersion"
         compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     }
 }
 
@@ -108,10 +110,23 @@ project(':datastream-client') {
 }
 
 project(':datastream-server') {
+    apply plugin: 'pegasus'
+
+    ext.commonProject = project(':datastream-common')
+
     dependencies {
         compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+        compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
         compile "com.101tec:zkclient:$zkclientVersion"
-        
+
         compile project(':datastream-common')
+    }
+
+    // For test or experiment purpose
+    task startStandaloneRestServer(type: JavaExec) {
+        main = 'com.linkedin.restli.server.NettyStandaloneLauncher'
+        args = ['-port', '8080', '-packages', 'com.linkedin.datastream.server.dms']
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
     }
 }

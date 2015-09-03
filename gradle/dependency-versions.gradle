@@ -10,7 +10,7 @@ ext {
     jacksonVersion = "1.8.5"
     avroVersion = "1.4.0"
     guavaVersion = "15.0"
-    pegasusVersion= "1.15.4"
+    pegasusVersion = "2.6.0"
     zkclientVersion = "0.3"
     zookeeperVersion = "3.4.6"
     testngVersion = "6.4"
