@@ -19,6 +19,8 @@ package com.linkedin.datastream.server;
  * under the License.
  */
 
+import com.linkedin.datastream.common.Datastream;
+
 import java.util.List;
 
 public interface Connector {
@@ -29,4 +31,13 @@ public interface Connector {
     String getConnectorType();
 
     void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks);
+
+    /**
+     * Returns a concrete DatastreamTarget to assist the
+     * Coordinator to set up the target for the Datastream.
+     *
+     * @param stream: Datastream instance the Coordinator is dealing with
+     * @return a concrete DatastreamTarget
+     */
+    DatastreamTarget getDatastreamTarget(Datastream stream);
 }
