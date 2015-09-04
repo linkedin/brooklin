@@ -16,14 +16,15 @@ import com.linkedin.data.template.SetMode;
  * 
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/halu/work/datastream/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Tue Sep 01 23:38:46 PDT 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Sep 04 16:17:04 PDT 2015")
 public class KafkaConnection
     extends RecordTemplate
 {
 
-    private final static Fields _fields = new Fields();
-    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"KafkaConnection\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}"));
+    private final static KafkaConnection.Fields _fields = new KafkaConnection.Fields();
+    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"KafkaConnection\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}"));
     private final static RecordDataSchema.Field FIELD_TopicName = SCHEMA.getField("topicName");
+    private final static RecordDataSchema.Field FIELD_Partitions = SCHEMA.getField("partitions");
     private final static RecordDataSchema.Field FIELD_MetadataBrokers = SCHEMA.getField("metadataBrokers");
 
     public KafkaConnection() {
@@ -34,14 +35,14 @@ public class KafkaConnection
         super(data, SCHEMA);
     }
 
-    public static Fields fields() {
+    public static KafkaConnection.Fields fields() {
         return _fields;
     }
 
     /**
      * Existence checker for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public boolean hasTopicName() {
         return contains(FIELD_TopicName);
@@ -50,7 +51,7 @@ public class KafkaConnection
     /**
      * Remover for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public void removeTopicName() {
         remove(FIELD_TopicName);
@@ -59,7 +60,7 @@ public class KafkaConnection
     /**
      * Getter for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public String getTopicName(GetMode mode) {
         return obtainDirect(FIELD_TopicName, String.class, mode);
@@ -68,7 +69,7 @@ public class KafkaConnection
     /**
      * Getter for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public String getTopicName() {
         return getTopicName(GetMode.STRICT);
@@ -77,7 +78,7 @@ public class KafkaConnection
     /**
      * Setter for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public KafkaConnection setTopicName(String value, SetMode mode) {
         putDirect(FIELD_TopicName, String.class, String.class, value, mode);
@@ -87,7 +88,7 @@ public class KafkaConnection
     /**
      * Setter for topicName
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#topicName
+     * @see Fields#topicName
      */
     public KafkaConnection setTopicName(String value) {
         putDirect(FIELD_TopicName, String.class, String.class, value, SetMode.DISALLOW_NULL);
@@ -95,9 +96,75 @@ public class KafkaConnection
     }
 
     /**
+     * Existence checker for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public boolean hasPartitions() {
+        return contains(FIELD_Partitions);
+    }
+
+    /**
+     * Remover for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public void removePartitions() {
+        remove(FIELD_Partitions);
+    }
+
+    /**
+     * Getter for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public Integer getPartitions(GetMode mode) {
+        return obtainDirect(FIELD_Partitions, Integer.class, mode);
+    }
+
+    /**
+     * Getter for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public Integer getPartitions() {
+        return getPartitions(GetMode.STRICT);
+    }
+
+    /**
+     * Setter for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public KafkaConnection setPartitions(Integer value, SetMode mode) {
+        putDirect(FIELD_Partitions, Integer.class, Integer.class, value, mode);
+        return this;
+    }
+
+    /**
+     * Setter for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public KafkaConnection setPartitions(Integer value) {
+        putDirect(FIELD_Partitions, Integer.class, Integer.class, value, SetMode.DISALLOW_NULL);
+        return this;
+    }
+
+    /**
+     * Setter for partitions
+     * 
+     * @see Fields#partitions
+     */
+    public KafkaConnection setPartitions(int value) {
+        putDirect(FIELD_Partitions, Integer.class, Integer.class, value, SetMode.DISALLOW_NULL);
+        return this;
+    }
+
+    /**
      * Existence checker for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public boolean hasMetadataBrokers() {
         return contains(FIELD_MetadataBrokers);
@@ -106,7 +173,7 @@ public class KafkaConnection
     /**
      * Remover for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public void removeMetadataBrokers() {
         remove(FIELD_MetadataBrokers);
@@ -115,7 +182,7 @@ public class KafkaConnection
     /**
      * Getter for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public String getMetadataBrokers(GetMode mode) {
         return obtainDirect(FIELD_MetadataBrokers, String.class, mode);
@@ -124,7 +191,7 @@ public class KafkaConnection
     /**
      * Getter for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public String getMetadataBrokers() {
         return getMetadataBrokers(GetMode.STRICT);
@@ -133,7 +200,7 @@ public class KafkaConnection
     /**
      * Setter for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public KafkaConnection setMetadataBrokers(String value, SetMode mode) {
         putDirect(FIELD_MetadataBrokers, String.class, String.class, value, mode);
@@ -143,7 +210,7 @@ public class KafkaConnection
     /**
      * Setter for metadataBrokers
      * 
-     * @see com.linkedin.datastream.common.KafkaConnection.Fields#metadataBrokers
+     * @see Fields#metadataBrokers
      */
     public KafkaConnection setMetadataBrokers(String value) {
         putDirect(FIELD_MetadataBrokers, String.class, String.class, value, SetMode.DISALLOW_NULL);
@@ -183,6 +250,14 @@ public class KafkaConnection
          */
         public PathSpec topicName() {
             return new PathSpec(getPathComponents(), "topicName");
+        }
+
+        /**
+         * Number of partitions of the kafka topic.
+         * 
+         */
+        public PathSpec partitions() {
+            return new PathSpec(getPathComponents(), "partitions");
         }
 
         /**
