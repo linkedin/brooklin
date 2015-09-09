@@ -1,33 +1,15 @@
 package com.linkedin.datastream.server.zk;
 
-/*
- *
- * Copyright 2015 LinkedIn Corp. All rights reserved
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
-
 import java.io.IOException;
 import java.util.List;
 
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.IZkStateListener;
-import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Watcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -37,7 +19,7 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 public class TestZkClient {
-  private static final Logger logger = Logger.getLogger(TestZkClient.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(TestZkClient.class.getName());
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -180,13 +162,18 @@ public class TestZkClient {
     Assert.assertTrue(l.childChanged);
 
     // now write some content to the node
-    zkClient2.writeData(znodePath, "come text");
+    String textContent = "some content";
+    zkClient2.writeData(znodePath, textContent);
+
 
     // wait for a second so the callback can finish
     Thread.sleep(1000);
 
     // now the data changed should have been called
     Assert.assertTrue(l.dataChanged);
+
+    String result = zkClient2.readData(znodePath);
+    Assert.assertEquals(result, textContent);
 
     zkClient.close();
     zkClient2.close();
@@ -247,5 +234,24 @@ public class TestZkClient {
 
     zkClient1.close();
     zkClient2.close();
+  }
+
+  /**
+   * make sure special symbols like dots can be in the znode names
+   * @throws Exception
+   */
+  @Test
+  public void testDotsInZnodeName() throws Exception {
+    String path = "/testDotsInZnodeName";
+    String path1 = path + "/yi.computer";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    zkClient.ensurePath(path);
+    zkClient.create(path1, "abc", CreateMode.PERSISTENT);
+
+    // read back
+    String content = zkClient.readData(path1);
+    Assert.assertEquals(content, "abc");
+
+    zkClient.close();
   }
 }

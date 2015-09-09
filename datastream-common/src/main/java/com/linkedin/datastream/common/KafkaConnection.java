@@ -156,10 +156,10 @@ public class KafkaConnection
      * 
      * @see Fields#partitions
      */
-    public KafkaConnection setPartitions(int value) {
-        putDirect(FIELD_Partitions, Integer.class, Integer.class, value, SetMode.DISALLOW_NULL);
-        return this;
-    }
+    // public KafkaConnection setPartitions(int value) {
+    //     putDirect(FIELD_Partitions, Integer.class, Integer.class, value, SetMode.DISALLOW_NULL);
+    //     return this;
+    // }
 
     /**
      * Existence checker for metadataBrokers

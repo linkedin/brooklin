@@ -1,35 +1,30 @@
 package com.linkedin.datastream.server;
 
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import com.linkedin.datastream.common.Datastream;
-
 import java.util.List;
 
 public interface Connector {
+    /**
+     * Method to start the connector. This is called immediately after the connector is instantiated.
+     * This typically happens when datastream instance starts up.
+     */
     void start();
 
+    /**
+     * Method to stop the connector. This is called when the datastream instance is being stopped.
+     */
     void stop();
 
     String getConnectorType();
 
+    /**
+     * callback when the datastreams assignment to this instance is changed. This is called whenver
+     * there is a change for the assignment. The implementation of the Connector is responsible
+     * to keep a state of the previous assignment.
+     *
+     * @param context context information including producer
+     * @param tasks the list of the current assignment.
+     */
     void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks);
 
     /**

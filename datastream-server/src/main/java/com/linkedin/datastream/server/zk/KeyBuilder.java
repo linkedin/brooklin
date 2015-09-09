@@ -1,38 +1,53 @@
 package com.linkedin.datastream.server.zk;
 
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 public class KeyBuilder {
-    private static final String cluster ="/%s";
-    private static final String _liveInstances = "/%s/instances";
-    private static final String liveInstancePath = "/%s/instances/%s";
+    private static final String _cluster ="/%s";
+    private static final String _liveInstances = "/%s/liveinstances";
+    private static final String _liveInstance = "/%s/liveinstances/%s";
+    private static final String _instances = "/%s/instances";
+    private static final String _instance = "/%s/instances/%s";
+    private static final String _instanceTask = "/%s/instances/%s/%s";
+    private static final String _datastreams = "/%s/datastream";
+    private static final String _datastream = "/%s/datastream/%s";
+    private static final String _datastreamTask = "/%s/instances/%s/%s";
+    private static final String _connector = "/%s/%s";
+    private static final String _connectorDatastreamTask = "/%s/%s/%s";
 
-    static String cluster(String clusterName) {
-        return String.format(cluster, clusterName);
+    public static String cluster(String clusterName) {
+        return String.format(_cluster, clusterName);
+    }
+    public static String liveInstances(String cluster) { return String.format(_liveInstances, cluster); }
+    public static String liveInstance(String cluster, String instance) { return String.format(_liveInstance, cluster, instance); }
+
+    public static String instances(String cluster) {
+        return String.format(_instances, cluster);
+    }
+    public static String instance(String cluster, String instanceName) {
+        return String.format(_instance, cluster, instanceName);
     }
 
-    static String instances(String cluster) {
-        return String.format(_liveInstances, cluster);
+    public static String instanceTask(String cluster, String instance, String task) {
+        return String.format(_instanceTask, cluster, instance, task);
     }
 
-    static String instance(String cluster, String instanceName) {
-        return String.format(liveInstancePath, cluster, instanceName);
+    public static String datastreams(String cluster) {
+        return String.format(_datastreams, cluster);
     }
+
+    public static String datastream(String cluster, String stream) {
+        return String.format(_datastream, cluster, stream);
+    }
+
+    public static String datastreamTask(String cluster, String instance, String name) {
+        return String.format(_datastreamTask, cluster, instance, name);
+    }
+
+    public static String connector(String cluster, String connectorType) {
+        return String.format(_connector, cluster, connectorType);
+    }
+
+    public static String connectorTask(String cluster, String connectorType, String task) {
+        return String.format(_connectorDatastreamTask, cluster, connectorType, task);
+    }
+
 }
