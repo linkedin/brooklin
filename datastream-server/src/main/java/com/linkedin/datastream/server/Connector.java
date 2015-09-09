@@ -19,6 +19,8 @@ package com.linkedin.datastream.server;
  * under the License.
  */
 
+import com.linkedin.datastream.common.Datastream;
+
 import java.util.List;
 
 public interface Connector {
@@ -29,4 +31,13 @@ public interface Connector {
     String getConnectorType();
 
     void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks);
+
+    /**
+     * Provides a DatastreamTarget object with information of downstream
+     * Kafka topic to which the connector will be producing change events.
+     *
+     * @param stream: Datastream model
+     * @return populated DatastreamTarget
+     */
+    DatastreamTarget getDatastreamTarget(Datastream stream);
 }

@@ -33,6 +33,11 @@
                                                         "type": "string"
                                                 },
                                                 {
+                                                        "name": "partitions",
+                                                        "doc": "Number of partitions of the kafka topic.",
+                                                        "type": "int"
+                                                },
+                                                {
                                                         "name": "metadataBrokers",
                                                         "doc": "Comma separated list of kafka metadata brokers.",
                                                         "type": "string"
