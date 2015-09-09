@@ -82,6 +82,11 @@ public class TestCoordinator {
         }
 
         @Override
+        public DatastreamValidationResult validateDatastream(Datastream stream) {
+            return new DatastreamValidationResult();
+        }
+
+        @Override
         public String getConnectorType() {
             return "TestConnector";
         }

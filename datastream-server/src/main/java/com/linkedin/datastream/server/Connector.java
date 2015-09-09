@@ -40,4 +40,12 @@ public interface Connector {
      * @return populated DatastreamTarget
      */
     DatastreamTarget getDatastreamTarget(Datastream stream);
+
+    /**
+     * Validate the datastream. Datastream management service call this before writing the
+     * Datastream into zookeeper. DMS ensureS that stream.source has sufficient details.
+     * @param stream: Datastream model
+     * @return validation result
+     */
+    DatastreamValidationResult validateDatastream(Datastream stream);
 }
