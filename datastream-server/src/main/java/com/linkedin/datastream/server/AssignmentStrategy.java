@@ -1,31 +1,33 @@
 package com.linkedin.datastream.server;
 
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import java.util.List;
 import java.util.Map;
 
 import com.linkedin.datastream.common.Datastream;
 
 public interface AssignmentStrategy {
+    /**
+     * assign a list of datastreams to a list of instances, and return a map from instances-> list of streams.
+     * Each connector is associated with one implementation of the AssignmentStrategy, and it is only called
+     * by the Coordinator Leader.
+     *
+     * <p>The <i>assign</i> method takes as input the current list of live instances, current list of
+     * Datastreams, and optionally the current assignment, returns a new assignment.
+     *
+     * <p>Note that the output is a map from instance to list of DatastreamTask instead of Datastream.
+     * {@link com.linkedin.datastream.server.DatastreamTask} is the minimum assignable element of Datastream.
+     * This makes it possible to split a Datastream into multiple assignable DatastreamTask so that they
+     * can be assigned to multiple instances, and hence allowing load balancing. For example, the Oracle
+     * bootstrap Datastream can be splitted into multiple instances of DatastreamTask, one per partition,
+     * if the bootstrap files are hosted on HDFS. This allows the concurrent processing of the partitions
+     * to maximize the network IO.
+     *
+     * @param datastreams all data streams defined in Datastream Management Service to be assigned
+     * @param instances all live instances
+     * @param currentAssignment existing assignment
+     * @return
+     */
     Map<String, List<DatastreamTask>> assign(List<Datastream> datastreams,
-                                                    List<String> instances, 
-                                                    Map<String, List<DatastreamTask>> currentAssignment);
+                                             List<String> instances,
+                                             Map<String, List<DatastreamTask>> currentAssignment);
 }

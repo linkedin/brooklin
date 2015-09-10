@@ -15,7 +15,7 @@ Clone the datastream repository into /path/to/Datastream/localrepo and run the f
 
 ```shell
 cd /path/to/Datastream/localrepo
-./gradlew clean build
+./gradlew clean assemble
 ```
 
 To run unit tests:

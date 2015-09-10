@@ -1,24 +1,5 @@
 package com.linkedin.datastream.server.zk;
 
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
@@ -32,9 +13,10 @@ import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.I0Itec.zkclient.exception.ZkMarshallingError;
 import org.I0Itec.zkclient.exception.ZkNoNodeException;
 import org.I0Itec.zkclient.serialize.ZkSerializer;
-import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ZKClient is a wrapper of sgroschupf/zkclient. It provides the following
@@ -45,7 +27,7 @@ import org.apache.zookeeper.data.Stat;
  */
 
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
-  private static Logger LOG = Logger.getLogger(ZkClient.class);
+  private static Logger LOG = LoggerFactory.getLogger(ZkClient.class);
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   private ZkSerializer _zkSerializer = new ZKStringSerializer();
@@ -342,7 +324,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       try {
         ret = ((String)data).getBytes("UTF-8");
       } catch (UnsupportedEncodingException e) {
-        LOG.error(e);
+        LOG.error(e.getMessage());
       }
       return ret;
     }
@@ -354,7 +336,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
         try {
           data = new String(bytes, "UTF-8");
         } catch (UnsupportedEncodingException e) {
-          LOG.error(e);
+          LOG.error(e.getMessage());
         }
       }
       return data;
