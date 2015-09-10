@@ -24,7 +24,7 @@ import org.apache.zookeeper.CreateMode;
  * │                     │          │                     ZkAdapter                     │
  * │- cluster            │          │                                                   │
  * │  |- instances       │          │┌───────────────────────────────────┐    ┌─────────┤
- * │  |  |- i001         │┌─────────┼▶  ZkBackedInstanceAssignmentList   │    │         │   ┌────────────────┐
+ * │  |  |- i001         │┌─────────┼▶  ZkBackedTaskListProvider         │    │         │   ┌────────────────┐
  * │  |  |- i002         ││         │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
  * │  |         ─────────┼┘         │┌───────────────────────────────────┐    │         │   └────────────────┘
  * │  |- liveinstances ──┼──────────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
@@ -58,9 +58,15 @@ import org.apache.zookeeper.CreateMode;
  *
  *     <li>Notify the observers. ZkAdapter will trigger the {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkAdapterListener}
  *     callbacks based on the current state. The {@link com.linkedin.datastream.server.Coordinator} implements
- *     this interface so it can take approviate actions.
+ *     this interface so it can take appropriate actions.
  *     </li>
  * </ul>
+ *
+ * <p>The ZK backed data providers cache the data read from the corresponding zookeeper nodes so they can be accessed
+ * without reading zookeeper frequently. These providers also set up the watch on these nodes so it can be notified
+ * when the data changes. For example {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
+ * provide the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
+ * znode /{cluster}/instances/{instanceName} for children changes, and automatically refresh the cached values.
  *
  * @see com.linkedin.datastream.server.Coordinator
  * @see ZkClient
@@ -88,7 +94,7 @@ public class ZkAdapter {
 
     // only the leader should maintain this list
     private ZkBackedDMSDatastreamList _datastreamList = null;
-    private ZkBackedInstanceAssignmentList _assignmentList = null;
+    private ZkBackedTaskListProvider _assignmentList = null;
     private ZkBackedDatastreamTasksMap _datastreamMap = null;
 
     private List<String> _instances;
@@ -160,7 +166,7 @@ public class ZkAdapter {
         joinLeaderElection();
 
         // both leader and follower needs to listen to its own instance change
-        _assignmentList = new ZkBackedInstanceAssignmentList();
+        _assignmentList = new ZkBackedTaskListProvider();
         // each instance will need the full map of all datastream tasks
         _datastreamMap = new ZkBackedDatastreamTasksMap();
 
@@ -551,11 +557,11 @@ public class ZkAdapter {
         }
     }
 
-    public class ZkBackedInstanceAssignmentList implements IZkChildListener {
+    public class ZkBackedTaskListProvider implements IZkChildListener {
         private List<String> _assigned = new ArrayList<>();
         private String _path = KeyBuilder.instance(_cluster, _instanceName);
 
-        public ZkBackedInstanceAssignmentList() {
+        public ZkBackedTaskListProvider() {
             _assigned = _zkclient.getChildren(_path, true);
             _zkclient.ensurePath(_path);
             _zkclient.subscribeChildChanges(_path, this);

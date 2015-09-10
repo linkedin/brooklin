@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -190,12 +192,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         } else {
             // if there are any difference in the list of assignment. Note that if there are no difference
             // between the two lists, then the connector onAssignmentChange() is not called.
-            List<DatastreamTask> oldList = _allStreamsByConnectorType.get(connectorType);
-            List<DatastreamTask> newList = currentAssignment.get(connectorType);
-            List<DatastreamTask> diffList1 = new ArrayList<>(oldList);
-            List<DatastreamTask> diffList2 = new ArrayList<>(newList);
-            diffList1.removeAll(newList);
-            diffList2.removeAll(oldList);
+            Set<DatastreamTask> oldSet = new HashSet<>(_allStreamsByConnectorType.get(connectorType));
+            Set<DatastreamTask> newSet = new HashSet<>(currentAssignment.get(connectorType));
+            Set<DatastreamTask> diffList1 = new HashSet<>(oldSet);
+            Set<DatastreamTask> diffList2 = new HashSet<>(newSet);
+            diffList1.removeAll(newSet);
+            diffList2.removeAll(oldSet);
             if(diffList1.size() > 0 || diffList2.size() > 0) {
                 _connectors.get(connectorType).onAssignmentChange(context, currentAssignment.get(connectorType));
             }

@@ -3,6 +3,13 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.Datastream;
 import java.util.List;
 
+
+/**
+ *  Connector interface defines a small set of methods that Coordinator communicates with. When the {@link com.linkedin.datastream.server.Coordinator}
+ *  starts, it will start all connectors it manages by calling the <i>start</i> method. When the Coordinator is shutting
+ *  down gracefully, it will stop all connectors by calling the <i>stop</i> method.
+ */
+
 public interface Connector {
     /**
      * Method to start the connector. This is called immediately after the connector is instantiated.
@@ -15,6 +22,10 @@ public interface Connector {
      */
     void stop();
 
+    /**
+     * @return the type of the connector. This type should be a globally unique string, because the Coordinator
+     * can only link to one connector instance per connector type.
+     */
     String getConnectorType();
 
     /**
