@@ -22,6 +22,7 @@ public class TestZkAdapter {
 
     EmbeddedZookeeper _embeddedZookeeper;
     String _zkConnectionString;
+    private static final int _zkWaitInMs = 500;
 
     @BeforeMethod
     public void setup() throws IOException {
@@ -64,28 +65,48 @@ public class TestZkAdapter {
     public void testLeaderElection() throws Exception {
         String testCluster = "test_adapter_leader";
 
+        //
+        // start two ZkAdapters, which is corresponding to two Coordinator instances
+        //
         ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
         adapter1.connect();
 
         ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
         adapter2.connect();
 
+        //
+        // verify the first one started is the leader, and the second one is a follower
+        //
         Assert.assertTrue(adapter1.isLeader());
         Assert.assertFalse(adapter2.isLeader());
 
+        //
         // disconnect the first adapter to simulate it going offline
+        //
         adapter1.disconnect();
-        Thread.sleep(1500);
+
+        //
+        // wait for leadership election to happen
+        //
+        Thread.sleep(_zkWaitInMs);
+
+        //
         // adapter2 should now be the new leader
+        //
         Assert.assertTrue(adapter2.isLeader());
 
-        // the adapter2 also go offline
+        //
+        // adapter2 goes offline, but new instance adapter2 goes online
+        //
         adapter2.disconnect();
         // now a new client goes online
         ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
         adapter3.connect();
+        Thread.sleep(_zkWaitInMs);
 
-        Thread.sleep(1500);
+        //
+        // verify that the adapter3 is the current leader
+        //
         Assert.assertTrue(adapter3.isLeader());
     }
 
@@ -100,14 +121,14 @@ public class TestZkAdapter {
 
         // create new datastreams in zookeeper
         zkClient.create(KeyBuilder.datastream(testCluster, "stream1"), "stream1", CreateMode.PERSISTENT);
-        Thread.sleep(500);
+        Thread.sleep(_zkWaitInMs);
 
         List<Datastream> streams = adapter1.getAllDatastreams();
         Assert.assertEquals(streams.size(), 1);
 
         // create new datastreams in zookeeper
         zkClient.create(KeyBuilder.datastream(testCluster, "stream2"), "stream1", CreateMode.PERSISTENT);
-        Thread.sleep(500);
+        Thread.sleep(_zkWaitInMs);
         streams = adapter1.getAllDatastreams();
         Assert.assertEquals(streams.size(), 2);
 
