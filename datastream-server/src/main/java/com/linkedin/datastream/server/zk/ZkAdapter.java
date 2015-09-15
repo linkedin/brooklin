@@ -9,6 +9,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.server.DatastreamTask;
 import org.I0Itec.zkclient.IZkChildListener;
+import org.I0Itec.zkclient.exception.ZkNodeExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +81,10 @@ public class ZkAdapter {
     private int _sessionTimeout;
     private int _connectionTimeout;
     private ZkClient _zkclient;
+
     private String _instanceName;
+    private int _instanceNameRetryWaitMs = 10;
+
     private boolean _isLeader = false;
     private ZkAdapterListener _listener;
 
@@ -96,8 +100,6 @@ public class ZkAdapter {
     private ZkBackedDMSDatastreamList _datastreamList = null;
     private ZkBackedTaskListProvider _assignmentList = null;
     private ZkBackedDatastreamTasksMap _datastreamMap = null;
-
-    private List<String> _instances;
 
     public ZkAdapter(String zkServers, String cluster) {
         this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
@@ -151,15 +153,8 @@ public class ZkAdapter {
         _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout);
 
         // create a globally uniq instance name and create a live instance node in zookeeper
-        _instanceName = generateInstanceName();
-
-        // create a ephemeral live instance node for this coordinator
-        LOG.info("creating live instance node for coordinator with name: " + _instanceName);
-
-        // make sure the live instance path exists
-        _zkclient.ensurePath(KeyBuilder.instance(_cluster, _instanceName));
-        _zkclient.ensurePath(KeyBuilder.liveInstances(_cluster));
-        _zkclient.create(KeyBuilder.liveInstance(_cluster, _instanceName), "", CreateMode.EPHEMERAL);
+        _instanceName = createLiveInstanceWithUniqueName();
+        LOG.info("Coordinator instance " + _instanceName + " is online");
 
         // start with follower state, then join leader election
         onBecomeFollower();
@@ -169,8 +164,6 @@ public class ZkAdapter {
         _assignmentList = new ZkBackedTaskListProvider();
         // each instance will need the full map of all datastream tasks
         _datastreamMap = new ZkBackedDatastreamTasksMap();
-
-
     }
 
     private void onBecomeLeader() {
@@ -380,11 +373,15 @@ public class ZkAdapter {
         });
     }
 
-    private String generateInstanceName() {
-        assert _zkclient != null;
+    // generate a globally unique instance name, in the format of {hostname}-{timestamp}
+    // in large clusters it is possible that the instance name conflicts when started at the same time.
+    // Use exponential backoff with jitter to avoid conflict again.
+    private String createLiveInstanceWithUniqueName() {
+        // make sure the live instance path exists
+        _zkclient.ensurePath(KeyBuilder.liveInstances(_cluster));
 
-        // random hostname
-        String hostname = "coordinator" + randomGenerator.nextInt(1000);
+        // default name in case of UnknownHostException
+        String hostname = "coordinator" + randomGenerator.nextInt(10000);
 
         try {
             hostname = InetAddress.getLocalHost().getHostName();
@@ -392,19 +389,42 @@ public class ZkAdapter {
             LOG.error(uhe.getMessage());
         }
 
-        long timestamp = System.currentTimeMillis();
-        String instanceName = String.format("%s-%d", hostname, timestamp);
+        // in very rare case when there is a name conflict, retry again with exponential backoff and jitter
+        // to avoid herd effect.
+        String instanceName;
 
-        // in very rare case when there is a name conflict, retry
-        String znodePath = KeyBuilder.liveInstance(_cluster, instanceName);
-        if (_zkclient.exists(znodePath)) {
-            try {
-                int randomInt = randomGenerator.nextInt(20);
-                Thread.sleep(randomInt);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        while(true) {
+            long timestamp = System.currentTimeMillis();
+            instanceName = String.format("%s-%d", hostname, timestamp);
+
+            String znodePath = KeyBuilder.liveInstance(_cluster, instanceName);
+
+            // if an instance with this name already exist, wait and retry
+            if (_zkclient.exists(znodePath)) {
+                int sleepDuration = _instanceNameRetryWaitMs + randomGenerator.nextInt(10);
+                try {
+                    Thread.sleep(sleepDuration);
+                } catch (InterruptedException e) {
+                    LOG.warn("Failed to sleep " + sleepDuration + "for retrying unique instance name " + e.getMessage());
+                }
+
+                _instanceNameRetryWaitMs *= 2;
+                LOG.info("Detected instance name conflict, retry again after " + _instanceNameRetryWaitMs + " milliseconds");
+                continue;
             }
-            return generateInstanceName();
+
+            try{
+                _zkclient.create(KeyBuilder.liveInstance(_cluster, instanceName), "", CreateMode.EPHEMERAL);
+            } catch (ZkNodeExistsException nee) {
+                // we can still have name conflict at the creation time, do retry.
+                _instanceNameRetryWaitMs *= 2;
+                LOG.info("Detected instance name conflict, retry again after " + _instanceNameRetryWaitMs + " milliseconds");
+                continue;
+            }
+
+            // if we reach here, the node is created and we have a globally unique instance name
+            _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
+            break;
         }
 
         return instanceName;
@@ -465,7 +485,9 @@ public class ZkAdapter {
         @Override
         public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
             _datastreams = _zkclient.getChildren(_path);
-            _listener.onDatastreamChange();
+            if (_listener != null) {
+                _listener.onDatastreamChange();
+            }
         }
 
         public List<String> getDatastreamNames() {

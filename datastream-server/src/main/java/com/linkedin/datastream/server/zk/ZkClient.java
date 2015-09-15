@@ -8,10 +8,7 @@ import java.util.concurrent.Callable;
 import java.util.Stack;
 
 import org.I0Itec.zkclient.ZkConnection;
-import org.I0Itec.zkclient.exception.ZkException;
-import org.I0Itec.zkclient.exception.ZkInterruptedException;
-import org.I0Itec.zkclient.exception.ZkMarshallingError;
-import org.I0Itec.zkclient.exception.ZkNoNodeException;
+import org.I0Itec.zkclient.exception.*;
 import org.I0Itec.zkclient.serialize.ZkSerializer;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
@@ -301,7 +298,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     while (!pstack.empty()) {
       String p = pstack.pop();
       LOG.info("creating path in zookeeper: " + p);
-      this.createPersistent(p);
+      try{
+        this.createPersistent(p);
+      } catch (ZkNodeExistsException ex) {
+        LOG.info(ex.getMessage());
+      }
     }
   }
 
