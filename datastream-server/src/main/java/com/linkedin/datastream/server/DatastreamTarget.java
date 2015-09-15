@@ -20,10 +20,20 @@ public class DatastreamTarget {
    */
   private final String _metadataBrokers;
 
+  /**
+   * Flag to inform Coordinator to update the Datastream object.
+   */
+  private final boolean _updateDatastream;
+
   public DatastreamTarget(String topicName, int partitions, String brokers) {
+    this(topicName, partitions, brokers, false);
+  }
+
+  public DatastreamTarget(String topicName, int partitions, String brokers, boolean update) {
     _topicName = topicName;
     _partitions = partitions;
     _metadataBrokers = brokers;
+    _updateDatastream = update;
   }
 
   /**
@@ -45,5 +55,12 @@ public class DatastreamTarget {
    */
   public String getMetadataBrokers() {
     return _metadataBrokers;
+  }
+
+  /**
+   * @return whether datastream object needs to be updated.
+   */
+  public boolean getUpdateDatastream() {
+    return _updateDatastream;
   }
 }
