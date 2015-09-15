@@ -3,6 +3,8 @@ build/
 *classes
 .gradle/
 *.iml
+*.ipr
+*.iws
 datastream.ipr
 datastream.iws
 out/

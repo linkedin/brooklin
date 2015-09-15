@@ -67,7 +67,7 @@ public class TestCoordinator {
         }
 
         @Override
-        public void start() {
+        public void start(DatastreamEventCollector collector) {
             _isStarted = true;
         }
 
