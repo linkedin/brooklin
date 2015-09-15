@@ -280,19 +280,16 @@ public class TestCoordinator {
         int duration = waitDurationForZk * 5;
 
         for(int i = 0; i < concurrencyLevel; i++) {
-            Runnable task = new Runnable() {
-                @Override
-                public void run() {
-                    Coordinator instance = new Coordinator(_zkConnectionString, testCluster);
-                    instance.start();
+            Runnable task = () -> {
+                Coordinator instance = new Coordinator(_zkConnectionString, testCluster);
+                instance.start();
 
-                    // keep the thread alive
-                    try {
-                        Thread.sleep(duration);
-                        instance.stop();
-                    } catch (InterruptedException ie) {
-                        ie.printStackTrace();
-                    }
+                // keep the thread alive
+                try {
+                    Thread.sleep(duration);
+                    instance.stop();
+                } catch (InterruptedException ie) {
+                    ie.printStackTrace();
                 }
             };
 

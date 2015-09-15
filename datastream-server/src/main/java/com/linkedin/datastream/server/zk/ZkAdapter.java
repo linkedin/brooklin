@@ -9,7 +9,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.server.DatastreamTask;
 import org.I0Itec.zkclient.IZkChildListener;
-import org.I0Itec.zkclient.exception.ZkNodeExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,7 +82,8 @@ public class ZkAdapter {
     private ZkClient _zkclient;
 
     private String _instanceName;
-    private int _instanceNameRetryWaitMs = 10;
+    private String _liveInstanceName;
+    private String _hostname;
 
     private boolean _isLeader = false;
     private ZkAdapterListener _listener;
@@ -110,7 +110,7 @@ public class ZkAdapter {
     }
 
     public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout) {
-        this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+        this(zkServers, cluster, sessionTimeout, connectionTimeout, null);
     }
 
     public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout, ZkAdapterListener listener) {
@@ -139,9 +139,28 @@ public class ZkAdapter {
         return _instanceName;
     }
 
+    /**
+     * gracefully disconnect from zookeeper, clean up znodes
+     */
     public void disconnect() {
-        _zkclient.close();
-        _zkclient = null;
+
+        if (_zkclient != null) {
+            _zkclient.delete(KeyBuilder.liveInstance(_cluster, _liveInstanceName));
+            _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, _instanceName));
+            _zkclient.close();
+            _zkclient = null;
+        }
+        _isLeader = false;
+    }
+
+    /**
+     * test hook to simulate instance crash or GC, without cleaning up zookeeper
+     */
+    public void forceDisconnect() {
+        if (_zkclient != null) {
+            _zkclient.close();
+            _zkclient = null;
+        }
     }
 
     /**
@@ -153,7 +172,7 @@ public class ZkAdapter {
         _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout);
 
         // create a globally uniq instance name and create a live instance node in zookeeper
-        _instanceName = createLiveInstanceWithUniqueName();
+        _instanceName = createLiveInstanceNode();
         LOG.info("Coordinator instance " + _instanceName + " is online");
 
         // start with follower state, then join leader election
@@ -196,9 +215,28 @@ public class ZkAdapter {
     }
 
     /**
-     *  each instance of coordinator (and coordinator zk adapter) must participate the leader
-     *  election. This method will be called when the zk connection is made. It can also be
-     *  called recursively in corner cases.
+     *  Each instance of coordinator (and coordinator zk adapter) must participate the leader
+     *  election. This method will be called when the zk connection is made, in ZkAdapter.connect() method.
+     *  This is a standard implementation of the ZooKeeper leader election recipe.
+     *
+     *  <ul>
+     *      <li>
+     *          Create an ephemeral sequential znode under the leader election path. The leader election path
+     *          is <i>/{cluster}/liveinstances</i>. The znode name is the sequence number starting from "00000000".
+     *          The content of this znode is the hostname. After the live instance node is successfully created,
+     *          we also create the matching instance znode. The matching instance znode has the path
+     *          <i>/{cluster}/instances</i>, and the node name is of the format {hostname}-{sequence}.
+     *          For example, "ychen1-mn1-00000000" means the instance is running on the host "ychen1-mn1" and
+     *          its matching live instance node name is "00000000".
+     *      </li>
+     *
+     *      <li>
+     *           At any point in time, the znode with smallest sequence number is the current leader. If the
+     *           current instance is not the leader, it watches the previous in line candidate. For example,
+     *           the node "00000008" will watch the node "00000007", so that if "00000007" dies, "00000008"
+     *           will get notified and try to run election.
+     *      </li>
+     *  </ul>
      */
     private void joinLeaderElection() {
 
@@ -209,6 +247,7 @@ public class ZkAdapter {
         // find the position of the current instance in the list
         String[] nodePathParts = _instanceName.split("/");
         String nodeName = nodePathParts[nodePathParts.length - 1];
+        nodeName = nodeName.substring(_hostname.length()+1);
         int index = liveInstances.indexOf(nodeName);
 
         if (index < 0) {
@@ -219,7 +258,6 @@ public class ZkAdapter {
         }
 
         // if this instance is first in line to become leader. Check if it is already a leader.
-        // if so, do nothing. Otherwise, set the _isLeader status and trigger onBecomeLeader() callback.
         if (index == 0) {
             if (_isLeader != true) {
                 _isLeader = true;
@@ -237,10 +275,10 @@ public class ZkAdapter {
 
         // prevCandidate is the leader candidate that is in line before this current node
         // we only become the leader after prevCandidate goes offline
-        String prevCandidate = liveInstances.get(index-1);
+        String prevCandidate = liveInstances.get(index - 1);
 
         // if the prev candidate is not the current subscription, reset it
-        if (prevCandidate != _currentSubscription) {
+        if (!prevCandidate.equals(_currentSubscription)) {
             if (_currentSubscription != null) {
                 _zkclient.unsubscribeDataChanges(_currentSubscription, _leaderElectionListener);
             }
@@ -373,61 +411,33 @@ public class ZkAdapter {
         });
     }
 
-    // generate a globally unique instance name, in the format of {hostname}-{timestamp}
-    // in large clusters it is possible that the instance name conflicts when started at the same time.
-    // Use exponential backoff with jitter to avoid conflict again.
-    private String createLiveInstanceWithUniqueName() {
+    // create a live instance node, in the form of a sequence number with the znode path
+    // /{cluster}/liveinstances/{sequenceNuber}
+    // also write the hostname as the content of the node. This allows us to map this node back
+    // to a corresponding instance node with path /{cluster}/instances/{hostname}-{sequenceNumber}
+    private String createLiveInstanceNode() {
         // make sure the live instance path exists
         _zkclient.ensurePath(KeyBuilder.liveInstances(_cluster));
 
         // default name in case of UnknownHostException
-        String hostname = "coordinator" + randomGenerator.nextInt(10000);
+        _hostname = "UnknowHost-" + randomGenerator.nextInt(10000);
 
         try {
-            hostname = InetAddress.getLocalHost().getHostName();
+            _hostname = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException uhe) {
             LOG.error(uhe.getMessage());
         }
 
-        // in very rare case when there is a name conflict, retry again with exponential backoff and jitter
-        // to avoid herd effect.
-        String instanceName;
+        //
+        // create an ephemeral sequential node under /{cluster}/liveinstances/
+        //
+        String electionPath = KeyBuilder.liveInstance(_cluster, "");
+        String liveInstancePath = _zkclient.create(electionPath, _hostname, CreateMode.EPHEMERAL_SEQUENTIAL);
+        _liveInstanceName = liveInstancePath.substring(electionPath.length());
 
-        while(true) {
-            long timestamp = System.currentTimeMillis();
-            instanceName = String.format("%s-%d", hostname, timestamp);
-
-            String znodePath = KeyBuilder.liveInstance(_cluster, instanceName);
-
-            // if an instance with this name already exist, wait and retry
-            if (_zkclient.exists(znodePath)) {
-                int sleepDuration = _instanceNameRetryWaitMs + randomGenerator.nextInt(10);
-                try {
-                    Thread.sleep(sleepDuration);
-                } catch (InterruptedException e) {
-                    LOG.warn("Failed to sleep " + sleepDuration + "for retrying unique instance name " + e.getMessage());
-                }
-
-                _instanceNameRetryWaitMs *= 2;
-                LOG.info("Detected instance name conflict, retry again after " + _instanceNameRetryWaitMs + " milliseconds");
-                continue;
-            }
-
-            try{
-                _zkclient.create(KeyBuilder.liveInstance(_cluster, instanceName), "", CreateMode.EPHEMERAL);
-            } catch (ZkNodeExistsException nee) {
-                // we can still have name conflict at the creation time, do retry.
-                _instanceNameRetryWaitMs *= 2;
-                LOG.info("Detected instance name conflict, retry again after " + _instanceNameRetryWaitMs + " milliseconds");
-                continue;
-            }
-
-            // if we reach here, the node is created and we have a globally unique instance name
-            _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
-            break;
-        }
-
-        return instanceName;
+        String instanceName = _hostname + "-" + _liveInstanceName;
+        _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
+        return _hostname + "-" + _liveInstanceName;
     }
 
     /**
@@ -495,6 +505,23 @@ public class ZkAdapter {
         }
     }
 
+    /**
+     * ZkBackedLiveInstanceListProvider is only used by the current leader instance. It provides a cached
+     * list of current live instances, by watching the live instances tree in zookeeper. The watched path
+     * is <i>/{cluster}/liveinstances</i>. Note the difference between the node names under live instances
+     * znode and under instances znode: the znode for instances has the format {hostname}-{sequence}.
+     * ZkBackedLiveInstanceListProvider is responsible to do the translation from live instance names
+     * to instance names.
+     *
+     * <p>Because ZkBackedLiveInstanceListProvider abstracts the knowledge of live instances, it is
+     * also responsible for cleaning up when a previously live instances go offline or crash. When
+     * that happens, ZkBackedLiveInstanceListProvider will remove the corresponding instance node under
+     * <i>/{cluster}/instances</i>.
+     *
+     * <p>When the previous leader instance goes offline itself, a new leader will be elected, and
+     * the new leader is responsible for cleaning up the instance node for the previous leader. This is
+     * done in the constructor ZkBackedLiveInstanceListProvider().
+     */
     public class ZkBackedLiveInstanceListProvider implements IZkChildListener {
         private List<String> _liveInstances = new ArrayList<>();
         private String _path;
@@ -503,12 +530,33 @@ public class ZkAdapter {
             _path = KeyBuilder.liveInstances(_cluster);
             _zkclient.ensurePath(_path);
             _zkclient.subscribeChildChanges(_path, this);
-            _liveInstances = _zkclient.getChildren(_path);
+            _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
+            cleanUpDeadInstances();
+        }
+
+        private void cleanUpDeadInstances() {
+            List<String> deadInstances = _zkclient.getChildren(KeyBuilder.instances(_cluster));
+            deadInstances.removeAll(_liveInstances);
+            for(String dead : deadInstances) {
+                _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, dead));
+            }
+        }
+
+        // translate list of node names in the form of sequence number to list of instance names
+        // in the form of {hostname}-{sequence}.
+        private List<String> getLiveInstanceNames(List<String> nodes) {
+            List<String> liveInstances = new ArrayList<>();
+            for(String n : nodes) {
+                String hostname = _zkclient.readData(KeyBuilder.liveInstance(_cluster, n));
+                liveInstances.add(hostname + "-" + n);
+            }
+            return liveInstances;
         }
 
         public void close() {
             _zkclient.unsubscribeChildChanges(_path, this);
         }
+
 
         public List<String> getLiveInstances() {
             return _liveInstances;
@@ -516,7 +564,14 @@ public class ZkAdapter {
 
         @Override
         public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-            _liveInstances = _zkclient.getChildren(_path);
+            List<String> liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
+            List<String> deadInstances = new ArrayList<>(_liveInstances);
+            deadInstances.removeAll(liveInstances);
+            for(String dead : deadInstances) {
+                _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, dead));
+            }
+
+            _liveInstances = liveInstances;
 
             if (_listener != null) {
                 _listener.onLiveInstancesChange();
