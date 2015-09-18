@@ -252,7 +252,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
      */
     public void addConnector(Connector connector, AssignmentStrategy strategy) {
         String connectorType = connector.getConnectorType();
-        LOG.info("Add new connector " + connectorType + " to coordinator " + _adapter.getInstanceName());
+        LOG.info("Add new connector of type " + connectorType + " to coordinator");
 
         if (_connectors.containsKey(connectorType)) {
             String err = "A connector of type " + connectorType + " already exists.";
