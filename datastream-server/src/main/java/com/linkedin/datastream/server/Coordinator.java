@@ -83,6 +83,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // and it is stored after the leader finishes the datastream assignment
     private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
+    private DatastreamEventCollector _collector = new DatastreamEventCollectorImpl();
+
     public Coordinator(String zkServers, String cluster) {
         _cluster = cluster;
         _adapter = new ZkAdapter(zkServers, cluster, this);
@@ -91,7 +93,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     public void start() {
         _adapter.connect();
-        _strategies.forEach((connector, strategy) -> connector.start());
+        _strategies.forEach((connector, strategy) -> connector.start(_collector));
     }
 
     public void stop() {

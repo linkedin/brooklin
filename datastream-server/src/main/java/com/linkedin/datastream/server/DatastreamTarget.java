@@ -21,6 +21,10 @@ public class DatastreamTarget {
   private final String _metadataBrokers;
 
   public DatastreamTarget(String topicName, int partitions, String brokers) {
+    this(topicName, partitions, brokers, false);
+  }
+
+  public DatastreamTarget(String topicName, int partitions, String brokers, boolean update) {
     _topicName = topicName;
     _partitions = partitions;
     _metadataBrokers = brokers;
