@@ -67,8 +67,8 @@ public class TestZkClient {
     zkClient.create(electionPath, "", CreateMode.PERSISTENT);
 
     // now create this node with persistent mode
-    String node0 = zkClient.create(electionNodeName, "", CreateMode.PERSISTENT_SEQUENTIAL);
-    String node1 = zkClient.create(electionNodeName, "", CreateMode.PERSISTENT_SEQUENTIAL);
+    String node0 = zkClient.create(electionNodeName, "test", CreateMode.PERSISTENT_SEQUENTIAL);
+    String node1 = zkClient.create(electionNodeName, "content", CreateMode.PERSISTENT_SEQUENTIAL);
     Assert.assertEquals(node0, "/leaderelection/coordinator-0000000000");
     Assert.assertEquals(node1, "/leaderelection/coordinator-0000000001");
 
@@ -225,7 +225,7 @@ public class TestZkClient {
 
     // what if the original live instance is temp offlien (GC pause)?
     zkClient1 = new ZkClient(_zkConnectionString);
-    zkClient1.create(instance1, "", CreateMode.EPHEMERAL);
+    zkClient1.create(instance1, "text", CreateMode.EPHEMERAL);
 
     Thread.sleep(1000);
 

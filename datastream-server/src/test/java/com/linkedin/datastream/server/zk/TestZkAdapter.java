@@ -39,6 +39,36 @@ public class TestZkAdapter {
     }
 
     @Test
+    public void testInstanceName() throws Exception {
+        String testCluster = "testInstanceName";
+
+        //
+        // create 10 live instances
+        //
+        ZkAdapter[] adapters = new ZkAdapter[10];
+        for(int i = 0; i < 10; i++) {
+            adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+            adapters[i].connect();
+        }
+
+        //
+        // verify the instance names are ending with 00000000 - 00000009
+        //
+
+        for(int i = 0; i < 10; i++) {
+            String instanceName = adapters[i].getInstanceName();
+            Assert.assertTrue(instanceName.contains("0000000" + i));
+        }
+
+        //
+        // clean up
+        //
+        for(int i = 0; i < 10; i++) {
+            adapters[i].disconnect();
+        }
+    }
+
+    @Test
     public void testSmoke() throws Exception {
         String testCluster = "test_adapter_smoke";
 
@@ -108,6 +138,104 @@ public class TestZkAdapter {
         // verify that the adapter3 is the current leader
         //
         Assert.assertTrue(adapter3.isLeader());
+    }
+
+    @Test
+    public void testStressLeaderElection() throws Exception {
+        String testCluster = "test_leader_election_stress";
+
+        //
+        // start 50 adapters, simulating 50 live instances
+        //
+        int concurrencyLevel = 50;
+        ZkAdapter[] adapters = new ZkAdapter[concurrencyLevel];
+
+        for(int i = 0; i < concurrencyLevel; i++) {
+            adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+            adapters[i].connect();
+        }
+
+        //
+        // verify the first adapter adapters[0] is the leader
+        //
+        Assert.assertTrue(adapters[0].isLeader());
+        //
+        // verify the second adapter adapters[1] is the follower
+        //
+        Assert.assertFalse(adapters[1].isLeader());
+        //
+        // stop the second adapter adapters[1] to create a hole
+        //
+        adapters[1].disconnect();
+        //
+        // verify leader not changed
+        //
+        Assert.assertTrue(adapters[0].isLeader());
+        //
+        // stop first half adapters adapters[0..concurrencyLevel/2]
+        //
+        for(int i = 0; i < concurrencyLevel/2; i++) {
+            if (i != 1) {
+                adapters[i].disconnect();
+            }
+        }
+        //
+        // new leader should be the next inline, adapters[concurrencyLevel/2]
+        //
+        Thread.sleep(_zkWaitInMs);
+        Assert.assertTrue(adapters[concurrencyLevel / 2].isLeader());
+        //
+        // clean up
+        //
+        for(int i = 0; i < concurrencyLevel; i++) {
+            adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+            adapters[i].disconnect();
+        }
+    }
+
+    // when an instance goes offline ungracefully, it will leave a znode
+    // under /{cluster}/instances/{instanceName}. The current leader
+    // is responsible for clean it up.
+    @Test
+    public void testZkInstanceNodeCleanup() throws Exception {
+        String testCluster = "testZkInstanceNodeCleanup";
+
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+        //
+        // start 3 live instances
+        //
+        ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+        ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+        ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster);
+        adapter1.connect();
+        adapter2.connect();
+        adapter3.connect();
+        //
+        // verify 3 instances nodes
+        //
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 3);
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 3);
+        //
+        // stop the adapter3, current leader will be elcted and do cleanup
+        //
+        adapter3.forceDisconnect();
+        Thread.sleep(_zkWaitInMs * 2);
+        //
+        // verify 2 instance nodes
+        //
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 2);
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 2);
+        //
+        // stop current leader adapter1, new leader will do the cleanup
+        //
+        adapter1.forceDisconnect();
+        Thread.sleep(_zkWaitInMs * 2);
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 1);
+        Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 1);
+
+        adapter2.disconnect();
+        zkClient.close();
     }
 
     @Test
