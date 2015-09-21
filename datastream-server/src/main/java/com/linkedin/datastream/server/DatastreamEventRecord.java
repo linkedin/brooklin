@@ -1,39 +1,29 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
-
-import org.apache.commons.lang.StringUtils;
 
 /**
  * Envelope of a Datastream event to be sent via Kafka.
  */
 public class DatastreamEventRecord {
-  private final String _topic;
-  private final Integer _partition;
+  private final Datastream _datastream;
   private final Object _key;
   private final DatastreamEvent _event;
 
-  public DatastreamEventRecord(String topic, Integer partition, Object key, DatastreamEvent event) {
-    if (StringUtils.isEmpty(topic) || partition < 0 || key == null || event == null)
+  public DatastreamEventRecord(Datastream datastream, Object key, DatastreamEvent event) {
+    if (datastream == null || key == null || event == null)
       throw new IllegalArgumentException();
-    _topic = topic;
-    _partition = partition;
+    _datastream = datastream;
     _key = key;
     _event = event;
   }
 
   /**
-   * @return target Kafka topic name.
+   * @return Datastream object
    */
-  public String topic() {
-    return _topic;
-  }
-
-  /**
-   * @return topic partition number
-   */
-  public Integer partition() {
-    return _partition;
+  public Datastream datastream() {
+    return _datastream;
   }
 
   /**
