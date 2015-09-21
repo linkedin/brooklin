@@ -7,73 +7,34 @@ package com.linkedin.datastream.common;
 
 @SuppressWarnings("all")
 public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  public static final org.apache.avro.Schema SCHEMA$ = org.apache.avro.Schema.parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.avro\",\"fields\":[{\"name\":\"timestamp\",\"type\":\"long\",\"doc\":\"This is the time the event is sent to Kafka by the KET\"},{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"This is the name of the datastream to which the event belongs\"},{\"name\":\"database\",\"type\":\"string\",\"doc\":\"The database name to which the event belongs\"},{\"name\":\"partition\",\"type\":\"int\",\"doc\":\"The partition to which the event belongs\"},{\"name\":\"table\",\"type\":\"string\",\"doc\":\"The specific table within that partition.\"},{\"name\":\"scn\",\"type\":\"long\",\"doc\":\"The system change number (unique, monotonically increasing) that identifies this event\"},{\"name\":\"part_num\",\"type\":\"int\",\"doc\":\"A unique identifier to identify this event within a transaction (same SCN)\"},{\"name\":\"operation\",\"type\":{\"type\":\"enum\",\"name\":\"EventOperation\",\"symbols\":[\"INSERT\",\"UPDATE\",\"DELETE\",\"SYSTEM\"]}},{\"name\":\"flags\",\"type\":[\"null\",\"int\"],\"doc\":\"Binary flags set for the event. E.g. if the event is replicated\",\"default\":null},{\"name\":\"key\",\"type\":\"bytes\",\"doc\":\"Key encoded in avro\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"Actual value\",\"default\":null},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"Actual value\",\"default\":null},{\"name\":\"event_timestamp\",\"type\":\"long\",\"doc\":\" Time when the event was created\"},{\"name\":\"schema_version\",\"type\":\"int\",\"doc\":\"payload schema version\"}]}");
-  /** This is the time the event is sent to Kafka by the KET */
-  public long timestamp;
-  /** This is the name of the datastream to which the event belongs */
-  public CharSequence datastream;
-  /** The database name to which the event belongs */
-  public CharSequence database;
-  /** The partition to which the event belongs */
-  public int partition;
-  /** The specific table within that partition. */
-  public CharSequence table;
-  /** The system change number (unique, monotonically increasing) that identifies this event */
-  public long scn;
-  /** A unique identifier to identify this event within a transaction (same SCN) */
-  public int part_num;
-  public EventOperation operation;
-  /** Binary flags set for the event. E.g. if the event is replicated */
-  public Integer flags;
-  /** Key encoded in avro */
-  public java.nio.ByteBuffer key;
-  /** Actual value */
+  public static final org.apache.avro.Schema SCHEMA$ = org.apache.avro.Schema.parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.avro\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
+  /** Name of the datastream that this event is generated for. */
+  public java.lang.CharSequence datastream;
+  /** Event metadata. */
+  public java.util.Map<java.lang.CharSequence,java.lang.CharSequence> metadata;
+  /** serialized payload data. */
   public java.nio.ByteBuffer payload;
-  /** Actual value */
+  /** serialized previous payload data. */
   public java.nio.ByteBuffer previous_payload;
-  /**  Time when the event was created */
-  public long event_timestamp;
-  /** payload schema version */
-  public int schema_version;
   public org.apache.avro.Schema getSchema() { return SCHEMA$; }
-  // Used by DatumWriter.  Applications should not call.
-  public Object get(int field$) {
+  // Used by DatumWriter.  Applications should not call. 
+  public java.lang.Object get(int field$) {
     switch (field$) {
-    case 0: return timestamp;
-    case 1: return datastream;
-    case 2: return database;
-    case 3: return partition;
-    case 4: return table;
-    case 5: return scn;
-    case 6: return part_num;
-    case 7: return operation;
-    case 8: return flags;
-    case 9: return key;
-    case 10: return payload;
-    case 11: return previous_payload;
-    case 12: return event_timestamp;
-    case 13: return schema_version;
+    case 0: return datastream;
+    case 1: return metadata;
+    case 2: return payload;
+    case 3: return previous_payload;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
-  // Used by DatumReader.  Applications should not call.
+  // Used by DatumReader.  Applications should not call. 
   @SuppressWarnings(value="unchecked")
-  public void put(int field$, Object value$) {
+  public void put(int field$, java.lang.Object value$) {
     switch (field$) {
-    case 0: timestamp = (Long)value$; break;
-    case 1: datastream = (CharSequence)value$; break;
-    case 2: database = (CharSequence)value$; break;
-    case 3: partition = (Integer)value$; break;
-    case 4: table = (CharSequence)value$; break;
-    case 5: scn = (Long)value$; break;
-    case 6: part_num = (Integer)value$; break;
-    case 7: operation = (EventOperation)value$; break;
-    case 8: flags = (Integer)value$; break;
-    case 9: key = (java.nio.ByteBuffer)value$; break;
-    case 10: payload = (java.nio.ByteBuffer)value$; break;
-    case 11: previous_payload = (java.nio.ByteBuffer)value$; break;
-    case 12: event_timestamp = (Long)value$; break;
-    case 13: schema_version = (Integer)value$; break;
+    case 0: datastream = (java.lang.CharSequence)value$; break;
+    case 1: metadata = (java.util.Map<java.lang.CharSequence,java.lang.CharSequence>)value$; break;
+    case 2: payload = (java.nio.ByteBuffer)value$; break;
+    case 3: previous_payload = (java.nio.ByteBuffer)value$; break;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
