@@ -1,0 +1,38 @@
+// DatastreamEvent.avsc
+{
+    "name": "DatastreamEvent",
+    "version" : 1,
+    "namespace": "com.linkedin.datastream.avro",
+    "type": "record",
+    "fields": [
+        {
+            "name": "datastream",
+            "doc": "Name of the datastream that this event is generated for.",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "doc": "Event metadata.",
+            "type": {
+                "type": "map",
+                "values": "string"
+            }
+        },
+        {
+            "name": "payload",
+            "doc" : "serialized payload data.",
+            "type": {
+                "type": "bytes",
+                "default": null
+            }
+        },
+        {
+            "name": "previous_payload",
+            "doc" : "serialized previous payload data.",
+            "type": {
+                "type": "bytes",
+                "default": null
+            }
+        }
+    ]
+}
