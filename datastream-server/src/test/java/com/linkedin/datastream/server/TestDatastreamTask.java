@@ -18,7 +18,8 @@ public class TestDatastreamTask {
 
         DatastreamTask task2 = DatastreamTask.fromJson(json);
 
-        Assert.assertEquals(task2.getName(), stream.getName());
+        Assert.assertEquals(task2.getDatastreamName(), stream.getName());
+        Assert.assertEquals(task2.getDatastreamTaskName(), stream.getName());
         Assert.assertEquals(task2.getConnectorType(), stream.getConnectorType());
     }
     

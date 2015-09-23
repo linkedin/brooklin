@@ -12,6 +12,9 @@ public class KeyBuilder {
     private static final String _datastreamTask = "/%s/instances/%s/%s";
     private static final String _connector = "/%s/%s";
     private static final String _connectorDatastreamTask = "/%s/%s/%s";
+    private static final String _datastreamTaskState = "/%s/%s/%s/%s/state";
+    private static final String _datastreamTaskStateKey = "/%s/%s/%s/%s/state/%s";
+    private static final String _datastreamTaskConfig = "/%s/%s/%s/%s/config";
 
     public static String cluster(String clusterName) {
         return String.format(_cluster, clusterName);
@@ -49,5 +52,23 @@ public class KeyBuilder {
     public static String connectorTask(String cluster, String connectorType, String task) {
         return String.format(_connectorDatastreamTask, cluster, connectorType, task);
     }
+
+    // zookeeper path: /{cluster}/{connectorType}/{datastream}/{taskId}/state
+    public static String datastreamTaskState(String cluster, String connectorType, String datastreamName, String taskId) {
+        // taskId could be empty space, which can result in "//" in the path
+        return String.format(_datastreamTaskState, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
+    }
+
+    // zookeeper path: /{cluster}/{connectorType}/{datastream}/{taskId}/config
+    public static String datastreamTaskConfig(String cluster, String connectorType, String datastreamName, String taskId) {
+        return String.format(_datastreamTaskConfig, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
+    }
+
+    // zookeeper path: /{cluster}/{connectorType}/{datastream}/{taskId}/state
+    public static String datastreamTaskStateKey(String cluster, String connectorType, String datastreamName, String taskId, String key) {
+        // taskId could be empty space, which can result in "//" in the path
+        return String.format(_datastreamTaskStateKey, cluster, connectorType, datastreamName, taskId, key).replaceAll("//", "/");
+    }
+
 
 }

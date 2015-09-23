@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TestCoordinator {
-    private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
 
     private static final int waitDurationForZk = 1000;
 
@@ -77,7 +77,7 @@ public class TestCoordinator {
         }
 
         @Override
-        public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+        public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
             _tasks = tasks;
         }
 
@@ -112,13 +112,108 @@ public class TestCoordinator {
         Assert.assertTrue(connector.isStopped());
     }
 
+    /**
+     * testConnectorStateSetAndGet makes sure that the connector can read and write state that
+     * is specific to each DatastreamTask.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testConnectorStateSetAndGet() throws Exception {
+        String testCluster = "testConnectorStateSetAndGet";
+        String testConectorType = "testConnectorType";
+
+        Coordinator coordinator = new Coordinator(_zkConnectionString, testCluster);
+
+        //
+        // create a Connector instance, its sole purpose is to record the number of times
+        // the onAssignmentChange() is called, and it will persist this value for each
+        // task
+        //
+        Connector testConnector = new Connector() {
+            @Override
+            public void start(DatastreamEventCollector collector) {}
+
+            @Override
+            public void stop() {}
+
+            @Override
+            public String getConnectorType() { return testConectorType; }
+
+            @Override
+            public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+                // for each instance of assigned DatastreamTask, we keep a state with the key
+                // "counter". Every time onAssignmentChange() is called, we increment this counter
+                // by one for each assigned task.
+                tasks.forEach(task -> {
+                    String counter = context.getState(task, "counter");
+                    if (counter == null) {
+                        context.saveState(task,"counter", "1");
+                    } else {
+                        int c = Integer.parseInt(counter);
+                        context.saveState(task, "counter", Integer.toString(c+1));
+                    }
+
+                });
+            }
+
+            @Override
+            public DatastreamTarget getDatastreamTarget(Datastream stream) { return null; }
+
+            @Override
+            public DatastreamValidationResult validateDatastream(Datastream stream) { return null; }
+        };
+        coordinator.addConnector(testConnector, new BroadcastStrategy());
+        coordinator.start();
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+        //
+        // create a new datastream so that the onAssignmentChange() can be called
+        //
+        String datastreamName1 = "datastream1";
+        createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName1);
+        //
+        // verify that the counter value for the connector is 1 because the onAssignmentChange
+        // should be called once
+        //
+        int retries = 5;
+        while(retries >= 0 && !zkClient.exists(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "", "counter"))) {
+            Thread.sleep(waitDurationForZk);
+            retries--;
+        }
+        String counter = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "", "counter"));
+        Assert.assertEquals(counter, "1");
+        //
+        // add a second datastream named datastream2
+        //
+        String datastreamName2 = "datastream2";
+        createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName2);
+        retries = 5;
+        while(retries >= 0 && !zkClient.exists(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName2, "", "counter"))) {
+            Thread.sleep(waitDurationForZk);
+            retries--;
+        }
+        //
+        // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
+        //
+        counter = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "", "counter"));
+        Assert.assertEquals(counter, "2");
+        counter = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName2, "", "counter"));
+        Assert.assertEquals(counter, "1");
+
+        //
+        // clean up
+        //
+        zkClient.close();
+        coordinator.stop();
+
+    }
+
     // testCoordinationSmoke is a smoke test, to verify that datastreams created by DSM can be
     // assigned to live instances. The datastreams created by DSM is mocked by directly creating
     // the znodes in zookeeper.
     @Test
     public void testCoordinationSmoke() throws Exception {
-
-        String testCluster = "testAssignmentBasic";
+        String testCluster = "testCoordinationSmoke";
         String testConectorType = "testConnectorType";
         String datastreamName1 = "datastream1";
 
@@ -155,15 +250,17 @@ public class TestCoordinator {
         instance2.start();
 
         //
-        // wait for the instance2 to be online, and be assigned with the task as well
-        //
-        Thread.sleep(waitDurationForZk);
-
-        //
         // verify instance2 has 1 task assigned
         //
         List<DatastreamTask> assigned2 = connector2.getTasks();
-        Assert.assertEquals(assigned2.size(), 1);
+        int retries = 10;
+        while(retries >= 0 && assigned2.size() != 1) {
+            Thread.sleep(waitDurationForZk);
+            assigned2 = connector2.getTasks();
+            retries--;
+        }
+
+        Assert.assertEquals(assigned2.size(), 1, "expect: 1, actual: " + assigned2.size());
 
         //
         // create a new datastream definition for the same connector type, /testAssignmentBasic/datastream/datastream2
@@ -281,7 +378,7 @@ public class TestCoordinator {
 
         for(int i = 0; i < concurrencyLevel; i++) {
             Runnable task = () -> {
-                Coordinator instance = new Coordinator(_zkConnectionString, testCluster);
+                Coordinator instance = new Coordinator(_zkConnectionString, testCluster, waitDurationForZk * 10, waitDurationForZk * 20);
                 instance.start();
 
                 // keep the thread alive
@@ -299,7 +396,7 @@ public class TestCoordinator {
         //
         // wait for all instances go online
         //
-        Thread.sleep(waitDurationForZk * 2);
+        Thread.sleep(duration);
 
         //
         // verify all instances are alive
@@ -363,7 +460,6 @@ public class TestCoordinator {
         instance1.stop();
         zkClient.close();
     }
-
 
     private void createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType, String datastreamName) {
         zkClient.ensurePath(KeyBuilder.datastreams(cluster));

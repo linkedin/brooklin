@@ -9,6 +9,7 @@ import java.util.HashSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.zk.ZkAdapter;
+import com.linkedin.datastream.server.zk.ZkClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,9 +87,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     private DatastreamEventCollector _collector = new DatastreamEventCollectorImpl();
 
     public Coordinator(String zkServers, String cluster) {
+        this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+    }
+
+    public Coordinator(String zkServers, String cluster, int sessionTimeout, int connectionTimeout) {
         _cluster = cluster;
-        _adapter = new ZkAdapter(zkServers, cluster, this);
+        _adapter = new ZkAdapter(zkServers, cluster, sessionTimeout, connectionTimeout, this);
         _adapter.setListener(this);
+
     }
 
     public void start() {
@@ -165,7 +171,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         newConnectorList.addAll(currentAssignment.keySet());
 
         //TODO: assign real context. this is a place holder for now.
-        DatastreamContext context = new DatastreamContext();
+        DatastreamContext context = new DatastreamContextImpl(_adapter);
 
         List<String> deactivated = new ArrayList<>(oldConnectorList);
         deactivated.removeAll(newConnectorList);
