@@ -389,10 +389,4 @@ public class TestZkAdapter {
         //
         zkClient.close();
     }
-
-    @Test
-    public void testDatastreamContextState() throws Exception {
-
-
-    }
 }
