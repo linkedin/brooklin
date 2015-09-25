@@ -176,6 +176,7 @@ public class ZkAdapter {
         LOG.info("Coordinator instance " + _instanceName + " is online");
 
         // both leader and follower needs to listen to its own instance change
+        // under /{cluster}/instances/{instance}
         _assignmentList = new ZkBackedTaskListProvider();
         // each instance will need the full map of all datastream tasks
         _datastreamMap = new ZkBackedDatastreamTasksMap();
@@ -394,8 +395,8 @@ public class ZkAdapter {
         //
         List<DatastreamTask> removed = new ArrayList<>(oldAssignment);
         removed.removeAll(assignments);
+        LOG.info("Removing assigned tasks for instance " + instance + ", removed tasks are: " + tasksToString(removed));
         removed.forEach(ds -> {
-            LOG.info("Removing old assignment " + ds.getDatastreamTaskName() + " from instance " + instance);
             String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
             _zkclient.delete(path);
         });
@@ -405,19 +406,20 @@ public class ZkAdapter {
         //
         List<DatastreamTask> added = new ArrayList<>(assignments);
         added.removeAll(oldAssignment);
+
+        LOG.info("Assigning new tasks for instance " + instance + ", new tasks are: " + tasksToString(added));
         added.forEach(ds -> {
             String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
-            LOG.info("Leader adding new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName());
             try {
                 _zkclient.create(path, ds.toJson(), CreateMode.PERSISTENT);
-                LOG.info("Leader added new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName());
             } catch (IOException e) {
                 // We should never get here. If we do, need to fix it with retry logic
-                LOG.error("Leader failed to add new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName() + ", error: " + e.getMessage());
+                LOG.error("Failed to assign task [" + ds.getDatastreamTaskName() + "] to instance " + instance + ", error: " + e.getMessage());
             }
         });
     }
 
+    // utility function for generating log message
     private String tasksToString(List<DatastreamTask> list) {
         StringBuffer sb = new StringBuffer();
         sb.append("[ ");
@@ -538,7 +540,7 @@ public class ZkAdapter {
         }
 
         @Override
-        public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+        public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
             _datastreams = _zkclient.getChildren(_path);
             if (_listener != null) {
                 _listener.onDatastreamChange();
@@ -685,12 +687,7 @@ public class ZkAdapter {
 
         public ZkBackedTaskListProvider() {
             _assigned = _zkclient.getChildren(_path, true);
-            _zkclient.ensurePath(_path);
             _zkclient.subscribeChildChanges(_path, this);
-        }
-
-        public List<String> getAssigned() {
-            return _assigned;
         }
 
         public void close() {
