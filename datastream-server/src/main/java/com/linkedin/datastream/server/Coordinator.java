@@ -153,6 +153,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
         });
 
+        DatastreamContext context = new DatastreamContextImpl(_adapter);
+
         //
         // diff the currentAssignment with last saved assignment _allStreamsByConnectorType and make sure
         // the affected connectors are notified through the callback. There are following cases:
@@ -169,9 +171,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         oldConnectorList.addAll(_allStreamsByConnectorType.keySet());
         List<String> newConnectorList = new ArrayList<>();
         newConnectorList.addAll(currentAssignment.keySet());
-
-        //TODO: assign real context. this is a place holder for now.
-        DatastreamContext context = new DatastreamContextImpl(_adapter);
 
         List<String> deactivated = new ArrayList<>(oldConnectorList);
         deactivated.removeAll(newConnectorList);
