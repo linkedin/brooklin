@@ -175,14 +175,15 @@ public class ZkAdapter {
         _instanceName = createLiveInstanceNode();
         LOG.info("Coordinator instance " + _instanceName + " is online");
 
-        // start with follower state, then join leader election
-        onBecomeFollower();
-        joinLeaderElection();
-
         // both leader and follower needs to listen to its own instance change
         _assignmentList = new ZkBackedTaskListProvider();
         // each instance will need the full map of all datastream tasks
         _datastreamMap = new ZkBackedDatastreamTasksMap();
+
+        // start with follower state, then join leader election
+        onBecomeFollower();
+        joinLeaderElection();
+
     }
 
     private void onBecomeLeader() {
@@ -344,7 +345,9 @@ public class ZkAdapter {
     }
 
     /**
-     * given an instance name and a datastreamtask name assigned to this instance, return the DatastreamTask
+     * given an instance name and a datastreamtask name assigned to this instance, read
+     * the znode content under /{cluster}/instances/{instance}/{taskname} and return
+     * an instance of DatastreamTask
      *
      * @param instance
      * @param taskName
@@ -371,6 +374,7 @@ public class ZkAdapter {
      * @param assignments
      */
     public void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
+        LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: " + tasksToString(assignments));
         List<String> oldAssignmentNodes = _zkclient.getChildren(KeyBuilder.instance(_cluster, instance));
         List<DatastreamTask> oldAssignment = new ArrayList<>();
 
@@ -383,6 +387,7 @@ public class ZkAdapter {
             DatastreamTask task = DatastreamTask.fromJson(content);
             oldAssignment.add(task);
         });
+        LOG.info("Existing/old assignments to be updated for " + instance + " are: " + tasksToString(oldAssignment));
 
         //
         // find the DatastreamTasks that are to be deleted from this instance, delete the znodes from zookeeper
@@ -390,8 +395,8 @@ public class ZkAdapter {
         List<DatastreamTask> removed = new ArrayList<>(oldAssignment);
         removed.removeAll(assignments);
         removed.forEach(ds -> {
-            String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getName());
-            LOG.info("update assignment: remove task " + ds.getName() + " from instance " + instance);
+            LOG.info("Removing old assignment " + ds.getDatastreamTaskName() + " from instance " + instance);
+            String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
             _zkclient.delete(path);
         });
 
@@ -401,15 +406,31 @@ public class ZkAdapter {
         List<DatastreamTask> added = new ArrayList<>(assignments);
         added.removeAll(oldAssignment);
         added.forEach(ds -> {
-            String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getName());
-            LOG.info("update assignment: add task " + ds.getName() + " for instance " + instance);
+            String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
+            LOG.info("Leader adding new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName());
             try {
                 _zkclient.create(path, ds.toJson(), CreateMode.PERSISTENT);
+                LOG.info("Leader added new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName());
             } catch (IOException e) {
-                e.printStackTrace();
+                // We should never get here. If we do, need to fix it with retry logic
+                LOG.error("Leader failed to add new task assignment to instance. Instance: " + instance + ", DatastreamTask: " + ds.getDatastreamTaskName() + ", error: " + e.getMessage());
             }
         });
     }
+
+    private String tasksToString(List<DatastreamTask> list) {
+        StringBuffer sb = new StringBuffer();
+        sb.append("[ ");
+        for(int i = 0; i < list.size(); i++) {
+            sb.append(list.get(i).getDatastreamTaskName());
+            if (i != list.size()-1) {
+                sb.append(", ");
+            }
+        }
+        sb.append(" ]");
+        return sb.toString();
+    }
+
 
     // create a live instance node, in the form of a sequence number with the znode path
     // /{cluster}/liveinstances/{sequenceNuber}
@@ -439,6 +460,30 @@ public class ZkAdapter {
         _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
         return _hostname + "-" + _liveInstanceName;
     }
+
+    /**
+     * return the znode content under /{cluster}/{connectorType}/{datastreamTask}/state
+     * @param datastreamTask
+     * @param key
+     * @return
+     */
+    public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
+        String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
+        return _zkclient.exists(path) ? _zkclient.readData(path) : null;
+    }
+
+    /**
+     * set value for znode content at /{cluster}/{connectorType}/{datastreamTask}/state
+     * @param datastreamTask
+     * @param key
+     * @param value
+     */
+    public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
+        String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
+        _zkclient.ensurePath(path);
+        _zkclient.writeData(path, value);
+    }
+
 
     /**
      * ZkAdapterListener
@@ -604,7 +649,7 @@ public class ZkAdapter {
             return _allDatastreamTasks;
         }
 
-        private void reloadData() {
+        private synchronized void reloadData() {
             _allDatastreamTasks = new HashMap<>();
             List<String> connectorTypes = _zkclient.getChildren(_path);
             connectorTypes.removeAll(Arrays.asList("datastream", "instances", "liveinstances"));
@@ -653,7 +698,7 @@ public class ZkAdapter {
         }
 
         @Override
-        public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+        public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
             _assigned = _zkclient.getChildren(_path);
             if (_listener != null) {
                 _listener.onAssignmentChange();

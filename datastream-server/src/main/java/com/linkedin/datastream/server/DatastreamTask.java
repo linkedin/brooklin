@@ -1,7 +1,6 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamJSonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.codehaus.jackson.annotate.JsonIgnore;
@@ -23,6 +22,10 @@ import java.util.HashMap;
  * Datastream object, DatastreamTask also contains a key-value store Properties. This allows the assignment
  * strategy to attach extra parameters.
  *
+ * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in zookeeper
+ * This should be unique for each instance of DatastreamTask, especially in the case when a Datastream is
+ * split into multiple DatastreamTasks. This is because we will have a state associated with each DatastreamTask.
+ *
  */
 public class DatastreamTask {
 
@@ -31,10 +34,19 @@ public class DatastreamTask {
     // connector type. Type of the connector to be used for reading the change capture events
     // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
     // Mysql-Change etc..
-    // All datastreams wrapped in one assignable DatastreamTask must belong to the same connector type.
     private String _connectorType;
+
+    // The Id of the datastreamtask. It is a string that will represent one assignable element of
+    // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
+    // mapped to one Datastream. In the case when a Datastream is split into multiple partitions, the id
+    // value should be the partition number. Each of the _id value will be represented in zookeeper
+    // under /{cluster}/{connectorType}/{datastream}/{id}.
+    private String _id = "";
+
+    // _datastreamName is copied from Datastream instance. This is because in the znode we only persist
+    // the datastream name, and only obtain instance of Datastream by reading from the znode
+    // under corresponding /{cluster}/datastream/{datastreamName}
     private String _datastreamName;
-    private String _taskName;
 
     private Datastream _datastream;
 
@@ -69,6 +81,11 @@ public class DatastreamTask {
         return _datastream;
     }
 
+    @JsonIgnore
+    public String getDatastreamTaskName() {
+        return _id.equals("") ? _datastreamName : _datastreamName + "_" + _id;
+    }
+
     public void setDatastream(Datastream datastream) {
         _datastream = datastream;
     }
@@ -89,24 +106,20 @@ public class DatastreamTask {
         _connectorType = connectorType;
     }
 
-    public String getTaskName() {
-        return _taskName;
+    public void setId(String id) {
+        _id = id;
     }
 
-    public void setTaskName(String _taskName) {
-        this._taskName = _taskName;
+    public String getId() {
+        return _id;
     }
 
     public String getDatastreamName() {
         return _datastreamName;
     }
-
-    public void setDatastreamName(String _datastreamName) {
-        this._datastreamName = _datastreamName;
+    public void setDatastreamName(String datastreamName) {
+        this._datastreamName = datastreamName;
     }
-
-    @JsonIgnore
-    public String getName() { return  _taskName == null ? _datastreamName : _datastreamName + "_" + _taskName; }
 
     public String toJson() throws IOException{
         ObjectMapper mapper = new ObjectMapper();
@@ -121,11 +134,16 @@ public class DatastreamTask {
             return true;
         }
 
+        if (obj == null) {
+            return false;
+        }
+
         if (!(obj instanceof DatastreamTask)) {
             return false;
         }
 
         DatastreamTask other = (DatastreamTask) obj;
-        return other.getName() == this.getName();
+
+        return other.getDatastreamName().equals(this.getDatastreamName()) && other.getId().equals(this.getId());
     }
 }
