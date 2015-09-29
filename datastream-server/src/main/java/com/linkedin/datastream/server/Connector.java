@@ -29,7 +29,7 @@ public interface Connector {
   String getConnectorType();
 
   /**
-   * callback when the datastreams assignment to this instance is changed. This is called whenver
+   * callback when the datastreams assignment to this instance is changed. This is called whenever
    * there is a change for the assignment. The implementation of the Connector is responsible
    * to keep a state of the previous assignment.
    *
@@ -49,7 +49,7 @@ public interface Connector {
 
   /**
    * Validate the datastream. Datastream management service call this before writing the
-   * Datastream into zookeeper. DMS ensureS that stream.source has sufficient details.
+   * Datastream into zookeeper. DMS ensures that stream.source has sufficient details.
    * @param stream: Datastream model
    * @return validation result
    */

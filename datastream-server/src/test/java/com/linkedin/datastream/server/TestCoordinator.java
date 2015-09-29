@@ -3,11 +3,13 @@ package com.linkedin.datastream.server;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
@@ -28,6 +30,18 @@ public class TestCoordinator {
 
     EmbeddedZookeeper _embeddedZookeeper;
     String _zkConnectionString;
+
+    private Coordinator createCoordinator(String zkAddr, String cluster) {
+        return createCoordinator(zkAddr, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+    }
+    private Coordinator createCoordinator(String zkAddr, String cluster, int sessionTimeout, int connectionTimeout) {
+        Properties props = new Properties();
+        props.put("datastream.server.coordinator.cluster", cluster);
+        props.put("datastream.server.coordinator.zkAddress", zkAddr);
+        props.put("datastream.server.coordinator.zkSessionTimeout", String.valueOf(sessionTimeout));
+        props.put("datastream.server.coordinator.zkConnectionTime", String.valueOf(connectionTimeout));
+        return new Coordinator(new VerifiableProperties(props));
+    }
 
     @BeforeMethod
     public void setup() throws IOException {
@@ -100,7 +114,7 @@ public class TestCoordinator {
     @Test
     public void testConnectorStartStop() throws Exception {
         String testCluster = "test_coordinator_startstop";
-        Coordinator coordinator = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
 
         TestHookConnector connector = new TestHookConnector();
         coordinator.addConnector(connector, new BroadcastStrategy());
@@ -123,7 +137,7 @@ public class TestCoordinator {
         String testCluster = "testConnectorStateSetAndGet";
         String testConectorType = "testConnectorType";
 
-        Coordinator coordinator = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
 
         //
         // create a Connector instance, its sole purpose is to record the number of times
@@ -217,7 +231,7 @@ public class TestCoordinator {
         String testConectorType = "testConnectorType";
         String datastreamName1 = "datastream1";
 
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1 = new TestHookConnector(testConectorType);
         instance1.addConnector(connector1, new BroadcastStrategy());
         instance1.start();
@@ -244,7 +258,7 @@ public class TestCoordinator {
         //
         // create a second live instance named instance2 and join the cluster
         //
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector2 = new TestHookConnector(testConectorType);
         instance2.addConnector(connector2, new BroadcastStrategy());
         instance2.start();
@@ -301,12 +315,12 @@ public class TestCoordinator {
         TestHookConnector connector21 = new TestHookConnector(connectorType1);
         TestHookConnector connector22 = new TestHookConnector(connectorType2);
 
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         instance1.addConnector(connector11, new BroadcastStrategy());
         instance1.addConnector(connector12, new BroadcastStrategy());
         instance1.start();
 
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
         instance2.addConnector(connector21, new BroadcastStrategy());
         instance2.addConnector(connector22, new BroadcastStrategy());
         instance2.start();
@@ -378,7 +392,7 @@ public class TestCoordinator {
 
         for(int i = 0; i < concurrencyLevel; i++) {
             Runnable task = () -> {
-                Coordinator instance = new Coordinator(_zkConnectionString, testCluster, waitDurationForZk * 10, waitDurationForZk * 20);
+                Coordinator instance = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 10, waitDurationForZk * 20);
                 instance.start();
 
                 // keep the thread alive
@@ -424,7 +438,7 @@ public class TestCoordinator {
         //
         // create 1 live instance and start it
         //
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1 = new TestHookConnector(testConectorType);
         instance1.addConnector(connector1, new BroadcastStrategy());
         instance1.start();
