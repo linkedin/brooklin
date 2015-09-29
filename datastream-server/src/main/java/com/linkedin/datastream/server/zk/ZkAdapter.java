@@ -145,7 +145,7 @@ public class ZkAdapter {
     public void disconnect() {
 
         if (_zkclient != null) {
-            _zkclient.delete(KeyBuilder.liveInstance(_cluster, _liveInstanceName));
+            _zkclient.deleteRecursive(KeyBuilder.liveInstance(_cluster, _liveInstanceName));
             _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, _instanceName));
             _zkclient.close();
             _zkclient = null;
