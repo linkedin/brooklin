@@ -297,6 +297,12 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
 
     while (!pstack.empty()) {
       String p = pstack.pop();
+
+      // double check the existence of the path to avoid herd effect
+      if (this.exists(p)) {
+        continue;
+      }
+
       LOG.info("creating path in zookeeper: " + p);
       try{
         this.createPersistent(p);

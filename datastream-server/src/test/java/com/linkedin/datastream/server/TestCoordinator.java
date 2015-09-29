@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
@@ -11,6 +12,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -222,11 +224,11 @@ public class TestCoordinator {
 
     }
 
-    // testCoordinationSmoke is a smoke test, to verify that datastreams created by DSM can be
+    // testCoordinationWithBroadcastStrategy is a smoke test, to verify that datastreams created by DSM can be
     // assigned to live instances. The datastreams created by DSM is mocked by directly creating
     // the znodes in zookeeper.
     @Test
-    public void testCoordinationSmoke() throws Exception {
+    public void testCoordinationWithBroadcastStrategy() throws Exception {
         String testCluster = "testCoordinationSmoke";
         String testConectorType = "testConnectorType";
         String datastreamName1 = "datastream1";
@@ -250,10 +252,10 @@ public class TestCoordinator {
         Thread.sleep(waitDurationForZk);
 
         //
-        // verify the instance has 1 task assigned
+        // verify the instance has 1 task assigned: datastream1
         //
         List<DatastreamTask> assigned1 = connector1.getTasks();
-        Assert.assertEquals(assigned1.size(), 1);
+        assertDatastreamTaskAssignments(assigned1, "datastream1");
 
         //
         // create a second live instance named instance2 and join the cluster
@@ -292,15 +294,18 @@ public class TestCoordinator {
         //
         assigned1 = connector1.getTasks();
         assigned2 = connector2.getTasks();
-        Assert.assertEquals(assigned1.size(), 2);
-        Assert.assertEquals(assigned2.size(), 2);
+        assertDatastreamTaskAssignments(assigned1, "datastream1", "datastream2");
+        assertDatastreamTaskAssignments(assigned2, "datastream1", "datastream2");
 
+        //
+        // clean up
+        //
         instance1.stop();
         zkClient.close();
     }
 
     @Test
-    public void testCoordinationMultipleConnectorTypes() throws Exception {
+    public void testCoordinationMultipleConnectorTypesForBroadcastStrategy() throws Exception {
         String testCluster = "testCoordinationMultipleConnectors";
 
         String connectorType1 = "connectorType1";
@@ -421,13 +426,10 @@ public class TestCoordinator {
         zkClient.close();
     }
 
-    @Test(enabled = false)
+    // this is a potentially flaky test
+    @Test
     public void testStressLargeNumberOfDatastreams() throws Exception {
-        //
-        // note: on standard issue Macbook Pro, the max capacity is creating 80
-        // datastreams per second, stable capacity is 70 per second
-        //
-        // this is a potentially flaky test, disable auto-run
+
         int concurrencyLevel = 10;
 
         String testCluster = "testStressLargeNumberOfDatastreams";
@@ -443,6 +445,13 @@ public class TestCoordinator {
         instance1.addConnector(connector1, new BroadcastStrategy());
         instance1.start();
 
+        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector2 = new TestHookConnector(testConectorType);
+        instance2.addConnector(connector2, new BroadcastStrategy());
+        instance2.start();
+
+        Thread.sleep(waitDurationForZk);
+
         //
         // create large number of datastreams
         //
@@ -453,34 +462,313 @@ public class TestCoordinator {
         //
         // wait for the assignment to finish
         //
-        Thread.sleep(waitDurationForZk);
+        Thread.sleep(3000);
 
         //
         // verify all datastreams are assigned to the instance1
         //
-        List<DatastreamTask> assigned = connector1.getTasks();
+        List<DatastreamTask> assigned1 = connector1.getTasks();
+        List<DatastreamTask> assigned2 = connector2.getTasks();
 
         //
         // retries to reduce the flakiness
         //
-        int retries = 20;
-        while(assigned.size() < concurrencyLevel && retries > 0) {
+        int retries = 10;
+        while(assigned1.size() < concurrencyLevel && retries > 0) {
             retries--;
-            Thread.sleep(500);
-            assigned = connector1.getTasks();
+            Thread.sleep(waitDurationForZk);
+            assigned1 = connector1.getTasks();
         }
-        Assert.assertEquals(assigned.size(), concurrencyLevel);
+        Assert.assertEquals(assigned1.size(), concurrencyLevel);
+        Assert.assertEquals(assigned2.size(), concurrencyLevel);
 
+        instance1.stop();
+        instance2.stop();
+        zkClient.close();
+    }
+
+
+    //
+    // Test SimpleAssignmentStrategy: if new live instances come online, some tasks
+    // will be moved from existing live instance to the new live instance
+    //
+    @Test
+    public void testSimpleAssignmentReassignWithNewInstances() throws Exception {
+        String testCluster = "testSimpleAssignmentReassignWithNewInstances";
+        String testConnectoryType = "testConnectoryType";
+        String datastreamName = "datastream";
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+        //
+        // create 1 instance
+        //
+        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
+        instance1.addConnector(connector1, new SimpleStrategy());
+        instance1.start();
+        Thread.sleep(waitDurationForZk);
+
+        //
+        // create 2 datastreams, [datastream0, datastream1]
+        //
+        createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream0");
+        createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream1");
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify both datastreams are assigned to instance1
+        //
+        List<DatastreamTask> assignment1 = connector1.getTasks();
+        assertDatastreamTaskAssignments(assignment1, "datastream0", "datastream1");
+        //
+        // add a new live instance instance2
+        //
+        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
+        instance2.addConnector(connector2, new SimpleStrategy());
+        instance2.start();
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify new assignment. instance1 : [datastream0], instance2: [datastream1]
+        //
+        assignment1 = connector1.getTasks();
+        assertDatastreamTaskAssignments(assignment1, "datastream0");
+        List<DatastreamTask> assignment2 = connector2.getTasks();
+        assertDatastreamTaskAssignments(assignment2, "datastream1");
+        //
+        // add instance3
+        //
+        Coordinator instance3 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
+        instance3.addConnector(connector3, new SimpleStrategy());
+        instance3.start();
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify assignment didn't change
+        //
+        assignment1 = connector1.getTasks();
+        assertDatastreamTaskAssignments(assignment1, "datastream0");
+        assignment2 = connector2.getTasks();
+        assertDatastreamTaskAssignments(assignment2, "datastream1");
+        List<DatastreamTask> assignment3 = connector3.getTasks();
+        assertDatastreamTaskAssignments(assignment3);
+
+        //
+        // clean up
+        //
+        zkClient.close();
+        instance1.stop();
+        instance2.stop();
+        instance3.stop();
+    }
+
+    //
+    // Test for SimpleAssignmentStrategy
+    // Verify that when instance dies, the assigned tasks will be re-assigned to remaining live instances
+    //
+    @Test
+    public void testSimpleAssignmentReassignAfterDeath() throws Exception {
+        String testCluster = "testSimpleAssignmentReassignAfterDeath";
+        String testConnectoryType = "testConnectoryType";
+        String datastreamName = "datastream";
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+        //
+        // setup a cluster with 2 live instances with simple assignment strategy
+        //
+        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
+        instance1.addConnector(connector1, new SimpleStrategy());
+        instance1.start();
+
+        // make sure the instance2 can be taken offline cleanly with session expiration
+        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk*5);
+        TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
+        instance2.addConnector(connector2, new SimpleStrategy());
+        instance2.start();
+
+        //
+        // create 4 datastreams, [datastream0, datastream1, datatream2, datastream3]
+        //
+        for(int i = 0; i < 4; i++) {
+            createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+        }
+        Thread.sleep(waitDurationForZk);
+
+        //
+        // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
+        //
+        List<DatastreamTask> assigned1 = connector1.getTasks();
+        List<DatastreamTask> assigned2 = connector2.getTasks();
+
+        assertDatastreamTaskAssignments(assigned1, "datastream0", "datastream2");
+        assertDatastreamTaskAssignments(assigned2, "datastream1", "datastream3");
+
+        //
+        // take instance2 offline
+        //
+        instance2.stop();
+        // wait lone enough for zookeeper to remove the live instance
+        Thread.sleep(waitDurationForZk * 3);
+
+        //
+        // verify all 4 datastreams are assigned to instance1
+        //
+        assigned1 = connector1.getTasks();
+        assertDatastreamTaskAssignments(assigned1, "datastream0", "datastream1", "datastream2", "datastream3");
+
+        //
+        // clean up
+        //
         instance1.stop();
         zkClient.close();
     }
 
-    private void createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType, String datastreamName) {
-        zkClient.ensurePath(KeyBuilder.datastreams(cluster));
-        Datastream datastream = new Datastream();
-        datastream.setName(datastreamName);
-        datastream.setConnectorType(connectorType);
-        String json = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
-        zkClient.create(KeyBuilder.datastream(cluster, datastreamName), json, CreateMode.PERSISTENT);
+    //
+    // Test SimpleAssignmentStrategy, verify that the assignment is predictable no matter what the datastreams
+    // are. This is because the assignment strategy will sort the datastreams by names. If a new datastream
+    // has a smaller lexicographical order, it will be assigned to an instance with smaller lexicographical order.
+    // Put it in another word, this is how Kafka consumer rebalancing works.
+    //
+    @Test
+    public void testSimpleAssignmentRebalancing() throws Exception {
+        String testCluster = "testSimpleAssignmentRebalancing";
+        String testConnectoryType = "testConnectoryType";
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+        //
+        // setup a cluster with 2 live instances with simple assignment strategy
+        //
+        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
+        instance1.addConnector(connector1, new SimpleStrategy());
+        instance1.start();
+
+        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
+        instance2.addConnector(connector2, new SimpleStrategy());
+        instance2.start();
+
+        //
+        // create 2 datastreams [datastream1, datastream2]
+        //
+        createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream1");
+        createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream2");
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify assignment instance1: [datastream1], instance2:[datastream2]
+        //
+        List<DatastreamTask> assignment1 = connector1.getTasks();
+        List<DatastreamTask> assignment2 = connector2.getTasks();
+        assertDatastreamTaskAssignments(assignment1, "datastream1");
+        assertDatastreamTaskAssignments(assignment2, "datastream2");
+        //
+        // create 1 new datastream "datastream0", which has the smallest lexicographical order
+        //
+        createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream0");
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify assignment instance1:[datastream0, datastream2], instance2:[datastream1]
+        //
+        assignment1 = connector1.getTasks();
+        assignment2 = connector2.getTasks();
+        assertDatastreamTaskAssignments(assignment1, "datastream0", "datastream2");
+        assertDatastreamTaskAssignments(assignment2, "datastream1");
+
+        //
+        // clean up
+        //
+        instance1.stop();
+        instance2.stop();
+        zkClient.close();
+    }
+
+    //
+    // Verify each connector type has its assignment strategy and it is executed independently
+    // That is, the assignment of one connector type will not affect the assignment of the
+    // other type, even though the assignment strategies are different. In this test case,
+    // we have two connectors for each instance, and they are using different assignment
+    // strategies, BroadcastStrategy and SimpleStrategy respectively.
+    //
+    @Test
+    public void testSimpleAssignmentStrategyIndependent() throws Exception {
+        String testCluster = "testSimpleAssignmentStrategy";
+        String connectoryType1 = "ConnectoryType1";
+        String connectoryType2 = "ConnectoryType2";
+        ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+        //
+        // setup a cluster with 2 live instances with simple assignment strategy,
+        // each has two connectors
+        //
+        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector1a = new TestHookConnector(connectoryType1);
+        TestHookConnector connector1b = new TestHookConnector(connectoryType2);
+        instance1.addConnector(connector1a, new SimpleStrategy());
+        instance1.addConnector(connector1b, new BroadcastStrategy());
+        instance1.start();
+
+        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        TestHookConnector connector2a = new TestHookConnector(connectoryType1);
+        TestHookConnector connector2b = new TestHookConnector(connectoryType2);
+        instance2.addConnector(connector2a, new SimpleStrategy());
+        instance2.addConnector(connector2b, new BroadcastStrategy());
+        instance2.start();
+
+        Thread.sleep(waitDurationForZk);
+
+        //
+        // create 3 datastreams ["simple0", "simple1", "simple2"] for ConnectoryType1
+        //
+        createDatastreamForDSM(zkClient, testCluster, connectoryType1, "simple0", "simple1", "simple2");
+        //
+        // create 3 datastreams [datastream2, datastream3, datastream4] for ConnectorType2
+        //
+        createDatastreamForDSM(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1", "broadcast2");
+        Thread.sleep(waitDurationForZk);
+        //
+        // verify assignment: instance1.connector1: [datastream0], connector2:[datastream2, datastream4"]
+        // instance2.connector1:[datastream1], connector2:[datastream3]
+        //
+        List<DatastreamTask> assignment = connector1a.getTasks();
+        assertDatastreamTaskAssignments(assignment, "simple0", "simple2");
+        assignment = connector1b.getTasks();
+        assertDatastreamTaskAssignments(assignment, "broadcast0", "broadcast1", "broadcast2");
+        assignment = connector2a.getTasks();
+        assertDatastreamTaskAssignments(assignment, "simple1");
+        assignment = connector2b.getTasks();
+        assertDatastreamTaskAssignments(assignment, "broadcast0", "broadcast1", "broadcast2");
+
+        //
+        // clean up
+        //
+        instance1.stop();
+        instance2.stop();
+        zkClient.close();
+    }
+
+    //
+    // helper method: verify the assigned DatastreamTask matches the datastreamNames list
+    //
+    private void assertDatastreamTaskAssignments(List<DatastreamTask> assignment, String... datastreamNames) {
+        Assert.assertEquals(assignment.size(), datastreamNames.length);
+
+        if (assignment.size() == 0) {
+            return;
+        }
+
+        List<String> list = Arrays.asList(datastreamNames);
+
+        assignment.forEach(ds -> Assert.assertTrue(list.contains(ds.getDatastreamName()), "DatastreamTask with name " + ds.getDatastreamTaskName() + " is not expected"));
+    }
+
+    private void createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType, String... datastreamNames) {
+        for(String datastreamName: datastreamNames) {
+            zkClient.ensurePath(KeyBuilder.datastreams(cluster));
+            Datastream datastream = new Datastream();
+            datastream.setName(datastreamName);
+            datastream.setConnectorType(connectorType);
+            String json = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
+            zkClient.create(KeyBuilder.datastream(cluster, datastreamName), json, CreateMode.PERSISTENT);
+        }
     }
 }
