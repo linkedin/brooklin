@@ -445,7 +445,8 @@ public class TestCoordinator {
         instance1.addConnector(connector1, new BroadcastStrategy());
         instance1.start();
 
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+
         TestHookConnector connector2 = new TestHookConnector(testConectorType);
         instance2.addConnector(connector2, new BroadcastStrategy());
         instance2.start();
@@ -502,7 +503,7 @@ public class TestCoordinator {
         //
         // create 1 instance
         //
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
         instance1.addConnector(connector1, new SimpleStrategy());
         instance1.start();
@@ -522,7 +523,7 @@ public class TestCoordinator {
         //
         // add a new live instance instance2
         //
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
         instance2.addConnector(connector2, new SimpleStrategy());
         instance2.start();
@@ -537,7 +538,7 @@ public class TestCoordinator {
         //
         // add instance3
         //
-        Coordinator instance3 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
         instance3.addConnector(connector3, new SimpleStrategy());
         instance3.start();
@@ -575,13 +576,13 @@ public class TestCoordinator {
         //
         // setup a cluster with 2 live instances with simple assignment strategy
         //
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
         instance1.addConnector(connector1, new SimpleStrategy());
         instance1.start();
 
         // make sure the instance2 can be taken offline cleanly with session expiration
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk*5);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk*5);
         TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
         instance2.addConnector(connector2, new SimpleStrategy());
         instance2.start();
@@ -638,12 +639,12 @@ public class TestCoordinator {
         //
         // setup a cluster with 2 live instances with simple assignment strategy
         //
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
         instance1.addConnector(connector1, new SimpleStrategy());
         instance1.start();
 
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
         instance2.addConnector(connector2, new SimpleStrategy());
         instance2.start();
@@ -700,14 +701,14 @@ public class TestCoordinator {
         // setup a cluster with 2 live instances with simple assignment strategy,
         // each has two connectors
         //
-        Coordinator instance1 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector1a = new TestHookConnector(connectoryType1);
         TestHookConnector connector1b = new TestHookConnector(connectoryType2);
         instance1.addConnector(connector1a, new SimpleStrategy());
         instance1.addConnector(connector1b, new BroadcastStrategy());
         instance1.start();
 
-        Coordinator instance2 = new Coordinator(_zkConnectionString, testCluster);
+        Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
         TestHookConnector connector2a = new TestHookConnector(connectoryType1);
         TestHookConnector connector2b = new TestHookConnector(connectoryType2);
         instance2.addConnector(connector2a, new SimpleStrategy());
