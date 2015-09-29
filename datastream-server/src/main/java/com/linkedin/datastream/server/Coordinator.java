@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.HashSet;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.server.zk.ZkClient;
 import org.slf4j.Logger;
@@ -74,7 +75,7 @@ import org.slf4j.LoggerFactory;
 public class Coordinator implements ZkAdapter.ZkAdapterListener {
     private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
 
-    private String _cluster;
+    private final CoordinatorConfig _config;
     private ZkAdapter _adapter;
 
     private Map<Connector, AssignmentStrategy> _strategies = new HashMap<>();
@@ -86,15 +87,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     private DatastreamEventCollector _collector = new DatastreamEventCollectorImpl();
 
-    public Coordinator(String zkServers, String cluster) {
-        this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+    public Coordinator(VerifiableProperties properties) {
+        this(new CoordinatorConfig((properties)));
     }
 
-    public Coordinator(String zkServers, String cluster, int sessionTimeout, int connectionTimeout) {
-        _cluster = cluster;
-        _adapter = new ZkAdapter(zkServers, cluster, sessionTimeout, connectionTimeout, this);
+    public Coordinator(CoordinatorConfig config) {
+        _config = config;
+        _adapter = new ZkAdapter(_config.getZkAddress(),
+                                 _config.getCluster(),
+                                 _config.getZkSessionTimeout(),
+                                 _config.getZkConnectionTimeout(),
+                                 this);
         _adapter.setListener(this);
-
     }
 
     public void start() {
