@@ -385,7 +385,7 @@ public class TestCoordinator {
     // stress test, start multiple coordinator instances at the same time, and make sure that all of them
     // will get a unique instance name
     //
-    @Test
+    @Test (enabled = false)
     public void testStressLargeNumberOfLiveInstances() throws Exception {
         int concurrencyLevel = 100;
         String testCluster = "testStressUniqueInstanceNames";
@@ -690,7 +690,7 @@ public class TestCoordinator {
     // we have two connectors for each instance, and they are using different assignment
     // strategies, BroadcastStrategy and SimpleStrategy respectively.
     //
-    @Test(enabled = false)
+    @Test
     public void testSimpleAssignmentStrategyIndependent() throws Exception {
         String testCluster = "testSimpleAssignmentStrategy";
         String connectoryType1 = "ConnectoryType1";

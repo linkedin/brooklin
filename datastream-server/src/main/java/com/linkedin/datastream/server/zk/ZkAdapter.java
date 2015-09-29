@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.I0Itec.zkclient.IZkDataListener;
+import org.I0Itec.zkclient.exception.ZkException;
 import org.apache.zookeeper.CreateMode;
 
 /**
@@ -145,10 +146,21 @@ public class ZkAdapter {
     public void disconnect() {
 
         if (_zkclient != null) {
-            _zkclient.deleteRecursive(KeyBuilder.liveInstance(_cluster, _liveInstanceName));
-            _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, _instanceName));
-            _zkclient.close();
-            _zkclient = null;
+            try{
+                // remove the liveinstance node
+                String liveInstancePath = KeyBuilder.liveInstance(_cluster, _liveInstanceName);
+                LOG.info("deleting live instance node: " + liveInstancePath);
+                _zkclient.delete(liveInstancePath);
+
+                String instancePath = KeyBuilder.instance(_cluster, _instanceName);
+                LOG.info("deleting instance node: " + instancePath);
+                _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, _instanceName));
+            } catch(ZkException zke) {
+                // do nothing, best effort clean up
+            } finally {
+                _zkclient.close();
+                _zkclient = null;
+            }
         }
         _isLeader = false;
     }
