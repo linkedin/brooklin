@@ -690,7 +690,7 @@ public class TestCoordinator {
     // we have two connectors for each instance, and they are using different assignment
     // strategies, BroadcastStrategy and SimpleStrategy respectively.
     //
-    @Test
+    @Test(enabled = false)
     public void testSimpleAssignmentStrategyIndependent() throws Exception {
         String testCluster = "testSimpleAssignmentStrategy";
         String connectoryType1 = "ConnectoryType1";
