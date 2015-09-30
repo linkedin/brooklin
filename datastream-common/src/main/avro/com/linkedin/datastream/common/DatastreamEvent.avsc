@@ -2,7 +2,7 @@
 {
     "name": "DatastreamEvent",
     "version" : 1,
-    "namespace": "com.linkedin.datastream.avro",
+    "namespace": "com.linkedin.datastream.common",
     "type": "record",
     "fields": [
         {

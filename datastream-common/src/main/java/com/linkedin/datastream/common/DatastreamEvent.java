@@ -10,7 +10,7 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
     org.apache.avro.specific.SpecificRecord {
   public static final org.apache.avro.Schema SCHEMA$ =
       org.apache.avro.Schema
-          .parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.avro\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
+          .parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
   /** Name of the datastream that this event is generated for. */
   public java.lang.CharSequence datastream;
   /** Event metadata. */
