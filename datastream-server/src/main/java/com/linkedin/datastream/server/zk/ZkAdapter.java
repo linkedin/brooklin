@@ -3,7 +3,13 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
@@ -231,6 +237,20 @@ public class ZkAdapter {
   }
 
   /**
+   * make sure all required zookeeper nodes and paths exist for a given DatastreamTask
+   * @param task
+   */
+  public void ensureZkPathsForDatastreamTask(DatastreamTask task) {
+    String configPath =
+        KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(), task.getDatastreamName(), task.getId());
+    _zkclient.ensurePath(configPath);
+
+    String statePath =
+        KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamName(), task.getId());
+    _zkclient.ensurePath(statePath);
+  }
+
+  /**
    *  Each instance of coordinator (and coordinator zk adapter) must participate the leader
    *  election. This method will be called when the zk connection is made, in ZkAdapter.connect() method.
    *  This is a standard implementation of the ZooKeeper leader election recipe.
@@ -388,7 +408,7 @@ public class ZkAdapter {
    * @param instance
    * @param assignments
    */
-  public void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
+  public synchronized void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
     LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: "
         + tasksToString(assignments));
     List<String> oldAssignmentNodes = _zkclient.getChildren(KeyBuilder.instance(_cluster, instance));
@@ -425,6 +445,7 @@ public class ZkAdapter {
     LOG.info("Assigning new tasks for instance " + instance + ", new tasks are: " + tasksToString(added));
     added.forEach(ds -> {
       String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
+
       try {
         _zkclient.create(path, ds.toJson(), CreateMode.PERSISTENT);
       } catch (IOException e) {
@@ -536,7 +557,9 @@ public class ZkAdapter {
   }
 
   /**
-   * ZkBackedDMSDatastreamList
+   * ZkBackedDMSDatastreamList is a cached list of datastreams defined by DSM. Whenever there is a change to
+   * the list of Datastreams, usually caused by DSM, the ZkBackedDMSDatastreamList need to notify the
+   * ZkAdapter such changes. Only the leader instance of Coordinator/ZkAdapter needs this feature.
    */
   public class ZkBackedDMSDatastreamList implements IZkChildListener {
     private List<String> _datastreams = new ArrayList<>();
@@ -661,10 +684,12 @@ public class ZkAdapter {
 
     public ZkBackedDatastreamTasksMap() {
       _zkclient.ensurePath(_path);
-      reloadData();
     }
 
     public Map<String, List<DatastreamTask>> getAllDatastreamTasks() {
+      if (_allDatastreamTasks == null) {
+        reloadData();
+      }
       return _allDatastreamTasks;
     }
 

@@ -249,7 +249,7 @@ public class TestCoordinator {
   // the znodes in zookeeper.
   @Test
   public void testCoordinationWithBroadcastStrategy() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationWithBroadcastStrategy";
     String testConectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
 
@@ -517,7 +517,6 @@ public class TestCoordinator {
   public void testSimpleAssignmentReassignWithNewInstances() throws Exception {
     String testCluster = "testSimpleAssignmentReassignWithNewInstances";
     String testConnectoryType = "testConnectoryType";
-    String datastreamName = "datastream";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     //
@@ -713,7 +712,7 @@ public class TestCoordinator {
   //
   @Test
   public void testSimpleAssignmentStrategyIndependent() throws Exception {
-    String testCluster = "testSimpleAssignmentStrategy";
+    String testCluster = "testSimpleAssignmentStrategyIndependent";
     String connectoryType1 = "ConnectoryType1";
     String connectoryType2 = "ConnectoryType2";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -766,6 +765,157 @@ public class TestCoordinator {
     instance1.stop();
     instance2.stop();
     zkClient.close();
+  }
+
+  //
+  // verify that instance and live instance zk nodes are created and are cleaned up
+  // appropriatedly
+  //
+  @Test
+  public void testZooKeeperPathForInstances() throws Exception {
+    String testCluster = "testZooKeeperPathForInstances";
+    String connectoryType1 = "Oracle";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // create a live instance
+    //
+    Coordinator instance1 =
+        createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk * 4);
+    instance1.start();
+
+    //
+    // verify the following znode exists:
+    //  /{cluster}/liveinstances/{liveInstnaceName}
+    //  /{cluster}/instances/{instancesName}
+    //
+    Assert.assertTrue(zkClient.exists(KeyBuilder.instance(testCluster, instance1.getInstanceName())));
+    Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 1);
+
+    //
+    // create 2 datastreams and wait for the assignment to happen.
+    //
+    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "simple0", "simple1");
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // verify the instance assigment is empty, because the coordinator does not have the connector
+    //
+    Assert.assertEquals(zkClient.countChildren(KeyBuilder.instance(testCluster, instance1.getInstanceName())), 0);
+
+    //
+    // now stop instance1, and create instance2 with the connector. The new instance2 will become the new leader
+    // and it will proactively remove instance nodes if it is not live anymore.
+    //
+    instance1.stop();
+    Coordinator instance2 =
+        createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk * 4);
+    TestHookConnector connector2 = new TestHookConnector(connectoryType1);
+    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.start();
+    Thread.sleep(waitDurationForZk); // wait for instance1 to actually die
+
+    //
+    // verify all znodes for instance1 has been cleaned up
+    //
+    Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 1);
+    Assert.assertFalse(zkClient.exists(KeyBuilder.instance(testCluster, instance1.getInstanceName())));
+
+    //
+    // verify the instance2 node has 2 children for the assignment
+    //
+    List<String> assignment = zkClient.getChildren(KeyBuilder.instance(testCluster, instance2.getInstanceName()));
+    Assert.assertEquals(assignment.size(), 2);
+    Assert.assertTrue(assignment.contains("simple0"));
+    Assert.assertTrue(assignment.contains("simple1"));
+
+    //
+    // clean up
+    //
+    zkClient.close();
+    instance2.stop();
+
+  }
+
+  //
+  // verify that when an instance dies, all related zookeeper data are removed, including current assignment
+  // and live instance nodes
+  //
+  @Test
+  public void testZooKeeperPathForDatastream() throws Exception {
+    String testCluster = "testZooKeeperPathForDatastream";
+    String connectoryType1 = "ConnectoryType1";
+    String connectoryType2 = "ConnectoryType2";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // setup a cluster with 2 live instances with simple assignment strategy,
+    // each has two connectors
+    //
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1a = new TestHookConnector(connectoryType1);
+    TestHookConnector connector1b = new TestHookConnector(connectoryType2);
+    instance1.addConnector(connector1a, new SimpleStrategy());
+    instance1.addConnector(connector1b, new BroadcastStrategy());
+    instance1.start();
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // verify the existence of live instance node, live instance node
+    //
+    String instanceNode = KeyBuilder.instance(testCluster, instance1.getInstanceName());
+    Assert.assertTrue(zkClient.exists(instanceNode));
+    int numLiveInstances = zkClient.countChildren(KeyBuilder.liveInstances(testCluster));
+    Assert.assertEquals(numLiveInstances, 1);
+
+    //
+    // create datastreams
+    //
+    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "simple0", "simple1");
+    createDatastreamForDSM(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1");
+    Thread.sleep(waitDurationForZk);
+    //
+    // verify datastream config/state path exists
+    //
+    assertDatastreamTaskZkPaths(zkClient, testCluster, connectoryType1, "simple0", "simple1");
+    assertDatastreamTaskZkPaths(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1");
+
+    //
+    // take instance1 offline
+    //
+    instance1.stop();
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // verify live instance and instance node is gone
+    //
+    Assert.assertFalse(zkClient.exists(instanceNode));
+    numLiveInstances = zkClient.countChildren(KeyBuilder.liveInstances(testCluster));
+    Assert.assertEquals(numLiveInstances, 0);
+    //
+    // verify config and state path still exists
+    //
+    assertDatastreamTaskZkPaths(zkClient, testCluster, connectoryType1, "simple0", "simple1");
+    assertDatastreamTaskZkPaths(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1");
+
+    //
+    // clean up
+    //
+    instance1.stop();
+    zkClient.close();
+  }
+
+  //
+  // assert that zookeeper path (config and state) for datastreamtask exists.
+  //
+  private void assertDatastreamTaskZkPaths(ZkClient zkClient, String cluster, String connectorType,
+      String... datastreataskNames) {
+    for (String datastreamTaskName : datastreataskNames) {
+      String configPath = KeyBuilder.datastreamTaskConfig(cluster, connectorType, datastreamTaskName);
+      Assert.assertTrue(zkClient.exists(configPath));
+      String statePath = KeyBuilder.datastreamTaskState(cluster, connectorType, datastreamTaskName);
+      Assert.assertTrue(zkClient.exists(statePath));
+    }
   }
 
   //

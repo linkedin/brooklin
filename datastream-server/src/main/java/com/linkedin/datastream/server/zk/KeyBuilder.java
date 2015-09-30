@@ -66,9 +66,19 @@ public class KeyBuilder {
     return String.format(_datastreamTaskState, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
   }
 
+  // zookeeper path: /{cluster}/{connectorType}/{datastream}/state
+  public static String datastreamTaskState(String cluster, String connectorType, String datastreamName) {
+    return datastreamTaskState(cluster, connectorType, datastreamName, "");
+  }
+
   // zookeeper path: /{cluster}/{connectorType}/{datastream}/{taskId}/config
   public static String datastreamTaskConfig(String cluster, String connectorType, String datastreamName, String taskId) {
     return String.format(_datastreamTaskConfig, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
+  }
+
+  // zookeeper path: /{cluster}/{connectorType}/{datastream}/config
+  public static String datastreamTaskConfig(String cluster, String connectorType, String datastreamName) {
+    return datastreamTaskConfig(cluster, connectorType, datastreamName, "");
   }
 
   // zookeeper path: /{cluster}/{connectorType}/{datastream}/{taskId}/state

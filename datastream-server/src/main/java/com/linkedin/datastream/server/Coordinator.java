@@ -9,6 +9,7 @@ import java.util.HashSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.server.zk.ZkClient;
 import org.slf4j.Logger;
@@ -212,7 +213,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
   }
 
-  private void assignDatastreamTasksToInstances() {
+  /**
+   * assignDatastreamTasksToInstances is called whenever there is a change to the list of datastreams. This is
+   * triggered by the children change under zookeeper path /{cluster}/datastream.
+   */
+  private synchronized void assignDatastreamTasksToInstances() {
 
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
@@ -220,6 +225,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // get all data streams that is assignable
     List<Datastream> allStreams = _adapter.getAllDatastreams();
 
+    // group the datastreams by connector types
     Map<String, List<Datastream>> streamsByConnectoryType = new HashMap<>();
 
     for (Datastream ds : allStreams) {
@@ -229,6 +235,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
       streamsByConnectoryType.get(ds.getConnectorType()).add(ds);
     }
+
+    // keep a unique set of all unique DatastreamTask so we can make sure corresponding 
+    // zookeeper nodes are created
+    Set<DatastreamTask> taskList = new HashSet<>();
 
     // for each connector type, call the corresponding assignment strategy
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
@@ -242,8 +252,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           assigmentsByInstance.put(instance, new ArrayList<>());
         }
         assigmentsByInstance.get(instance).addAll(assigned);
+        taskList.addAll(assigned);
       });
     });
+
+    // ensure the zookeeper path for config and state for each DatastreamTask
+    taskList.forEach(task -> _adapter.ensureZkPathsForDatastreamTask(task));
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
     // assignment and do remove and add znodes accordingly.

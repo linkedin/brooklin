@@ -7,7 +7,7 @@ ext {
     metricsVersion = "3.0.1"
     commonsVersion = "1.5"
     kafkaVersion = "0.8.2.1"
-    jacksonVersion = "1.8.5"
+    jacksonVersion = "1.9.13"
     avroVersion = "1.4.0"
     guavaVersion = "15.0"
     pegasusVersion = "2.6.0"
