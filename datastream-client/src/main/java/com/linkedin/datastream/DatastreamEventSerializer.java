@@ -13,8 +13,7 @@ import com.linkedin.datastream.common.DatastreamEvent;
  * Datastream Event.
  * Along with the serialization, This also ensures that the schemas are registered
  */
-public class DatastreamEventSerializer
-    implements Deserializer<DatastreamEvent>, Serializer<DatastreamEvent> {
+public class DatastreamEventSerializer implements Deserializer<DatastreamEvent>, Serializer<DatastreamEvent> {
 
   private SchemaRegistry _registry;
 

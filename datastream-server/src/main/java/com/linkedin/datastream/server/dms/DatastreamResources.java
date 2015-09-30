@@ -8,6 +8,7 @@ import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
+
 /*
  * Resources classes are used by rest.li to process corresponding http request.
  * Note that rest.li will instantiate an object each time it processes a request.
@@ -41,13 +42,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE, "Must specify name of Datastream!"));
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+          "Must specify name of Datastream!"));
     }
     if (!datastream.hasConnectorType()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE, "Must specify connectorType!"));
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+          "Must specify connectorType!"));
     }
     if (!datastream.hasSource()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE, "Must specify source of Datastream!"));
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+          "Must specify source of Datastream!"));
     }
 
     //TODO: perform validation from connector by calling validateDatastream()

@@ -4,6 +4,7 @@ import com.linkedin.datastream.common.Datastream;
 
 import java.util.List;
 
+
 /**
  *  Connector interface defines a small set of methods that Coordinator communicates with.
  *  When the {@link com.linkedin.datastream.server.Coordinator} starts, it will start all

@@ -15,6 +15,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
+
 public class TestZookeeperBackedDatastreamStore {
   private static final Logger LOG = LoggerFactory.getLogger(TestZookeeperBackedDatastreamStore.class);
 
@@ -47,11 +48,9 @@ public class TestZookeeperBackedDatastreamStore {
     target.setKafkaConnection(new KafkaConnection().setMetadataBrokers(metadataBrokers).setTopicName(targetTopic));
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
-    Datastream ds = new Datastream().setName(name).
-                                     setConnectorType(connectorType).
-                                     setSource(source).
-                                     setTarget(target).
-                                     setMetadata(metadata);
+    Datastream ds =
+        new Datastream().setName(name).setConnectorType(connectorType).setSource(source).setTarget(target)
+            .setMetadata(metadata);
     return ds;
   }
 

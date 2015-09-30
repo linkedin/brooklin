@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Properties;
 
+
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
  * for all datastream services including the rest api service, the coordinator and so on.
@@ -32,11 +33,8 @@ public enum DatastreamServer {
     return _coordinator;
   }
 
-  public synchronized void init(Properties properties) throws
-      ClassNotFoundException,
-      IllegalAccessException,
-      InstantiationException,
-      IOException {
+  public synchronized void init(Properties properties) throws ClassNotFoundException, IllegalAccessException,
+      InstantiationException, IOException {
     if (isInitialized()) {
       return;
     }

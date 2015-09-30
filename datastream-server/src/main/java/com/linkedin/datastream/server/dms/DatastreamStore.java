@@ -8,7 +8,10 @@ import com.linkedin.datastream.common.Datastream;
  */
 public interface DatastreamStore {
   public Datastream getDatastream(String key);
+
   public boolean updateDatastream(String key, Datastream datastream);
+
   public boolean createDatastream(String key, Datastream datastream);
+
   public boolean deleteDatastream(String key);
 }

@@ -6,6 +6,9 @@
 package com.linkedin.datastream.common;
 
 @SuppressWarnings("all")
-public enum EventOperation { 
-  INSERT, UPDATE, DELETE, SYSTEM
+public enum EventOperation {
+  INSERT,
+  UPDATE,
+  DELETE,
+  SYSTEM
 }

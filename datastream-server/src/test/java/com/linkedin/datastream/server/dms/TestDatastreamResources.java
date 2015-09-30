@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+
 /**
  * Test DatastreamResources with zookeeper backed DatastreamStore
  */
@@ -46,9 +47,7 @@ public class TestDatastreamResources {
       String metadataBrokers = "kafkaBrokers_" + seed;
       String targetTopic = "kafkaTopic_" + seed;
       Datastream.Target target = new Datastream.Target();
-      target.setKafkaConnection(new KafkaConnection().
-          setMetadataBrokers(metadataBrokers).
-          setTopicName(targetTopic));
+      target.setKafkaConnection(new KafkaConnection().setMetadataBrokers(metadataBrokers).setTopicName(targetTopic));
       ds.setTarget(target);
     }
     if (!missingFields.contains("metadata")) {

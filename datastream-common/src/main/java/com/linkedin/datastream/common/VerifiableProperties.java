@@ -80,8 +80,8 @@ public class VerifiableProperties {
     if (v >= start && v <= end) {
       return v;
     } else {
-      throw new IllegalArgumentException(
-          name + " has value " + v + " which is not in the range " + start + "-" + end + ".");
+      throw new IllegalArgumentException(name + " has value " + v + " which is not in the range " + start + "-" + end
+          + ".");
     }
   }
 
@@ -95,8 +95,8 @@ public class VerifiableProperties {
     if (v >= start && v <= end) {
       return v;
     } else {
-      throw new IllegalArgumentException(
-          name + " has value " + v + " which is not in the range " + start + "-" + end + ".");
+      throw new IllegalArgumentException(name + " has value " + v + " which is not in the range " + start + "-" + end
+          + ".");
     }
   }
 
@@ -114,8 +114,7 @@ public class VerifiableProperties {
     if (value.compareTo(startDecimal) >= 0 && value.compareTo(endDecimal) <= 0) {
       return v;
     } else {
-      throw new IllegalArgumentException(
-          name + " has value " + v + " which is not in range " + start + "-" + end + ".");
+      throw new IllegalArgumentException(name + " has value " + v + " which is not in range " + start + "-" + end + ".");
     }
   }
 
@@ -156,8 +155,8 @@ public class VerifiableProperties {
     if (v >= start && v <= end) {
       return v;
     } else {
-      throw new IllegalArgumentException(
-          name + " has value " + v + " which is not in the range " + start + "-" + end + ".");
+      throw new IllegalArgumentException(name + " has value " + v + " which is not in the range " + start + "-" + end
+          + ".");
     }
   }
 
@@ -247,4 +246,3 @@ public class VerifiableProperties {
     return props.toString();
   }
 }
-

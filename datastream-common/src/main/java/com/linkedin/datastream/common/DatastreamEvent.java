@@ -6,36 +6,58 @@
 package com.linkedin.datastream.common;
 
 @SuppressWarnings("all")
-public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  public static final org.apache.avro.Schema SCHEMA$ = org.apache.avro.Schema.parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.avro\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
+public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase implements
+    org.apache.avro.specific.SpecificRecord {
+  public static final org.apache.avro.Schema SCHEMA$ =
+      org.apache.avro.Schema
+          .parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.avro\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
   /** Name of the datastream that this event is generated for. */
   public java.lang.CharSequence datastream;
   /** Event metadata. */
-  public java.util.Map<java.lang.CharSequence,java.lang.CharSequence> metadata;
+  public java.util.Map<java.lang.CharSequence, java.lang.CharSequence> metadata;
   /** serialized payload data. */
   public java.nio.ByteBuffer payload;
   /** serialized previous payload data. */
   public java.nio.ByteBuffer previous_payload;
-  public org.apache.avro.Schema getSchema() { return SCHEMA$; }
+
+  public org.apache.avro.Schema getSchema() {
+    return SCHEMA$;
+  }
+
   // Used by DatumWriter.  Applications should not call. 
   public java.lang.Object get(int field$) {
     switch (field$) {
-    case 0: return datastream;
-    case 1: return metadata;
-    case 2: return payload;
-    case 3: return previous_payload;
-    default: throw new org.apache.avro.AvroRuntimeException("Bad index");
+      case 0:
+        return datastream;
+      case 1:
+        return metadata;
+      case 2:
+        return payload;
+      case 3:
+        return previous_payload;
+      default:
+        throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
+
   // Used by DatumReader.  Applications should not call. 
-  @SuppressWarnings(value="unchecked")
+  @SuppressWarnings(value = "unchecked")
   public void put(int field$, java.lang.Object value$) {
     switch (field$) {
-    case 0: datastream = (java.lang.CharSequence)value$; break;
-    case 1: metadata = (java.util.Map<java.lang.CharSequence,java.lang.CharSequence>)value$; break;
-    case 2: payload = (java.nio.ByteBuffer)value$; break;
-    case 3: previous_payload = (java.nio.ByteBuffer)value$; break;
-    default: throw new org.apache.avro.AvroRuntimeException("Bad index");
+      case 0:
+        datastream = (java.lang.CharSequence) value$;
+        break;
+      case 1:
+        metadata = (java.util.Map<java.lang.CharSequence, java.lang.CharSequence>) value$;
+        break;
+      case 2:
+        payload = (java.nio.ByteBuffer) value$;
+        break;
+      case 3:
+        previous_payload = (java.nio.ByteBuffer) value$;
+        break;
+      default:
+        throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
 }
