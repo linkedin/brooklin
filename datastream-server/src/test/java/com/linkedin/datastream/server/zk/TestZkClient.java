@@ -18,6 +18,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
+
 public class TestZkClient {
   private static final Logger logger = LoggerFactory.getLogger(TestZkClient.class.getName());
 
@@ -53,7 +54,7 @@ public class TestZkClient {
     // verify the node is created and exists now
     Assert.assertTrue(zkClient.exists(rootZNode, false));
 
-    zkClient.close(); 
+    zkClient.close();
   }
 
   @Test
@@ -80,7 +81,7 @@ public class TestZkClient {
 
   }
 
-  static class TestZkDataListener implements  IZkDataListener, IZkStateListener, IZkChildListener {
+  static class TestZkDataListener implements IZkDataListener, IZkStateListener, IZkChildListener {
     public boolean dataChanged = false;
     public boolean dataDeleted = false;
     public boolean stateChanged = false;
@@ -88,33 +89,28 @@ public class TestZkClient {
     public boolean childChanged = false;
 
     @Override
-    public void handleDataChange(String s, Object o)
-        throws Exception {
+    public void handleDataChange(String s, Object o) throws Exception {
       dataChanged = true;
     }
 
     @Override
-    public void handleDataDeleted(String s)
-        throws Exception {
+    public void handleDataDeleted(String s) throws Exception {
       // looks like when the node is deleted, this is triggered.
       dataDeleted = true;
     }
 
     @Override
-    public void handleStateChanged(Watcher.Event.KeeperState keeperState)
-        throws Exception {
+    public void handleStateChanged(Watcher.Event.KeeperState keeperState) throws Exception {
       stateChanged = true;
     }
 
     @Override
-    public void handleNewSession()
-        throws Exception {
+    public void handleNewSession() throws Exception {
       newSession = true;
     }
 
     @Override
-    public void handleChildChange(String s, List<String> list)
-        throws Exception {
+    public void handleChildChange(String s, List<String> list) throws Exception {
       childChanged = true;
     }
   }
@@ -165,7 +161,6 @@ public class TestZkClient {
     String textContent = "some content";
     zkClient2.writeData(znodePath, textContent);
 
-
     // wait for a second so the callback can finish
     Thread.sleep(1000);
 
@@ -190,7 +185,7 @@ public class TestZkClient {
   public void testLiveNode() throws Exception {
 
     String znodePath = "/instances";
-    String instance1 = znodePath + "/" +  "instance1";
+    String instance1 = znodePath + "/" + "instance1";
 
     ZkClient zkClient1 = new ZkClient(_zkConnectionString);
     ZkClient zkClient2 = new ZkClient(_zkConnectionString);

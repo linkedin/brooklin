@@ -22,63 +22,64 @@ import org.testng.annotations.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class TestDatastreamContextImpl {
-    private static final int waitDurationForZk = 1000;
+  private static final int waitDurationForZk = 1000;
 
-    EmbeddedZookeeper _embeddedZookeeper;
-    String _zkConnectionString;
+  EmbeddedZookeeper _embeddedZookeeper;
+  String _zkConnectionString;
 
-    @BeforeMethod
-    public void setup() throws IOException {
-        _embeddedZookeeper = new EmbeddedZookeeper();
-        _zkConnectionString = _embeddedZookeeper.getConnection();
-        _embeddedZookeeper.startup();
-    }
+  @BeforeMethod
+  public void setup() throws IOException {
+    _embeddedZookeeper = new EmbeddedZookeeper();
+    _zkConnectionString = _embeddedZookeeper.getConnection();
+    _embeddedZookeeper.startup();
+  }
 
-    @AfterMethod
-    public void teardown() throws IOException {
-        _embeddedZookeeper.shutdown();
-    }
+  @AfterMethod
+  public void teardown() throws IOException {
+    _embeddedZookeeper.shutdown();
+  }
 
-    @Test
-    public void testDatastreamContextSmoke() throws Exception {
-        String testCluster = "testDatastreamContextState";
-        String connectorType = "connectorType";
-        ZkAdapter adapter = new ZkAdapter(_zkConnectionString, testCluster);
-        adapter.connect();
+  @Test
+  public void testDatastreamContextSmoke() throws Exception {
+    String testCluster = "testDatastreamContextState";
+    String connectorType = "connectorType";
+    ZkAdapter adapter = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter.connect();
 
-        DatastreamContext context = new DatastreamContextImpl(adapter);
+    DatastreamContext context = new DatastreamContextImpl(adapter);
 
-        Datastream ds = new Datastream();
-        ds.setName("datastream1");
-        ds.setConnectorType(connectorType);
+    Datastream ds = new Datastream();
+    ds.setName("datastream1");
+    ds.setConnectorType(connectorType);
 
-        DatastreamTask task1 = new DatastreamTask(ds);
+    DatastreamTask task1 = new DatastreamTask(ds);
 
-        //
-        // validate an undefined state key will return null
-        //
-        String value = context.getState(task1, "undefined");
-        Assert.assertNull(value);
+    //
+    // validate an undefined state key will return null
+    //
+    String value = context.getState(task1, "undefined");
+    Assert.assertNull(value);
 
-        //
-        // save some states with key value pair
-        //
-        context.saveState(task1, "partition", "0");
-        context.saveState(task1, "binlog", "binlog.000130");
+    //
+    // save some states with key value pair
+    //
+    context.saveState(task1, "partition", "0");
+    context.saveState(task1, "binlog", "binlog.000130");
 
-        //
-        // retrieve state and verify the value are expected
-        //
-        value = context.getState(task1, "partition");
-        Assert.assertEquals(value, "0");
+    //
+    // retrieve state and verify the value are expected
+    //
+    value = context.getState(task1, "partition");
+    Assert.assertEquals(value, "0");
 
-        value = context.getState(task1, "binlog");
-        Assert.assertEquals(value, "binlog.000130");
+    value = context.getState(task1, "binlog");
+    Assert.assertEquals(value, "binlog.000130");
 
-        //
-        // cleanup
-        //
-        adapter.disconnect();
-    }
+    //
+    // cleanup
+    //
+    adapter.disconnect();
+  }
 }

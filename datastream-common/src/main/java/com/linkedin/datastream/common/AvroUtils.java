@@ -57,8 +57,7 @@ public class AvroUtils {
     return reader.read(null, decoder);
   }
 
-  public static GenericRecord decodeAvroGenericRecord(byte[] valueBytes, Schema schema)
-      throws IOException {
+  public static GenericRecord decodeAvroGenericRecord(byte[] valueBytes, Schema schema) throws IOException {
     BinaryDecoder binDecoder = DecoderFactory.defaultFactory().createBinaryDecoder(valueBytes, null);
     GenericDatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
     return reader.read(null, binDecoder);

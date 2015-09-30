@@ -4,6 +4,7 @@ import com.linkedin.datastream.common.Datastream;
 
 import java.util.List;
 
+
 public class DummyConnector implements Connector {
   @Override
   public void start(DatastreamEventCollector collector) {

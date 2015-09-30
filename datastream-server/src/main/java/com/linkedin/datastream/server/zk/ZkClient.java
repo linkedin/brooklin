@@ -15,6 +15,7 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 /**
  * ZKClient is a wrapper of sgroschupf/zkclient. It provides the following
  * basic features:
@@ -165,11 +166,10 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
         LOG.trace("getData, path: " + path + ", time: " + (endT - startT) + " ns");
       }
     }
-  }  
+  }
 
   @SuppressWarnings("unchecked")
-  public <T extends Object> T readDataAndStat(String path, Stat stat,
-      boolean returnNullIfPathNotExists) {
+  public <T extends Object> T readDataAndStat(String path, Stat stat, boolean returnNullIfPathNotExists) {
     T data = null;
     try {
       data = (T) super.readData(path, stat);
@@ -203,8 +203,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     }
   }
 
-  public Stat writeDataGetStat(final String path, Object datat, final int expectedVersion)
-      throws InterruptedException {
+  public Stat writeDataGetStat(final String path, Object datat, final int expectedVersion) throws InterruptedException {
     long start = System.nanoTime();
     try {
       final byte[] bytes = _zkSerializer.serialize(datat);
@@ -221,11 +220,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
         LOG.trace("setData, path: " + path + ", time: " + (end - start) + " ns");
       }
     }
-  }  
+  }
 
   @Override
-  public String create(final String path, Object data, final CreateMode mode)
-      throws ZkInterruptedException, IllegalArgumentException, ZkException, RuntimeException {
+  public String create(final String path, Object data, final CreateMode mode) throws ZkInterruptedException,
+      IllegalArgumentException, ZkException, RuntimeException {
     if (path == null) {
       throw new NullPointerException("path must not be null.");
     }
@@ -304,7 +303,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       }
 
       LOG.info("creating path in zookeeper: " + p);
-      try{
+      try {
         this.createPersistent(p);
       } catch (ZkNodeExistsException ex) {
         LOG.info(ex.getMessage());
@@ -329,7 +328,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     public byte[] serialize(Object data) throws ZkMarshallingError {
       byte[] ret = null;
       try {
-        ret = ((String)data).getBytes("UTF-8");
+        ret = ((String) data).getBytes("UTF-8");
       } catch (UnsupportedEncodingException e) {
         LOG.error(e.getMessage());
       }
