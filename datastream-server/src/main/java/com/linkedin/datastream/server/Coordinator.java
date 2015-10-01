@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.HashSet;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkAdapter;
-import com.linkedin.datastream.server.zk.ZkClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,32 +77,32 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private final CoordinatorConfig _config;
-  private ZkAdapter _adapter;
+  private final ZkAdapter _adapter;
 
-  private Map<Connector, AssignmentStrategy> _strategies = new HashMap<>();
-  private Map<String, Connector> _connectors = new HashMap<>();
+  private final Map<Connector, AssignmentStrategy> _strategies = new HashMap<>();
+  private final Map<String, Connector> _connectors = new HashMap<>();
+  private final DatastreamEventCollectorFactory _eventCollectorFactory;
 
   // all datastreams by connectory type. This is also valid for the coordinator leader
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
-  private DatastreamEventCollector _collector = new DatastreamEventCollectorImpl();
-
-  public Coordinator(VerifiableProperties properties) {
+  public Coordinator(VerifiableProperties properties) throws DatastreamException {
     this(new CoordinatorConfig((properties)));
   }
 
-  public Coordinator(CoordinatorConfig config) {
+  public Coordinator(CoordinatorConfig config) throws DatastreamException {
     _config = config;
     _adapter =
         new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
             _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
+    _eventCollectorFactory = new DatastreamEventCollectorFactory(config.getConfigProperties());
   }
 
   public void start() {
     _adapter.connect();
-    _strategies.forEach((connector, strategy) -> connector.start(_collector));
+    _strategies.forEach((connector, strategy) -> connector.start(_eventCollectorFactory));
   }
 
   public void stop() {

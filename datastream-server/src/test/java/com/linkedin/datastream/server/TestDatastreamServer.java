@@ -7,6 +7,7 @@ import java.util.Properties;
 
 
 public class TestDatastreamServer {
+  private static final String COLLECTOR_CLASS = "com.linkedin.datastream.server.DummyDatastreamEventCollector";
 
   @Test
   public void testDatastreamServerBasics() throws Exception {
@@ -17,6 +18,7 @@ public class TestDatastreamServer {
     Properties properties = new Properties();
     properties.put("datastream.server.coordinator.cluster", "testCluster");
     properties.put("datastream.server.coordinator.zkAddress", zkConnectionString);
+    properties.put("datastream.server.eventCollectorClass", COLLECTOR_CLASS);
     properties.put("datastream.server.httpport", "8080");
     properties.put("datastream.server.connectorTypes", "com.linkedin.datastream.server.connectors.DummyConnector");
     properties.put("com.linkedin.datastream.server.DummyConnector.assignmentStrategy",

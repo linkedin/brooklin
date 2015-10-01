@@ -28,22 +28,24 @@ import org.slf4j.LoggerFactory;
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
-
+  private static final String COLLECTOR_CLASS = "com.linkedin.datastream.server.DummyDatastreamEventCollector";
   private static final int waitDurationForZk = 1000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
 
-  private Coordinator createCoordinator(String zkAddr, String cluster) {
+  private Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {
     return createCoordinator(zkAddr, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
   }
 
-  private Coordinator createCoordinator(String zkAddr, String cluster, int sessionTimeout, int connectionTimeout) {
+  private Coordinator createCoordinator(String zkAddr, String cluster, int sessionTimeout, int connectionTimeout)
+      throws Exception {
     Properties props = new Properties();
     props.put("datastream.server.coordinator.cluster", cluster);
     props.put("datastream.server.coordinator.zkAddress", zkAddr);
     props.put("datastream.server.coordinator.zkSessionTimeout", String.valueOf(sessionTimeout));
     props.put("datastream.server.coordinator.zkConnectionTime", String.valueOf(connectionTimeout));
+    props.put("datastream.server.eventCollectorClass", COLLECTOR_CLASS);
     return new Coordinator(new VerifiableProperties(props));
   }
 
@@ -63,6 +65,7 @@ public class TestCoordinator {
     boolean _isStarted = false;
     String _connectorType = "TestConnector";
     List<DatastreamTask> _tasks = new ArrayList<>();
+    DatastreamEventCollectorFactory _factory;
 
     public TestHookConnector() {
 
@@ -85,8 +88,9 @@ public class TestCoordinator {
     }
 
     @Override
-    public void start(DatastreamEventCollector collector) {
+    public void start(DatastreamEventCollectorFactory factory) {
       _isStarted = true;
+      _factory = factory;
     }
 
     @Override
@@ -97,6 +101,13 @@ public class TestCoordinator {
     @Override
     public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
       _tasks = tasks;
+      for (DatastreamTask task: tasks) {
+        try {
+          Assert.assertNotNull(_factory.create(task.getDatastream()));
+        } catch (Exception ex) {
+          Assert.fail();
+        }
+      }
     }
 
     @Override
@@ -150,7 +161,7 @@ public class TestCoordinator {
     //
     Connector testConnector = new Connector() {
       @Override
-      public void start(DatastreamEventCollector collector) {
+      public void start(DatastreamEventCollectorFactory factory) {
       }
 
       @Override
@@ -415,20 +426,20 @@ public class TestCoordinator {
     int duration = waitDurationForZk * 5;
 
     for (int i = 0; i < concurrencyLevel; i++) {
-      Runnable task =
-          () -> {
+      Runnable task = () -> {
+        // keep the thread alive
+          try {
             Coordinator instance =
                 createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 10, waitDurationForZk * 20);
             instance.start();
 
-            // keep the thread alive
-            try {
-              Thread.sleep(duration);
-              instance.stop();
-            } catch (InterruptedException ie) {
-              ie.printStackTrace();
-            }
-          };
+            Thread.sleep(duration);
+            instance.stop();
+          } catch (Exception ex) {
+            LOG.error("Failed to launch coordinator", ex);
+            Assert.fail();
+          }
+        };
 
       executor.execute(task);
     }
