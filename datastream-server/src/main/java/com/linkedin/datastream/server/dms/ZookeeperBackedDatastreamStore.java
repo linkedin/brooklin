@@ -2,12 +2,11 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 
 
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
-
-  private static final String DMS_PATH = "/dms";
 
   private final ZkClient _zkClient;
   private final String _rootPath;
@@ -17,7 +16,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     assert cluster != null;
 
     _zkClient = zkClient;
-    _rootPath = cluster + DMS_PATH;
+    _rootPath = KeyBuilder.datastreams(cluster);
   }
 
   private String getZnodePath(String key) {

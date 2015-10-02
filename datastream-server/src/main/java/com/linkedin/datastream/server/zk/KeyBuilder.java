@@ -7,8 +7,8 @@ public class KeyBuilder {
   private static final String _instances = "/%s/instances";
   private static final String _instance = "/%s/instances/%s";
   private static final String _instanceTask = "/%s/instances/%s/%s";
-  private static final String _datastreams = "/%s/datastream";
-  private static final String _datastream = "/%s/datastream/%s";
+  private static final String _datastreams = "/%s/dms";
+  private static final String _datastream = "/%s/dms/%s";
   private static final String _datastreamTask = "/%s/instances/%s/%s";
   private static final String _connector = "/%s/%s";
   private static final String _connectorDatastreamTask = "/%s/%s/%s";

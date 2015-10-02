@@ -4,6 +4,8 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.KafkaConnection;
 
+import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
@@ -14,7 +16,9 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.Set;
 
 
@@ -59,13 +63,16 @@ public class TestDatastreamResources {
   }
 
   @BeforeMethod
-  public void setUp() throws IOException {
+  public void setUp() throws Exception {
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(_zkConnectionString);
-    _store = new ZookeeperBackedDatastreamStore(_zkClient, "/testcluster");
-    DatastreamStoreProvider.setDatastreamStore(_store);
+    _store = new ZookeeperBackedDatastreamStore(_zkClient, "testcluster");
+    Class<?> c = DatastreamServer.class;
+    Field field = c.getDeclaredField("_datastreamStore");
+    field.setAccessible(true);
+    field.set(DatastreamServer.INSTANCE, _store);
   }
 
   @Test
