@@ -69,7 +69,6 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
            */
           Thread.interrupted();
           _connection.close();
-          _connection = null;
           /**
            * restore interrupted status of current thread
            */

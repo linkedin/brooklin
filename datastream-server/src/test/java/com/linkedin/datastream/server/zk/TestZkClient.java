@@ -5,9 +5,7 @@ import java.util.List;
 
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
-import org.I0Itec.zkclient.IZkStateListener;
 import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.Watcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,11 +79,9 @@ public class TestZkClient {
 
   }
 
-  static class TestZkDataListener implements IZkDataListener, IZkStateListener, IZkChildListener {
+  static class TestZkDataListener implements  IZkDataListener, IZkChildListener {
     public boolean dataChanged = false;
     public boolean dataDeleted = false;
-    public boolean stateChanged = false;
-    public boolean newSession = false;
     public boolean childChanged = false;
 
     @Override
@@ -100,17 +96,8 @@ public class TestZkClient {
     }
 
     @Override
-    public void handleStateChanged(Watcher.Event.KeeperState keeperState) throws Exception {
-      stateChanged = true;
-    }
-
-    @Override
-    public void handleNewSession() throws Exception {
-      newSession = true;
-    }
-
-    @Override
-    public void handleChildChange(String s, List<String> list) throws Exception {
+    public void handleChildChange(String s, List<String> list)
+        throws Exception {
       childChanged = true;
     }
   }
@@ -145,7 +132,6 @@ public class TestZkClient {
 
     TestZkDataListener l = new TestZkDataListener();
     zkClient.subscribeDataChanges(znodePath, l);
-    zkClient.subscribeStateChanges(l);
     zkClient.subscribeChildChanges("/", l);
 
     // now create the node
@@ -197,7 +183,6 @@ public class TestZkClient {
     // add data listener
     TestZkDataListener l = new TestZkDataListener();
     zkClient2.subscribeDataChanges(instance1, l);
-    zkClient2.subscribeStateChanges(l);
 
     // test existance and setup watch
     Thread.sleep(1000);
