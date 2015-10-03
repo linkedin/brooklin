@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -17,7 +18,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 @RestLiCollection(name = "Datastream", namespace = "com.linkedin.datastream.common")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
 
-  private final DatastreamStore _store = DatastreamStoreProvider.getDatastreamStore();
+  private final DatastreamStore _store = DatastreamServer.INSTANCE.getDatastreamStore();
 
   @Override
   public UpdateResponse update(String key, Datastream datastream) {

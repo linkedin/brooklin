@@ -1,10 +1,18 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.connectors;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.Connector;
+import com.linkedin.datastream.server.DatastreamContext;
+import com.linkedin.datastream.server.DatastreamEventCollector;
+import com.linkedin.datastream.server.DatastreamTarget;
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamValidationResult;
 
 import java.util.List;
 
-
+/**
+ * A trivial implementation of connector interface
+ */
 public class DummyConnector implements Connector {
   @Override
   public void start(DatastreamEventCollector collector) {
@@ -16,7 +24,7 @@ public class DummyConnector implements Connector {
 
   @Override
   public String getConnectorType() {
-    return "com.linkedin.datastream.server.DummyConnector";
+    return "com.linkedin.datastream.server.connectors.DummyConnector";
   }
 
   @Override

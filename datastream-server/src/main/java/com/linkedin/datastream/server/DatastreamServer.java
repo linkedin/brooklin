@@ -3,6 +3,9 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.dms.DatastreamStore;
+import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
+import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.restli.server.NettyStandaloneLauncher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +26,7 @@ public enum DatastreamServer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
 
   private Coordinator _coordinator;
+  private DatastreamStore _datastreamStore;
   private boolean _isInitialized = false;
 
   public synchronized boolean isInitialized() {
@@ -33,6 +37,10 @@ public enum DatastreamServer {
     return _coordinator;
   }
 
+  public DatastreamStore getDatastreamStore() {
+    return _datastreamStore;
+  }
+
   public synchronized void init(Properties properties) throws ClassNotFoundException, IllegalAccessException,
       InstantiationException, IOException {
     if (isInitialized()) {
@@ -40,11 +48,11 @@ public enum DatastreamServer {
     }
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
-    _coordinator = new Coordinator(verifiableProperties);
+    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(verifiableProperties);
+    _coordinator = new Coordinator(coordinatorConfig);
 
     LOG.info("Loading connectors.");
     String connectorStrings = verifiableProperties.getString(CONFIG_PREFIX + "connectorTypes");
-
     ClassLoader classLoader = DatastreamServer.class.getClassLoader();
     for (String connector : connectorStrings.split(",")) {
       // For each connector type defined in the config, load one instance from that class
@@ -66,6 +74,10 @@ public enum DatastreamServer {
     }
 
     LOG.info("Setting up DMS endpoint server.");
+    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(),
+                                     coordinatorConfig.getZkSessionTimeout(),
+                                     coordinatorConfig.getZkConnectionTimeout());
+    _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_PREFIX + "httpport", 1, 65535);
     NettyStandaloneLauncher launcher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
     launcher.start();
