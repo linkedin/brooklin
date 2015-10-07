@@ -19,6 +19,14 @@
             }
         },
         {
+            "name": "key",
+            "doc" : "serialized key.",
+            "type": {
+                "type": "bytes",
+                "default": null
+            }
+        },
+        {
             "name": "payload",
             "doc" : "serialized payload data.",
             "type": {

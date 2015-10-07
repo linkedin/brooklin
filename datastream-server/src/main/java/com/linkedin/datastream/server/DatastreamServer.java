@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
@@ -41,8 +42,7 @@ public enum DatastreamServer {
     return _datastreamStore;
   }
 
-  public synchronized void init(Properties properties) throws ClassNotFoundException, IllegalAccessException,
-      InstantiationException, IOException {
+  public synchronized void init(Properties properties) throws DatastreamException {
     if (isInitialized()) {
       return;
     }
@@ -55,22 +55,26 @@ public enum DatastreamServer {
     String connectorStrings = verifiableProperties.getString(CONFIG_PREFIX + "connectorTypes");
     ClassLoader classLoader = DatastreamServer.class.getClassLoader();
     for (String connector : connectorStrings.split(",")) {
-      // For each connector type defined in the config, load one instance from that class
-      Class connectorClass = classLoader.loadClass(connector);
-      // TODO: set up connector config here when we have any
-      Connector connectorInstance = (Connector) connectorClass.newInstance();
+      try {
+        // For each connector type defined in the config, load one instance from that class
+        Class connectorClass = classLoader.loadClass(connector);
+        // TODO: set up connector config here when we have any
+        Connector connectorInstance = (Connector) connectorClass.newInstance();
 
-      // Read the assignment startegy from the config; if not found, use default strategy
-      AssignmentStrategy assignmentStrategy;
-      String strategy = verifiableProperties.getString(connector + ".assignmentStrategy", "");
-      if (!strategy.isEmpty()) {
-        Class assignmentStrategyClass = classLoader.loadClass(strategy);
-        assignmentStrategy = (AssignmentStrategy) assignmentStrategyClass.newInstance();
-      } else {
-        // TODO: default strategy should be SimpleStrategy, which doesn't exist for now
-        assignmentStrategy = new BroadcastStrategy();
+        // Read the assignment startegy from the config; if not found, use default strategy
+        AssignmentStrategy assignmentStrategy;
+        String strategy = verifiableProperties.getString(connector + ".assignmentStrategy", "");
+        if (!strategy.isEmpty()) {
+          Class assignmentStrategyClass = classLoader.loadClass(strategy);
+          assignmentStrategy = (AssignmentStrategy) assignmentStrategyClass.newInstance();
+        } else {
+          // TODO: default strategy should be SimpleStrategy, which doesn't exist for now
+          assignmentStrategy = new BroadcastStrategy();
+        }
+        _coordinator.addConnector(connectorInstance, assignmentStrategy);
+      } catch (Exception ex) {
+        throw new DatastreamException("Failed to instantiate connector: " + connector, ex);
       }
-      _coordinator.addConnector(connectorInstance, assignmentStrategy);
     }
 
     LOG.info("Setting up DMS endpoint server.");
@@ -80,7 +84,12 @@ public enum DatastreamServer {
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_PREFIX + "httpport", 1, 65535);
     NettyStandaloneLauncher launcher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
-    launcher.start();
+
+    try {
+      launcher.start();
+    } catch (IOException ex) {
+      throw new DatastreamException("Failed to start netty.", ex);
+    }
 
     verifiableProperties.verify();
     _isInitialized = true;

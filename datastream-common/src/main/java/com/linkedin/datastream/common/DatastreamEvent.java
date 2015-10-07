@@ -10,11 +10,13 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
     org.apache.avro.specific.SpecificRecord {
   public static final org.apache.avro.Schema SCHEMA$ =
       org.apache.avro.Schema
-          .parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
+          .parse("{\"type\":\"record\",\"name\":\"DatastreamEvent\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"datastream\",\"type\":\"string\",\"doc\":\"Name of the datastream that this event is generated for.\"},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Event metadata.\"},{\"name\":\"key\",\"type\":\"bytes\",\"doc\":\"serialized key.\"},{\"name\":\"payload\",\"type\":\"bytes\",\"doc\":\"serialized payload data.\"},{\"name\":\"previous_payload\",\"type\":\"bytes\",\"doc\":\"serialized previous payload data.\"}]}");
   /** Name of the datastream that this event is generated for. */
   public java.lang.CharSequence datastream;
   /** Event metadata. */
   public java.util.Map<java.lang.CharSequence, java.lang.CharSequence> metadata;
+  /** serialized key. */
+  public java.nio.ByteBuffer key;
   /** serialized payload data. */
   public java.nio.ByteBuffer payload;
   /** serialized previous payload data. */
@@ -32,8 +34,10 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
       case 1:
         return metadata;
       case 2:
-        return payload;
+        return key;
       case 3:
+        return payload;
+      case 4:
         return previous_payload;
       default:
         throw new org.apache.avro.AvroRuntimeException("Bad index");
@@ -51,9 +55,12 @@ public class DatastreamEvent extends org.apache.avro.specific.SpecificRecordBase
         metadata = (java.util.Map<java.lang.CharSequence, java.lang.CharSequence>) value$;
         break;
       case 2:
-        payload = (java.nio.ByteBuffer) value$;
+        key = (java.nio.ByteBuffer) value$;
         break;
       case 3:
+        payload = (java.nio.ByteBuffer) value$;
+        break;
+      case 4:
         previous_payload = (java.nio.ByteBuffer) value$;
         break;
       default:
