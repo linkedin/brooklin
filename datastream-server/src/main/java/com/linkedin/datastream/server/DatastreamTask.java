@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Objects;
 
 
 /**
@@ -130,21 +131,19 @@ public class DatastreamTask {
   }
 
   @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
-      return true;
-    }
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    DatastreamTask task = (DatastreamTask) o;
+    return Objects.equals(_connectorType, task._connectorType) &&
+            Objects.equals(_id, task._id) &&
+            Objects.equals(_datastreamName, task._datastreamName) &&
+            Objects.equals(_datastream, task._datastream) &&
+            Objects.equals(_properties, task._properties);
+  }
 
-    if (obj == null) {
-      return false;
-    }
-
-    if (!(obj instanceof DatastreamTask)) {
-      return false;
-    }
-
-    DatastreamTask other = (DatastreamTask) obj;
-
-    return other.getDatastreamName().equals(this.getDatastreamName()) && other.getId().equals(this.getId());
+  @Override
+  public int hashCode() {
+    return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties);
   }
 }
