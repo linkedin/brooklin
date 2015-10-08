@@ -3,7 +3,16 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Arrays;
+import java.util.Random;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
@@ -391,48 +400,78 @@ public class ZkAdapter {
   public void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
     LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: "
         + tasksToString(assignments));
-    List<String> oldAssignmentNodes = _zkclient.getChildren(KeyBuilder.instance(_cluster, instance));
-    List<DatastreamTask> oldAssignment = new ArrayList<>();
 
-    //
-    // retrieve the existing list of DatastreamTask assignment for the current instance
-    //
-    oldAssignmentNodes.forEach(n -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, n);
-      String content = _zkclient.readData(path);
-      DatastreamTask task = DatastreamTask.fromJson(content);
-      oldAssignment.add(task);
-    });
-    LOG.info("Existing/old assignments to be updated for " + instance + " are: " + tasksToString(oldAssignment));
+    // list of new assignment, names only
+    Set<String> assignmentsNames = new HashSet<>();
+    // map of assignment, from name to DatastreamTask for future reference
+    Map<String, DatastreamTask> assignmentsMap = new HashMap<>();
 
-    //
-    // find the DatastreamTasks that are to be deleted from this instance, delete the znodes from zookeeper
-    //
-    List<DatastreamTask> removed = new ArrayList<>(oldAssignment);
-    removed.removeAll(assignments);
-    LOG.info("Removing assigned tasks for instance " + instance + ", removed tasks are: " + tasksToString(removed));
-    removed.forEach(ds -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
-      _zkclient.delete(path);
+    assignments.forEach(task -> {
+      String name = task.getDatastreamTaskName();
+      assignmentsNames.add(name);
+      assignmentsMap.put(name, task);
     });
 
-    //
-    // find newly added DatastreamTasks and create corresponding znodes
-    //
-    List<DatastreamTask> added = new ArrayList<>(assignments);
-    added.removeAll(oldAssignment);
+    // get the old assignment from zookeeper
+    Set<String> oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
 
-    LOG.info("Assigning new tasks for instance " + instance + ", new tasks are: " + tasksToString(added));
-    added.forEach(ds -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
-      try {
-        _zkclient.create(path, ds.toJson(), CreateMode.PERSISTENT);
-      } catch (IOException e) {
-        // We should never get here. If we do, need to fix it with retry logic
-        LOG.error("Failed to assign task [" + ds.getDatastreamTaskName() + "] to instance " + instance + ", error: "
-            + e.getMessage());
+    //
+    // find assignment names removed
+    //
+    Set<String> removed = new HashSet<>(oldAssignmentNames);
+    removed.removeAll(assignmentsNames);
+    //
+    // actually remove the znodes
+    //
+    if (removed.size() > 0) {
+      LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
+      removed.forEach(name -> {
+        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        _zkclient.delete(path);
+      });
+    }
+    //
+    // find assignment named added
+    //
+    Set<String> added = new HashSet<>(assignmentsNames);
+    added.removeAll(oldAssignmentNames);
+    //
+    // actually add znodes
+    //
+    if (added.size() > 0) {
+      LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
+      added.forEach(name -> {
+        DatastreamTask task = assignmentsMap.get(name);
+        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        try {
+          _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
+        } catch (IOException e) {
+          // We should never get here. If we do, need to fix it with retry logic
+          LOG.error("Failed to assign task [" + name + "] to instance " + instance + ", error: " + e.getMessage());
+        }
+      });
+    }
+  }
+
+  // helper method for generating human readable log message, from a set of strings to a string
+  private String setToString(Set<String> list) {
+    StringBuffer sb = new StringBuffer();
+    sb.append("[");
+
+    Iterator<String> it = list.iterator();
+    boolean isFirst = true;
+
+    while (it.hasNext()) {
+      if (!isFirst) {
+        sb.append(", ");
+      } else {
+        isFirst = false;
       }
-    });
+      sb.append(it.next());
+    }
+    sb.append("]");
+
+    return sb.toString();
   }
 
   // utility function for generating log message
