@@ -3,16 +3,15 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.Arrays;
 import java.util.Random;
+import java.util.Set;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
@@ -281,6 +280,7 @@ public class ZkAdapter {
       // mostly because the zkclient session expiration timeout.
       LOG.error("Failed to join leader election. Try reconnect the zookeeper");
       connect();
+      return;
     }
 
     // if this instance is first in line to become leader. Check if it is already a leader.

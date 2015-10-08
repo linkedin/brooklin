@@ -79,8 +79,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
+  // mapping from connector instance to associated assignment strategy
   private final Map<Connector, AssignmentStrategy> _strategies = new HashMap<>();
+
+  // mapping from connector type to connector instance
   private final Map<String, Connector> _connectors = new HashMap<>();
+
   private final DatastreamEventCollectorFactory _eventCollectorFactory;
 
   // all datastreams by connectory type. This is also valid for the coordinator leader
@@ -262,7 +266,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   public void addConnector(Connector connector, AssignmentStrategy strategy) {
     String connectorType = connector.getConnectorType();
-    LOG.info("Add new connector of type " + connectorType + " to coordinator instance: " + getInstanceName());
+    LOG.info("Add new connector of type " + connectorType + " to coordinator");
 
     if (_connectors.containsKey(connectorType)) {
       String err = "A connector of type " + connectorType + " already exists.";
