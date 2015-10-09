@@ -2,6 +2,7 @@ package com.linkedin.datastream.common;
 
 import java.util.Objects;
 
+
 /**
  * Simple utility class for checking the validity of Datastream at various stages.
  */

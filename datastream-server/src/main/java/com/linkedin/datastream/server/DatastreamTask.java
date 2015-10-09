@@ -132,14 +132,14 @@ public class DatastreamTask {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
     DatastreamTask task = (DatastreamTask) o;
-    return Objects.equals(_connectorType, task._connectorType) &&
-            Objects.equals(_id, task._id) &&
-            Objects.equals(_datastreamName, task._datastreamName) &&
-            Objects.equals(_datastream, task._datastream) &&
-            Objects.equals(_properties, task._properties);
+    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
+        && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
+        && Objects.equals(_properties, task._properties);
   }
 
   @Override

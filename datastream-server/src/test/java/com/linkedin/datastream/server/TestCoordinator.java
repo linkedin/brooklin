@@ -101,7 +101,7 @@ public class TestCoordinator {
     @Override
     public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
       _tasks = tasks;
-      for (DatastreamTask task: tasks) {
+      for (DatastreamTask task : tasks) {
         try {
           Assert.assertNotNull(_factory.create(task.getDatastream()));
         } catch (Exception ex) {

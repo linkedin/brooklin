@@ -1,8 +1,8 @@
 package com.linkedin.datastream.server;
 
-
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkClient;
+
 
 public class CoordinatorConfig {
   private final String _cluster;
