@@ -3,8 +3,7 @@ package com.linkedin.datastream.common;
 /**
  * Common exception class for all Datastream errors.
  */
-public class DatastreamException extends Exception
-{
+public class DatastreamException extends Exception {
   private static final long serialVersionUID = 1L;
 
   public DatastreamException() {

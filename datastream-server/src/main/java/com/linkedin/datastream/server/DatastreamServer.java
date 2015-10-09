@@ -78,9 +78,9 @@ public enum DatastreamServer {
     }
 
     LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(),
-                                     coordinatorConfig.getZkSessionTimeout(),
-                                     coordinatorConfig.getZkConnectionTimeout());
+    ZkClient zkClient =
+        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+            coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_PREFIX + "httpport", 1, 65535);
     NettyStandaloneLauncher launcher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");

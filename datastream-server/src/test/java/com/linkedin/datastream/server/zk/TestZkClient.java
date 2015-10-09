@@ -79,7 +79,7 @@ public class TestZkClient {
 
   }
 
-  static class TestZkDataListener implements  IZkDataListener, IZkChildListener {
+  static class TestZkDataListener implements IZkDataListener, IZkChildListener {
     public boolean dataChanged = false;
     public boolean dataDeleted = false;
     public boolean childChanged = false;
@@ -96,8 +96,7 @@ public class TestZkClient {
     }
 
     @Override
-    public void handleChildChange(String s, List<String> list)
-        throws Exception {
+    public void handleChildChange(String s, List<String> list) throws Exception {
       childChanged = true;
     }
   }
