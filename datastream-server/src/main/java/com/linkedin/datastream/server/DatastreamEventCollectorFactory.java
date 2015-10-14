@@ -14,7 +14,8 @@ import java.util.Objects;
  * Datastream event collectors based on the configuration.
  */
 public class DatastreamEventCollectorFactory {
-  private static final String PROPERTY_COLLECTOR = "datastream.server.eventCollectorClass";
+  public static final String PREFIX = "datastream.server.";
+  public static final String CONFIG_COLLECTOR_NAME = PREFIX + "eventCollectorClassName";
 
   private final VerifiableProperties _config;
   private final Class _collectorClass;
@@ -22,7 +23,7 @@ public class DatastreamEventCollectorFactory {
   public DatastreamEventCollectorFactory(VerifiableProperties config) throws DatastreamException {
     Objects.requireNonNull(config, "invalid config.");
     _config = config;
-    String className = _config.getProperty(PROPERTY_COLLECTOR);
+    String className = _config.getProperty(CONFIG_COLLECTOR_NAME);
     if (StringUtils.isEmpty(className)) {
       throw new IllegalArgumentException("invalid event collector class in config.");
     }

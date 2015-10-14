@@ -1,5 +1,6 @@
 package com.linkedin.datastream.common;
 
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,21 +15,52 @@ import java.util.Enumeration;
  */
 public class VerifiableProperties {
 
-  private final HashSet<String> referenceSet = new HashSet<String>();
-  private final Properties props;
-  protected Logger logger = LoggerFactory.getLogger(getClass());
+  private final HashSet<String> _referenceSet = new HashSet<String>();
+  private final Properties _props;
+  protected Logger LOG = LoggerFactory.getLogger(getClass());
 
   public VerifiableProperties(Properties props) {
-    this.props = props;
+    this._props = props;
+  }
+
+  /**
+   * Get all properties under a specific domain (start with a certain prefix)
+   * @param prefix The prefix being used to filter the properties. If it's blank (null or empty or whitespace only),
+   *               the method will return a copy of all properties.
+   * @param preserveFullKey Whether to preserve the full key (including the prefix) or strip the prefix in the result
+   * @return A Properties that contains all the entries that are under the domain
+   */
+  public Properties getDomainProperties(String prefix, boolean preserveFullKey) {
+    String fullPrefix;
+    if (StringUtils.isBlank(prefix)) {
+      fullPrefix = ""; // this will effectively retrieve all properties
+    } else {
+      fullPrefix = prefix.endsWith(".") ? prefix : prefix + ".";
+    }
+    Properties ret = new Properties();
+    _props.keySet().forEach(key -> {
+      String keyStr = key.toString();
+      if (keyStr.startsWith(fullPrefix) && !keyStr.equals(fullPrefix)) {
+        if (preserveFullKey) {
+          ret.put(keyStr, getProperty(keyStr));
+        } else {
+          ret.put(keyStr.substring(fullPrefix.length()), getProperty(keyStr));
+        }
+      }});
+    return ret;
+  }
+
+  public Properties getDomainProperties(String prefix) {
+    return getDomainProperties(prefix, false);
   }
 
   public boolean containsKey(String name) {
-    return props.containsKey(name);
+    return _props.containsKey(name);
   }
 
   public String getProperty(String name) {
-    String value = props.getProperty(name);
-    referenceSet.add(name);
+    String value = _props.getProperty(name);
+    _referenceSet.add(name);
     return value;
   }
 
@@ -230,19 +262,19 @@ public class VerifiableProperties {
   }
 
   public void verify() {
-    logger.info("Verifying properties");
-    Enumeration keys = props.propertyNames();
+    LOG.info("Verifying properties");
+    Enumeration keys = _props.propertyNames();
     while (keys.hasMoreElements()) {
       Object key = keys.nextElement();
-      if (!referenceSet.contains(key)) {
-        logger.warn("Property {} is not valid", key);
+      if (!_referenceSet.contains(key)) {
+        LOG.warn("Property {} is not valid", key);
       } else {
-        logger.info("Property {} is overridden to {}", key, props.getProperty(key.toString()));
+        LOG.info("Property {} is overridden to {}", key, _props.getProperty(key.toString()));
       }
     }
   }
 
   public String toString() {
-    return props.toString();
+    return _props.toString();
   }
 }

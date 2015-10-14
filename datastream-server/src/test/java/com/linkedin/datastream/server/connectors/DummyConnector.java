@@ -9,12 +9,24 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamValidationResult;
 
 import java.util.List;
+import java.util.Properties;
 
 
 /**
  * A trivial implementation of connector interface
  */
 public class DummyConnector implements Connector {
+
+  private Properties _properties;
+
+  public DummyConnector(Properties properties) throws Exception {
+    _properties = properties;
+    String dummyConfigValue = _properties.getProperty("dummyProperty", "");
+    if (!dummyConfigValue.equals("dummyValue")) {
+      throw new Exception("Invalid config value for dummyProperty. Expected: dummyValue");
+    }
+  }
+
   @Override
   public void start(DatastreamEventCollectorFactory factory) {
   }

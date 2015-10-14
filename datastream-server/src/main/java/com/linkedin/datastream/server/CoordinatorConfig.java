@@ -10,14 +10,19 @@ public class CoordinatorConfig {
   private final int _zkSessionTimeout;
   private final int _zkConnectionTimeout;
   private final VerifiableProperties _config;
+
   private static final String PREFIX = "datastream.server.coordinator.";
+  public static final String CONFIG_CLUSTER = PREFIX + "cluster";
+  public static final String CONFIG_ZK_ADDRESS = PREFIX + "zkAddress";
+  public static final String CONFIG_ZK_SESSION_TIMEOUT = PREFIX + "zkSessionTimeout";
+  public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
 
   public CoordinatorConfig(VerifiableProperties properties) {
     _config = properties;
-    _cluster = properties.getString(PREFIX + "cluster");
-    _zkAddress = properties.getString(PREFIX + "zkAddress");
-    _zkSessionTimeout = properties.getInt(PREFIX + "zkSessionTimeout", ZkClient.DEFAULT_SESSION_TIMEOUT);
-    _zkConnectionTimeout = properties.getInt(PREFIX + "zkConnectionTimeout", ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+    _cluster = properties.getString(CONFIG_CLUSTER);
+    _zkAddress = properties.getString(CONFIG_ZK_ADDRESS);
+    _zkSessionTimeout = properties.getInt(CONFIG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
+    _zkConnectionTimeout = properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
   }
 
   public VerifiableProperties getConfigProperties() {

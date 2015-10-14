@@ -41,11 +41,11 @@ public class TestCoordinator {
   private Coordinator createCoordinator(String zkAddr, String cluster, int sessionTimeout, int connectionTimeout)
       throws Exception {
     Properties props = new Properties();
-    props.put("datastream.server.coordinator.cluster", cluster);
-    props.put("datastream.server.coordinator.zkAddress", zkAddr);
-    props.put("datastream.server.coordinator.zkSessionTimeout", String.valueOf(sessionTimeout));
-    props.put("datastream.server.coordinator.zkConnectionTime", String.valueOf(connectionTimeout));
-    props.put("datastream.server.eventCollectorClass", COLLECTOR_CLASS);
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(sessionTimeout));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(connectionTimeout));
+    props.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     return new Coordinator(new VerifiableProperties(props));
   }
 

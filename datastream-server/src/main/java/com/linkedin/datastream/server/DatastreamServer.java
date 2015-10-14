@@ -3,7 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
 
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.ZkClient;
@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.Properties;
 
 
@@ -23,11 +24,18 @@ import java.util.Properties;
 public enum DatastreamServer {
   INSTANCE;
 
-  private static final String CONFIG_PREFIX = "datastream.server.";
+  public static final String CONFIG_PREFIX = "datastream.server.";
+  public static final String CONFIG_CONNECTOR_CLASS_NAMES = CONFIG_PREFIX + "connectorClassNames";
+  public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
+  public static final String CONFIG_EVENT_COLLECTOR_CLASS_NAME = DatastreamEventCollectorFactory.CONFIG_COLLECTOR_NAME;
+  public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
+  public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
+
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
+  private NettyStandaloneLauncher _nettyLauncher;
   private boolean _isInitialized = false;
 
   public synchronized boolean isInitialized() {
@@ -44,37 +52,48 @@ public enum DatastreamServer {
 
   public synchronized void init(Properties properties) throws DatastreamException {
     if (isInitialized()) {
+      LOG.warn("Attempt to initialize DatastreamServer while it is already initialized.");
       return;
     }
+    LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(verifiableProperties);
     _coordinator = new Coordinator(coordinatorConfig);
 
     LOG.info("Loading connectors.");
-    String connectorStrings = verifiableProperties.getString(CONFIG_PREFIX + "connectorTypes");
+    String connectorClassNames = verifiableProperties.getString(CONFIG_CONNECTOR_CLASS_NAMES);
+    if (connectorClassNames.isEmpty()) {
+      throw new DatastreamException("No connectors specified in connectorTypes");
+    }
     ClassLoader classLoader = DatastreamServer.class.getClassLoader();
-    for (String connector : connectorStrings.split(",")) {
+    for (String connectorStr : connectorClassNames.split(",")) {
+      LOG.info("Starting to load connector: " + connectorStr);
       try {
         // For each connector type defined in the config, load one instance from that class
-        Class connectorClass = classLoader.loadClass(connector);
-        // TODO: set up connector config here when we have any
-        Connector connectorInstance = (Connector) connectorClass.newInstance();
-
+        Class connectorClass = classLoader.loadClass(connectorStr);
+        Connector connectorInstance;
+        try {
+          Constructor<Connector> constructor = connectorClass.getConstructor(Properties.class);
+          connectorInstance = constructor.newInstance(verifiableProperties.getDomainProperties(connectorStr));
+        } catch (NoSuchMethodException e) {
+          LOG.warn("No consturctor found with Properties.class as parameter. Will create connector instance without config.");
+          connectorInstance = (Connector) connectorClass.newInstance();
+        }
         // Read the assignment startegy from the config; if not found, use default strategy
-        AssignmentStrategy assignmentStrategy;
-        String strategy = verifiableProperties.getString(connector + ".assignmentStrategy", "");
+        AssignmentStrategy assignmentStrategyInstance;
+        String strategy = verifiableProperties.getString(connectorStr + ".assignmentStrategy", "");
         if (!strategy.isEmpty()) {
           Class assignmentStrategyClass = classLoader.loadClass(strategy);
-          assignmentStrategy = (AssignmentStrategy) assignmentStrategyClass.newInstance();
+          assignmentStrategyInstance = (AssignmentStrategy) assignmentStrategyClass.newInstance();
         } else {
-          // TODO: default strategy should be SimpleStrategy, which doesn't exist for now
-          assignmentStrategy = new BroadcastStrategy();
+          assignmentStrategyInstance = new SimpleStrategy();
         }
-        _coordinator.addConnector(connectorInstance, assignmentStrategy);
+        _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
       } catch (Exception ex) {
-        throw new DatastreamException("Failed to instantiate connector: " + connector, ex);
+        throw new DatastreamException("Failed to instantiate connector: " + connectorStr, ex);
       }
+      LOG.info("Connector loaded successfully. Type: " + connectorStr);
     }
 
     LOG.info("Setting up DMS endpoint server.");
@@ -82,11 +101,11 @@ public enum DatastreamServer {
         new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
             coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
-    int httpPort = verifiableProperties.getIntInRange(CONFIG_PREFIX + "httpport", 1, 65535);
-    NettyStandaloneLauncher launcher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
+    int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
+    _nettyLauncher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
 
     try {
-      launcher.start();
+      _nettyLauncher.start();
     } catch (IOException ex) {
       throw new DatastreamException("Failed to start netty.", ex);
     }
@@ -94,6 +113,33 @@ public enum DatastreamServer {
     verifiableProperties.verify();
     _isInitialized = true;
 
-    LOG.info("DatastreamServer initialized.");
+    LOG.info("DatastreamServer initialized successfully.");
+  }
+
+  public synchronized void shutDown() {
+    if (_coordinator != null) {
+      _coordinator.stop();
+      _coordinator = null;
+    }
+    _datastreamStore = null;
+    if (_nettyLauncher != null) {
+      try {
+        _nettyLauncher.stop();
+      } catch (IOException e) {
+        LOG.error("Fail to stop netty launcher.", e);
+      }
+      _nettyLauncher = null;
+    }
+    _isInitialized = false;
+  }
+
+  public static void main() throws DatastreamException {
+    Properties prop = new Properties();
+    prop.put(CONFIG_ZK_ADDRESS, "localhost:31111");
+    prop.put(CONFIG_CLUSTER_NAME, "DATASTREAM_CLUSTER");
+    prop.put(CONFIG_HTTP_PORT, "12345");
+    prop.put(CONFIG_CONNECTOR_CLASS_NAMES, "com.linkedin.datastream.server.connectors.DummyConnector");
+    prop.put(CONFIG_EVENT_COLLECTOR_CLASS_NAME, "com.linkedin.datastream.server.DummyDatastreamEventCollector");
+    INSTANCE.init(prop);
   }
 }
