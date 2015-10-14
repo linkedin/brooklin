@@ -3,6 +3,7 @@ package com.linkedin.datastream.common;
 import java.util.HashMap;
 import java.util.Map;
 
+
 /**
  * Simple utility class for working with DatastreamEvent objects.
  */

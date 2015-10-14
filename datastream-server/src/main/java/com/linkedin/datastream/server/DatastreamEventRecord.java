@@ -43,11 +43,12 @@ public class DatastreamEventRecord {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
     DatastreamEventRecord record = (DatastreamEventRecord) o;
-    return Objects.equals(_partition, record._partition) &&
-            Objects.equals(_event, record._event);
+    return Objects.equals(_partition, record._partition) && Objects.equals(_event, record._event);
   }
 
   @Override

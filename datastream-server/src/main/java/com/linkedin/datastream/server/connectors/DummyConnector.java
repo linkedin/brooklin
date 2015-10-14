@@ -10,6 +10,7 @@ import com.linkedin.datastream.server.DatastreamValidationResult;
 
 import java.util.List;
 
+
 /**
  * A trivial implementation of connector interface
  */

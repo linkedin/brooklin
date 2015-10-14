@@ -23,7 +23,7 @@ public class DatastreamEventCollectorFactory {
     Objects.requireNonNull(config, "invalid config.");
     _config = config;
     String className = _config.getProperty(PROPERTY_COLLECTOR);
-    if ( StringUtils.isEmpty(className)) {
+    if (StringUtils.isEmpty(className)) {
       throw new IllegalArgumentException("invalid event collector class in config.");
     }
     try {
