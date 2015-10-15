@@ -31,6 +31,7 @@ allprojects {
 
 subprojects {
   apply plugin: 'java'
+  // apply plugin: 'pegasus'
 
     // spec = [
     //   'product' : [
@@ -96,7 +97,6 @@ subprojects {
 }
 
 project(':datastream-common') {
-  // apply plugin: 'pegasus'
 
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
@@ -112,7 +112,6 @@ project(':datastream-testcommon') {
 }
 
 project(':datastream-client') {
-  apply plugin: 'pegasus'
 
   dependencies {
     // compile project(path: ':datastream-common', configuration: 'restClient')
@@ -131,12 +130,9 @@ project(':datastream-client') {
 }
 
 project(':datastream-server') {
-  apply plugin: 'pegasus'
-
-
-  ext.commonProject = project(':datastream-common')
-  ext.apiProject = project(':datastream-common')
-  pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms'])
+  // ext.commonProject = project(':datastream-common')
+  // ext.apiProject = project(':datastream-common')
+  // pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms'])
 
   dependencies {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
