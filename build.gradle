@@ -32,30 +32,30 @@ allprojects {
 subprojects {
   apply plugin: 'java'
 
-    spec = [
-      'product' : [
-        'pegasus' : [
-          'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
-          'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
-          'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
-        ]
-      ]
-    ]
+    // spec = [
+    //   'product' : [
+    //     'pegasus' : [
+    //       'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
+    //       'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
+    //       'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
+    //     ]
+    //   ]
+    // ]
   
 
-  // comment this out so the java files don't get auto-generated every time
-  afterEvaluate {
-    if (project.plugins.hasPlugin('pegasus')) {
-      // add the standard pegasus dependencies wherever the plugin is used
-      dependencies {
-        dataTemplateCompile spec.product.pegasus.data
-        restClientCompile spec.product.pegasus.restliClient
+  // // comment this out so the java files don't get auto-generated every time
+  // afterEvaluate {
+  //   if (project.plugins.hasPlugin('pegasus')) {
+  //     // add the standard pegasus dependencies wherever the plugin is used
+  //     dependencies {
+  //       dataTemplateCompile spec.product.pegasus.data
+  //       restClientCompile spec.product.pegasus.restliClient
 
-        // needed for Gradle 1.9+
-        restClientCompile spec.product.pegasus.restliCommon
-      }
-    }
-  }
+  //       // needed for Gradle 1.9+
+  //       restClientCompile spec.product.pegasus.restliCommon
+  //     }
+  //   }
+  // }
 
   test {
     useTestNG()
@@ -96,7 +96,7 @@ subprojects {
 }
 
 project(':datastream-common') {
-  apply plugin: 'pegasus'
+  // apply plugin: 'pegasus'
 
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
@@ -115,8 +115,8 @@ project(':datastream-client') {
   apply plugin: 'pegasus'
 
   dependencies {
-    compile project(path: ':datastream-common', configuration: 'restClient')
-
+    // compile project(path: ':datastream-common', configuration: 'restClient')
+    compile "com.linkedin.pegasus:restli-client:$pegasusVersion"
     compile "com.google.guava:guava:$guavaVersion"
     compile "com.codahale.metrics:metrics-core:$metricsVersion"
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
