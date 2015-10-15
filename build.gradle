@@ -3,145 +3,157 @@ apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
 
 buildscript {
-    repositories {
-        mavenCentral()
-    }
-    apply from: file('gradle/buildscript.gradle'), to: buildscript
+  repositories {
+    mavenCentral()
+  }
+  apply from: file('gradle/buildscript.gradle'), to: buildscript
 }
 
 allprojects {
-    group = "com.github.datastream"
+  group = "com.github.datastream"
 
-    apply plugin: 'eclipse'
-    apply plugin: 'idea'
-    apply plugin: 'project-report'
+  apply plugin: 'eclipse'
+  apply plugin: 'idea'
+  apply plugin: 'project-report'
 
-    idea {
-      project {
-        jdkName = '1.8'
-        languageLevel = '1.8'
-      }
+  idea {
+    project {
+      jdkName = '1.8'
+      languageLevel = '1.8'
     }
+  }
 
-    repositories {
-        mavenCentral()
-        mavenLocal()
-    }
+  repositories {
+    mavenCentral()
+    mavenLocal()
+  }
 }
 
 subprojects {
-    apply plugin: 'java'
+  apply plugin: 'java'
 
-    test {
-        useTestNG()
+    spec = [
+      'product' : [
+        'pegasus' : [
+          'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
+          'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
+          'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
+        ]
+      ]
+    ]
+  
 
-        beforeTest { descriptor ->
-            logger.lifecycle("Running test: " + descriptor)
-        }
+  // comment this out so the java files don't get auto-generated every time
+  afterEvaluate {
+    if (project.plugins.hasPlugin('pegasus')) {
+      // add the standard pegasus dependencies wherever the plugin is used
+      dependencies {
+        dataTemplateCompile spec.product.pegasus.data
+        restClientCompile spec.product.pegasus.restliClient
 
-        onOutput { descriptor, event ->
-            logger.lifecycle("Test: " + descriptor + " produced standard out/err: " + event.message )
-        }
+        // needed for Gradle 1.9+
+        restClientCompile spec.product.pegasus.restliCommon
+      }
+    }
+  }
 
-        afterTest { test, result ->
-            logger.lifecycle("testFinished: $test, result: $result.resultType")
-        }      
+  test {
+    useTestNG()
 
-        //all standard error messages from tests will get routed to 'DEBUG' level messages.
-        logging.captureStandardError(LogLevel.DEBUG)
-        //all standard output messages from tests will get routed to 'DEBUG' level messages.
-        logging.captureStandardOutput(LogLevel.DEBUG)
-
-        maxParallelForks = 10
+    beforeTest { descriptor ->
+      logger.lifecycle("Running test: " + descriptor)
     }
 
-    dependencies {
-        compile "log4j:log4j:$log4jVersion"
-        compile "org.slf4j:slf4j-api:$slf4jVersion"
-        compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
-        testCompile "org.testng:testng:$testngVersion"
-        testCompile "junit:junit:$junitVersion"
+    onOutput { descriptor, event ->
+      logger.lifecycle("Test: " + descriptor + " produced standard out/err: " + event.message )
     }
 
-    jar {
-        manifest {
-            attributes 'Implementation-Title': 'Datastream'
-        }
+    afterTest { test, result ->
+      logger.lifecycle("testFinished: $test, result: $result.resultType")
+    }      
+
+      //all standard error messages from tests will get routed to 'DEBUG' level messages.
+      logging.captureStandardError(LogLevel.DEBUG)
+      //all standard output messages from tests will get routed to 'DEBUG' level messages.
+      logging.captureStandardOutput(LogLevel.DEBUG)
+
+      maxParallelForks = 10
+  }
+
+  dependencies {
+    compile "log4j:log4j:$log4jVersion"
+    compile "org.slf4j:slf4j-api:$slf4jVersion"
+    compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
+    testCompile "org.testng:testng:$testngVersion"
+    testCompile "junit:junit:$junitVersion"
+  }
+
+  jar {
+    manifest {
+      attributes 'Implementation-Title': 'Datastream'
     }
+  }
 }
 
 project(':datastream-common') {
-    // apply plugin: 'pegasus'
+  apply plugin: 'pegasus'
 
-    //spec = [
-    //        'product' : [
-    //                'pegasus' : [
-    //                        'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
-    //                        'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
-    //                        'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
-    //                ]
-    //        ]
-    //]
-    // comment this out so the java files don't get auto-generated every time
-    /* afterEvaluate {
-        // add the standard pegasus dependencies wherever the plugin is used
-        dependencies {
-            dataTemplateCompile spec.product.pegasus.data
-            restClientCompile spec.product.pegasus.restliClient
-
-            // needed for Gradle 1.9+
-            restClientCompile spec.product.pegasus.restliCommon
-        }
-    } */
-    dependencies {
-        compile "org.apache.avro:avro:$avroVersion"
-        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    }
+  dependencies {
+    compile "org.apache.avro:avro:$avroVersion"
+    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+  }
 }
 
 project(':datastream-testcommon') {
-    dependencies {
-        compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
-        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    }
+  dependencies {
+    compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+  }
 }
 
 project(':datastream-client') {
-    dependencies {
-        compile "com.google.guava:guava:$guavaVersion"
-        compile "com.codahale.metrics:metrics-core:$metricsVersion"
-        compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
-        compile "commons-codec:commons-codec:$commonsVersion"
-        compile "org.json:json:$jsonVersion"
-        compile "org.apache.avro:avro:$avroVersion"
-        compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
-        compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+  apply plugin: 'pegasus'
 
-        compile project(':datastream-common')
-    }
+  dependencies {
+    compile project(path: ':datastream-common', configuration: 'restClient')
+
+    compile "com.google.guava:guava:$guavaVersion"
+    compile "com.codahale.metrics:metrics-core:$metricsVersion"
+    compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    compile "commons-codec:commons-codec:$commonsVersion"
+    compile "org.json:json:$jsonVersion"
+    compile "org.apache.avro:avro:$avroVersion"
+    compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
+    compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+
+    compile project(':datastream-common')
+  }
 }
 
 project(':datastream-server') {
-    apply plugin: 'pegasus'
+  apply plugin: 'pegasus'
 
-    ext.commonProject = project(':datastream-common')
 
-    dependencies {
-        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-        compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
-        compile "com.101tec:zkclient:$zkclientVersion"
-        compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
-        compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+  ext.commonProject = project(':datastream-common')
+  ext.apiProject = project(':datastream-common')
+  pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms'])
 
-        compile project(':datastream-common')
-        compile project(':datastream-testcommon')
-    }
+  dependencies {
+    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
+    compile "com.101tec:zkclient:$zkclientVersion"
+    compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
+    compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
-    // For test or experiment purpose
-    task startStandaloneRestServer(type: JavaExec) {
-        main = 'com.linkedin.restli.server.NettyStandaloneLauncher'
-        args = ['-port', '8080', '-packages', 'com.linkedin.datastream.server.dms']
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
+    compile project(':datastream-common')
+    compile project(':datastream-testcommon')
+  }
+
+  // For test or experiment purpose
+  task startStandaloneRestServer(type: JavaExec) {
+    main = 'com.linkedin.restli.server.NettyStandaloneLauncher'
+    args = ['-port', '8080', '-packages', 'com.linkedin.datastream.server.dms']
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+  }
 }
