@@ -30,9 +30,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   private ZkSerializer _zkSerializer = new ZKStringSerializer();
+  private int _zkSessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
 
   public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
     super(zkServers, sessionTimeout, connectionTimeout, new ZKStringSerializer());
+    _zkSessionTimeoutMs = sessionTimeout;
   }
 
   public ZkClient(String zkServers, int connectionTimeout) {
@@ -164,22 +166,27 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     String content = super.readData(path, false);
 
     long totalWait = 0;
+    long nextWait = 0;
 
-    while (content == null) {
+    while (content == null && totalWait < timeout) {
       counter++;
       retry *= 2;
       jitter = rn.nextInt(100);
-      long wait = retry * step + jitter;
+
+      // calculate the next waiting time, and make sure the total
+      // wait will never pass the specified timeout value.
+      nextWait = retry * step + jitter;
+      if (totalWait + nextWait > timeout) {
+        nextWait = timeout - totalWait;
+      }
+
       try {
-        Thread.sleep(wait);
+        Thread.sleep(nextWait);
       } catch (InterruptedException e) {
         LOG.error("Failed to sleep at retry: " + counter + " " + e.getMessage());
       }
+      totalWait += nextWait;
       content = super.readData(path, false /* returnNullIfPathNotExists */);
-      totalWait += wait;
-      if (totalWait > timeout) {
-        break;
-      }
     }
 
     if (content == null) {
@@ -190,7 +197,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   public String ensureReadData(final String path) {
-    return ensureReadData(path, 30000 /* 30 seconds */);
+    return ensureReadData(path, _zkSessionTimeoutMs);
   }
 
   // override readData(path, stat, watch), so we can record all read requests

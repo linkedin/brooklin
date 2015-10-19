@@ -810,7 +810,7 @@ public class TestCoordinator {
       Datastream datastream = new Datastream();
       datastream.setName(datastreamName);
       datastream.setConnectorType(connectorType);
-      datastream.setSource("tscp");
+      datastream.setSource("sampleSource");
       Datastream.Target target = new Datastream.Target();
 
       target.setKafkaConnection(conn);
