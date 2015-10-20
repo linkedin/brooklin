@@ -152,7 +152,7 @@ public class TestZkClient {
     // now the data changed should have been called
     Assert.assertTrue(l.dataChanged);
 
-    String result = zkClient2.readData(znodePath);
+    String result = zkClient2.ensureReadData(znodePath);
     Assert.assertEquals(result, textContent);
 
     zkClient.close();

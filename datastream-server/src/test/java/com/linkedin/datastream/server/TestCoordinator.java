@@ -10,9 +10,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -799,11 +801,23 @@ public class TestCoordinator {
       String... datastreamNames) {
     for (String datastreamName : datastreamNames) {
       zkClient.ensurePath(KeyBuilder.datastreams(cluster));
+
+      KafkaConnection conn = new KafkaConnection();
+      conn.setTopicName("dummyTopic");
+      conn.setPartitions(1);
+      conn.setMetadataBrokers("localhost:11111");
+
       Datastream datastream = new Datastream();
       datastream.setName(datastreamName);
       datastream.setConnectorType(connectorType);
-      String json = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
-      zkClient.create(KeyBuilder.datastream(cluster, datastreamName), json, CreateMode.PERSISTENT);
+      datastream.setSource("sampleSource");
+      Datastream.Target target = new Datastream.Target();
+
+      target.setKafkaConnection(conn);
+      datastream.setTarget(target);
+
+      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
+      dsStore.createDatastream(datastream.getName(), datastream);
     }
   }
 }

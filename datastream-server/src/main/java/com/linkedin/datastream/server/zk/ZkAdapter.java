@@ -347,7 +347,7 @@ public class ZkAdapter {
 
     for (String streamNode : datastreamNames) {
       String path = KeyBuilder.datastream(_cluster, streamNode);
-      String content = _zkclient.readData(path);
+      String content = _zkclient.ensureReadData(path);
       Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(content);
       result.add(stream);
     }
@@ -379,11 +379,11 @@ public class ZkAdapter {
    * @return
    */
   public DatastreamTask getAssignedDatastreamTask(String instance, String taskName) {
-    String content = _zkclient.readData(KeyBuilder.datastreamTask(_cluster, instance, taskName));
+    String content = _zkclient.ensureReadData(KeyBuilder.datastreamTask(_cluster, instance, taskName));
     DatastreamTask task = DatastreamTask.fromJson(content);
     String dsName = task.getDatastreamName();
 
-    String dsContent = _zkclient.readData(KeyBuilder.datastream(_cluster, dsName));
+    String dsContent = _zkclient.ensureReadData(KeyBuilder.datastream(_cluster, dsName));
     Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(dsContent);
     task.setDatastream(stream);
     return task;
@@ -528,7 +528,7 @@ public class ZkAdapter {
     String path =
         KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
             datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
-    return _zkclient.exists(path) ? _zkclient.readData(path) : null;
+    return _zkclient.readData(path, true);
   }
 
   /**
@@ -652,7 +652,7 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.readData(KeyBuilder.liveInstance(_cluster, n));
+        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
         liveInstances.add(hostname + "-" + n);
       }
       return liveInstances;
@@ -695,16 +695,22 @@ public class ZkAdapter {
     }
   }
 
+  /**
+   * ZkBackedDatastreamTasksMap provides informations about all DatastreamTasks existing in the cluster
+   * grouped by the connector type. That is, this map will obtain
+   */
   public class ZkBackedDatastreamTasksMap implements IZkChildListener {
     private Map<String, List<DatastreamTask>> _allDatastreamTasks = null;
     private String _path = KeyBuilder.connectors(_cluster);
 
     public ZkBackedDatastreamTasksMap() {
       _zkclient.ensurePath(_path);
-      reloadData();
     }
 
     public Map<String, List<DatastreamTask>> getAllDatastreamTasks() {
+      if (_allDatastreamTasks == null) {
+        reloadData();
+      }
       return _allDatastreamTasks;
     }
 
@@ -723,7 +729,7 @@ public class ZkAdapter {
         tasksForConnector.forEach(taskName -> {
           String p = KeyBuilder.connectorTask(_cluster, connectorType, taskName);
           // read the DatastreamTask json data
-            String content = _zkclient.readData(p);
+            String content = _zkclient.ensureReadData(p);
             // deserialize to DatastreamTask
             DatastreamTask t = DatastreamTask.fromJson(content);
             _allDatastreamTasks.get(connectorType).add(t);

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.Stack;
 
@@ -29,9 +30,13 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   private ZkSerializer _zkSerializer = new ZKStringSerializer();
+  private int _zkSessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
 
   public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
     super(zkServers, sessionTimeout, connectionTimeout, new ZKStringSerializer());
+
+    // TODO: hook this value with configs
+    _zkSessionTimeoutMs = sessionTimeout;
   }
 
   public ZkClient(String zkServers, int connectionTimeout) {
@@ -143,6 +148,58 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
         LOG.trace("getChildren, path: " + path + ", time: " + (endT - startT) + " ns");
       }
     }
+  }
+
+  /**
+   * Read the content of a znode, and make sure to read a valid result. When znodes is in an inconsistent
+   * state, for example, being written to by a different process, the ZkClient.readData(path) will return
+   * null. This is a helper method to do retry until the value is not null.
+   *
+   * @param path
+   * @return
+   */
+  public String ensureReadData(final String path, final long timeout) {
+    Random rn = new Random();
+    int jitter;
+    int retry = 1;
+    int step = 50;
+    int counter = 0;
+
+    String content = super.readData(path, false);
+
+    long totalWait = 0;
+    long nextWait = 0;
+
+    while (content == null && totalWait < timeout) {
+      counter++;
+      retry *= 2;
+      jitter = rn.nextInt(100);
+
+      // calculate the next waiting time, and make sure the total
+      // wait will never pass the specified timeout value.
+      nextWait = retry * step + jitter;
+      if (totalWait + nextWait > timeout) {
+        nextWait = timeout - totalWait;
+      }
+
+      try {
+        Thread.sleep(nextWait);
+      } catch (InterruptedException e) {
+        LOG.error("Failed to sleep at retry: " + counter + " " + e.getMessage());
+      }
+      totalWait += nextWait;
+      content = super.readData(path, false /* returnNullIfPathNotExists */);
+    }
+
+    if (content == null) {
+      LOG.warn("Failed to read znode data for path " + path + " within timeout " + timeout + " milliseconds");
+    }
+
+    return content;
+  }
+
+  public String ensureReadData(final String path) {
+    return ensureReadData(path, _zkSessionTimeoutMs);
   }
 
   // override readData(path, stat, watch), so we can record all read requests
