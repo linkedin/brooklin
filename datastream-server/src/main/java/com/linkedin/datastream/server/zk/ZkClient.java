@@ -34,6 +34,8 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
 
   public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
     super(zkServers, sessionTimeout, connectionTimeout, new ZKStringSerializer());
+
+    // TODO: hook this value with configs
     _zkSessionTimeoutMs = sessionTimeout;
   }
 
