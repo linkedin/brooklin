@@ -42,7 +42,7 @@ public class DatastreamTask {
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
   // mapped to one Datastream. In the case when a Datastream is split into multiple partitions, the id
   // value should be the partition number. Each of the _id value will be represented in zookeeper
-  // under /{cluster}/{connectorType}/{datastream}/{id}.
+  // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
   // _datastreamName is copied from Datastream instance. This is because in the znode we only persist
