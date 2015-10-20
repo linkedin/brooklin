@@ -30,21 +30,21 @@ import org.apache.zookeeper.CreateMode;
  *
  *
  *
- *        ZooKeeper
+ *        ZooKeeper                                     ZkAdapter
  * ┌─────────────────────┐          ┌───────────────────────────────────────────────────┐
- * │                     │          │                     ZkAdapter                     │
  * │- cluster            │          │                                                   │
- * │  |- instances       │          │┌───────────────────────────────────┐    ┌─────────┤
- * │  |  |- i001         │┌─────────┼▶  ZkBackedTaskListProvider         │    │         │   ┌────────────────┐
- * │  |  |- i002         ││         │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
- * │  |         ─────────┼┘         │┌───────────────────────────────────┐    │         │   └────────────────┘
- * │  |- liveinstances ──┼──────────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
- * │  |  |- i001─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onBecomeFollower │
- * │  |  |- i002         ││         │┌───────────────────────────────────┐    │ZkAdapter│   └──────────────────┘
- * │  |                  │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
- * │  |- Espresso────────┼─┐        │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
- * │  |- Oracle          │ │        │┌───────────────────────────────────┐    │         │   └────────────────────┘
- * │                     │ └────────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
+ * │  |- instances ──────┼──┐       │                                                   │
+ * │  |  |- i001         │  │       │┌───────────────────────────────────┐    ┌─────────┤
+ * │  |  |- i002         │  └───────┼▶  ZkBackedInstanceAssignmentList   │    │         │   ┌────────────────┐
+ * │  |                  │          │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
+ * │  |- liveinstances ──┼───┐      │┌───────────────────────────────────┐    │         │   └────────────────┘
+ * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
+ * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onBecomeFollower │
+ * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └──────────────────┘
+ * │  |- connectors      │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
+ * │  |  |- Espresso ────┼───┐      │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
+ * │  |  |- Oracle ──────┼──┐│      │┌───────────────────────────────────┐    │         │   └────────────────────┘
+ * │                     │  └┴──────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
  * │                     │          │└───────────────────────────────────┘    │         │───▶ onLiveInstancesChange │
  * │                     │          │                                         │         │   └───────────────────────┘
  * │                     │          │                                         └─────────┤
@@ -53,6 +53,7 @@ import org.apache.zookeeper.CreateMode;
  * │                     │          │                                                   │
  * └─────────────────────┘          │                                                   │
  *                                  └───────────────────────────────────────────────────┘
+ *
  *
  *
  * ZkAdapter is the adapter between the Coordiantor and the ZkClient. It uses ZkClient to communicate
@@ -518,7 +519,7 @@ public class ZkAdapter {
   }
 
   /**
-   * return the znode content under /{cluster}/{connectorType}/{datastreamTask}/state
+   * return the znode content under /{cluster}/connectors/{connectorType}/{datastreamTask}/state
    * @param datastreamTask
    * @param key
    * @return
@@ -531,7 +532,7 @@ public class ZkAdapter {
   }
 
   /**
-   * set value for znode content at /{cluster}/{connectorType}/{datastreamTask}/state
+   * set value for znode content at /{cluster}/connectors/{connectorType}/{datastreamTask}/state
    * @param datastreamTask
    * @param key
    * @param value
@@ -696,7 +697,7 @@ public class ZkAdapter {
 
   public class ZkBackedDatastreamTasksMap implements IZkChildListener {
     private Map<String, List<DatastreamTask>> _allDatastreamTasks = null;
-    private String _path = KeyBuilder.cluster(_cluster);
+    private String _path = KeyBuilder.connectors(_cluster);
 
     public ZkBackedDatastreamTasksMap() {
       _zkclient.ensurePath(_path);
@@ -710,7 +711,6 @@ public class ZkAdapter {
     private synchronized void reloadData() {
       _allDatastreamTasks = new HashMap<>();
       List<String> connectorTypes = _zkclient.getChildren(_path);
-      connectorTypes.removeAll(Arrays.asList("datastream", "instances", "liveinstances"));
 
       connectorTypes.forEach(connectorType -> {
         if (!_allDatastreamTasks.containsKey(connectorType)) {
