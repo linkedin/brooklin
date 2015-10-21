@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -272,5 +271,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     _connectors.put(connectorType, connector);
     _strategies.put(connector, strategy);
+  }
+
+  /**
+   * Validate the datastream. Datastream management service will call this before writing the
+   * Datastream into zookeeper. This method should ensure that the source has sufficient details.
+   * @param datastream datastream for validation
+   * @return result of the validation
+   */
+  public DatastreamValidationResult validateDatastream(Datastream datastream) {
+    String connectorType = datastream.getConnectorType();
+    Connector connector = _connectors.get(connectorType);
+    if (connector == null) {
+      return new DatastreamValidationResult("Invalid connector type: " + connectorType);
+    }
+    return connector.validateDatastream(datastream);
   }
 }

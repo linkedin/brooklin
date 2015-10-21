@@ -1,10 +1,9 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.server.connectors.DummyConnector;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.util.Properties;
@@ -15,21 +14,20 @@ public class TestDatastreamServer {
   private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
   // "com.linkedin.datastream.server.connectors.DummyConnector"
   private static final String DUMMY_CONNECTOR = DummyConnector.class.getTypeName();
+  // "com.linkedin.datastream.server.connectors.DummyBootstrapConnector"
+  private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.class.getTypeName();
   // "com.linkedin.datastream.server.assignment.BroadcastStrategy"
   private static final String BROADCAST_STRATEGY =  BroadcastStrategy.class.getTypeName();
 
-  @BeforeTest
-  public void setUp() throws Exception {
-    DatastreamServer.INSTANCE.shutDown();
+  public static Properties initializeTestDatastreamServerWithBootstrap() throws Exception {
+    Properties override = new Properties();
+    override.put(DatastreamServer.CONFIG_CONNECTOR_CLASS_NAMES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
+    override.put(DUMMY_CONNECTOR + ".bootstrapConnector", DUMMY_BOOTSTRAP_CONNECTOR);
+    return initializeTestDatastreamServer(override);
   }
 
-  @AfterTest
-  public void tearDown() throws Exception {
+  public static Properties initializeTestDatastreamServer(Properties override) throws Exception {
     DatastreamServer.INSTANCE.shutDown();
-  }
-
-  @Test
-  public void testDatastreamServerBasics() throws Exception {
     EmbeddedZookeeper embeddedZookeeper = new EmbeddedZookeeper();
     String zkConnectionString = embeddedZookeeper.getConnection();
     embeddedZookeeper.startup();
@@ -43,8 +41,18 @@ public class TestDatastreamServer {
     properties.put(DUMMY_CONNECTOR + ".assignmentStrategy", BROADCAST_STRATEGY);
     properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
 
-    DatastreamServer server = DatastreamServer.INSTANCE;
-    server.init(properties);
+    if (override != null) {
+      override.entrySet().forEach(entry -> properties.put(entry.getKey(), entry.getValue()));
+    }
+
+    DatastreamServer.INSTANCE.init(properties);
+    return properties;
+  }
+
+  @Test
+  public void testDatastreamServerBasics() throws Exception {
+    initializeTestDatastreamServer(null);
+    initializeTestDatastreamServerWithBootstrap();
   }
 
 }
