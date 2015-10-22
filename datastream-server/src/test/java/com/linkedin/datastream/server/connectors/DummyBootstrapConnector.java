@@ -15,18 +15,12 @@ import java.util.Properties;
 /**
  * A trivial implementation of connector interface
  */
-public class DummyConnector implements Connector {
-
-  public static final String VALID_DUMMY_SOURCE = "DummySource";
+public class DummyBootstrapConnector implements Connector {
 
   private Properties _properties;
 
-  public DummyConnector(Properties properties) throws Exception {
+  public DummyBootstrapConnector(Properties properties) throws Exception {
     _properties = properties;
-    String dummyConfigValue = _properties.getProperty("dummyProperty", "");
-    if (!dummyConfigValue.equals("dummyValue")) {
-      throw new Exception("Invalid config value for dummyProperty. Expected: dummyValue");
-    }
   }
 
   @Override
@@ -39,7 +33,7 @@ public class DummyConnector implements Connector {
 
   @Override
   public String getConnectorType() {
-    return "com.linkedin.datastream.server.connectors.DummyConnector";
+    return "com.linkedin.datastream.server.connectors.DummyBootstrapConnector";
   }
 
   @Override
@@ -56,9 +50,6 @@ public class DummyConnector implements Connector {
   public DatastreamValidationResult validateDatastream(Datastream stream) {
     if (stream == null || stream.getSource() == null) {
       return new DatastreamValidationResult("Failed to get source from datastream.");
-    }
-    if (!stream.getSource().equals(VALID_DUMMY_SOURCE)) {
-      return new DatastreamValidationResult("Invalid source (" + stream.getSource() + ") in datastream.");
     }
     return new DatastreamValidationResult();
   }

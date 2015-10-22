@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 
@@ -37,6 +39,8 @@ public enum DatastreamServer {
   private DatastreamStore _datastreamStore;
   private NettyStandaloneLauncher _nettyLauncher;
   private boolean _isInitialized = false;
+
+  private Map<String, String> _bootstrapConnectors;
 
   public synchronized boolean isInitialized() {
     return _isInitialized;
@@ -66,10 +70,12 @@ public enum DatastreamServer {
     if (connectorClassNames.isEmpty()) {
       throw new DatastreamException("No connectors specified in connectorTypes");
     }
+    _bootstrapConnectors = new HashMap<>();
     ClassLoader classLoader = DatastreamServer.class.getClassLoader();
     for (String connectorStr : connectorClassNames.split(",")) {
       LOG.info("Starting to load connector: " + connectorStr);
       try {
+
         // For each connector type defined in the config, load one instance from that class
         Class connectorClass = classLoader.loadClass(connectorStr);
         Connector connectorInstance;
@@ -80,6 +86,13 @@ public enum DatastreamServer {
           LOG.warn("No consturctor found with Properties.class as parameter. Will create connector instance without config.");
           connectorInstance = (Connector) connectorClass.newInstance();
         }
+
+        // Read the bootstrap connector type for the connector if there is one
+        String bootstrapConnector = verifiableProperties.getString(connectorStr + ".bootstrapConnector","");
+        if (!bootstrapConnector.isEmpty()) {
+          _bootstrapConnectors.put(connectorStr, bootstrapConnector);
+        }
+
         // Read the assignment startegy from the config; if not found, use default strategy
         AssignmentStrategy assignmentStrategyInstance;
         String strategy = verifiableProperties.getString(connectorStr + ".assignmentStrategy", "");
@@ -90,6 +103,7 @@ public enum DatastreamServer {
           assignmentStrategyInstance = new SimpleStrategy();
         }
         _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
+
       } catch (Exception ex) {
         throw new DatastreamException("Failed to instantiate connector: " + connectorStr, ex);
       }
@@ -131,6 +145,17 @@ public enum DatastreamServer {
       _nettyLauncher = null;
     }
     _isInitialized = false;
+  }
+
+  public String getBootstrapConnector(String baseConnectorType) throws DatastreamException {
+    if (!_isInitialized) {
+      throw new DatastreamException("DatastreamServer is not initialized.");
+    }
+    String ret = _bootstrapConnectors.get(baseConnectorType);
+    if (ret == null) {
+      throw new DatastreamException("No bootstrap connector specified for connector: " + baseConnectorType);
+    }
+    return ret;
   }
 
   public static void main() throws DatastreamException {

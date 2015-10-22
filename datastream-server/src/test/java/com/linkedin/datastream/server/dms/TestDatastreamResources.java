@@ -4,48 +4,39 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.KafkaConnection;
 
-import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.server.zk.ZkClient;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.datastream.server.connectors.DummyConnector;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
-import junit.framework.Assert;
 
-import org.testng.annotations.BeforeMethod;
+import org.testng.Assert;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.HashSet;
-import java.util.Properties;
 import java.util.Set;
 
 
 /**
  * Test DatastreamResources with zookeeper backed DatastreamStore
  */
+@Test(singleThreaded=true)
 public class TestDatastreamResources {
 
-  private EmbeddedZookeeper _embeddedZookeeper;
-  private String _zkConnectionString;
-  private ZkClient _zkClient;
-  private ZookeeperBackedDatastreamStore _store;
-
-  private Datastream generateDatastream(int seed) {
+  public static Datastream generateDatastream(int seed) {
     return generateDatastream(seed, new HashSet<>());
   }
 
-  private Datastream generateDatastream(int seed, Set<String> missingFields) {
+  public static Datastream generateDatastream(int seed, Set<String> missingFields) {
     Datastream ds = new Datastream();
     if (!missingFields.contains("name")) {
       ds.setName("name_" + seed);
     }
     if (!missingFields.contains("connectorType")) {
-      ds.setConnectorType(seed % 2 == 0 ? "Oracle-Change" : "Oracle-Bootstrap");
+      ds.setConnectorType("com.linkedin.datastream.server.connectors.DummyConnector");
     }
     if (!missingFields.contains("source")) {
-      ds.setSource("db_" + seed);
+      ds.setSource(DummyConnector.VALID_DUMMY_SOURCE);
     }
     if (!missingFields.contains("target")) {
       String metadataBrokers = "kafkaBrokers_" + seed;
@@ -62,17 +53,9 @@ public class TestDatastreamResources {
     return ds;
   }
 
-  @BeforeMethod
+  @BeforeTest
   public void setUp() throws Exception {
-    _embeddedZookeeper = new EmbeddedZookeeper();
-    _zkConnectionString = _embeddedZookeeper.getConnection();
-    _embeddedZookeeper.startup();
-    _zkClient = new ZkClient(_zkConnectionString);
-    _store = new ZookeeperBackedDatastreamStore(_zkClient, "testcluster");
-    Class<?> c = DatastreamServer.class;
-    Field field = c.getDeclaredField("_datastreamStore");
-    field.setAccessible(true);
-    field.set(DatastreamServer.INSTANCE, _store);
+    TestDatastreamServer.initializeTestDatastreamServer(null);
   }
 
   @Test
@@ -81,16 +64,16 @@ public class TestDatastreamResources {
     DatastreamResources resource2 = new DatastreamResources();
 
     // read before creating
-    Datastream ds = resource1.get("name_1");
+    Datastream ds = resource1.get("name_0");
     Assert.assertNull(ds);
 
-    CreateResponse response = resource1.create(generateDatastream(1));
+    CreateResponse response = resource1.create(generateDatastream(0));
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
-    ds = resource2.get("name_1");
+    ds = resource2.get("name_0");
     Assert.assertNotNull(ds);
-    Assert.assertTrue(ds.equals(generateDatastream(1)));
+    Assert.assertTrue(ds.equals(generateDatastream(0)));
   }
 
   @Test
@@ -137,5 +120,21 @@ public class TestDatastreamResources {
     response = resource.create(allRequiredFields);
     Assert.assertNotNull(response.getError());
     Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_409_CONFLICT);
+  }
+
+  @Test
+  public void testCreateInvalidDatastream() {
+    DatastreamResources resource = new DatastreamResources();
+    Datastream datastream1 = generateDatastream(6);
+    datastream1.setConnectorType("InvalidConnectorName");
+    CreateResponse response = resource.create(datastream1);
+    Assert.assertNotNull(response.getError());
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+
+    Datastream datastream2 = generateDatastream(7);
+    datastream2.setSource("InvalidSource");
+    CreateResponse response2 = resource.create(datastream1);
+    Assert.assertNotNull(response2.getError());
+    Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
   }
 }
