@@ -20,4 +20,9 @@ public class DatastreamContextImpl implements DatastreamContext {
   public void saveState(DatastreamTask datastreamTask, String key, String value) {
     _adapter.setDatastreamTaskStateForKey(datastreamTask, key, value);
   }
+
+  @Override
+  public String getInstanceName() {
+    return _adapter.getInstanceName();
+  }
 }

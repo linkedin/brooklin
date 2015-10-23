@@ -1,6 +1,9 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -75,6 +78,12 @@ import org.slf4j.LoggerFactory;
 public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
 
+  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+
+  private final CoordinatorEventBlockingQueue _eventQueue;
+  private final CoordinatorEventProcessor _eventThread;
+  private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
+
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
@@ -86,7 +95,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final DatastreamEventCollectorFactory _eventCollectorFactory;
 
-  // all datastreams by connectory type. This is also valid for the coordinator leader
+  // all datastreams by connector type. This is also valid for the coordinator leader
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
@@ -96,6 +105,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   public Coordinator(CoordinatorConfig config) throws DatastreamException {
     _config = config;
+    _eventQueue = new CoordinatorEventBlockingQueue();
+    _eventThread = new CoordinatorEventProcessor();
+    _eventThread.setDaemon(true);
+
     _adapter =
         new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
             _config.getZkConnectionTimeout(), this);
@@ -104,12 +117,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   public void start() {
+    _eventThread.start();
     _adapter.connect();
     _strategies.forEach((connector, strategy) -> connector.start(_eventCollectorFactory));
+
   }
 
   public void stop() {
     _strategies.forEach((connector, strategy) -> connector.stop());
+    while (_eventThread.isAlive()) {
+      try {
+        _eventThread.interrupt();
+        _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
+      } catch (InterruptedException e) {
+        LOG.warn("Exception caught while stopping coordinator", e);
+      }
+    }
     _adapter.disconnect();
   }
 
@@ -119,17 +142,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   @Override
   public void onBecomeLeader() {
-    assignDatastreamTasksToInstances();
+    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
   }
 
   @Override
   public void onLiveInstancesChange() {
-    assignDatastreamTasksToInstances();
+    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
   }
 
   @Override
   public void onDatastreamChange() {
-    assignDatastreamTasksToInstances();
+    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
   }
 
   /**
@@ -143,9 +166,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onAssignmentChange() {
+    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.HANDLE_ASSIGNMENT_CHANGE));
+  }
+
+  private void handleAssignmentChange() {
     // when there is any change to the assignment for this instance. Need to find out what is the connector
     // type of the changed assignment, and then call the corresponding callback of the connector instance
     List<String> assignment = _adapter.getInstanceAssignment(_adapter.getInstanceName());
+
+    LOG.info("START: onAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: " + assignment);
 
     // all datastreamtask for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
@@ -153,11 +182,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       DatastreamTask task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), ds);
 
       if (!currentAssignment.containsKey(task.getConnectorType())) {
-        currentAssignment.put(task.getConnectorType(), new ArrayList<DatastreamTask>());
+        currentAssignment.put(task.getConnectorType(), new ArrayList<>());
       }
       currentAssignment.get(task.getConnectorType()).add(task);
-
     });
+
+    LOG.info(printAssignmentByType(currentAssignment));
 
     DatastreamContext context = new DatastreamContextImpl(_adapter);
 
@@ -180,27 +210,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    deactivated.forEach(connectorType -> {
-      _connectors.get(connectorType).onAssignmentChange(context, new ArrayList<>());
-    });
+    deactivated.forEach(connectorType -> callConnectorOnAssignmentChange(_connectors.get(connectorType), context,
+        new ArrayList<>()));
 
     // case (2)
-    newConnectorList.forEach(connectorType -> {
-      dispatchAssignmentChangeIfNeeded(connectorType, context, currentAssignment);
-    });
+    newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, context,
+        currentAssignment));
 
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
+
+    LOG.info("END: onAssignmentChange");
   }
 
   private void dispatchAssignmentChangeIfNeeded(String connectorType, DatastreamContext context,
       Map<String, List<DatastreamTask>> currentAssignment) {
+
+    Connector connector = _connectors.get(connectorType);
+    List<DatastreamTask> assignment = currentAssignment.get(connectorType);
+
+    // only call Connector onAssignment if it is needed
+    boolean needed = false;
+
     if (!_allStreamsByConnectorType.containsKey(connectorType)) {
       // if there were no assignment in last cached version
-      _connectors.get(connectorType).onAssignmentChange(context, currentAssignment.get(connectorType));
+      needed = true;
     } else if (_allStreamsByConnectorType.get(connectorType).size() != currentAssignment.get(connectorType).size()) {
-      // if the number of assignment is different
-      _connectors.get(connectorType).onAssignmentChange(context, currentAssignment.get(connectorType));
+      needed = true;
     } else {
       // if there are any difference in the list of assignment. Note that if there are no difference
       // between the two lists, then the connector onAssignmentChange() is not called.
@@ -211,9 +247,36 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       diffList1.removeAll(newSet);
       diffList2.removeAll(oldSet);
       if (diffList1.size() > 0 || diffList2.size() > 0) {
-        _connectors.get(connectorType).onAssignmentChange(context, currentAssignment.get(connectorType));
+        needed = true;
       }
     }
+
+    if (needed) {
+      callConnectorOnAssignmentChange(connector, context, assignment);
+    }
+  }
+
+  private void callConnectorOnAssignmentChange(Connector connector, DatastreamContext context,
+      final List<DatastreamTask> assignment) {
+    LOG.info("START: Connector onAssignmentChange. Connector: " + connector.getConnectorType() + ", assignment: "
+        + assignment);
+    connector.onAssignmentChange(context, assignment);
+    LOG.info("END: Connector onAssignmentChange. Connector: " + connector.getConnectorType());
+  }
+
+  protected synchronized void handleEvent(CoordinatorEvent event) {
+    LOG.info("START: Handle event " + event.getName() + ", Instance: " + _adapter.getInstanceName());
+
+    switch (event.getName()) {
+      case LEADER_DO_ASSIGNMENT:
+        assignDatastreamTasksToInstances();
+        break;
+
+      case HANDLE_ASSIGNMENT_CHANGE:
+        handleAssignmentChange();
+    }
+
+    LOG.info("END: Handle event " + event);
   }
 
   private void assignDatastreamTasksToInstances() {
@@ -250,10 +313,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     });
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
-    // assignment and do remove and add znodes accordingly.
-    assigmentsByInstance.forEach((instance, assigned) -> {
-      _adapter.updateInstanceAssignment(instance, assigned);
-    });
+    // assignment and do remove and add znodes accordingly. In the case of zookeeper failure (when
+    // it failed to create or delete znodes), we will do our best to continue the current process
+    // and schedule a retry. The retry should be able to diff the remaining zookeeper work
+    boolean succeeded = true;
+    for (Map.Entry<String, List<DatastreamTask>> entry : assigmentsByInstance.entrySet()) {
+      succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
+    }
+
+    if (!succeeded) {
+      // schedule retry
+      LOG.warn("Schedule retry for assigning tasks");
+      _executor.schedule(new Runnable() {
+        @Override
+        public void run() {
+          _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
+        }
+      }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+    }
   }
 
   /**
@@ -291,4 +368,38 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
     return connector.validateDatastream(datastream);
   }
+
+  private class CoordinatorEventProcessor extends Thread {
+    @Override
+    public void run() {
+      LOG.info("START CoordinatorEventProcessor thread");
+      while (!isInterrupted()) {
+        try {
+          CoordinatorEvent event = _eventQueue.take();
+          if (event != null) {
+            handleEvent(event);
+          }
+        } catch (InterruptedException e) {
+          LOG.warn("CoordinatorEventProcess interrupted", e);
+          interrupt();
+        } catch (Throwable t) {
+          LOG.error("CoordinatorEventProcessor failed", t);
+        }
+      }
+      LOG.info("END CoordinatorEventProcessor");
+    }
+  }
+
+  // helper method for logging
+  private String printAssignmentByType(Map<String, List<DatastreamTask>> assignment) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Current assignment for instance: " + getInstanceName() + ":\n");
+    for (Map.Entry<String, List<DatastreamTask>> entry : assignment.entrySet()) {
+      sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+    }
+    // remove the final "\n"
+    String result = sb.toString();
+    return result.substring(0, result.length() - 1);
+  }
+
 }

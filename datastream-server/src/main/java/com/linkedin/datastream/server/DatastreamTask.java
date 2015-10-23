@@ -146,4 +146,10 @@ public class DatastreamTask {
   public int hashCode() {
     return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties);
   }
+
+  @Override
+  public String toString() {
+    // toString() is mainly for loggign purpose, feel free to modify the content/format
+    return String.format("%s(%s)", this.getDatastreamTaskName(), this._connectorType);
+  }
 }

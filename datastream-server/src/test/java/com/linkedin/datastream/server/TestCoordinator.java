@@ -64,29 +64,29 @@ public class TestCoordinator {
     _embeddedZookeeper.shutdown();
   }
 
-  public static class TestHookConnector implements Connector {
+  public class TestHookConnector implements Connector {
     boolean _isStarted = false;
     String _connectorType = "TestConnector";
     List<DatastreamTask> _tasks = new ArrayList<>();
     DatastreamEventCollectorFactory _factory;
+    String _instance = "";
+    String _name;
 
-    public TestHookConnector() {
-
+    public TestHookConnector(String name, String connectorType) {
+      _name = name;
+      _connectorType = connectorType;
     }
 
     public TestHookConnector(String connectorType) {
       _connectorType = connectorType;
     }
 
-    public boolean isStarted() {
-      return _isStarted;
+    public String getName() {
+      return _name;
     }
 
-    public boolean isStopped() {
-      return !_isStarted;
-    }
-
-    public synchronized List<DatastreamTask> getTasks() {
+    public List<DatastreamTask> getTasks() {
+      LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
     }
 
@@ -94,6 +94,7 @@ public class TestCoordinator {
     public void start(DatastreamEventCollectorFactory factory) {
       _isStarted = true;
       _factory = factory;
+      LOG.info("Connector " + _name + " started");
     }
 
     @Override
@@ -102,8 +103,11 @@ public class TestCoordinator {
     }
 
     @Override
-    public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
-      LOG.info("onAssignmentChange. ConnectorType: " + _connectorType + ",  Number of assignments: " + tasks.size());
+    public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+      _instance = context.getInstanceName();
+
+      LOG.info("START: onAssignmentChange. Name: " + _name + ", Instance: " + context.getInstanceName()
+          + ", ConnectorType: " + _connectorType + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
@@ -113,6 +117,8 @@ public class TestCoordinator {
           Assert.fail();
         }
       }
+
+      LOG.info("END: onAssignmentChange");
     }
 
     @Override
@@ -129,21 +135,11 @@ public class TestCoordinator {
     public String getConnectorType() {
       return _connectorType;
     }
-  }
 
-  @Test
-  public void testConnectorStartStop() throws Exception {
-    String testCluster = "test_coordinator_startstop";
-    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
-
-    TestHookConnector connector = new TestHookConnector();
-    coordinator.addConnector(connector, new BroadcastStrategy());
-
-    coordinator.start();
-    Assert.assertTrue(connector.isStarted());
-
-    coordinator.stop();
-    Assert.assertTrue(connector.isStopped());
+    @Override
+    public String toString() {
+      return "Connector " + _name + ", Type: " + _connectorType + ", Instance: " + _instance;
+    }
   }
 
   /**
@@ -553,7 +549,7 @@ public class TestCoordinator {
     instance2.stop();
     instance3.stop();
   }
-  
+
   //
   // Test for SimpleAssignmentStrategy
   // Verify that when instance dies, the assigned tasks will be re-assigned to remaining live instances
@@ -588,6 +584,12 @@ public class TestCoordinator {
     }
 
     //
+    // wait until assignment is done. We cannot rely on assertConnectorAssignment because
+    // the first instance will initially being assigned all datastreams
+    //
+    Thread.sleep(waitDurationForZk * 2);
+
+    //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
     assertConnectorAssignment(connector1, waitDurationForZk * 2, "datastream0", "datastream2");
@@ -613,6 +615,153 @@ public class TestCoordinator {
   }
 
   //
+  // this case tests the scenario when the leader of the cluster dies, and make sure
+  // the assignment will be taken over by the new leader.
+  //
+  @Test
+  public void testSimpleAssignmentReassignAfterLeaderDeath() throws Exception {
+    String testCluster = "testSimpleAssignmentReassignAfterLeaderDeath";
+    String testConnectoryType = "testConnectoryType";
+    String datastreamName = "datastream";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // setup a cluster with 3 live instances with simple assignment strategy
+    //
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk *2, waitDurationForZk * 10);
+    TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
+    instance1.addConnector(connector1, new SimpleStrategy());
+    instance1.start();
+    Thread.sleep(waitDurationForZk);
+
+    Coordinator instance2 =
+            createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
+    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.start();
+    Thread.sleep(waitDurationForZk);
+
+    Coordinator instance3 =
+            createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
+    instance3.addConnector(connector3, new SimpleStrategy());
+    instance3.start();
+
+
+    //
+    // create 6 datastreams, [datastream0, ..., datastream5]
+    //
+    for (int i = 0; i < 6; i++) {
+      createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+    }
+
+    //
+    // wait until assignment is done. We cannot rely on assertConnectorAssignment because
+    // the first instance will initially being assigned all datastreams
+    //
+    Thread.sleep(waitDurationForZk * 2);
+
+    //
+    // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
+    //
+    assertConnectorAssignment(connector1, waitDurationForZk * 2, "datastream0", "datastream3");
+    assertConnectorAssignment(connector2, waitDurationForZk * 2, "datastream1", "datastream4");
+    assertConnectorAssignment(connector3, waitDurationForZk * 2, "datastream2", "datastream5");
+
+    //
+    // take current leader instance1 offline
+    //
+    instance1.stop();
+    // wait lone enough for zookeeper to remove the live instance
+    Thread.sleep(waitDurationForZk * 3);
+
+    //
+    // verify all 6 datastreams are assigned to instance2 and instance3
+    //
+    assertConnectorAssignment(connector2, waitTimeoutMS, "datastream0", "datastream2", "datastream4");
+    assertConnectorAssignment(connector3, waitTimeoutMS, "datastream1", "datastream3", "datastream5");
+
+    //
+    // take current leader instance2 offline
+    //
+    instance2.stop();
+    // wait lone enough for zookeeper to remove the live instance
+    Thread.sleep(waitDurationForZk * 3);
+
+    //
+    // verify all tasks assigned to instance3
+    assertConnectorAssignment(connector3, waitTimeoutMS, "datastream0", "datastream2", "datastream4", "datastream1", "datastream3", "datastream5");
+
+    //
+    // clean up
+    //
+    instance3.stop();
+    zkClient.close();
+  }
+
+  //
+  // this test covers the scenario when multiple instances die at the same time
+  //
+  @Test
+  public void testMultipleInstanceDeath() throws Exception {
+    String testCluster = "testMultipleInstanceDeath";
+    String testConnectoryType = "testConnectoryType";
+    String datastreamName = "datastream";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // create a list of instances
+    //
+    int count = 4;
+    Coordinator[] coordinators = new Coordinator[count];
+    TestHookConnector[] connectors = new TestHookConnector[count];
+    for(int i = 0; i < count; i++) {
+      coordinators[i] = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk *2, waitDurationForZk * 10);
+      connectors[i] = new TestHookConnector(testConnectoryType);
+      coordinators[i].addConnector(connectors[i], new SimpleStrategy());
+      coordinators[i].start();
+      Thread.sleep(100);
+    }
+
+    //
+    // create 1 datastream per instance
+    //
+    for(int i = 0; i < count; i++) {
+      createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+    }
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // wait until the last instance was assigned the last datastream, by now all datastream should be assigned
+    //
+    assertConnectorAssignment(connectors[count-1], waitTimeoutMS, "datastream" + (count-1));
+
+    //
+    // kill all instances except the current leader
+    //
+    for(int i = 1; i < count; i++) {
+      coordinators[i].stop();
+    }
+    Thread.sleep(waitDurationForZk * 3);
+
+    //
+    // validate all datastream tasks are assigned to the leader now
+    //
+    String[] assignment = new String[count];
+    for(int i = 0; i < count; i++) {
+      assignment[i] = datastreamName + i;
+    }
+    assertConnectorAssignment(connectors[0], waitTimeoutMS, assignment);
+
+    //
+    // clean up
+    //
+    coordinators[0].stop();
+    zkClient.close();
+
+  }
+
+  //
   // Test SimpleAssignmentStrategy, verify that the assignment is predictable no matter what the datastreams
   // are. This is because the assignment strategy will sort the datastreams by names. If a new datastream
   // has a smaller lexicographical order, it will be assigned to an instance with smaller lexicographical order.
@@ -631,6 +780,7 @@ public class TestCoordinator {
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
     instance1.addConnector(connector1, new SimpleStrategy());
     instance1.start();
+    Thread.sleep(waitDurationForZk);
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
@@ -685,15 +835,17 @@ public class TestCoordinator {
     // each has two connectors
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector1a = new TestHookConnector(connectoryType1);
-    TestHookConnector connector1b = new TestHookConnector(connectoryType2);
+    TestHookConnector connector1a = new TestHookConnector("connector1a", connectoryType1);
+    TestHookConnector connector1b = new TestHookConnector("connector1b", connectoryType2);
     instance1.addConnector(connector1a, new SimpleStrategy());
     instance1.addConnector(connector1b, new BroadcastStrategy());
     instance1.start();
 
+    Thread.sleep(waitDurationForZk);
+
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector2a = new TestHookConnector(connectoryType1);
-    TestHookConnector connector2b = new TestHookConnector(connectoryType2);
+    TestHookConnector connector2a = new TestHookConnector("connector2a", connectoryType1);
+    TestHookConnector connector2b = new TestHookConnector("connector2b", connectoryType2);
     instance2.addConnector(connector2a, new SimpleStrategy());
     instance2.addConnector(connector2b, new BroadcastStrategy());
     instance2.start();
@@ -729,6 +881,7 @@ public class TestCoordinator {
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, int timeout, String... datastreamNames)
       throws InterruptedException {
+
     int totalWait = 0;
     final int interval = 500;
 
@@ -743,12 +896,16 @@ public class TestCoordinator {
       result = validateAssignment(assignment, datastreamNames);
     }
 
+    LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", Type: " + connector.getConnectorType()
+        + ", ASSERT: " + result);
+
     Assert.assertTrue(result);
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
 
     if (assignment.size() != datastreamNames.length) {
+      LOG.error("Expected size: " + datastreamNames.length + ", Actual size: " + assignment.size());
       return false;
     }
 
@@ -758,6 +915,7 @@ public class TestCoordinator {
     for (DatastreamTask task : assignment) {
       if (!list.contains(task.getDatastreamName())) {
         result = false;
+        LOG.error("Missing " + task.getDatastreamName() + ", list: " + list);
         break;
       }
     }
