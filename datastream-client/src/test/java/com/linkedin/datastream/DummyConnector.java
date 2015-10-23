@@ -52,6 +52,6 @@ public class DummyConnector implements Connector {
 
   @Override
   public DatastreamValidationResult validateDatastream(Datastream stream) {
-    return null;
+    return new DatastreamValidationResult();
   }
 }

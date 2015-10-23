@@ -23,8 +23,8 @@ import junit.framework.Assert;
 
 
 @Test(singleThreaded=true)
-public class TestDsm {
-  Logger LOG = LoggerFactory.getLogger(TestDsm.class);
+public class TestDatastreamRestClient {
+  Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
   // "com.linkedin.datastream.server.DummyDatastreamEventCollector"
   private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
   // "com.linkedin.datastream.server.connectors.DummyConnector"
