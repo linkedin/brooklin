@@ -100,21 +100,21 @@ public class TestDatastreamResources {
     Datastream noName = generateDatastream(3, missingFields);
     response = resource.create(noName);
     Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
     missingFields.clear();
     missingFields.add("connectorType");
     Datastream noConnectorType = generateDatastream(4, missingFields);
     response = resource.create(noConnectorType);
     Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
     missingFields.clear();
     missingFields.add("source");
     Datastream noSource = generateDatastream(5, missingFields);
     response = resource.create(noSource);
     Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
     // creating existing Datastream
     response = resource.create(allRequiredFields);
@@ -129,12 +129,12 @@ public class TestDatastreamResources {
     datastream1.setConnectorType("InvalidConnectorName");
     CreateResponse response = resource.create(datastream1);
     Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
     Datastream datastream2 = generateDatastream(7);
     datastream2.setSource("InvalidSource");
     CreateResponse response2 = resource.create(datastream1);
     Assert.assertNotNull(response2.getError());
-    Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_406_NOT_ACCEPTABLE);
+    Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
   }
 }
