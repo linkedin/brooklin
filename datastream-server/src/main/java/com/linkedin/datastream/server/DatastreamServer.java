@@ -147,6 +147,13 @@ public enum DatastreamServer {
     _isInitialized = false;
   }
 
+  /**
+   * Return the corresponding bootstrap connector type for a connector
+   * @param baseConnectorType the base (online) connector type
+   * @return bootstrap connector type for the base connector. If the base connector doesn't
+   * have a bootstrap connector, a DatastreamException will be thrown.
+   * @throws DatastreamException
+   */
   public String getBootstrapConnector(String baseConnectorType) throws DatastreamException {
     if (!_isInitialized) {
       throw new DatastreamException("DatastreamServer is not initialized.");

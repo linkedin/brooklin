@@ -11,12 +11,20 @@ import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.RestLiActions;
 
+/**
+ * BootstrapActionResources is the rest end point to process bootstrap datastream request
+ */
 @RestLiActions(name = "bootstrap", namespace = "com.linkedin.datastream.server.dms")
 public class BootstrapActionResources {
 
   private final DatastreamStore _store = DatastreamServer.INSTANCE.getDatastreamStore();
   private final Coordinator _coordinator = DatastreamServer.INSTANCE.getCoordinator();
 
+  /**
+   * Process the request of creating bootstrap datastream. The request provides the name of
+   * base datastream, and the server will create and return a corresponding bootstrap
+   * datastream.
+   */
   @Action(name="create")
   public Datastream create(@ActionParam("baseDatastream") String baseDatastreamName)
   {
