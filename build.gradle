@@ -59,26 +59,23 @@ subprojects {
   // }
 
   test {
+
     useTestNG()
 
     beforeTest { descriptor ->
       logger.lifecycle("Running test: " + descriptor)
     }
 
-    onOutput { descriptor, event ->
-      logger.lifecycle("Test: " + descriptor + " produced standard out/err: " + event.message )
-    }
-
     afterTest { test, result ->
       logger.lifecycle("testFinished: $test, result: $result.resultType")
-    }      
+    }
 
-      //all standard error messages from tests will get routed to 'DEBUG' level messages.
-      logging.captureStandardError(LogLevel.DEBUG)
-      //all standard output messages from tests will get routed to 'DEBUG' level messages.
-      logging.captureStandardOutput(LogLevel.DEBUG)
+    //all standard error messages from tests will get routed to 'ERROR' level messages.
+    logging.captureStandardError(LogLevel.ERROR)
+    //all standard output messages from tests will get routed to 'INFO' level messages.
+    logging.captureStandardOutput(LogLevel.INFO)
 
-      maxParallelForks = 10
+    maxParallelForks = 10
   }
 
   dependencies {
