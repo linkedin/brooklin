@@ -116,6 +116,7 @@ project(':datastream-client') {
   dependencies {
     // compile project(path: ':datastream-common', configuration: 'restClient')
     compile "com.linkedin.pegasus:restli-client:$pegasusVersion"
+    compile "com.linkedin.pegasus:r2-netty:$pegasusVersion"
     compile "com.google.guava:guava:$guavaVersion"
     compile "com.codahale.metrics:metrics-core:$metricsVersion"
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
@@ -125,6 +126,7 @@ project(':datastream-client') {
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
+    testCompile project(':datastream-server')
     compile project(':datastream-common')
   }
 }
