@@ -22,7 +22,7 @@ public class BootstrapActionResources {
   {
     Datastream baseDatastream = _store.getDatastream(baseDatastreamName);
     if (baseDatastream == null) {
-      throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND, "Can't create bootstrap datastream. Base datastream not exists.");
+      throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND, "Can't create bootstrap datastream. Base datastream does not exists.");
     }
     Datastream bootstrapDatastream = new Datastream();
     bootstrapDatastream.setName(baseDatastream.getName() + "-" + System.currentTimeMillis());
@@ -31,17 +31,17 @@ public class BootstrapActionResources {
       String bootstrapConnectorType = datastreamServer.getBootstrapConnector(baseDatastream.getConnectorType());
       bootstrapDatastream.setConnectorType(bootstrapConnectorType);
     } catch (DatastreamException e) {
-      throw new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE, e);
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e);
     }
     bootstrapDatastream.setSource(baseDatastream.getSource());
     DatastreamValidationResult validation = _coordinator.validateDatastream(bootstrapDatastream);
     if (!validation.getSuccess()) {
-      throw new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           validation.getErrorMsg());
     }
 
     if (!_store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream)) {
-      throw new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Failed to create bootstrap datastream.");
     }
     return bootstrapDatastream;

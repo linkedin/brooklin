@@ -51,21 +51,21 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify name of Datastream!"));
     }
     if (!datastream.hasConnectorType()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify connectorType!"));
     }
     if (!datastream.hasSource()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify source of Datastream!"));
     }
 
     DatastreamValidationResult validation = _coordinator.validateDatastream(datastream);
     if (!validation.getSuccess()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           validation.getErrorMsg()));
     }
 
