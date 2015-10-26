@@ -37,7 +37,7 @@ public class DummyConnector implements Connector {
 
   @Override
   public String getConnectorType() {
-    return "com.linkedin.datastream.server.connectors.DummyConnector";
+    return DummyConnector.class.getTypeName();
   }
 
   @Override
