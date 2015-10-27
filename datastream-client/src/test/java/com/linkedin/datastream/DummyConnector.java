@@ -17,14 +17,9 @@ import com.linkedin.datastream.server.DatastreamValidationResult;
  */
 public class DummyConnector implements Connector {
 
-  private Properties _properties;
+  public static final String CONNECTOR_TYPE = "DummyConnector-Online";
 
   public DummyConnector(Properties properties) throws Exception {
-    _properties = properties;
-    String dummyConfigValue = _properties.getProperty("dummyProperty", "");
-    if (!dummyConfigValue.equals("dummyValue")) {
-      throw new Exception("Invalid config value for dummyProperty. Expected: dummyValue");
-    }
   }
 
   @Override
@@ -37,7 +32,7 @@ public class DummyConnector implements Connector {
 
   @Override
   public String getConnectorType() {
-    return DummyConnector.class.getTypeName();
+    return CONNECTOR_TYPE;
   }
 
   @Override

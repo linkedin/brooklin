@@ -8,6 +8,7 @@ import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.restli.server.NettyStandaloneLauncher;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,13 +28,18 @@ public enum DatastreamServer {
   INSTANCE;
 
   public static final String CONFIG_PREFIX = "datastream.server.";
-  public static final String CONFIG_CONNECTOR_CLASS_NAMES = CONFIG_PREFIX + "connectorClassNames";
+  public static final String CONFIG_CONNECTOR_TYPES = CONFIG_PREFIX + "connectorTypes";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
   public static final String CONFIG_EVENT_COLLECTOR_CLASS_NAME = DatastreamEventCollectorFactory.CONFIG_COLLECTOR_NAME;
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
+  public static final String CONFIG_CONNECTOR_CLASS_NAME = "className";
+  public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
+  public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
+
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
+  private static final ClassLoader _classLoader = DatastreamServer.class.getClassLoader();
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -54,6 +60,53 @@ public enum DatastreamServer {
     return _datastreamStore;
   }
 
+  private void initializeConnector(String connectorStr, Properties connectorProperties) throws DatastreamException {
+    LOG.info("Starting to load connector: " + connectorStr);
+    try {
+      // For each connector type defined in the config, load one instance from that class
+      String className = connectorProperties.getProperty(CONFIG_CONNECTOR_CLASS_NAME, "");
+      if (StringUtils.isBlank(className)) {
+        throw new DatastreamException("className is empty for connector " + connectorStr);
+      }
+      Class connectorClass = _classLoader.loadClass(className);
+      Connector connectorInstance;
+      try {
+        Constructor<Connector> constructor = connectorClass.getConstructor(Properties.class);
+        connectorInstance = constructor.newInstance(connectorProperties);
+      } catch (NoSuchMethodException e) {
+        LOG.warn("No consturctor found with Properties.class as parameter. Will create connector instance without config.");
+        connectorInstance = (Connector) connectorClass.newInstance();
+      }
+
+      // Verify the connector type of the connector
+      if (!connectorInstance.getConnectorType().equals(connectorStr)) {
+        throw new DatastreamException(String.format("Wrong connector type for %s, expected: %s actual: %s",
+            className, connectorStr, connectorInstance.getConnectorType()));
+      }
+
+      // Read the bootstrap connector type for the connector if there is one
+      String bootstrapConnector = connectorProperties.getProperty(CONFIG_CONNECTOR_BOOTSTRAP_TYPE, "");
+      if (!bootstrapConnector.isEmpty()) {
+        _bootstrapConnectors.put(connectorStr, bootstrapConnector);
+      }
+
+      // Read the assignment startegy from the config; if not found, use default strategy
+      AssignmentStrategy assignmentStrategyInstance;
+      String strategy = connectorProperties.getProperty(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, "");
+      if (!strategy.isEmpty()) {
+        Class assignmentStrategyClass = _classLoader.loadClass(strategy);
+        assignmentStrategyInstance = (AssignmentStrategy) assignmentStrategyClass.newInstance();
+      } else {
+        assignmentStrategyInstance = new SimpleStrategy();
+      }
+      _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
+
+    } catch (Exception ex) {
+      throw new DatastreamException("Failed to instantiate connector: " + connectorStr, ex);
+    }
+    LOG.info("Connector loaded successfully. Type: " + connectorStr);
+  }
+
   public synchronized void init(Properties properties) throws DatastreamException {
     if (isInitialized()) {
       LOG.warn("Attempt to initialize DatastreamServer while it is already initialized.");
@@ -66,48 +119,13 @@ public enum DatastreamServer {
     _coordinator = new Coordinator(coordinatorConfig);
 
     LOG.info("Loading connectors.");
-    String connectorClassNames = verifiableProperties.getString(CONFIG_CONNECTOR_CLASS_NAMES);
-    if (connectorClassNames.isEmpty()) {
+    String connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES);
+    if (connectorTypes.isEmpty()) {
       throw new DatastreamException("No connectors specified in connectorTypes");
     }
     _bootstrapConnectors = new HashMap<>();
-    ClassLoader classLoader = DatastreamServer.class.getClassLoader();
-    for (String connectorStr : connectorClassNames.split(",")) {
-      LOG.info("Starting to load connector: " + connectorStr);
-      try {
-
-        // For each connector type defined in the config, load one instance from that class
-        Class connectorClass = classLoader.loadClass(connectorStr);
-        Connector connectorInstance;
-        try {
-          Constructor<Connector> constructor = connectorClass.getConstructor(Properties.class);
-          connectorInstance = constructor.newInstance(verifiableProperties.getDomainProperties(connectorStr));
-        } catch (NoSuchMethodException e) {
-          LOG.warn("No consturctor found with Properties.class as parameter. Will create connector instance without config.");
-          connectorInstance = (Connector) connectorClass.newInstance();
-        }
-
-        // Read the bootstrap connector type for the connector if there is one
-        String bootstrapConnector = verifiableProperties.getString(connectorStr + ".bootstrapConnector","");
-        if (!bootstrapConnector.isEmpty()) {
-          _bootstrapConnectors.put(connectorStr, bootstrapConnector);
-        }
-
-        // Read the assignment startegy from the config; if not found, use default strategy
-        AssignmentStrategy assignmentStrategyInstance;
-        String strategy = verifiableProperties.getString(connectorStr + ".assignmentStrategy", "");
-        if (!strategy.isEmpty()) {
-          Class assignmentStrategyClass = classLoader.loadClass(strategy);
-          assignmentStrategyInstance = (AssignmentStrategy) assignmentStrategyClass.newInstance();
-        } else {
-          assignmentStrategyInstance = new SimpleStrategy();
-        }
-        _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
-
-      } catch (Exception ex) {
-        throw new DatastreamException("Failed to instantiate connector: " + connectorStr, ex);
-      }
-      LOG.info("Connector loaded successfully. Type: " + connectorStr);
+    for (String connectorStr : connectorTypes.split(",")) {
+      initializeConnector(connectorStr, verifiableProperties.getDomainProperties(connectorStr));
     }
 
     LOG.info("Setting up DMS endpoint server.");
@@ -163,15 +181,5 @@ public enum DatastreamServer {
       throw new DatastreamException("No bootstrap connector specified for connector: " + baseConnectorType);
     }
     return ret;
-  }
-
-  public static void main() throws DatastreamException {
-    Properties prop = new Properties();
-    prop.put(CONFIG_ZK_ADDRESS, "localhost:31111");
-    prop.put(CONFIG_CLUSTER_NAME, "DATASTREAM_CLUSTER");
-    prop.put(CONFIG_HTTP_PORT, "12345");
-    prop.put(CONFIG_CONNECTOR_CLASS_NAMES, "com.linkedin.datastream.server.connectors.DummyConnector");
-    prop.put(CONFIG_EVENT_COLLECTOR_CLASS_NAME, "com.linkedin.datastream.server.DummyDatastreamEventCollector");
-    INSTANCE.init(prop);
   }
 }

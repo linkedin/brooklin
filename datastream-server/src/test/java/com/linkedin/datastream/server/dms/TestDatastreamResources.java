@@ -33,7 +33,7 @@ public class TestDatastreamResources {
       ds.setName("name_" + seed);
     }
     if (!missingFields.contains("connectorType")) {
-      ds.setConnectorType("com.linkedin.datastream.server.connectors.DummyConnector");
+      ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
     }
     if (!missingFields.contains("source")) {
       ds.setSource(DummyConnector.VALID_DUMMY_SOURCE);

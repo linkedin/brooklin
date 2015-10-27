@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.datastream.server.connectors.DummyBootstrapConnector;
 import com.linkedin.restli.server.RestLiServiceException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
@@ -36,6 +37,6 @@ public class TestBootstrapActionResources {
     Datastream bootstrapDatastream = bootstrapActionResource.create(onlineDatastream.getName());
     Assert.assertNotNull(bootstrapDatastream);
     Assert.assertEquals(bootstrapDatastream.getSource(), onlineDatastream.getSource());
-    Assert.assertEquals(bootstrapDatastream.getConnectorType(), "com.linkedin.datastream.server.connectors.DummyBootstrapConnector");
+    Assert.assertEquals(bootstrapDatastream.getConnectorType(), DummyBootstrapConnector.CONNECTOR_TYPE);
   }
 }
