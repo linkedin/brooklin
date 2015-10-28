@@ -64,7 +64,7 @@ public class DatastreamRestClient {
           ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamException(String.format("Get Datastream {%s} failed with error %s", datastreamName), e);
+        throw new DatastreamException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
       }
     }
   }
@@ -116,7 +116,7 @@ public class DatastreamRestClient {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
         throw new DatastreamException(String.format(
-            "Create Bootstrap Datastream {%s} failed with error %s", datastreamName), e);
+            "Create Bootstrap Datastream {%s} failed with error.", datastreamName), e);
       }
     }
   }

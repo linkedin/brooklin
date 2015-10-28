@@ -19,6 +19,8 @@ public class DummyBootstrapConnector implements Connector {
 
   private Properties _properties;
 
+  public static final String CONNECTOR_TYPE = "DummyConnector-Bootstrap";
+
   public DummyBootstrapConnector(Properties properties) throws Exception {
     _properties = properties;
   }
@@ -33,7 +35,7 @@ public class DummyBootstrapConnector implements Connector {
 
   @Override
   public String getConnectorType() {
-    return "com.linkedin.datastream.server.connectors.DummyBootstrapConnector";
+    return CONNECTOR_TYPE;
   }
 
   @Override
