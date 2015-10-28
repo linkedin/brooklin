@@ -208,6 +208,7 @@ public class ZkAdapter {
     onBecomeFollower();
     joinLeaderElection();
 
+    LOG.info("Instance " + _instanceName + " is connected.");
   }
 
   private void onBecomeLeader() {
@@ -395,12 +396,16 @@ public class ZkAdapter {
    * then capture the difference, and only act on the differences. That is, add new
    * assignments, remove old assignments. For ones that didn't change, do nothing.
    *
+   * Return true if assignments are persisted in zookeeper successfully.
+   *
    * @param instance
    * @param assignments
    */
-  public void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
+  public boolean updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
     LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: "
         + tasksToString(assignments));
+
+    boolean result = true;
 
     // list of new assignment, names only
     Set<String> assignmentsNames = new HashSet<>();
@@ -414,7 +419,14 @@ public class ZkAdapter {
     });
 
     // get the old assignment from zookeeper
-    Set<String> oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
+    Set<String> oldAssignmentNames;
+    try{
+      oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
+    } catch (ZkException zke) {
+      // in case the instance is already cleaned up at this moment. We should not proceed
+      // instead, get into retry to recalculate the assignment
+      return false;
+    }
 
     //
     // find assignment names removed
@@ -426,10 +438,16 @@ public class ZkAdapter {
     //
     if (removed.size() > 0) {
       LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
-      removed.forEach(name -> {
+      for (String name : removed) {
         String path = KeyBuilder.datastreamTask(_cluster, instance, name);
-        _zkclient.delete(path);
-      });
+        boolean deleted = _zkclient.delete(path);
+        if (deleted) {
+          LOG.info("deleted zookeeper node: " + path);
+        } else if (_zkclient.exists(path)) {
+          LOG.warn("failed to delete zookeeper node: " + path);
+          result = false;
+        }
+      }
     }
     //
     // find assignment named added
@@ -441,17 +459,26 @@ public class ZkAdapter {
     //
     if (added.size() > 0) {
       LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
-      added.forEach(name -> {
+
+      for (String name : added) {
         DatastreamTask task = assignmentsMap.get(name);
         String path = KeyBuilder.datastreamTask(_cluster, instance, name);
         try {
-          _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
+          String created = _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
+          if (created != null && !created.isEmpty()) {
+            LOG.info("create zookeeper node: " + path);
+          } else {
+            LOG.warn("failed to create zookeeper node: " + path);
+          }
         } catch (IOException e) {
           // We should never get here. If we do, need to fix it with retry logic
-          LOG.error("Failed to assign task [" + name + "] to instance " + instance + ", error: " + e.getMessage());
+          LOG.warn("Failed to assign task [" + name + "] to instance " + instance + ", error: " + e.getMessage());
+          result = false;
         }
-      });
+      }
     }
+
+    return result;
   }
 
   // helper method for generating human readable log message, from a set of strings to a string
@@ -599,7 +626,7 @@ public class ZkAdapter {
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _datastreams = _zkclient.getChildren(_path);
+      _datastreams = currentChildren;
       if (_listener != null) {
         _listener.onDatastreamChange();
       }
@@ -758,7 +785,7 @@ public class ZkAdapter {
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _assigned = _zkclient.getChildren(_path);
+      _assigned = currentChildren;
       if (_listener != null) {
         _listener.onAssignmentChange();
       }

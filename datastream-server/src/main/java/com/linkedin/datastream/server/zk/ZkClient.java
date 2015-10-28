@@ -168,7 +168,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     String content = super.readData(path, false);
 
     long totalWait = 0;
-    long nextWait = 0;
+    long nextWait;
 
     while (content == null && totalWait < timeout) {
       counter++;
