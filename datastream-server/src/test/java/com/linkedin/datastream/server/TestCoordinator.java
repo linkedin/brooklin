@@ -9,8 +9,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamJSonUtil;
-import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
@@ -19,7 +17,6 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-import org.apache.zookeeper.CreateMode;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -67,6 +64,7 @@ public class TestCoordinator {
     DatastreamEventCollectorFactory _factory;
     String _instance = "";
     String _name;
+    boolean _withTarget = true;
 
     public TestHookConnector(String name, String connectorType) {
       _name = name;
@@ -84,6 +82,10 @@ public class TestCoordinator {
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
+    }
+
+    public void useTarget(boolean withTarget) {
+      _withTarget = withTarget;
     }
 
     @Override
@@ -119,7 +121,7 @@ public class TestCoordinator {
 
     @Override
     public DatastreamTarget getDatastreamTarget(Datastream stream) {
-      return null;
+      return _withTarget ? new DatastreamTarget("dummyTopic", 1, "localhost:11111") : null;
     }
 
     @Override
@@ -189,7 +191,7 @@ public class TestCoordinator {
 
       @Override
       public DatastreamTarget getDatastreamTarget(Datastream stream) {
-        return null;
+        return new DatastreamTarget("dummyTopic", 1, "localhost:11111");
       }
 
       @Override
@@ -324,6 +326,76 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, waitTimeoutMS, "datastream1", "datastream2");
     assertConnectorAssignment(connector2, waitTimeoutMS, "datastream1", "datastream2");
 
+    //
+    // clean up
+    //
+    instance1.stop();
+    zkClient.close();
+  }
+  
+  // This test verify the code path that a datastream is only assignable after it has a valid
+  // target setup. That is, if a datastream is defined for a connector that returns null for
+  // getDatastreamTarget, we will not actually pass this datastream to the connector using
+  // onAssignmentChange, so that the connector would not start producing events for this
+  // datastream when there is no target to accept it.
+  @Test
+  public void testUnassignableStreams() throws Exception {
+
+    String testCluster = "testUnassignableStreams";
+    String connectorType1 = "unassignable";
+    String connectorType2 = "assignable";
+
+    //
+    // create connector that returns null target
+    //
+    TestHookConnector connector1 = new TestHookConnector(connectorType1);
+    connector1.useTarget(false);
+
+    //
+    // create a real assignable connector
+    //
+    TestHookConnector connector2 = new TestHookConnector(connectorType2);
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.addConnector(connector2, new BroadcastStrategy());
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // create 2 new datastreams, 1 for each type
+    //
+    LOG.info("create 2 new datastreams, 1 for each type");
+    createDatastreamForDSM(zkClient, testCluster, connectorType1, "datastream1");
+    createDatastreamForDSM(zkClient, testCluster, connectorType2, "datastream2");
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // verify only connector2 has assignment
+    //
+    LOG.info("verify only connector2 has assignment");
+    assertConnectorAssignment(connector1, waitTimeoutMS);
+    assertConnectorAssignment(connector2, waitTimeoutMS, "datastream2");
+
+    //
+    // now enable the connector1 with target
+    //
+    LOG.info("enable target for connector1");
+    connector1.useTarget(true);
+    //
+    // trigger the datastream change event
+    //
+    instance1.onDatastreamChange();
+    //
+    // verify both connectors have 1 assignment. This is because the connector1 would trigger a
+    // retry loop for handle new datastream process
+    //
+    Thread.sleep(1000);
+    assertConnectorAssignment(connector1, waitTimeoutMS, "datastream1");
+    assertConnectorAssignment(connector2, waitTimeoutMS, "datastream2");
+    
     //
     // clean up
     //
@@ -939,19 +1011,10 @@ public class TestCoordinator {
     for (String datastreamName : datastreamNames) {
       zkClient.ensurePath(KeyBuilder.datastreams(cluster));
 
-      KafkaConnection conn = new KafkaConnection();
-      conn.setTopicName("dummyTopic");
-      conn.setPartitions(1);
-      conn.setMetadataBrokers("localhost:11111");
-
       Datastream datastream = new Datastream();
       datastream.setName(datastreamName);
       datastream.setConnectorType(connectorType);
       datastream.setSource("sampleSource");
-      Datastream.Target target = new Datastream.Target();
-
-      target.setKafkaConnection(conn);
-      datastream.setTarget(target);
 
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
       dsStore.createDatastream(datastream.getName(), datastream);

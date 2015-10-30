@@ -16,6 +16,7 @@ import java.util.Set;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.server.DatastreamTask;
+import org.I0Itec.zkclient.DataUpdater;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -354,6 +355,18 @@ public class ZkAdapter {
     }
 
     return result;
+  }
+
+  public boolean updateDatastream(Datastream datastream) {
+    String path = KeyBuilder.datastream(_cluster, datastream.getName());
+    if (!_zkclient.exists(path)) {
+      LOG.warn("trying to update znode of datastream that does not exist. Datastream name: " + datastream.getName());
+      return false;
+    }
+
+    String data = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
+    _zkclient.updateDataSerialized(path, old -> data);
+    return true;
   }
 
   public List<String> getLiveInstances() {

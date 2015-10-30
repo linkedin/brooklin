@@ -7,15 +7,28 @@ public class CoordinatorEvent {
 
   public enum EventName {
     LEADER_DO_ASSIGNMENT,
-    HANDLE_ASSIGNMENT_CHANGE
+    HANDLE_ASSIGNMENT_CHANGE,
+    HANDLE_NEW_DATASTREAM
   }
 
   private final EventName _eventName;
   private final Map<String, Object> _eventAttributeMap;
 
-  public CoordinatorEvent(EventName eventName) {
+  private CoordinatorEvent(EventName eventName) {
     _eventName = eventName;
     _eventAttributeMap = new HashMap<>();
+  }
+
+  public static CoordinatorEvent createLeaderDoAssignmentEvent() {
+    return new CoordinatorEvent(EventName.LEADER_DO_ASSIGNMENT);
+  }
+
+  public static CoordinatorEvent createHandleAssignmentChangeEvent() {
+    return new CoordinatorEvent(EventName.HANDLE_ASSIGNMENT_CHANGE);
+  }
+
+  public static CoordinatorEvent createHandleNewDatastreamEvent() {
+    return new CoordinatorEvent(EventName.HANDLE_NEW_DATASTREAM);
   }
 
   public EventName getName() {
