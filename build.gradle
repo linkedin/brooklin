@@ -2,6 +2,16 @@ apply from: file('gradle/license.gradle')
 apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
 
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+
+idea {
+  project {
+    jdkName = '1.8'
+    languageLevel = '1.8'
+  }
+}
+
 buildscript {
   repositories {
     mavenCentral()
@@ -12,16 +22,7 @@ buildscript {
 allprojects {
   group = "com.github.datastream"
 
-  apply plugin: 'eclipse'
-  apply plugin: 'idea'
   apply plugin: 'project-report'
-
-  idea {
-    project {
-      jdkName = '1.8'
-      languageLevel = '1.8'
-    }
-  }
 
   repositories {
     mavenCentral()
@@ -31,6 +32,7 @@ allprojects {
 
 subprojects {
   apply plugin: 'java'
+  
   // apply plugin: 'pegasus'
 
     // spec = [
