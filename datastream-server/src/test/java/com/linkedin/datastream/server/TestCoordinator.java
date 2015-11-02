@@ -38,17 +38,13 @@ public class TestCoordinator {
   String _zkConnectionString;
 
   private Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {
-    return createCoordinator(zkAddr, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
-  }
-
-  private Coordinator createCoordinator(String zkAddr, String cluster, int sessionTimeout, int connectionTimeout)
-      throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
-    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(sessionTimeout));
-    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(connectionTimeout));
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
+
     return new Coordinator(new VerifiableProperties(props));
   }
 
@@ -394,7 +390,7 @@ public class TestCoordinator {
         // keep the thread alive
           try {
             Coordinator instance =
-                createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 10, waitDurationForZk * 20);
+                createCoordinator(_zkConnectionString, testCluster);
             instance.start();
 
             Thread.sleep(duration);
@@ -571,7 +567,7 @@ public class TestCoordinator {
 
     // make sure the instance2 can be taken offline cleanly with session expiration
     Coordinator instance2 =
-        createCoordinator(_zkConnectionString, testCluster, waitDurationForZk * 2, waitDurationForZk * 5);
+        createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
     instance2.addConnector(connector2, new SimpleStrategy());
     instance2.start();
@@ -599,8 +595,7 @@ public class TestCoordinator {
     // take instance2 offline
     //
     instance2.stop();
-    // wait lone enough for zookeeper to remove the live instance
-    Thread.sleep(waitDurationForZk * 3);
+    deleteLiveInstanceNode(zkClient, testCluster, instance2);
 
     //
     // verify all 4 datastreams are assigned to instance1
@@ -628,7 +623,7 @@ public class TestCoordinator {
     //
     // setup a cluster with 3 live instances with simple assignment strategy
     //
-    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk *2, waitDurationForZk * 10);
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
     instance1.addConnector(connector1, new SimpleStrategy());
     instance1.start();
@@ -672,8 +667,7 @@ public class TestCoordinator {
     // take current leader instance1 offline
     //
     instance1.stop();
-    // wait lone enough for zookeeper to remove the live instance
-    Thread.sleep(waitDurationForZk * 3);
+    deleteLiveInstanceNode(zkClient, testCluster, instance1);
 
     //
     // verify all 6 datastreams are assigned to instance2 and instance3
@@ -685,8 +679,7 @@ public class TestCoordinator {
     // take current leader instance2 offline
     //
     instance2.stop();
-    // wait lone enough for zookeeper to remove the live instance
-    Thread.sleep(waitDurationForZk * 3);
+    deleteLiveInstanceNode(zkClient, testCluster, instance2);
 
     //
     // verify all tasks assigned to instance3
@@ -716,7 +709,7 @@ public class TestCoordinator {
     Coordinator[] coordinators = new Coordinator[count];
     TestHookConnector[] connectors = new TestHookConnector[count];
     for(int i = 0; i < count; i++) {
-      coordinators[i] = createCoordinator(_zkConnectionString, testCluster, waitDurationForZk *2, waitDurationForZk * 10);
+      coordinators[i] = createCoordinator(_zkConnectionString, testCluster);
       connectors[i] = new TestHookConnector(testConnectoryType);
       coordinators[i].addConnector(connectors[i], new SimpleStrategy());
       coordinators[i].start();
@@ -741,8 +734,9 @@ public class TestCoordinator {
     //
     for(int i = 1; i < count; i++) {
       coordinators[i].stop();
+      deleteLiveInstanceNode(zkClient, testCluster, coordinators[i]);
     }
-    Thread.sleep(waitDurationForZk * 3);
+    Thread.sleep(waitDurationForZk);
 
     //
     // validate all datastream tasks are assigned to the leader now
@@ -945,5 +939,10 @@ public class TestCoordinator {
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
       dsStore.createDatastream(datastream.getName(), datastream);
     }
+  }
+
+  private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {
+    String path = KeyBuilder.liveInstance(cluster, instance.getInstanceName());
+    zkClient.deleteRecursive(path);
   }
 }
