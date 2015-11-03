@@ -25,7 +25,6 @@ public final class DatastreamEventUtils {
   public static void processMetadata(DatastreamEvent event) {
     if (event == null)
       return;
-    Map<CharSequence, CharSequence> orig = event.metadata;
     Map<CharSequence, CharSequence> out = new HashMap<>();
     event.metadata.forEach((k, v) -> {
       out.put(new String(k.toString()), new String(v.toString()));
