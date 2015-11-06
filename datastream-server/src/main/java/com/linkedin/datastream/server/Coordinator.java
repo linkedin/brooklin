@@ -119,8 +119,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   public void start() {
     _eventThread.start();
     _adapter.connect();
-    _strategies.forEach((connector, strategy) -> connector.start(_eventCollectorFactory));
-
+    _strategies.forEach((connector, strategy) -> {
+      _adapter.ensureConnectorZNode(connector.getConnectorType());
+      connector.start(_eventCollectorFactory);
+    });
   }
 
   public void stop() {

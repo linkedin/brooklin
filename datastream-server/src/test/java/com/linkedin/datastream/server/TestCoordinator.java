@@ -252,6 +252,27 @@ public class TestCoordinator {
 
   }
 
+  // verify that connector znodes are created as soon as Coordinator instance is started
+  @Test
+  public void testConnectorZkNodes() throws Exception {
+    String testCluster = "testConnectorZkNodes";
+    String testConectorType = "testConnectorType";
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector(testConectorType);
+    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String znode = KeyBuilder.connector(testCluster, testConectorType);
+    Assert.assertTrue(zkClient.exists(znode));
+
+    zkClient.close();
+    instance1.stop();
+
+  }
+
   // testCoordinationWithBroadcastStrategy is a smoke test, to verify that datastreams created by DSM can be
   // assigned to live instances. The datastreams created by DSM is mocked by directly creating
   // the znodes in zookeeper.
@@ -389,8 +410,7 @@ public class TestCoordinator {
       Runnable task = () -> {
         // keep the thread alive
           try {
-            Coordinator instance =
-                createCoordinator(_zkConnectionString, testCluster);
+            Coordinator instance = createCoordinator(_zkConnectionString, testCluster);
             instance.start();
 
             Thread.sleep(duration);
@@ -566,8 +586,7 @@ public class TestCoordinator {
     instance1.start();
 
     // make sure the instance2 can be taken offline cleanly with session expiration
-    Coordinator instance2 =
-        createCoordinator(_zkConnectionString, testCluster);
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
     instance2.addConnector(connector2, new SimpleStrategy());
     instance2.start();
@@ -629,19 +648,16 @@ public class TestCoordinator {
     instance1.start();
     Thread.sleep(waitDurationForZk);
 
-    Coordinator instance2 =
-            createCoordinator(_zkConnectionString, testCluster);
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
     instance2.addConnector(connector2, new SimpleStrategy());
     instance2.start();
     Thread.sleep(waitDurationForZk);
 
-    Coordinator instance3 =
-            createCoordinator(_zkConnectionString, testCluster);
+    Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
     instance3.addConnector(connector3, new SimpleStrategy());
     instance3.start();
-
 
     //
     // create 6 datastreams, [datastream0, ..., datastream5]
@@ -683,7 +699,8 @@ public class TestCoordinator {
 
     //
     // verify all tasks assigned to instance3
-    assertConnectorAssignment(connector3, waitTimeoutMS, "datastream0", "datastream2", "datastream4", "datastream1", "datastream3", "datastream5");
+    assertConnectorAssignment(connector3, waitTimeoutMS, "datastream0", "datastream2", "datastream4", "datastream1",
+        "datastream3", "datastream5");
 
     //
     // clean up
@@ -708,7 +725,7 @@ public class TestCoordinator {
     int count = 4;
     Coordinator[] coordinators = new Coordinator[count];
     TestHookConnector[] connectors = new TestHookConnector[count];
-    for(int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
       coordinators[i] = createCoordinator(_zkConnectionString, testCluster);
       connectors[i] = new TestHookConnector(testConnectoryType);
       coordinators[i].addConnector(connectors[i], new SimpleStrategy());
@@ -719,7 +736,7 @@ public class TestCoordinator {
     //
     // create 1 datastream per instance
     //
-    for(int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
       createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
     }
     Thread.sleep(waitDurationForZk);
@@ -727,12 +744,12 @@ public class TestCoordinator {
     //
     // wait until the last instance was assigned the last datastream, by now all datastream should be assigned
     //
-    assertConnectorAssignment(connectors[count-1], waitTimeoutMS, "datastream" + (count-1));
+    assertConnectorAssignment(connectors[count - 1], waitTimeoutMS, "datastream" + (count - 1));
 
     //
     // kill all instances except the current leader
     //
-    for(int i = 1; i < count; i++) {
+    for (int i = 1; i < count; i++) {
       coordinators[i].stop();
       deleteLiveInstanceNode(zkClient, testCluster, coordinators[i]);
     }
@@ -742,7 +759,7 @@ public class TestCoordinator {
     // validate all datastream tasks are assigned to the leader now
     //
     String[] assignment = new String[count];
-    for(int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
       assignment[i] = datastreamName + i;
     }
     assertConnectorAssignment(connectors[0], waitTimeoutMS, assignment);
