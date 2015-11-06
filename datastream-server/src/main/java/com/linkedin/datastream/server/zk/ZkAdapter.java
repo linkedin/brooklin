@@ -420,7 +420,7 @@ public class ZkAdapter {
 
     // get the old assignment from zookeeper
     Set<String> oldAssignmentNames;
-    try{
+    try {
       oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
     } catch (ZkException zke) {
       // in case the instance is already cleaned up at this moment. We should not proceed
@@ -543,6 +543,11 @@ public class ZkAdapter {
     String instanceName = _hostname + "-" + _liveInstanceName;
     _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
     return _hostname + "-" + _liveInstanceName;
+  }
+
+  public void ensureConnectorZNode(String connectorType) {
+    String path = KeyBuilder.connector(_cluster, connectorType);
+    _zkclient.ensurePath(path);
   }
 
   /**
