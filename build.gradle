@@ -30,53 +30,30 @@ allprojects {
 }
 
 subprojects {
-  apply plugin: 'java'
-  // apply plugin: 'pegasus'
+    apply plugin: 'java'
 
-    // spec = [
-    //   'product' : [
-    //     'pegasus' : [
-    //       'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
-    //       'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
-    //       'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
-    //     ]
-    //   ]
-    // ]
-  
+    test {
+        useTestNG()
 
-  // // comment this out so the java files don't get auto-generated every time
-  // afterEvaluate {
-  //   if (project.plugins.hasPlugin('pegasus')) {
-  //     // add the standard pegasus dependencies wherever the plugin is used
-  //     dependencies {
-  //       dataTemplateCompile spec.product.pegasus.data
-  //       restClientCompile spec.product.pegasus.restliClient
+        beforeTest { descriptor ->
+            logger.lifecycle("Running test: " + descriptor)
+        }
 
-  //       // needed for Gradle 1.9+
-  //       restClientCompile spec.product.pegasus.restliCommon
-  //     }
-  //   }
-  // }
+        onOutput { descriptor, event ->
+            logger.lifecycle("Test: " + descriptor + " produced standard out/err: " + event.message )
+        }
 
-  test {
+        afterTest { test, result ->
+            logger.lifecycle("testFinished: $test, result: $result.resultType")
+        }
 
-    useTestNG()
+        //all standard error messages from tests will get routed to 'DEBUG' level messages.
+        logging.captureStandardError(LogLevel.DEBUG)
+        //all standard output messages from tests will get routed to 'DEBUG' level messages.
+        logging.captureStandardOutput(LogLevel.DEBUG)
 
-    beforeTest { descriptor ->
-      logger.lifecycle("Running test: " + descriptor)
+        maxParallelForks = 10
     }
-
-    afterTest { test, result ->
-      logger.lifecycle("testFinished: $test, result: $result.resultType")
-    }
-
-    //all standard error messages from tests will get routed to 'ERROR' level messages.
-    logging.captureStandardError(LogLevel.ERROR)
-    //all standard output messages from tests will get routed to 'INFO' level messages.
-    logging.captureStandardOutput(LogLevel.INFO)
-
-    maxParallelForks = 10
-  }
 
   dependencies {
     compile "log4j:log4j:$log4jVersion"
@@ -102,10 +79,13 @@ project(':datastream-common') {
 }
 
 project(':datastream-testcommon') {
-  dependencies {
-    compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
-    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-  }
+    dependencies {
+        // compile "org.testing:testing:$testingVersion"
+        // compile "org.testing:testing:6.4"
+        compile "org.apache.avro:avro:$avroVersion"
+        compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+        compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    }
 }
 
 project(':datastream-client') {
