@@ -3,7 +3,15 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
@@ -21,21 +29,21 @@ import org.apache.zookeeper.CreateMode;
  *
  *
  *
- *        ZooKeeper
+ *        ZooKeeper                                     ZkAdapter
  * ┌─────────────────────┐          ┌───────────────────────────────────────────────────┐
- * │                     │          │                     ZkAdapter                     │
  * │- cluster            │          │                                                   │
- * │  |- instances       │          │┌───────────────────────────────────┐    ┌─────────┤
- * │  |  |- i001         │┌─────────┼▶  ZkBackedTaskListProvider         │    │         │   ┌────────────────┐
- * │  |  |- i002         ││         │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
- * │  |         ─────────┼┘         │┌───────────────────────────────────┐    │         │   └────────────────┘
- * │  |- liveinstances ──┼──────────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
- * │  |  |- i001─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onBecomeFollower │
- * │  |  |- i002         ││         │┌───────────────────────────────────┐    │ZkAdapter│   └──────────────────┘
- * │  |                  │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
- * │  |- Espresso────────┼─┐        │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
- * │  |- Oracle          │ │        │┌───────────────────────────────────┐    │         │   └────────────────────┘
- * │                     │ └────────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
+ * │  |- instances ──────┼──┐       │                                                   │
+ * │  |  |- i001         │  │       │┌───────────────────────────────────┐    ┌─────────┤
+ * │  |  |- i002         │  └───────┼▶  ZkBackedInstanceAssignmentList   │    │         │   ┌────────────────┐
+ * │  |                  │          │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
+ * │  |- liveinstances ──┼───┐      │┌───────────────────────────────────┐    │         │   └────────────────┘
+ * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
+ * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onBecomeFollower │
+ * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └──────────────────┘
+ * │  |- connectors      │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
+ * │  |  |- Espresso ────┼───┐      │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
+ * │  |  |- Oracle ──────┼──┐│      │┌───────────────────────────────────┐    │         │   └────────────────────┘
+ * │                     │  └┴──────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
  * │                     │          │└───────────────────────────────────┘    │         │───▶ onLiveInstancesChange │
  * │                     │          │                                         │         │   └───────────────────────┘
  * │                     │          │                                         └─────────┤
@@ -44,6 +52,7 @@ import org.apache.zookeeper.CreateMode;
  * │                     │          │                                                   │
  * └─────────────────────┘          │                                                   │
  *                                  └───────────────────────────────────────────────────┘
+ *
  *
  *
  * ZkAdapter is the adapter between the Coordiantor and the ZkClient. It uses ZkClient to communicate
@@ -271,6 +280,7 @@ public class ZkAdapter {
       // mostly because the zkclient session expiration timeout.
       LOG.error("Failed to join leader election. Try reconnect the zookeeper");
       connect();
+      return;
     }
 
     // if this instance is first in line to become leader. Check if it is already a leader.
@@ -337,7 +347,7 @@ public class ZkAdapter {
 
     for (String streamNode : datastreamNames) {
       String path = KeyBuilder.datastream(_cluster, streamNode);
-      String content = _zkclient.readData(path);
+      String content = _zkclient.ensureReadData(path);
       Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(content);
       result.add(stream);
     }
@@ -369,11 +379,11 @@ public class ZkAdapter {
    * @return
    */
   public DatastreamTask getAssignedDatastreamTask(String instance, String taskName) {
-    String content = _zkclient.readData(KeyBuilder.datastreamTask(_cluster, instance, taskName));
+    String content = _zkclient.ensureReadData(KeyBuilder.datastreamTask(_cluster, instance, taskName));
     DatastreamTask task = DatastreamTask.fromJson(content);
     String dsName = task.getDatastreamName();
 
-    String dsContent = _zkclient.readData(KeyBuilder.datastream(_cluster, dsName));
+    String dsContent = _zkclient.ensureReadData(KeyBuilder.datastream(_cluster, dsName));
     Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(dsContent);
     task.setDatastream(stream);
     return task;
@@ -391,48 +401,78 @@ public class ZkAdapter {
   public void updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
     LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: "
         + tasksToString(assignments));
-    List<String> oldAssignmentNodes = _zkclient.getChildren(KeyBuilder.instance(_cluster, instance));
-    List<DatastreamTask> oldAssignment = new ArrayList<>();
 
-    //
-    // retrieve the existing list of DatastreamTask assignment for the current instance
-    //
-    oldAssignmentNodes.forEach(n -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, n);
-      String content = _zkclient.readData(path);
-      DatastreamTask task = DatastreamTask.fromJson(content);
-      oldAssignment.add(task);
-    });
-    LOG.info("Existing/old assignments to be updated for " + instance + " are: " + tasksToString(oldAssignment));
+    // list of new assignment, names only
+    Set<String> assignmentsNames = new HashSet<>();
+    // map of assignment, from name to DatastreamTask for future reference
+    Map<String, DatastreamTask> assignmentsMap = new HashMap<>();
 
-    //
-    // find the DatastreamTasks that are to be deleted from this instance, delete the znodes from zookeeper
-    //
-    List<DatastreamTask> removed = new ArrayList<>(oldAssignment);
-    removed.removeAll(assignments);
-    LOG.info("Removing assigned tasks for instance " + instance + ", removed tasks are: " + tasksToString(removed));
-    removed.forEach(ds -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
-      _zkclient.delete(path);
+    assignments.forEach(task -> {
+      String name = task.getDatastreamTaskName();
+      assignmentsNames.add(name);
+      assignmentsMap.put(name, task);
     });
 
-    //
-    // find newly added DatastreamTasks and create corresponding znodes
-    //
-    List<DatastreamTask> added = new ArrayList<>(assignments);
-    added.removeAll(oldAssignment);
+    // get the old assignment from zookeeper
+    Set<String> oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
 
-    LOG.info("Assigning new tasks for instance " + instance + ", new tasks are: " + tasksToString(added));
-    added.forEach(ds -> {
-      String path = KeyBuilder.datastreamTask(_cluster, instance, ds.getDatastreamTaskName());
-      try {
-        _zkclient.create(path, ds.toJson(), CreateMode.PERSISTENT);
-      } catch (IOException e) {
-        // We should never get here. If we do, need to fix it with retry logic
-        LOG.error("Failed to assign task [" + ds.getDatastreamTaskName() + "] to instance " + instance + ", error: "
-            + e.getMessage());
+    //
+    // find assignment names removed
+    //
+    Set<String> removed = new HashSet<>(oldAssignmentNames);
+    removed.removeAll(assignmentsNames);
+    //
+    // actually remove the znodes
+    //
+    if (removed.size() > 0) {
+      LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
+      removed.forEach(name -> {
+        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        _zkclient.delete(path);
+      });
+    }
+    //
+    // find assignment named added
+    //
+    Set<String> added = new HashSet<>(assignmentsNames);
+    added.removeAll(oldAssignmentNames);
+    //
+    // actually add znodes
+    //
+    if (added.size() > 0) {
+      LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
+      added.forEach(name -> {
+        DatastreamTask task = assignmentsMap.get(name);
+        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        try {
+          _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
+        } catch (IOException e) {
+          // We should never get here. If we do, need to fix it with retry logic
+          LOG.error("Failed to assign task [" + name + "] to instance " + instance + ", error: " + e.getMessage());
+        }
+      });
+    }
+  }
+
+  // helper method for generating human readable log message, from a set of strings to a string
+  private String setToString(Set<String> list) {
+    StringBuffer sb = new StringBuffer();
+    sb.append("[");
+
+    Iterator<String> it = list.iterator();
+    boolean isFirst = true;
+
+    while (it.hasNext()) {
+      if (!isFirst) {
+        sb.append(", ");
+      } else {
+        isFirst = false;
       }
-    });
+      sb.append(it.next());
+    }
+    sb.append("]");
+
+    return sb.toString();
   }
 
   // utility function for generating log message
@@ -479,7 +519,7 @@ public class ZkAdapter {
   }
 
   /**
-   * return the znode content under /{cluster}/{connectorType}/{datastreamTask}/state
+   * return the znode content under /{cluster}/connectors/{connectorType}/{datastreamTask}/state
    * @param datastreamTask
    * @param key
    * @return
@@ -488,11 +528,11 @@ public class ZkAdapter {
     String path =
         KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
             datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
-    return _zkclient.exists(path) ? _zkclient.readData(path) : null;
+    return _zkclient.readData(path, true);
   }
 
   /**
-   * set value for znode content at /{cluster}/{connectorType}/{datastreamTask}/state
+   * set value for znode content at /{cluster}/connectors/{connectorType}/{datastreamTask}/state
    * @param datastreamTask
    * @param key
    * @param value
@@ -612,7 +652,7 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.readData(KeyBuilder.liveInstance(_cluster, n));
+        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
         liveInstances.add(hostname + "-" + n);
       }
       return liveInstances;
@@ -655,23 +695,28 @@ public class ZkAdapter {
     }
   }
 
+  /**
+   * ZkBackedDatastreamTasksMap provides informations about all DatastreamTasks existing in the cluster
+   * grouped by the connector type. That is, this map will obtain
+   */
   public class ZkBackedDatastreamTasksMap implements IZkChildListener {
     private Map<String, List<DatastreamTask>> _allDatastreamTasks = null;
-    private String _path = KeyBuilder.cluster(_cluster);
+    private String _path = KeyBuilder.connectors(_cluster);
 
     public ZkBackedDatastreamTasksMap() {
       _zkclient.ensurePath(_path);
-      reloadData();
     }
 
     public Map<String, List<DatastreamTask>> getAllDatastreamTasks() {
+      if (_allDatastreamTasks == null) {
+        reloadData();
+      }
       return _allDatastreamTasks;
     }
 
     private synchronized void reloadData() {
       _allDatastreamTasks = new HashMap<>();
       List<String> connectorTypes = _zkclient.getChildren(_path);
-      connectorTypes.removeAll(Arrays.asList("datastream", "instances", "liveinstances"));
 
       connectorTypes.forEach(connectorType -> {
         if (!_allDatastreamTasks.containsKey(connectorType)) {
@@ -684,7 +729,7 @@ public class ZkAdapter {
         tasksForConnector.forEach(taskName -> {
           String p = KeyBuilder.connectorTask(_cluster, connectorType, taskName);
           // read the DatastreamTask json data
-            String content = _zkclient.readData(p);
+            String content = _zkclient.ensureReadData(p);
             // deserialize to DatastreamTask
             DatastreamTask t = DatastreamTask.fromJson(content);
             _allDatastreamTasks.get(connectorType).add(t);

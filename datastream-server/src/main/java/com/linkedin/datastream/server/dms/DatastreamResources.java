@@ -1,11 +1,19 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.server.Coordinator;
+import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.server.DatastreamValidationResult;
+import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
+import com.linkedin.restli.server.annotations.Optional;
+import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
+import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
@@ -14,10 +22,11 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
-@RestLiCollection(name = "Datastream", namespace = "com.linkedin.datastream.common")
+@RestLiCollection(name = "datastream", namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
 
-  private final DatastreamStore _store = DatastreamStoreProvider.getDatastreamStore();
+  private final DatastreamStore _store = DatastreamServer.INSTANCE.getDatastreamStore();
+  private final Coordinator _coordinator = DatastreamServer.INSTANCE.getCoordinator();
 
   @Override
   public UpdateResponse update(String key, Datastream datastream) {
@@ -42,19 +51,23 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify name of Datastream!"));
     }
     if (!datastream.hasConnectorType()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify connectorType!"));
     }
     if (!datastream.hasSource()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_406_NOT_ACCEPTABLE,
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Must specify source of Datastream!"));
     }
 
-    //TODO: perform validation from connector by calling validateDatastream()
+    DatastreamValidationResult validation = _coordinator.validateDatastream(datastream);
+    if (!validation.getSuccess()) {
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          validation.getErrorMsg()));
+    }
 
     if (_store.createDatastream(datastream.getName(), datastream)) {
       return new CreateResponse("Datastream created", HttpStatus.S_201_CREATED);

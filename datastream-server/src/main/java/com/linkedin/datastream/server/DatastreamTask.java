@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Objects;
 
 
 /**
@@ -41,7 +42,7 @@ public class DatastreamTask {
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
   // mapped to one Datastream. In the case when a Datastream is split into multiple partitions, the id
   // value should be the partition number. Each of the _id value will be represented in zookeeper
-  // under /{cluster}/{connectorType}/{datastream}/{id}.
+  // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
   // _datastreamName is copied from Datastream instance. This is because in the znode we only persist
@@ -130,21 +131,19 @@ public class DatastreamTask {
   }
 
   @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
+  public boolean equals(Object o) {
+    if (this == o)
       return true;
-    }
-
-    if (obj == null) {
+    if (o == null || getClass() != o.getClass())
       return false;
-    }
+    DatastreamTask task = (DatastreamTask) o;
+    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
+        && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
+        && Objects.equals(_properties, task._properties);
+  }
 
-    if (!(obj instanceof DatastreamTask)) {
-      return false;
-    }
-
-    DatastreamTask other = (DatastreamTask) obj;
-
-    return other.getDatastreamName().equals(this.getDatastreamName()) && other.getId().equals(this.getId());
+  @Override
+  public int hashCode() {
+    return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties);
   }
 }

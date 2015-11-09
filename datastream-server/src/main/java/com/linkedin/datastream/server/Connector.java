@@ -16,7 +16,7 @@ public interface Connector {
    * Method to start the connector. This is called immediately after the connector is instantiated.
    * This typically happens when datastream instance starts up.
    */
-  void start(DatastreamEventCollector collector);
+  void start(DatastreamEventCollectorFactory collectorFactory);
 
   /**
    * Method to stop the connector. This is called when the datastream instance is being stopped.

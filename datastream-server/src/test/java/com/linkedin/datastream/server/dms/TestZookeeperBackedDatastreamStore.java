@@ -30,7 +30,7 @@ public class TestZookeeperBackedDatastreamStore {
     _zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(_zkConnectionString);
-    _store = new ZookeeperBackedDatastreamStore(_zkClient, "/testcluster");
+    _store = new ZookeeperBackedDatastreamStore(_zkClient, "testcluster");
   }
 
   @AfterMethod
