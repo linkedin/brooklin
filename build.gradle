@@ -45,7 +45,7 @@ subprojects {
 
         afterTest { test, result ->
             logger.lifecycle("testFinished: $test, result: $result.resultType")
-        }      
+        }
 
         //all standard error messages from tests will get routed to 'DEBUG' level messages.
         logging.captureStandardError(LogLevel.DEBUG)
@@ -101,6 +101,9 @@ project(':datastream-common') {
 
 project(':datastream-testcommon') {
     dependencies {
+        // compile "org.testing:testing:$testingVersion"
+        // compile "org.testing:testing:6.4"
+        compile "org.apache.avro:avro:$avroVersion"
         compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
         compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     }
