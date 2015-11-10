@@ -90,7 +90,7 @@ public enum DatastreamServer {
         _bootstrapConnectors.put(connectorStr, bootstrapConnector);
       }
 
-      // Read the assignment startegy from the config; if not found, use default strategy
+      // Read the assignment strategy from the config; if not found, use default strategy
       AssignmentStrategy assignmentStrategyInstance;
       String strategy = connectorProperties.getProperty(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, "");
       if (!strategy.isEmpty()) {

@@ -1,17 +1,20 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Set;
-import java.util.HashSet;
+import java.util.stream.Collectors;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import org.slf4j.Logger;
@@ -84,6 +87,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final CoordinatorEventProcessor _eventThread;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
+  // make sure the scheduled retries are not duplicated
+  AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
+
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
@@ -144,17 +150,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   @Override
   public void onBecomeLeader() {
-    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
+    // when an instance becomes a leader, make sure we don't miss new datastreams and
+    // new assignment tasks that was not finished by the previous leader
+    _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
   @Override
   public void onLiveInstancesChange() {
-    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
   @Override
   public void onDatastreamChange() {
-    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
+    // if there are new datastreams created, we need to trigger the topic creation logic
+    _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
   /**
@@ -168,7 +179,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onAssignmentChange() {
-    _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.HANDLE_ASSIGNMENT_CHANGE));
+    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
   }
 
   private void handleAssignmentChange() {
@@ -276,9 +287,79 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
       case HANDLE_ASSIGNMENT_CHANGE:
         handleAssignmentChange();
+        break;
+
+      case HANDLE_NEW_DATASTREAM:
+        handleNewDatastream();
+        break;
     }
 
     LOG.info("END: Handle event " + event);
+  }
+
+  // when there are new datastreams defined in DSM, we need to decide its target from the corresponding
+  // connector, and write back the target to dsm tree in zookeeper. The assumption is that we only
+  // detect the target of a datastream when it is first added. We do not handle the case at this point
+  // when the datastream definition can be updated in DSM.
+  private void handleNewDatastream() {
+    // get a list of datastreams that has null target, set the target from connector
+    // and then filter out only the ones that are successfully added with target.
+    List<Datastream> newDatastreams = _adapter.getAllDatastreams().stream()
+            .filter(ds -> ds.getTarget() == null)
+            .map(ds -> setDatastreamTarget(ds))
+            .filter(ds -> ds.getTarget() != null)
+            .collect(Collectors.toList());
+
+    // do nothing if none of the datastream has target set
+    if (newDatastreams.size() == 0) {
+      return;
+    }
+
+    // for each new Datastream, obtain the target from connector and update the znodes
+    // if successful, make sure they are assigned.
+    boolean succeeded = newDatastreams.stream().allMatch(ds -> {
+      boolean updated = _adapter.updateDatastream(ds);
+      if (!updated) {
+        LOG.warn("failed to update datastream target for " + ds.getName());
+      }
+      return updated;
+    });
+
+    if (succeeded) {
+      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+      return;
+    }
+
+    // TODO: create topics for new datastreams if necessary
+    // this.createTopicsIfNeeded(newDatastreams);
+
+    // if there are any failure, we will need to schedule retry
+    if (leaderDoAssignmentScheduled.compareAndSet(false, true)){
+      LOG.warn("Schedule retry for handling new datastream");
+      _executor.schedule(() -> {
+        _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
+        leaderDoAssignmentScheduled.set(false);
+      }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+    }
+  }
+
+  // translate from DatastreamTarget to Datastream.Target
+  private Datastream setDatastreamTarget(Datastream ds) {
+    DatastreamTarget target = _connectors.get(ds.getConnectorType()).getDatastreamTarget(ds);
+    if (target == null) {
+      return ds;
+    }
+
+    Datastream.Target t = new Datastream.Target();
+
+    KafkaConnection kc = new KafkaConnection();
+    kc.setTopicName(target.getTopicName());
+    kc.setPartitions(target.getPartitions());
+    kc.setMetadataBrokers(target.getMetadataBrokers());
+    t.setKafkaConnection(kc);
+
+    ds.setTarget(t);
+    return ds;
   }
 
   private void assignDatastreamTasksToInstances() {
@@ -286,8 +367,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
 
-    // get all data streams that is assignable
-    List<Datastream> allStreams = _adapter.getAllDatastreams();
+    // get all streams that are assignable. Assignable datastreams are the ones
+    // with a valid target. If there is no target, we cannot assign them to the connectors
+    // because connectors do not have access to the producers and event collectors and
+    // will assume any assigned tasks are ready to collect events.
+    List<Datastream> allStreams =
+        _adapter.getAllDatastreams().stream().filter(datastream -> datastream.getTarget() != null)
+            .collect(Collectors.toList());
 
     Map<String, List<Datastream>> streamsByConnectoryType = new HashMap<>();
 
@@ -323,14 +409,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
-    if (!succeeded) {
-      // schedule retry
-      LOG.warn("Schedule retry for assigning tasks");
-      _executor.schedule(new Runnable() {
-        @Override
-        public void run() {
-          _eventQueue.put(new CoordinatorEvent(CoordinatorEvent.EventName.LEADER_DO_ASSIGNMENT));
-        }
+    // schedule retry if failure
+    if (!succeeded && !leaderDoAssignmentScheduled.get()) {
+      LOG.info("Schedule retry for leader assigning tasks");
+      leaderDoAssignmentScheduled.set(true);
+      _executor.schedule(() -> {
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+        leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
     }
   }
