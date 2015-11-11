@@ -16,7 +16,6 @@ import java.util.Set;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.server.DatastreamTask;
-import org.I0Itec.zkclient.DataUpdater;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -209,7 +208,8 @@ public class ZkAdapter {
     onBecomeFollower();
     joinLeaderElection();
 
-    LOG.info("Instance " + _instanceName + " is connected.");
+    LOG.info("Instance " + _instanceName + " is ready.");
+    // populate the instance name.
   }
 
   private void onBecomeLeader() {
@@ -379,7 +379,7 @@ public class ZkAdapter {
    * @return
    */
   public List<String> getInstanceAssignment(String instance) {
-    String path = KeyBuilder.instance(_cluster, instance);
+    String path = KeyBuilder.instanceAssignments(_cluster, instance);
     return _zkclient.getChildren(path);
   }
 
@@ -393,7 +393,7 @@ public class ZkAdapter {
    * @return
    */
   public DatastreamTask getAssignedDatastreamTask(String instance, String taskName) {
-    String content = _zkclient.ensureReadData(KeyBuilder.datastreamTask(_cluster, instance, taskName));
+    String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
     DatastreamTask task = DatastreamTask.fromJson(content);
     String dsName = task.getDatastreamName();
 
@@ -415,8 +415,7 @@ public class ZkAdapter {
    * @param assignments
    */
   public boolean updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
-    LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: "
-        + tasksToString(assignments));
+    LOG.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: " + assignments);
 
     boolean result = true;
 
@@ -434,7 +433,7 @@ public class ZkAdapter {
     // get the old assignment from zookeeper
     Set<String> oldAssignmentNames;
     try {
-      oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instance(_cluster, instance)));
+      oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instanceAssignments(_cluster, instance)));
     } catch (ZkException zke) {
       // in case the instance is already cleaned up at this moment. We should not proceed
       // instead, get into retry to recalculate the assignment
@@ -452,7 +451,7 @@ public class ZkAdapter {
     if (removed.size() > 0) {
       LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
       for (String name : removed) {
-        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        String path = KeyBuilder.instanceAssignment(_cluster, instance, name);
         boolean deleted = _zkclient.delete(path);
         if (deleted) {
           LOG.info("deleted zookeeper node: " + path);
@@ -475,7 +474,7 @@ public class ZkAdapter {
 
       for (String name : added) {
         DatastreamTask task = assignmentsMap.get(name);
-        String path = KeyBuilder.datastreamTask(_cluster, instance, name);
+        String path = KeyBuilder.instanceAssignment(_cluster, instance, name);
         try {
           String created = _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
           if (created != null && !created.isEmpty()) {
@@ -515,20 +514,6 @@ public class ZkAdapter {
     return sb.toString();
   }
 
-  // utility function for generating log message
-  private String tasksToString(List<DatastreamTask> list) {
-    StringBuffer sb = new StringBuffer();
-    sb.append("[ ");
-    for (int i = 0; i < list.size(); i++) {
-      sb.append(list.get(i).getDatastreamTaskName());
-      if (i != list.size() - 1) {
-        sb.append(", ");
-      }
-    }
-    sb.append(" ]");
-    return sb.toString();
-  }
-
   // create a live instance node, in the form of a sequence number with the znode path
   // /{cluster}/liveinstances/{sequenceNuber}
   // also write the hostname as the content of the node. This allows us to map this node back
@@ -547,20 +532,53 @@ public class ZkAdapter {
     }
 
     //
-    // create an ephemeral sequential node under /{cluster}/liveinstances/
+    // create an ephemeral sequential node under /{cluster}/liveinstances for leader election
     //
     String electionPath = KeyBuilder.liveInstance(_cluster, "");
     String liveInstancePath = _zkclient.create(electionPath, _hostname, CreateMode.EPHEMERAL_SEQUENTIAL);
     _liveInstanceName = liveInstancePath.substring(electionPath.length());
 
+    //
+    // create instance node /{cluster}/instance/{instanceName} for keeping instance
+    // states, including instance assignments and errors
+    //
     String instanceName = _hostname + "-" + _liveInstanceName;
     _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
+    _zkclient.ensurePath(KeyBuilder.instanceAssignments(_cluster, instanceName));
+    _zkclient.ensurePath(KeyBuilder.instanceErrors(_cluster, instanceName));
     return _hostname + "-" + _liveInstanceName;
   }
 
   public void ensureConnectorZNode(String connectorType) {
     String path = KeyBuilder.connector(_cluster, connectorType);
     _zkclient.ensurePath(path);
+  }
+
+  /**
+   * Save the error message in zookeeper under /{cluster}/instances/{instanceName}/errors
+   * @param message
+   */
+  public void zkSaveInstanceError(String message) {
+    String path = KeyBuilder.instanceErrors(_cluster, _instanceName);
+    if (!_zkclient.exists(path)) {
+      LOG.warn("failed to persist instance error because znode does not exist:" + path);
+      return;
+    }
+
+    // the coordinator is a server, so let's don't do infinite retry, log
+    // error instead. The error node in zookeeper will stay only when the instance
+    // is alive. Only log the first 10 errors that would be more than enough for
+    // debugging the server in most cases.
+
+    int numberOfExistingErrors = _zkclient.countChildren(path);
+    if (numberOfExistingErrors < 10) {
+      try {
+        String errorNode = _zkclient.createPersistentSequential(path + "/", message);
+        LOG.info("created error node at: " + errorNode);
+      } catch (RuntimeException ex) {
+        LOG.error("failed to create instance error node: " + path);
+      }
+    }
   }
 
   /**
@@ -591,7 +609,9 @@ public class ZkAdapter {
   }
 
   /**
-   * ZkAdapterListener
+   * ZkAdapterListener is the observer of the observer pattern. It observes the associated ZkAdapter
+   * and the methods are called when the corresponding events are fired that is concerning the
+   * ZkAdapter.
    */
   public interface ZkAdapterListener {
     /**
@@ -789,21 +809,18 @@ public class ZkAdapter {
   }
 
   public class ZkBackedTaskListProvider implements IZkChildListener {
-    private List<String> _assigned = new ArrayList<>();
-    private String _path = KeyBuilder.instance(_cluster, _instanceName);
+    private String _path = KeyBuilder.instanceAssignments(_cluster, _instanceName);
 
     public ZkBackedTaskListProvider() {
-      _assigned = _zkclient.getChildren(_path, true);
       _zkclient.subscribeChildChanges(_path, this);
     }
 
     public void close() {
-      _zkclient.unsubscribeChildChanges(KeyBuilder.instance(_cluster, _instanceName), this);
+      _zkclient.unsubscribeChildChanges(KeyBuilder.instanceAssignments(_cluster, _instanceName), this);
     }
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _assigned = currentChildren;
       if (_listener != null) {
         _listener.onAssignmentChange();
       }

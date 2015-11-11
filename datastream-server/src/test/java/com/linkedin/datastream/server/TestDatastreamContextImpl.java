@@ -78,6 +78,13 @@ public class TestDatastreamContextImpl {
     Assert.assertEquals(value, "binlog.000130");
 
     //
+    // set/get status
+    //
+    context.setStatus(task1, DatastreamTaskStatus.ERROR);
+    DatastreamTaskStatus status = context.getStatus(task1);
+    Assert.assertEquals(status.compareTo(DatastreamTaskStatus.ERROR), 0);
+
+    //
     // cleanup
     //
     adapter.disconnect();

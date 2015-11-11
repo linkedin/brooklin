@@ -291,7 +291,8 @@ public class TestZkAdapter {
     //
     // verify that there are 1 znode under the zookeeper /{cluster}/instances/{instance}/
     //
-    List<String> assignment = zkClient.getChildren(KeyBuilder.instance(testCluster, adapter.getInstanceName()));
+    List<String> assignment =
+        zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Assert.assertEquals(assignment.size(), 1);
     Assert.assertEquals(assignment.get(0), "task1");
 
@@ -306,7 +307,7 @@ public class TestZkAdapter {
     //
     // verify that there are 2 znodes under the zookeeper path /{cluster}/instances/{instance}
     //
-    assignment = zkClient.getChildren(KeyBuilder.instance(testCluster, adapter.getInstanceName()));
+    assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Collections.sort(assignment);
     Assert.assertEquals(assignment.size(), 2);
     Assert.assertEquals(assignment.get(0), "task1");
@@ -324,7 +325,7 @@ public class TestZkAdapter {
     //
     // verify that there are still 2 znodes under zookeeper path /{cluster}/instances/{instance}
     //
-    assignment = zkClient.getChildren(KeyBuilder.instance(testCluster, adapter.getInstanceName()));
+    assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Assert.assertEquals(assignment.size(), 2);
     Collections.sort(assignment);
     Assert.assertEquals(assignment.get(0), "task1");
@@ -377,7 +378,8 @@ public class TestZkAdapter {
     //
     // verify there are 4 znodes under zookeeper path /{cluster}/instances/{instance}
     //
-    List<String> assignment = zkClient.getChildren(KeyBuilder.instance(testCluster, adapter.getInstanceName()));
+    List<String> assignment =
+        zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Collections.sort(assignment);
     Assert.assertEquals(assignment.size(), 4);
     Assert.assertEquals(assignment.get(0), "task1_0");

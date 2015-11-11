@@ -94,10 +94,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final ZkAdapter _adapter;
 
   // mapping from connector instance to associated assignment strategy
-  private final Map<Connector, AssignmentStrategy> _strategies = new HashMap<>();
+  private final Map<ConnectorWrapper, AssignmentStrategy> _strategies = new HashMap<>();
 
   // mapping from connector type to connector instance
-  private final Map<String, Connector> _connectors = new HashMap<>();
+  private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
 
   private final DatastreamEventCollectorFactory _eventCollectorFactory;
 
@@ -125,14 +125,27 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   public void start() {
     _eventThread.start();
     _adapter.connect();
-    _strategies.forEach((connector, strategy) -> {
-      _adapter.ensureConnectorZNode(connector.getConnectorType());
-      connector.start(_eventCollectorFactory);
-    });
+
+    _connectors.forEach((connectorType, connector) -> {
+      // populate the instanceName. We only know the instance name after _adapter.connect()
+        connector.setInstanceName(getInstanceName());
+
+        // make sure connector znode exists upon instance start. This way in a brand new cluster
+        // we can inspect zookeeper and know what connectors are created
+        _adapter.ensureConnectorZNode(connector.getConnectorType());
+
+        // call connector::start API
+        connector.start(_eventCollectorFactory);
+      });
+
+    // now that instance is started, make sure it doesn't miss any assignment created during
+    // the slow startup
+    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
   }
 
   public void stop() {
-    _strategies.forEach((connector, strategy) -> connector.stop());
+    _connectors.forEach((connectorType, connector) -> connector.stop());
+
     while (_eventThread.isAlive()) {
       try {
         _eventThread.interrupt();
@@ -183,11 +196,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   private void handleAssignmentChange() {
+    long startAt = System.currentTimeMillis();
+
     // when there is any change to the assignment for this instance. Need to find out what is the connector
     // type of the changed assignment, and then call the corresponding callback of the connector instance
     List<String> assignment = _adapter.getInstanceAssignment(_adapter.getInstanceName());
 
-    LOG.info("START: onAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: " + assignment);
+    LOG.info("START: Coordinator::handleAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: "
+        + assignment);
 
     // all datastreamtask for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
@@ -223,8 +239,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    deactivated.forEach(connectorType -> callConnectorOnAssignmentChange(_connectors.get(connectorType), context,
-        new ArrayList<>()));
+    deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(context, new ArrayList<>()));
 
     // case (2)
     newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, context,
@@ -233,13 +248,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
 
-    LOG.info("END: onAssignmentChange");
+    long endAt = System.currentTimeMillis();
+
+    LOG.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
   private void dispatchAssignmentChangeIfNeeded(String connectorType, DatastreamContext context,
       Map<String, List<DatastreamTask>> currentAssignment) {
 
-    Connector connector = _connectors.get(connectorType);
+    ConnectorWrapper connector = _connectors.get(connectorType);
     List<DatastreamTask> assignment = currentAssignment.get(connectorType);
 
     // only call Connector onAssignment if it is needed
@@ -265,16 +282,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     if (needed) {
-      callConnectorOnAssignmentChange(connector, context, assignment);
+      connector.onAssignmentChange(context, assignment);
+      if (connector.hasError()) {
+        _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
+      }
     }
-  }
-
-  private void callConnectorOnAssignmentChange(Connector connector, DatastreamContext context,
-      final List<DatastreamTask> assignment) {
-    LOG.info("START: Connector onAssignmentChange. Connector: " + connector.getConnectorType() + ", assignment: "
-        + assignment);
-    connector.onAssignmentChange(context, assignment);
-    LOG.info("END: Connector onAssignmentChange. Connector: " + connector.getConnectorType());
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
@@ -292,9 +304,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       case HANDLE_NEW_DATASTREAM:
         handleNewDatastream();
         break;
+
+      case HANDLE_INSTANCE_ERROR:
+        handleInstanceError(event);
+
     }
 
     LOG.info("END: Handle event " + event);
+  }
+
+  // when we encouter an error, we need to persist the error message in zookeeper. We only persist the
+  // first 10 messages. Why we put this logic in event loop instead of synchronously handle it? This
+  // is because the same reason that can result in error can also result in the failure of persisting
+  // the error message.
+  private void handleInstanceError(CoordinatorEvent event) {
+    String msg = (String) event.getAttribute("error_message");
+    _adapter.zkSaveInstanceError(msg);
   }
 
   // when there are new datastreams defined in DSM, we need to decide its target from the corresponding
@@ -304,11 +329,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private void handleNewDatastream() {
     // get a list of datastreams that has null target, set the target from connector
     // and then filter out only the ones that are successfully added with target.
-    List<Datastream> newDatastreams = _adapter.getAllDatastreams().stream()
-            .filter(ds -> ds.getTarget() == null)
-            .map(ds -> setDatastreamTarget(ds))
-            .filter(ds -> ds.getTarget() != null)
-            .collect(Collectors.toList());
+    List<Datastream> newDatastreams =
+        _adapter.getAllDatastreams().stream().filter(ds -> ds.getTarget() == null).map(ds -> setDatastreamTarget(ds))
+            .filter(ds -> ds.getTarget() != null).collect(Collectors.toList());
 
     // do nothing if none of the datastream has target set
     if (newDatastreams.size() == 0) {
@@ -334,7 +357,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // this.createTopicsIfNeeded(newDatastreams);
 
     // if there are any failure, we will need to schedule retry
-    if (leaderDoAssignmentScheduled.compareAndSet(false, true)){
+    if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
       LOG.warn("Schedule retry for handling new datastream");
       _executor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
@@ -437,8 +460,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       throw new IllegalArgumentException(err);
     }
 
-    _connectors.put(connectorType, connector);
-    _strategies.put(connector, strategy);
+    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connector);
+    _connectors.put(connectorType, connectorWrapper);
+    _strategies.put(connectorWrapper, strategy);
   }
 
   /**
@@ -449,11 +473,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   public DatastreamValidationResult validateDatastream(Datastream datastream) {
     String connectorType = datastream.getConnectorType();
-    Connector connector = _connectors.get(connectorType);
+    ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {
       return new DatastreamValidationResult("Invalid connector type: " + connectorType);
     }
-    return connector.validateDatastream(datastream);
+
+    DatastreamValidationResult result = connector.validateDatastream(datastream);
+    if (connector.hasError()) {
+      _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
+    }
+
+    return result;
   }
 
   private class CoordinatorEventProcessor extends Thread {
