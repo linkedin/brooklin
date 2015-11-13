@@ -1,6 +1,4 @@
-package com.linkedin.datastream.server;
-
-import com.linkedin.datastream.common.DatastreamEvent;
+package com.linkedin.datastream.common;
 
 import java.util.Objects;
 
@@ -10,15 +8,17 @@ import java.util.Objects;
  */
 public class DatastreamEventRecord {
   private final int _partition;
+  private final String _topicName;
   private final DatastreamEvent _event;
 
-  public DatastreamEventRecord(DatastreamEvent event, int partition) {
+  public DatastreamEventRecord(DatastreamEvent event, String topicName, int partition) {
     Objects.requireNonNull(event, "invalid event");
     if (partition < 0) {
       throw new IllegalArgumentException("invalid partition.");
     }
 
     _event = event;
+    _topicName = topicName;
     _partition = partition;
   }
 
@@ -32,8 +32,15 @@ public class DatastreamEventRecord {
   /**
    * @return destination partition within the topic
    */
-  public int partition() {
+  public int getPartition() {
     return _partition;
+  }
+
+  /**
+   * @return destination topic name.
+   */
+  public String getTopicName() {
+    return _topicName;
   }
 
   @Override
@@ -47,8 +54,8 @@ public class DatastreamEventRecord {
       return true;
     if (o == null || getClass() != o.getClass())
       return false;
-    com.linkedin.datastream.common.DatastreamEventRecord record = (com.linkedin.datastream.common.DatastreamEventRecord) o;
-    return Objects.equals(_partition, record.getPartition()) && Objects.equals(_event, record.getPartition());
+    DatastreamEventRecord record = (DatastreamEventRecord) o;
+    return Objects.equals(_partition, record._partition) && Objects.equals(_event, record._event);
   }
 
   @Override

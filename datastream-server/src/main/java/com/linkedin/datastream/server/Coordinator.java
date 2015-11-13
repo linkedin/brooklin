@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkAdapter;
