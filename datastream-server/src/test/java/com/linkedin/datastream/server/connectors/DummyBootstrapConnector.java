@@ -4,7 +4,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.Connector;
 import com.linkedin.datastream.server.DatastreamContext;
 import com.linkedin.datastream.server.DatastreamEventCollectorFactory;
-import com.linkedin.datastream.server.DatastreamTarget;
+import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamValidationResult;
 

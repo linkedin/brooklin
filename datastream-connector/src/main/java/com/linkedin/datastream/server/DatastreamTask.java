@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.codehaus.jackson.annotate.JsonIgnore;
@@ -31,7 +32,7 @@ import java.util.Objects;
  */
 public class DatastreamTask {
 
-  private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
 
   // connector type. Type of the connector to be used for reading the change capture events
   // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
@@ -123,7 +124,8 @@ public class DatastreamTask {
     this._datastreamName = datastreamName;
   }
 
-  public String toJson() throws IOException {
+  public String toJson()
+      throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     StringWriter out = new StringWriter(1024);
     mapper.writeValue(out, this);
@@ -132,14 +134,16 @@ public class DatastreamTask {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o)
+    if (this == o) {
       return true;
-    if (o == null || getClass() != o.getClass())
+    }
+    if (o == null || getClass() != o.getClass()) {
       return false;
+    }
     DatastreamTask task = (DatastreamTask) o;
-    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
-        && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
-        && Objects.equals(_properties, task._properties);
+    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects
+        .equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream) && Objects
+        .equals(_properties, task._properties);
   }
 
   @Override

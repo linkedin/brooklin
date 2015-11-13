@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
+
 import org.apache.commons.lang.StringUtils;
 
 import java.lang.reflect.Constructor;
@@ -20,7 +21,8 @@ public class DatastreamEventCollectorFactory {
   private final VerifiableProperties _config;
   private final Class _collectorClass;
 
-  public DatastreamEventCollectorFactory(VerifiableProperties config) throws DatastreamException {
+  public DatastreamEventCollectorFactory(VerifiableProperties config)
+      throws DatastreamException {
     Objects.requireNonNull(config, "invalid config.");
     _config = config;
     String className = _config.getProperty(CONFIG_COLLECTOR_NAME);
@@ -34,7 +36,8 @@ public class DatastreamEventCollectorFactory {
     }
   }
 
-  public DatastreamEventCollector create(Datastream datastream) throws DatastreamException {
+  public DatastreamEventCollector create(Datastream datastream)
+      throws DatastreamException {
     try {
       Constructor<?> ctor = _collectorClass.getDeclaredConstructor(Datastream.class, VerifiableProperties.class);
       return (DatastreamEventCollector) ctor.newInstance(datastream, _config);

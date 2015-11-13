@@ -1,7 +1,6 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.*;
 
 
 /**
@@ -12,6 +11,6 @@ public class DummyDatastreamEventCollector implements DatastreamEventCollector {
   }
 
   @Override
-  public void send(DatastreamEventRecord record) {
+  public void send(com.linkedin.datastream.common.DatastreamEventRecord record) {
   }
 }
