@@ -6,10 +6,11 @@ public class KeyBuilder {
   private static final String _liveInstance = "/%s/liveinstances/%s";
   private static final String _instances = "/%s/instances";
   private static final String _instance = "/%s/instances/%s";
-  private static final String _instanceTask = "/%s/instances/%s/%s";
+  private static final String _instanceAssignments = "/%s/instances/%s/assignments";
+  private static final String _instanceErrors = "/%s/instances/%s/errors";
+  private static final String _instanceAssignment = "/%s/instances/%s/assignments/%s";
   private static final String _datastreams = "/%s/dms";
   private static final String _datastream = "/%s/dms/%s";
-  private static final String _datastreamTask = "/%s/instances/%s/%s";
   private static final String _connectors = "/%s/connectors";
   private static final String _connector = "/%s/connectors/%s";
   private static final String _connectorDatastreamTask = _connector +  "/%s";
@@ -37,8 +38,16 @@ public class KeyBuilder {
     return String.format(_instance, cluster, instanceName);
   }
 
-  public static String instanceTask(String cluster, String instance, String task) {
-    return String.format(_instanceTask, cluster, instance, task);
+  public static String instanceAssignments(String cluster, String instance) {
+    return String.format(_instanceAssignments, cluster, instance);
+  }
+
+  public static String instanceErrors(String cluster, String instance) {
+    return String.format(_instanceErrors, cluster, instance);
+  }
+
+  public static String instanceAssignment(String cluster, String instance, String name) {
+    return String.format(_instanceAssignment, cluster, instance, name);
   }
 
   public static String datastreams(String cluster) {
@@ -47,10 +56,6 @@ public class KeyBuilder {
 
   public static String datastream(String cluster, String stream) {
     return String.format(_datastream, cluster, stream);
-  }
-
-  public static String datastreamTask(String cluster, String instance, String name) {
-    return String.format(_datastreamTask, cluster, instance, name);
   }
 
   public static String connector(String cluster, String connectorType) {

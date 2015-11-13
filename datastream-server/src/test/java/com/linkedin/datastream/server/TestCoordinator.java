@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.IntStream;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -275,9 +276,21 @@ public class TestCoordinator {
 
   }
 
-  // testCoordinationWithBroadcastStrategy is a smoke test, to verify that datastreams created by DSM can be
-  // assigned to live instances. The datastreams created by DSM is mocked by directly creating
-  // the znodes in zookeeper.
+  /**
+   * testCoordinationWithBroadcastStrategy is a smoke test, to verify that datastreams created by DSM can be
+   * assigned to live instances. The datastreams created by DSM is mocked by directly creating
+   * the znodes in zookeeper. The steps involved:
+   * <ul>
+   *     <li>create a cluster with 1 live instance named instance1, start the live instance</li>
+   *     <li>create the first datastream (datastream1) with broadcast strategy, and verify it is assigned to instance1</li>
+   *     <li>create a second live instance named instance2 and join the cluster</li>
+   *     <li>verify that instance2 is also assigned the same datastream datastream1</li>
+   *     <li>create a second datastream (datastream2)</li>
+   *     <li>verify that datastream2 is assigned to both instance1 and instance2</li>
+   * </ul>
+   *
+   * @throws Exception
+   */
   @Test
   public void testCoordinationWithBroadcastStrategy() throws Exception {
     String testCluster = "testCoordinationSmoke";
@@ -308,6 +321,7 @@ public class TestCoordinator {
     TestHookConnector connector2 = new TestHookConnector(testConectorType);
     instance2.addConnector(connector2, new BroadcastStrategy());
     instance2.start();
+    Thread.sleep(waitDurationForZk);
 
     //
     // verify instance2 has 1 task assigned
@@ -319,6 +333,7 @@ public class TestCoordinator {
     //
     String datastreamName2 = "datastream2";
     createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName2);
+    Thread.sleep(waitDurationForZk);
 
     //
     // verify both instance1 and instance2 now have two datastreamtasks assigned
@@ -332,7 +347,7 @@ public class TestCoordinator {
     instance1.stop();
     zkClient.close();
   }
-  
+
   // This test verify the code path that a datastream is only assignable after it has a valid
   // target setup. That is, if a datastream is defined for a connector that returns null for
   // getDatastreamTarget, we will not actually pass this datastream to the connector using
@@ -395,7 +410,7 @@ public class TestCoordinator {
     Thread.sleep(1000);
     assertConnectorAssignment(connector1, waitTimeoutMS, "datastream1");
     assertConnectorAssignment(connector2, waitTimeoutMS, "datastream2");
-    
+
     //
     // clean up
     //
@@ -609,6 +624,7 @@ public class TestCoordinator {
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
     instance2.addConnector(connector2, new SimpleStrategy());
     instance2.start();
+    Thread.sleep(waitDurationForZk);
 
     //
     // verify new assignment. instance1 : [datastream0], instance2: [datastream1]
@@ -958,6 +974,94 @@ public class TestCoordinator {
     instance1.stop();
     instance2.stop();
     zkClient.close();
+  }
+
+  @Test
+  public void testCoordinatorErrorHandling() throws Exception {
+    String testCluster = "testCoordinatorErrorHandling";
+    String connectoryType1 = "ConnectoryType1";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    Connector connector1 = new Connector() {
+      @Override
+      public void start(DatastreamEventCollectorFactory collectorFactory) {
+
+      }
+
+      @Override
+      public void stop() {
+
+      }
+
+      @Override
+      public String getConnectorType() {
+        return connectoryType1;
+      }
+
+      @Override
+      public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+        // throw a fake exception to trigger the error handling
+        throw new RuntimeException();
+      }
+
+      @Override
+      public DatastreamTarget getDatastreamTarget(Datastream stream) {
+        return new DatastreamTarget("dummyTopic", 1, "localhost:11111");
+      }
+
+      @Override
+      public DatastreamValidationResult validateDatastream(Datastream stream) {
+        return new DatastreamValidationResult();
+      }
+    };
+    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.start();
+    Thread.sleep(waitDurationForZk);
+
+    //
+    // validate the error nodes has 0 child because onAssignmentChange is not triggered yet
+    //
+    String errorPath = KeyBuilder.instanceErrors(testCluster, instance1.getInstanceName());
+    int childrenCount = zkClient.countChildren(errorPath);
+    Assert.assertEquals(childrenCount, 0);
+
+    //
+    // create a new datastream, which will trigger the error path
+    //
+    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream0");
+    Thread.sleep(waitDurationForZk * 2);
+
+    //
+    // validate the error nodes now has 1 child
+    //
+    childrenCount = zkClient.countChildren(errorPath);
+    Assert.assertEquals(childrenCount, 1);
+
+    //
+    // create another datastream, and validate the error nodes have 2 children
+    //
+    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream1");
+    Thread.sleep(waitDurationForZk * 2);
+    childrenCount = zkClient.countChildren(errorPath);
+    Assert.assertEquals(childrenCount, 2);
+
+    //
+    // create 10 more datastream, and validate the error children is caped at 10
+    //
+    for (int i = 2; i < 12; i++) {
+      createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream" + i);
+    }
+    Thread.sleep(waitDurationForZk * 5);
+    childrenCount = zkClient.countChildren(errorPath);
+    Assert.assertTrue(childrenCount <= 10);
+
+    //
+    // clean up
+    //
+    zkClient.close();
+    instance1.stop();
+
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

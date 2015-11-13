@@ -16,5 +16,9 @@ public interface DatastreamContext {
   // use this method to persist the last known checkpoint in zookeeper
   void saveState(DatastreamTask datastream, String key, String value);
 
+  // set the status for datastreamtask. This is a way for the connector
+  // implementation to persist the status of the datastream task
+  void setStatus(DatastreamTask datastreamTask, DatastreamTaskStatus status);
 
+  DatastreamTaskStatus getStatus(DatastreamTask datastreamTask);
 }
