@@ -5,7 +5,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.KafkaConnection;
 
 import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.datastream.server.connectors.DummyConnector;
+import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 

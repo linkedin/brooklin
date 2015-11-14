@@ -123,6 +123,7 @@ project(':datastream-kafka') {
 
 project(':datastream-testcommon') {
   dependencies {
+    compile project(':datastream-connector')
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
   }
@@ -143,8 +144,10 @@ project(':datastream-client') {
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
-    testCompile project(':datastream-server')
     compile project(':datastream-common')
+
+    testCompile project(':datastream-testcommon')
+    testCompile project(':datastream-server')
   }
 }
 
@@ -163,7 +166,8 @@ project(':datastream-server') {
     compile project(':datastream-connector')
     compile project(':datastream-transport')
     compile project(':datastream-common')
-    compile project(':datastream-testcommon')
+
+    testCompile project(':datastream-testcommon')
   }
 
   // For test or experiment purpose

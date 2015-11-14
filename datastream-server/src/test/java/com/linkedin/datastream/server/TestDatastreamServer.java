@@ -1,9 +1,11 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
+import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
-import com.linkedin.datastream.server.connectors.DummyBootstrapConnector;
-import com.linkedin.datastream.server.connectors.DummyConnector;
+import com.linkedin.datastream.connectors.DummyBootstrapConnector;
+import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -24,8 +26,8 @@ public class TestDatastreamServer {
     override.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     override.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
                  DUMMY_BOOTSTRAP_CONNECTOR);
-    override.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_CLASS_NAME,
-                 DummyBootstrapConnector.class.getTypeName());
+    override.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+                 DummyBootstrapConnectorFactory.class.getTypeName());
     return initializeTestDatastreamServer(override);
   }
 
@@ -43,8 +45,8 @@ public class TestDatastreamServer {
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR);
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY,
                    BROADCAST_STRATEGY);
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_CLASS_NAME,
-                   DummyConnector.class.getTypeName());
+    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+                   DummyConnectorFactory.class.getTypeName());
     properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
 
     if (override != null) {
@@ -65,7 +67,7 @@ public class TestDatastreamServer {
   public void testDatastreamServerMisConfig() throws Exception {
     // Wrong class name was assigned to DummyConnector; DatastreamServer should detect it and throw
     Properties override = new Properties();
-    override.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_CLASS_NAME,
+    override.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
         DummyBootstrapConnector.class.getTypeName());
     boolean caughtException = false;
     try {

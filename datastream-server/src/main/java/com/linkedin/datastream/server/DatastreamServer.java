@@ -33,7 +33,7 @@ public enum DatastreamServer {
   public static final String CONFIG_EVENT_COLLECTOR_CLASS_NAME = DatastreamEventCollectorFactory.CONFIG_COLLECTOR_NAME;
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
-  public static final String CONFIG_CONNECTOR_CLASS_NAME = "className";
+  public static final String CONFIG_CONNECTOR_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
 
@@ -64,19 +64,22 @@ public enum DatastreamServer {
     LOG.info("Starting to load connector: " + connectorStr);
     try {
       // For each connector type defined in the config, load one instance from that class
-      String className = connectorProperties.getProperty(CONFIG_CONNECTOR_CLASS_NAME, "");
+      String className = connectorProperties.getProperty(CONFIG_CONNECTOR_FACTORY_CLASS_NAME, "");
       if (StringUtils.isBlank(className)) {
-        throw new DatastreamException("className is empty for connector " + connectorStr);
+        throw new DatastreamException("Factory className is empty for connector " + connectorStr);
       }
-      Class connectorClass = _classLoader.loadClass(className);
-      Connector connectorInstance;
+      Class connectorFactoryClass = _classLoader.loadClass(className);
+      ConnectorFactory connectorFactoryInstance;
       try {
-        Constructor<Connector> constructor = connectorClass.getConstructor(Properties.class);
-        connectorInstance = constructor.newInstance(connectorProperties);
+        Constructor<ConnectorFactory> constructor = connectorFactoryClass.getConstructor();
+        connectorFactoryInstance = constructor.newInstance();
       } catch (NoSuchMethodException e) {
-        LOG.warn("No consturctor found with Properties.class as parameter. Will create connector instance without config.");
-        connectorInstance = (Connector) connectorClass.newInstance();
+        String msg = "No parameter-less constructor found for connector factory.";
+        LOG.error(msg);
+        throw new DatastreamException(msg, e);
       }
+
+      Connector connectorInstance = connectorFactoryInstance.createConnector(connectorProperties);
 
       // Verify the connector type of the connector
       if (!connectorInstance.getConnectorType().equals(connectorStr)) {
@@ -102,6 +105,7 @@ public enum DatastreamServer {
       _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
 
     } catch (Exception ex) {
+      LOG.error(String.format("Instantiating connector %s failed with exception", connectorStr, ex));
       throw new DatastreamException("Failed to instantiate connector: " + connectorStr, ex);
     }
     LOG.info("Connector loaded successfully. Type: " + connectorStr);

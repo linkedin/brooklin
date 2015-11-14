@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server.connectors;
+package com.linkedin.datastream.connectors;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.Connector;
