@@ -1,6 +1,8 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamTarget;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

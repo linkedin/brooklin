@@ -101,6 +101,26 @@ project(':datastream-common') {
   }
 }
 
+project(':datastream-connector') {
+  dependencies {
+    compile project(':datastream-common')
+  }
+}
+
+project(':datastream-transport') {
+  dependencies {
+    compile project(':datastream-common')
+  }
+}
+
+project(':datastream-kafka') {
+  dependencies {
+    compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+
+    compile project(':datastream-transport')
+  }
+}
+
 project(':datastream-testcommon') {
   dependencies {
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
@@ -140,6 +160,8 @@ project(':datastream-server') {
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
+    compile project(':datastream-connector')
+    compile project(':datastream-transport')
     compile project(':datastream-common')
     compile project(':datastream-testcommon')
   }

@@ -1,8 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.server.DatastreamTask;
-
-
 public interface DatastreamContext {
   // obtain the instance name
   String getInstanceName();

@@ -14,9 +14,11 @@ import java.util.stream.Collectors;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkAdapter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,19 +107,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
-  public Coordinator(VerifiableProperties properties) throws DatastreamException {
+  public Coordinator(VerifiableProperties properties)
+      throws DatastreamException {
     this(new CoordinatorConfig((properties)));
   }
 
-  public Coordinator(CoordinatorConfig config) throws DatastreamException {
+  public Coordinator(CoordinatorConfig config)
+      throws DatastreamException {
     _config = config;
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
     _eventThread.setDaemon(true);
 
-    _adapter =
-        new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
-            _config.getZkConnectionTimeout(), this);
+    _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
+        _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
     _eventCollectorFactory = new DatastreamEventCollectorFactory(config.getConfigProperties());
   }
@@ -242,8 +245,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(context, new ArrayList<>()));
 
     // case (2)
-    newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, context,
-        currentAssignment));
+    newConnectorList
+        .forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, context, currentAssignment));
 
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
@@ -343,7 +346,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     boolean succeeded = newDatastreams.stream().allMatch(ds -> {
       boolean updated = _adapter.updateDatastream(ds);
       if (!updated) {
-        LOG.warn("failed to update datastream target for " + ds.getName());
+        LOG.error(String.format("Failed to update datastream target for datastream %s, "
+            + "This datastream will not be scheduled for producing events ", ds.getName()));
       }
       return updated;
     });
@@ -370,6 +374,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private Datastream setDatastreamTarget(Datastream ds) {
     DatastreamTarget target = _connectors.get(ds.getConnectorType()).getDatastreamTarget(ds);
     if (target == null) {
+      LOG.error(String.format("getDatastreamTarget for datastream %s returned null, "
+          + "This datastream will not be scheduled for producing events", ds));
       return ds;
     }
 
@@ -518,5 +524,4 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     String result = sb.toString();
     return result.substring(0, result.length() - 1);
   }
-
 }

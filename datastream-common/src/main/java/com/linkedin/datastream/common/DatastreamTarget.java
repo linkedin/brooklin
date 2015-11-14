@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.common;
 
 /**
  * This class mirrors the "target" field of Datastream model and used by

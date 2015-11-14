@@ -1,22 +1,24 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamTarget;
 
 import java.util.List;
+import java.util.Properties;
 
 
 /**
  *  Connector interface defines a small set of methods that Coordinator communicates with.
- *  When the {@link com.linkedin.datastream.server.Coordinator} starts, it will start all
- *  connectors it manages by calling the <i>start</i> method. When the Coordinator is
+ *  When the Coordinator starts, it will start all connectors it manages by calling the <i>start</i> method. When the Coordinator is
  *  shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
 public interface Connector {
+
   /**
    * Method to start the connector. This is called immediately after the connector is instantiated.
    * This typically happens when datastream instance starts up.
    */
-  void start(DatastreamEventCollectorFactory collectorFactory);
+  void start(DatastreamEventCollectorFactory eventCollectorFactory);
 
   /**
    * Method to stop the connector. This is called when the datastream instance is being stopped.
@@ -30,6 +32,11 @@ public interface Connector {
   String getConnectorType();
 
   /**
+   * @return the datastream target
+   */
+  DatastreamTarget getDatastreamTarget(Datastream datastream);
+
+  /**
    * callback when the datastreams assignment to this instance is changed. This is called whenever
    * there is a change for the assignment. The implementation of the Connector is responsible
    * to keep a state of the previous assignment.
@@ -38,15 +45,6 @@ public interface Connector {
    * @param tasks the list of the current assignment.
    */
   void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks);
-
-  /**
-   * Provides a DatastreamTarget object with information of downstream
-   * Kafka topic to which the connector will be producing change events.
-   *
-   * @param stream: Datastream model
-   * @return populated DatastreamTarget
-   */
-  DatastreamTarget getDatastreamTarget(Datastream stream);
 
   /**
    * Validate the datastream. Datastream management service call this before writing the
