@@ -42,7 +42,7 @@ subprojects {
     //     ]
     //   ]
     // ]
-  
+
 
   // // comment this out so the java files don't get auto-generated every time
   // afterEvaluate {
@@ -123,6 +123,9 @@ project(':datastream-kafka') {
 project(':datastream-testcommon') {
   dependencies {
     compile project(':datastream-connector')
+    // compile "org.testing:testing:$testingVersion"
+    // compile "org.testing:testing:6.4"
+    compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
   }
