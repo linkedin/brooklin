@@ -3,8 +3,11 @@ package com.linkedin.datastream;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.linkedin.datastream.connectors.DummyBootstrapConnector;
+import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
+import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.DummyDatastreamEventCollector;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
@@ -47,7 +50,7 @@ public class TestDatastreamRestClient {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
     ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
-    ds.setSource("db_" + seed);
+    ds.setSource("DummySource");
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
@@ -66,13 +69,13 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_CLASS_NAME,
-                   DummyConnector.class.getTypeName());
-    properties.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_CLASS_NAME,
-                   DummyBootstrapConnector.class.getTypeName());
+    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+                   DummyConnectorFactory.class.getTypeName());
+    properties.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+                   DummyBootstrapConnectorFactory.class.getTypeName());
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
                    DUMMY_BOOTSTRAP_CONNECTOR);
-
+    properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     DatastreamServer.INSTANCE.init(properties);
   }
 

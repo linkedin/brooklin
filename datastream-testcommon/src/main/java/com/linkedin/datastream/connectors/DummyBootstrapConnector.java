@@ -1,7 +1,4 @@
-package com.linkedin.datastream;
-
-import java.util.List;
-import java.util.Properties;
+package com.linkedin.datastream.connectors;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.Connector;
@@ -11,15 +8,21 @@ import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamValidationResult;
 
+import java.util.List;
+import java.util.Properties;
+
 
 /**
  * A trivial implementation of connector interface
  */
-public class DummyConnector implements Connector {
+public class DummyBootstrapConnector implements Connector {
 
-  public static final String CONNECTOR_TYPE = "DummyConnector-Online";
+  private Properties _properties;
 
-  public DummyConnector(Properties properties) throws Exception {
+  public static final String CONNECTOR_TYPE = "DummyConnector-Bootstrap";
+
+  public DummyBootstrapConnector(Properties properties) throws Exception {
+    _properties = properties;
   }
 
   @Override
@@ -47,6 +50,9 @@ public class DummyConnector implements Connector {
 
   @Override
   public DatastreamValidationResult validateDatastream(Datastream stream) {
+    if (stream == null || stream.getSource() == null) {
+      return new DatastreamValidationResult("Failed to get source from datastream.");
+    }
     return new DatastreamValidationResult();
   }
 }

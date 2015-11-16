@@ -2,7 +2,7 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.datastream.server.connectors.DummyBootstrapConnector;
+import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.restli.server.RestLiServiceException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
