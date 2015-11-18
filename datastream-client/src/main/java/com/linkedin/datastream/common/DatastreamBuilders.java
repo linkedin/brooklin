@@ -1,23 +1,23 @@
 
 package com.linkedin.datastream.common;
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import javax.annotation.Generated;
 import com.linkedin.data.template.DynamicRecordMetadata;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.restli.client.OptionsRequestBuilder;
 import com.linkedin.restli.client.RestliRequestOptions;
 import com.linkedin.restli.common.ResourceMethod;
 import com.linkedin.restli.common.ResourceSpec;
 import com.linkedin.restli.common.ResourceSpecImpl;
 
-import javax.annotation.Generated;
-import java.util.EnumSet;
-import java.util.HashMap;
-
 
 /**
  * generated from: com.linkedin.datastream.server.dms.DatastreamResources
  * 
  */
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/halu/work/datastream/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.datastream.restspec.json.", date = "Wed Oct 21 21:53:45 PDT 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.datastream.restspec.json.", date = "Tue Nov 17 09:47:02 PST 2015")
 public class DatastreamBuilders {
 
     private final String _baseUriTemplate;
@@ -67,20 +67,20 @@ public class DatastreamBuilders {
         return new OptionsRequestBuilder(_baseUriTemplate, _requestOptions);
     }
 
-    public DatastreamDeleteBuilder delete() {
-        return new DatastreamDeleteBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
-    }
-
-    public DatastreamUpdateBuilder update() {
-        return new DatastreamUpdateBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
+    public DatastreamGetBuilder get() {
+        return new DatastreamGetBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
     }
 
     public DatastreamCreateBuilder create() {
         return new DatastreamCreateBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
     }
 
-    public DatastreamGetBuilder get() {
-        return new DatastreamGetBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
+    public DatastreamDeleteBuilder delete() {
+        return new DatastreamDeleteBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
+    }
+
+    public DatastreamUpdateBuilder update() {
+        return new DatastreamUpdateBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
     }
 
 }

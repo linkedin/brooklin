@@ -18,6 +18,7 @@ package com.linkedin.datastream.kafka;
  */
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -48,6 +49,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
+  private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
 
   public KafkaTransportProvider(Properties props) {
 
@@ -85,13 +87,15 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
+  public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor"));
     AdminUtils.createTopic(new ZkClient(_zkAddress), topicName, numberOfPartitions, replicationFactor, topicConfig);
+    return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
   }
 
   @Override
-  public void dropTopic(String topicName) {
+  public void dropTopic(String destinationUri) {
+    String topicName = URI.create(destinationUri).getPath();
     AdminUtils.deleteTopic(new ZkClient(_zkAddress), topicName);
   }
 

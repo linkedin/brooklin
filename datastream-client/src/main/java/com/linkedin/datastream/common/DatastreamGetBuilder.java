@@ -1,13 +1,13 @@
 
 package com.linkedin.datastream.common;
 
+import javax.annotation.Generated;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.restli.client.RestliRequestOptions;
 import com.linkedin.restli.client.base.GetRequestBuilderBase;
 import com.linkedin.restli.common.ResourceSpec;
 
-import javax.annotation.Generated;
-
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Wed Oct 21 21:53:45 PDT 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Tue Nov 17 09:47:02 PST 2015")
 public class DatastreamGetBuilder
     extends GetRequestBuilderBase<String, Datastream, DatastreamGetBuilder>
 {

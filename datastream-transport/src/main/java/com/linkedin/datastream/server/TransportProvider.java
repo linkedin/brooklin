@@ -17,13 +17,13 @@ public interface TransportProvider {
    * @param numberOfPartitions Number of partitions in the topic.
    * @param topicConfig Configuration to use to create the topic.
    */
-  void createTopic(String topicName, int numberOfPartitions, Properties topicConfig);
+  String createTopic(String topicName, int numberOfPartitions, Properties topicConfig);
 
   /**
    * Drop the topic with the topic name
-   * @param topicName Name of the topic to be deleted.
+   * @param destination Destination uri.
    */
-  void dropTopic(String topicName);
+  void dropTopic(String destination);
 
   /**
    * Send the DatastreamEvent to the topic.

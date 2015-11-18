@@ -20,6 +20,12 @@
                         "type": "string"
                 },
                 {
+                        "name": "destination",
+                        "doc": "Datastream destination string that the transport provider will use to send the events",
+                        "type": "string",
+                        "optional": true
+                },
+                {
                         "name": "target",
                         "doc": "Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.",
                         "type": [
