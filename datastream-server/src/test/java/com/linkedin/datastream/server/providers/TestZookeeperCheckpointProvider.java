@@ -12,7 +12,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.TestDatastreamDestinationManager;
+import com.linkedin.datastream.server.TestTopicManager;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
@@ -39,11 +39,11 @@ public class TestZookeeperCheckpointProvider {
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     Map<DatastreamTask, String> checkpoints = new HashMap<>();
-    DatastreamTask datastreamTask1 = new DatastreamTask(TestDatastreamDestinationManager.generateDatastream(1));
+    DatastreamTask datastreamTask1 = new DatastreamTask(TestTopicManager.generateDatastream(1));
     datastreamTask1.setId("dt1");
     checkpoints.put(datastreamTask1, "checkpoint1");
 
-    DatastreamTask datastreamTask2 = new DatastreamTask(TestDatastreamDestinationManager.generateDatastream(2));
+    DatastreamTask datastreamTask2 = new DatastreamTask(TestTopicManager.generateDatastream(2));
     datastreamTask2.setId("dt2");
     checkpoints.put(datastreamTask2, "checkpoint2");
 

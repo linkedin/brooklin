@@ -12,12 +12,12 @@ import com.linkedin.datastream.common.VerifiableProperties;
 /**
  * Class that uses the Transport provider to manage the topics used by the datastream
  */
-public class DatastreamDestinationManager {
+public class TopicManager {
 
   private final TransportProvider _transportProvider;
   private final int DEFAULT_NUMBER_PARTITIONS = 1;
 
-  public DatastreamDestinationManager(TransportProvider transportProvider) {
+  public TopicManager(TransportProvider transportProvider) {
     _transportProvider = transportProvider;
   }
 

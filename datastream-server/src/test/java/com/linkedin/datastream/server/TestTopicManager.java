@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-public class TestDatastreamDestinationManager {
+public class TestTopicManager {
 
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
@@ -43,7 +43,7 @@ public class TestDatastreamDestinationManager {
     datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
     newDatastream.setDestination("");
-    DatastreamDestinationManager targetManager = new DatastreamDestinationManager(null);
+    TopicManager targetManager = new TopicManager(null);
     targetManager.populateDatastreamDestination(datastreams);
     Assert.assertEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
   }
@@ -64,7 +64,7 @@ public class TestDatastreamDestinationManager {
     when(transportProvider.createTopic(eq(datastreams.get(0).getName()), anyInt(), any())).thenReturn("destination1");
     when(transportProvider.createTopic(eq(datastreams.get(1).getName()), anyInt(), any())).thenReturn("destination2");
 
-    DatastreamDestinationManager targetManager = new DatastreamDestinationManager(transportProvider);
+    TopicManager targetManager = new TopicManager(transportProvider);
     targetManager.populateDatastreamDestination(datastreams);
 
     verify(transportProvider, times(1)).createTopic(eq(datastreams.get(0).getName()), anyInt(), any());
@@ -79,7 +79,7 @@ public class TestDatastreamDestinationManager {
     }
 
     TransportProvider transportProvider = mock(TransportProvider.class);
-    DatastreamDestinationManager targetManager = new DatastreamDestinationManager(transportProvider);
+    TopicManager targetManager = new TopicManager(transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(1)).dropTopic(eq(datastreams.get(1).getDestination()));
@@ -94,7 +94,7 @@ public class TestDatastreamDestinationManager {
 
     datastreams.get(0).setDestination(datastreams.get(1).getDestination());
     TransportProvider transportProvider = mock(TransportProvider.class);
-    DatastreamDestinationManager targetManager = new DatastreamDestinationManager(transportProvider);
+    TopicManager targetManager = new TopicManager(transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(0)).dropTopic(eq(datastreams.get(1).getDestination()));
