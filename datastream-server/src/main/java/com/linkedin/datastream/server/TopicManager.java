@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Stream;
 
@@ -22,10 +23,15 @@ public class TopicManager {
   }
 
   /**
-   *
-   * @param datastreams
+   * populates the datastream destination for the newly created datastreams.
+   * Caller (Datastream leader) should pass in all the datastreams present in the system.
+   * This method will take care of de-duping the datastreams, i.e. if there is an existing
+   * datastream with the same source, they will use the same destination.
+   * @param datastreams All datastreams in the current system.
    */
   public void populateDatastreamDestination(List<Datastream> datastreams) {
+    Objects.requireNonNull(datastreams, "Datastream should not be null");
+
     HashMap<String, String> sourceDestinationMapping = new HashMap<>();
     datastreams.stream().filter(d -> !d.getDestination().isEmpty())
         .forEach(d -> sourceDestinationMapping.put(d.getSource(), d.getDestination()));
@@ -54,11 +60,15 @@ public class TopicManager {
   }
 
   /**
-   *
-   * @param datastream
-   * @param allDatastreams
+   * Delete the datastream destination for a particular datastream.
+   * Caller should pass in all the datastreams present in the system.
+   * This method will ensure that there are no other references to the destination before deleting it.
+   * @param datastream Datastream whose destination needs to be deleted.
+   * @param allDatastreams All the datastreams in the system.
    */
   public void deleteDatastreamDestination(Datastream datastream, List<Datastream> allDatastreams) {
+    Objects.requireNonNull(datastream, "Datastream should not be null");
+    Objects.requireNonNull(allDatastreams, "allDatastreams should not be null");
     Stream<Datastream> duplicateDatastreams = allDatastreams.stream().filter(d ->
         d.getDestination().equals(datastream.getDestination()) && !d.getName().equalsIgnoreCase(datastream.getName()));
 
