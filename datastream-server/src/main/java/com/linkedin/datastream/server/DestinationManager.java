@@ -41,14 +41,14 @@ public class DestinationManager {
     Objects.requireNonNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
-    datastreams.stream().filter(d ->  d.hasDestination() && !d.getDestination().getConnectionString().isEmpty())
+    datastreams.stream().filter(d -> d.hasDestination() && !d.getDestination().getConnectionString().isEmpty())
         .forEach(d -> sourceDestinationMapping.put(d.getSource(), d.getDestination()));
 
     LOG.debug("Datastream Source -> Destination mapping before populating new datastream destinations",
         sourceDestinationMapping);
 
     for (Datastream datastream : datastreams) {
-      if ( datastream.hasDestination() && !datastream.getDestination().getConnectionString().isEmpty()) {
+      if (datastream.hasDestination() && !datastream.getDestination().getConnectionString().isEmpty()) {
         continue;
       }
 
@@ -60,12 +60,12 @@ public class DestinationManager {
         datastream.setDestination(destination);
       } else {
         String connectionString = createTopic(datastream);
-        LOG.info(String
-            .format("Datastream %s has an unique source, Creating a new destination topic %s", datastream.getName(),
-                connectionString));
-        datastream.setDestination(new DatastreamDestination());
-        datastream.getDestination().setConnectionString(connectionString);
-        sourceDestinationMapping.put(datastream.getSource(), datastream.getDestination());
+        LOG.info(String.format("Datastream %s has an unique source, Creating a new destination topic %s",
+                datastream.getName(), connectionString));
+        DatastreamDestination destination = new DatastreamDestination();
+        destination.setConnectionString(connectionString);
+        datastream.setDestination(destination);
+        sourceDestinationMapping.put(datastream.getSource(), destination);
       }
     }
 
@@ -96,11 +96,13 @@ public class DestinationManager {
     Objects.requireNonNull(datastream, "Datastream should not be null");
     Objects.requireNonNull(datastream.getDestination(), "Datastream destination should not be null");
     Objects.requireNonNull(allDatastreams, "allDatastreams should not be null");
-    Stream<Datastream> duplicateDatastreams = allDatastreams.stream().filter(d ->
-        d.getDestination().equals(datastream.getDestination()) && !d.getName().equalsIgnoreCase(datastream.getName()));
+    Stream<Datastream> duplicateDatastreams =
+        allDatastreams.stream().filter(
+            d -> d.getDestination().equals(datastream.getDestination())
+                && !d.getName().equalsIgnoreCase(datastream.getName()));
 
     // If there are no datastreams using the same destination, then delete the topic.
-    if(duplicateDatastreams.count() == 0) {
+    if (duplicateDatastreams.count() == 0) {
       _transportProvider.dropTopic(datastream.getDestination().getConnectionString());
     } else {
       LOG.info(String.format("There are existing datastreams %s with the same destination (%s) as datastream %s ",
