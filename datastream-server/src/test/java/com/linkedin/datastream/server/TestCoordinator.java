@@ -11,6 +11,7 @@ import java.util.stream.IntStream;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamTarget;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
@@ -213,40 +214,23 @@ public class TestCoordinator {
     // verify that the counter value for the connector is 1 because the onAssignmentChange
     // should be called once
     //
-    int retries = 5;
-    while (retries >= 0
-        && !zkClient.exists(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "",
-            "counter"))) {
-      Thread.sleep(waitDurationForZk);
-      retries--;
-    }
-    String counter =
-        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "",
-            "counter"));
-    Assert.assertEquals(counter, "1");
+    String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1,
+            "", "counter");
+    Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream1CounterPath));
+    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "1");
     //
     // add a second datastream named datastream2
     //
     String datastreamName2 = "datastream2";
     createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName2);
-    retries = 5;
-    while (retries >= 0
-        && !zkClient.exists(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName2, "",
-            "counter"))) {
-      Thread.sleep(waitDurationForZk);
-      retries--;
-    }
+    String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName2,
+            "", "counter");
+    Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream2CounterPath));
     //
     // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
     //
-    counter =
-        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName1, "",
-            "counter"));
-    Assert.assertEquals(counter, "2");
-    counter =
-        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, datastreamName2, "",
-            "counter"));
-    Assert.assertEquals(counter, "1");
+    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
+    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
 
     //
     // clean up
