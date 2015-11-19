@@ -22,5 +22,5 @@ public interface CheckpointProvider {
    * @param datastreamTasks List of datastream tasks whose checkpoint needs to be read
    * @return Map of the checkpoints associated with the datastream task.
    */
-  Map<DatastreamTask, String> committed(List<DatastreamTask> datastreamTasks);
+  Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks);
 }

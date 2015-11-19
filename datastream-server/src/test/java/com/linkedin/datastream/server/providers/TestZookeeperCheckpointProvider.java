@@ -51,7 +51,7 @@ public class TestZookeeperCheckpointProvider {
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(datastreamTask1);
     tasks.add(datastreamTask2);
-    Map<DatastreamTask, String> commitedCheckpoints = checkpointProvider.committed(tasks);
+    Map<DatastreamTask, String> commitedCheckpoints = checkpointProvider.getCommitted(tasks);
     Assert.assertEquals(commitedCheckpoints.get(datastreamTask1), checkpoints.get(datastreamTask1));
     Assert.assertEquals(commitedCheckpoints.get(datastreamTask2), checkpoints.get(datastreamTask2));
   }

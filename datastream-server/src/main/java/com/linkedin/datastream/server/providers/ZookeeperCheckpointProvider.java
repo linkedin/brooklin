@@ -38,7 +38,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    * @return Map of the checkpoints associated with the datastream task.
    */
   @Override
-  public Map<DatastreamTask, String> committed(List<DatastreamTask> datastreamTasks) {
+  public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
     Objects.requireNonNull(datastreamTasks, "datastreamTasks should not be null");
     return datastreamTasks.stream().collect(
         Collectors.toMap(Function.identity(), dt -> _zkAdapter.getDatastreamTaskStateForKey(dt, CHECKPOINT_KEY_NAME)));
