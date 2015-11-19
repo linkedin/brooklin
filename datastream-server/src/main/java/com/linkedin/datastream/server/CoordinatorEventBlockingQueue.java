@@ -11,11 +11,11 @@ import org.slf4j.LoggerFactory;
 public class CoordinatorEventBlockingQueue {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
-  private final Map<CoordinatorEvent.EventName, CoordinatorEvent> _eventMap;
+  private final Map<CoordinatorEvent.EventType, CoordinatorEvent> _eventMap;
   private final Queue<CoordinatorEvent> _eventQueue;
 
   public CoordinatorEventBlockingQueue() {
-    _eventMap = new EnumMap<>(CoordinatorEvent.EventName.class);
+    _eventMap = new EnumMap<>(CoordinatorEvent.EventType.class);
     _eventQueue = new LinkedBlockingQueue<>();
   }
 
@@ -24,7 +24,7 @@ public class CoordinatorEventBlockingQueue {
   * @param event CoordinatorEvent event to add to the queue
   */
   public synchronized void put(CoordinatorEvent event) {
-    if (!_eventMap.containsKey(event.getName())) {
+    if (!_eventMap.containsKey(event.getType())) {
       // only insert if there isn't an event present in the queue with the same name
       boolean result = _eventQueue.offer(event);
       if (!result) {
@@ -33,8 +33,8 @@ public class CoordinatorEventBlockingQueue {
     }
 
     // always overwrite the event in the map
-    _eventMap.put(event.getName(), event);
-    LOG.debug("Putting event " + event.getName());
+    _eventMap.put(event.getType(), event);
+    LOG.debug("Putting event " + event.getType());
     LOG.debug("Event queue size " + _eventQueue.size());
     notify();
   }
@@ -47,9 +47,9 @@ public class CoordinatorEventBlockingQueue {
     CoordinatorEvent queuedEvent = _eventQueue.poll();
 
     if (queuedEvent != null) {
-      LOG.debug("Taking event " + queuedEvent.getName());
+      LOG.debug("Taking event " + queuedEvent.getType());
       LOG.debug("Event queue size: " + _eventQueue.size());
-      return _eventMap.remove(queuedEvent.getName());
+      return _eventMap.remove(queuedEvent.getType());
     }
 
     return null;    
@@ -58,7 +58,7 @@ public class CoordinatorEventBlockingQueue {
   public synchronized CoordinatorEvent peek() {
     CoordinatorEvent queuedEvent = _eventQueue.peek();
     if (queuedEvent != null) {
-      return _eventMap.get(queuedEvent.getName());
+      return _eventMap.get(queuedEvent.getType());
     }
     return null;
   }

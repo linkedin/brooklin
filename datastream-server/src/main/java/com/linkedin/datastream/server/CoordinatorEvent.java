@@ -1,68 +1,65 @@
 package com.linkedin.datastream.server;
 
-import java.util.Map;
-import java.util.HashMap;
 
+import java.util.List;
 
-public class CoordinatorEvent {
+public class CoordinatorEvent<T> {
 
-  public enum EventName {
+  public enum EventType {
     LEADER_DO_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_NEW_DATASTREAM,
     HANDLE_INSTANCE_ERROR
   }
 
-  private final EventName _eventName;
-  private final Map<String, Object> _eventAttributeMap;
+  private final EventType _eventType;
+  private T _eventData;
 
-  private CoordinatorEvent(EventName eventName) {
-    _eventName = eventName;
-    _eventAttributeMap = new HashMap<>();
+  private CoordinatorEvent(EventType eventName) {
+    _eventType = eventName;
+    _eventData = null;
+  }
+
+  private CoordinatorEvent(EventType eventName, T eventData) {
+    _eventType = eventName;
+    _eventData = eventData;
   }
 
   public static CoordinatorEvent createLeaderDoAssignmentEvent() {
-    return new CoordinatorEvent(EventName.LEADER_DO_ASSIGNMENT);
+    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   }
 
   public static CoordinatorEvent createHandleAssignmentChangeEvent() {
-    return new CoordinatorEvent(EventName.HANDLE_ASSIGNMENT_CHANGE);
+    return new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
   }
 
   public static CoordinatorEvent createHandleNewDatastreamEvent() {
-    return new CoordinatorEvent(EventName.HANDLE_NEW_DATASTREAM);
+    return new CoordinatorEvent(EventType.HANDLE_NEW_DATASTREAM);
   }
 
-  public static CoordinatorEvent createHandleInstanceErrorEvent(String errorMessage) {
-    CoordinatorEvent event = new CoordinatorEvent(EventName.HANDLE_INSTANCE_ERROR);
-    event.setAttribute("error_message", errorMessage);
+  public static CoordinatorEvent<String> createHandleInstanceErrorEvent(String errorMessage) {
+    CoordinatorEvent event = new CoordinatorEvent(EventType.HANDLE_INSTANCE_ERROR, errorMessage);
     return event;
   }
 
-  public EventName getName() {
-    return _eventName;
+  public EventType getType() {
+    return _eventType;
   }
 
-  public Object getAttribute(String attribute) {
-    return _eventAttributeMap.get(attribute);
-  }
-
-  protected void setAttribute(String attribute, Object value) {
-    _eventAttributeMap.put(attribute, value);
+  public T getEventData() {
+    return _eventData;
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("name:" + _eventName.toString());
+    sb.append("type:" + _eventType.toString());
 
-    if (_eventAttributeMap.size() > 0) {
+    if (_eventData != null) {
       sb.append("\n");
+      sb.append(_eventData);
     }
 
-    for (String key : _eventAttributeMap.keySet()) {
-      sb.append(key).append(":").append(_eventAttributeMap.get(key)).append("\n");
-    }
     return sb.toString();
   }
 

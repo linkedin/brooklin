@@ -783,7 +783,7 @@ public class ZkAdapter {
       _allDatastreamTasks = new HashMap<>();
       List<String> connectorTypes = _zkclient.getChildren(_path);
 
-      connectorTypes.forEach(connectorType -> {
+      for (String connectorType: connectorTypes) {
         if (!_allDatastreamTasks.containsKey(connectorType)) {
           _allDatastreamTasks.put(connectorType, new ArrayList<>());
         }
@@ -791,15 +791,15 @@ public class ZkAdapter {
         String path = KeyBuilder.connector(_cluster, connectorType);
         List<String> tasksForConnector = _zkclient.getChildren(path);
 
-        tasksForConnector.forEach(taskName -> {
+        for (String taskName: tasksForConnector) {
           String p = KeyBuilder.connectorTask(_cluster, connectorType, taskName);
           // read the DatastreamTask json data
-            String content = _zkclient.ensureReadData(p);
-            // deserialize to DatastreamTask
-            DatastreamTask t = DatastreamTask.fromJson(content);
-            _allDatastreamTasks.get(connectorType).add(t);
-          });
-      });
+          String content = _zkclient.ensureReadData(p);
+          // deserialize to DatastreamTask
+          DatastreamTask t = DatastreamTask.fromJson(content);
+          _allDatastreamTasks.get(connectorType).add(t);
+        }
+      }
     }
 
     @Override
