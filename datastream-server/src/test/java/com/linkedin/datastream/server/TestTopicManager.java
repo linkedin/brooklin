@@ -12,6 +12,8 @@ import com.linkedin.datastream.connectors.DummyConnector;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -61,14 +63,12 @@ public class TestTopicManager {
     datastreams.get(2).setSource(datastreams.get(1).getSource());
 
     TransportProvider transportProvider = mock(TransportProvider.class);
-    when(transportProvider.createTopic(eq(datastreams.get(0).getName()), anyInt(), any())).thenReturn("destination1");
-    when(transportProvider.createTopic(eq(datastreams.get(1).getName()), anyInt(), any())).thenReturn("destination2");
+    when(transportProvider.createTopic(anyString(), anyInt(), any())).thenReturn("destination");
 
     TopicManager targetManager = new TopicManager(transportProvider);
     targetManager.populateDatastreamDestination(datastreams);
 
-    verify(transportProvider, times(1)).createTopic(eq(datastreams.get(0).getName()), anyInt(), any());
-    verify(transportProvider, times(1)).createTopic(eq(datastreams.get(1).getName()), anyInt(), any());
+    verify(transportProvider, times(2)).createTopic(anyString(), anyInt(), any());
   }
 
   @Test

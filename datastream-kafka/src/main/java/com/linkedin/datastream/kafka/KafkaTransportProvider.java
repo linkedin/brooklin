@@ -95,11 +95,21 @@ public class KafkaTransportProvider implements TransportProvider {
     Objects.requireNonNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
+    LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s",
+        topicConfig, numberOfPartitions, topicConfig));
 
-    // Create only if it doesn't exist.
-    if(!AdminUtils.topicExists(_zkClient, topicName)) {
-      AdminUtils.createTopic(_zkClient, topicName, numberOfPartitions, replicationFactor, topicConfig);
+    try {
+      // Create only if it doesn't exist.
+      if (!AdminUtils.topicExists(_zkClient, topicName)) {
+        AdminUtils.createTopic(_zkClient, topicName, numberOfPartitions, replicationFactor, topicConfig);
+      } else {
+        LOG.warn(String.format("Topic with name %s already exists", topicName));
+      }
+    } catch (Throwable e) {
+      LOG.error(String.format("Creating topic %s failed with exception %s ", topicName, e));
+      throw e;
     }
+
     return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
   }
 
@@ -108,9 +118,16 @@ public class KafkaTransportProvider implements TransportProvider {
     Objects.requireNonNull(destinationUri, "destinationuri should not null");
     String topicName = URI.create(destinationUri).getPath();
 
-    // Delete only if it exist.
-    if(AdminUtils.topicExists(_zkClient, topicName)) {
-      AdminUtils.deleteTopic(_zkClient, topicName);
+    try {
+      // Delete only if it exist.
+      if(AdminUtils.topicExists(_zkClient, topicName)) {
+        AdminUtils.deleteTopic(_zkClient, topicName);
+      } else {
+        LOG.warn(String.format("Trying to delete topic %s that doesn't exist", topicName));
+      }
+    } catch(Throwable e) {
+      LOG.error(String.format("Deleting topic %s failed with exception %s", topicName, e));
+      throw e;
     }
   }
 
