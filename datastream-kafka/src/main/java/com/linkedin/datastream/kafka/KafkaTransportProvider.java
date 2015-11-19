@@ -18,6 +18,7 @@ package com.linkedin.datastream.kafka;
  */
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -30,8 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamEventRecord;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.TransportProvider;
 
 import kafka.admin.AdminUtils;
@@ -45,9 +46,12 @@ public class KafkaTransportProvider implements TransportProvider {
 
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
+  private static final String DEFAULT_REPLICATION_FACTOR = "3";
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
+  private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
+  private final ZkClient _zkClient;
 
   public KafkaTransportProvider(Properties props) {
 
@@ -57,6 +61,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
     _brokers = props.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
     _zkAddress = props.getProperty("zookeeper.connect");
+    _zkClient = new ZkClient(_zkAddress);
 
     // Assign mandatory arguments
     props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
@@ -85,14 +90,45 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
-    int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor"));
-    AdminUtils.createTopic(new ZkClient(_zkAddress), topicName, numberOfPartitions, replicationFactor, topicConfig);
+  public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
+    Objects.requireNonNull(topicName, "topicName should not be null");
+    Objects.requireNonNull(topicConfig, "topicConfig should not be null");
+
+    int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
+    LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s",
+        topicConfig, numberOfPartitions, topicConfig));
+
+    try {
+      // Create only if it doesn't exist.
+      if (!AdminUtils.topicExists(_zkClient, topicName)) {
+        AdminUtils.createTopic(_zkClient, topicName, numberOfPartitions, replicationFactor, topicConfig);
+      } else {
+        LOG.warn(String.format("Topic with name %s already exists", topicName));
+      }
+    } catch (Throwable e) {
+      LOG.error(String.format("Creating topic %s failed with exception %s ", topicName, e));
+      throw e;
+    }
+
+    return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
   }
 
   @Override
-  public void dropTopic(String topicName) {
-    AdminUtils.deleteTopic(new ZkClient(_zkAddress), topicName);
+  public void dropTopic(String destinationUri) {
+    Objects.requireNonNull(destinationUri, "destinationuri should not null");
+    String topicName = URI.create(destinationUri).getPath();
+
+    try {
+      // Delete only if it exist.
+      if(AdminUtils.topicExists(_zkClient, topicName)) {
+        AdminUtils.deleteTopic(_zkClient, topicName);
+      } else {
+        LOG.warn(String.format("Trying to delete topic %s that doesn't exist", topicName));
+      }
+    } catch(Throwable e) {
+      LOG.error(String.format("Deleting topic %s failed with exception %s", topicName, e));
+      throw e;
+    }
   }
 
   @Override

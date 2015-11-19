@@ -163,6 +163,7 @@ project(':datastream-server') {
     compile project(':datastream-common')
 
     testCompile project(':datastream-testcommon')
+    testCompile "org.mockito:mockito-core:1.+"
   }
 
   // For test or experiment purpose

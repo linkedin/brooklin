@@ -1,27 +1,29 @@
 
 package com.linkedin.datastream.common;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import javax.annotation.Generated;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.DynamicRecordMetadata;
 import com.linkedin.data.template.FieldDef;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.restli.client.OptionsRequestBuilder;
 import com.linkedin.restli.client.RestliRequestOptions;
 import com.linkedin.restli.common.ResourceMethod;
 import com.linkedin.restli.common.ResourceSpec;
 import com.linkedin.restli.common.ResourceSpecImpl;
 
-import javax.annotation.Generated;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-
 
 /**
+ * BootstrapActionResources is the rest end point to process bootstrap datastream request
+ * 
  * generated from: com.linkedin.datastream.server.dms.BootstrapActionResources
  * 
  */
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/halu/work/datastream/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.bootstrap.restspec.json.", date = "Wed Oct 21 21:53:44 PDT 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.bootstrap.restspec.json.", date = "Tue Nov 17 09:47:02 PST 2015")
 public class BootstrapBuilders {
 
     private final String _baseUriTemplate;
@@ -74,6 +76,14 @@ public class BootstrapBuilders {
         return new OptionsRequestBuilder(_baseUriTemplate, _requestOptions);
     }
 
+    /**
+     * Process the request of creating bootstrap datastream. The request provides the name of
+     *  base datastream, and the server will create and return a corresponding bootstrap
+     *  datastream.
+     * 
+     * @return
+     *     builder for the resource method
+     */
     public BootstrapDoCreateBuilder actionCreate() {
         return new BootstrapDoCreateBuilder(_baseUriTemplate, Datastream.class, _resourceSpec, _requestOptions);
     }
