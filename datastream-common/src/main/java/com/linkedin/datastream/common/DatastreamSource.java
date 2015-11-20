@@ -13,16 +13,16 @@ import com.linkedin.data.template.SetMode;
 
 
 /**
- * 
+ * Datastream source that connector will use to consume events
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Thu Nov 19 16:24:27 PST 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/pdu/datastream/Datastream-github-new/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 14:50:10 PST 2015")
 public class DatastreamSource
     extends RecordTemplate
 {
 
     private final static DatastreamSource.Fields _fields = new DatastreamSource.Fields();
-    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"DatastreamSource\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"}]}"));
+    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"DatastreamSource\",\"namespace\":\"com.linkedin.datastream.common\",\"doc\":\"Datastream source that connector will use to consume events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"}]}"));
     private final static RecordDataSchema.Field FIELD_ConnectionString = SCHEMA.getField("connectionString");
 
     public DatastreamSource() {
