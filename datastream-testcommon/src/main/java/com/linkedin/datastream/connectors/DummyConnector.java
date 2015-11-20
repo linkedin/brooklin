@@ -58,7 +58,7 @@ public class DummyConnector implements Connector {
     if (stream == null || stream.getSource() == null) {
       return new DatastreamValidationResult("Failed to get source from datastream.");
     }
-    if (!stream.getSource().equals(VALID_DUMMY_SOURCE)) {
+    if (!stream.getSource().getConnectionString().equals(VALID_DUMMY_SOURCE)) {
       return new DatastreamValidationResult("Invalid source (" + stream.getSource() + ") in datastream.");
     }
     return new DatastreamValidationResult();

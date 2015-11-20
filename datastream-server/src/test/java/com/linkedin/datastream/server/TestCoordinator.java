@@ -10,6 +10,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.IntStream;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -1103,7 +1104,8 @@ public class TestCoordinator {
       Datastream datastream = new Datastream();
       datastream.setName(datastreamName);
       datastream.setConnectorType(connectorType);
-      datastream.setSource("sampleSource");
+      datastream.setSource(new DatastreamSource());
+      datastream.getSource().setConnectionString("sampleSource");
 
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
       dsStore.createDatastream(datastream.getName(), datastream);

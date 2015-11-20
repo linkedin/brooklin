@@ -17,7 +17,7 @@ import com.linkedin.restli.common.ResourceSpecImpl;
  * generated from: com.linkedin.datastream.server.dms.DatastreamResources
  * 
  */
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.datastream.restspec.json.", date = "Tue Nov 17 09:47:02 PST 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/idl/com.linkedin.datastream.server.dms.datastream.restspec.json.", date = "Thu Nov 19 16:41:26 PST 2015")
 public class DatastreamBuilders {
 
     private final String _baseUriTemplate;
@@ -67,10 +67,6 @@ public class DatastreamBuilders {
         return new OptionsRequestBuilder(_baseUriTemplate, _requestOptions);
     }
 
-    public DatastreamGetBuilder get() {
-        return new DatastreamGetBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
-    }
-
     public DatastreamCreateBuilder create() {
         return new DatastreamCreateBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
     }
@@ -81,6 +77,10 @@ public class DatastreamBuilders {
 
     public DatastreamUpdateBuilder update() {
         return new DatastreamUpdateBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
+    }
+
+    public DatastreamGetBuilder get() {
+        return new DatastreamGetBuilder(_baseUriTemplate, _resourceSpec, _requestOptions);
     }
 
 }

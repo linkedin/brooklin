@@ -16,7 +16,7 @@ import com.linkedin.data.template.SetMode;
  * 
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Tue Nov 17 09:42:50 PST 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 09:35:26 PST 2015")
 public class KafkaConnection
     extends RecordTemplate
 {
@@ -156,7 +156,6 @@ public class KafkaConnection
      * 
      * @see Fields#partitions
      */
-      // WARNING : DatastreamTask json serialization and deserialization fails when you enable this.
 //    public KafkaConnection setPartitions(int value) {
 //        putDirect(FIELD_Partitions, Integer.class, Integer.class, value, SetMode.DISALLOW_NULL);
 //        return this;

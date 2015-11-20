@@ -7,7 +7,7 @@ import com.linkedin.restli.client.RestliRequestOptions;
 import com.linkedin.restli.client.base.GetRequestBuilderBase;
 import com.linkedin.restli.common.ResourceSpec;
 
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Tue Nov 17 09:47:02 PST 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Thu Nov 19 16:41:26 PST 2015")
 public class DatastreamGetBuilder
     extends GetRequestBuilderBase<String, Datastream, DatastreamGetBuilder>
 {
