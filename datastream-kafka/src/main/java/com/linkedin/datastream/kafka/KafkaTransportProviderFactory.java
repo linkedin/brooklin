@@ -9,7 +9,7 @@ import com.linkedin.datastream.server.TransportProviderFactory;
 /**
  * Factory that creates a KafkaTransportProvider
  */
-public class kafkaTransportProviderFactory implements TransportProviderFactory {
+public class KafkaTransportProviderFactory implements TransportProviderFactory {
   @Override
   public TransportProvider createTransportProvider(Properties transportProviderProperties) {
     return new KafkaTransportProvider(transportProviderProperties);

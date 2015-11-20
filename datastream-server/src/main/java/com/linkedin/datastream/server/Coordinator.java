@@ -293,9 +293,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
-    LOG.info("START: Handle event " + event.getName() + ", Instance: " + _adapter.getInstanceName());
+    LOG.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
 
-    switch (event.getName()) {
+    switch (event.getType()) {
       case LEADER_DO_ASSIGNMENT:
         assignDatastreamTasksToInstances();
         break;
@@ -320,8 +320,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // first 10 messages. Why we put this logic in event loop instead of synchronously handle it? This
   // is because the same reason that can result in error can also result in the failure of persisting
   // the error message.
-  private void handleInstanceError(CoordinatorEvent event) {
-    String msg = (String) event.getAttribute("error_message");
+  private void handleInstanceError(CoordinatorEvent<String> event) {
+    String msg = event.getEventData();
     _adapter.zkSaveInstanceError(msg);
   }
 

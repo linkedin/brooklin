@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
@@ -13,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -68,15 +68,11 @@ public enum DatastreamServer {
       if (StringUtils.isBlank(className)) {
         throw new DatastreamException("Factory className is empty for connector " + connectorStr);
       }
-      Class connectorFactoryClass = _classLoader.loadClass(className);
-      ConnectorFactory connectorFactoryInstance;
-      try {
-        Constructor<ConnectorFactory> constructor = connectorFactoryClass.getConstructor();
-        connectorFactoryInstance = constructor.newInstance();
-      } catch (NoSuchMethodException e) {
-        String msg = "No parameter-less constructor found for connector factory.";
+      ConnectorFactory connectorFactoryInstance = ReflectionUtils.createInstance(className);
+      if (connectorFactoryInstance == null) {
+        String msg = "Invalid class name or no parameter-less constructor, class=" + className;
         LOG.error(msg);
-        throw new DatastreamException(msg, e);
+        throw new DatastreamException(msg);
       }
 
       Connector connectorInstance = connectorFactoryInstance.createConnector(connectorProperties);
@@ -94,12 +90,16 @@ public enum DatastreamServer {
       }
 
       // Read the assignment strategy from the config; if not found, use default strategy
-      AssignmentStrategy assignmentStrategyInstance;
+      AssignmentStrategy assignmentStrategyInstance = null;
       String strategy = connectorProperties.getProperty(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, "");
       if (!strategy.isEmpty()) {
-        Class assignmentStrategyClass = _classLoader.loadClass(strategy);
-        assignmentStrategyInstance = (AssignmentStrategy) assignmentStrategyClass.newInstance();
-      } else {
+        assignmentStrategyInstance = ReflectionUtils.createInstance(strategy);
+        if (assignmentStrategyInstance == null) {
+          LOG.warn("Invalid strategy class: " + strategy);
+        }
+      }
+
+      if (assignmentStrategyInstance == null) {
         assignmentStrategyInstance = new SimpleStrategy();
       }
       _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
