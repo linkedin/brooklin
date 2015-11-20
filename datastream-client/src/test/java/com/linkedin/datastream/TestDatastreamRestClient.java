@@ -3,6 +3,7 @@ package com.linkedin.datastream;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
@@ -50,7 +51,8 @@ public class TestDatastreamRestClient {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
     ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
-    ds.setSource("DummySource");
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString("DummySource");
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);

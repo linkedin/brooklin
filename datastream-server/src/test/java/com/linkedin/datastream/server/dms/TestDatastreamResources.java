@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.KafkaConnection;
 
 import com.linkedin.datastream.server.TestDatastreamServer;
@@ -36,7 +37,8 @@ public class TestDatastreamResources {
       ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
     }
     if (!missingFields.contains("source")) {
-      ds.setSource(DummyConnector.VALID_DUMMY_SOURCE);
+      ds.setSource(new DatastreamSource());
+      ds.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     }
     if (!missingFields.contains("target")) {
       String metadataBrokers = "kafkaBrokers_" + seed;
@@ -132,7 +134,8 @@ public class TestDatastreamResources {
     Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
     Datastream datastream2 = generateDatastream(7);
-    datastream2.setSource("InvalidSource");
+    datastream2.setSource(new DatastreamSource());
+    datastream2.getSource().setConnectionString("InvalidSource");
     CreateResponse response2 = resource.create(datastream1);
     Assert.assertNotNull(response2.getError());
     Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);

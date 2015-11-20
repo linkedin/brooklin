@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -48,8 +49,10 @@ public class TestZookeeperBackedDatastreamStore {
     target.setKafkaConnection(new KafkaConnection().setMetadataBrokers(metadataBrokers).setTopicName(targetTopic));
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
+    DatastreamSource datastreamSource = new DatastreamSource();
+    datastreamSource.setConnectionString(source);
     Datastream ds =
-        new Datastream().setName(name).setConnectorType(connectorType).setSource(source).setTarget(target)
+        new Datastream().setName(name).setConnectorType(connectorType).setSource(datastreamSource).setTarget(target)
             .setMetadata(metadata);
     return ds;
   }

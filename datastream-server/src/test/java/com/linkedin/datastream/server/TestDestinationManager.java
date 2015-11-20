@@ -8,12 +8,13 @@ import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -21,14 +22,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-public class TestTopicManager {
+public class TestDestinationManager {
 
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
     ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
-    ds.setSource("DummySource_" + seed);
-    ds.setDestination("Destination_" + seed);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString("DummySource_" + seed);
+    ds.setDestination(new DatastreamDestination());
+    ds.getDestination().setConnectionString("Destination_" + seed);
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
@@ -44,8 +47,8 @@ public class TestTopicManager {
     Datastream newDatastream = generateDatastream(11);
     datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
-    newDatastream.setDestination("");
-    TopicManager targetManager = new TopicManager(null);
+    newDatastream.removeDestination();
+    DestinationManager targetManager = new DestinationManager(null);
     targetManager.populateDatastreamDestination(datastreams);
     Assert.assertEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
   }
@@ -57,15 +60,15 @@ public class TestTopicManager {
       datastreams.add(generateDatastream(index));
     }
 
-    datastreams.get(0).setDestination("");
-    datastreams.get(1).setDestination("");
-    datastreams.get(2).setDestination("");
+    datastreams.get(0).removeDestination();
+    datastreams.get(1).removeDestination();
+    datastreams.get(2).removeDestination();
     datastreams.get(2).setSource(datastreams.get(1).getSource());
 
     TransportProvider transportProvider = mock(TransportProvider.class);
     when(transportProvider.createTopic(anyString(), anyInt(), any())).thenReturn("destination");
 
-    TopicManager targetManager = new TopicManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(transportProvider);
     targetManager.populateDatastreamDestination(datastreams);
 
     verify(transportProvider, times(2)).createTopic(anyString(), anyInt(), any());
@@ -79,10 +82,10 @@ public class TestTopicManager {
     }
 
     TransportProvider transportProvider = mock(TransportProvider.class);
-    TopicManager targetManager = new TopicManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
-    verify(transportProvider, times(1)).dropTopic(eq(datastreams.get(1).getDestination()));
+    verify(transportProvider, times(1)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
   }
 
   @Test
@@ -94,10 +97,10 @@ public class TestTopicManager {
 
     datastreams.get(0).setDestination(datastreams.get(1).getDestination());
     TransportProvider transportProvider = mock(TransportProvider.class);
-    TopicManager targetManager = new TopicManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
-    verify(transportProvider, times(0)).dropTopic(eq(datastreams.get(1).getDestination()));
+    verify(transportProvider, times(0)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
   }
 
 

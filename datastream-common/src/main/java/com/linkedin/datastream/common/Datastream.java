@@ -20,13 +20,13 @@ import com.linkedin.data.template.UnionTemplate;
  * Extensible data model of Datastream
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Tue Nov 17 09:42:50 PST 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 09:35:26 PST 2015")
 public class Datastream
     extends RecordTemplate
 {
 
     private final static Datastream.Fields _fields = new Datastream.Fields();
-    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"Datastream\",\"namespace\":\"com.linkedin.datastream.common\",\"doc\":\"Extensible data model of Datastream\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"Name of the Datastream.\"},{\"name\":\"connectorType\",\"type\":\"string\",\"doc\":\"Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc..\"},{\"name\":\"source\",\"type\":\"string\",\"doc\":\"Source string that connector can use to connect to the data store and consume the change data.\"},{\"name\":\"destination\",\"type\":\"string\",\"doc\":\"Datastream destination string that the transport provider will use to send the events\",\"optional\":true},{\"name\":\"target\",\"type\":[{\"type\":\"record\",\"name\":\"KafkaConnection\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}],\"doc\":\"Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.\",\"optional\":true},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.\",\"optional\":true}]}"));
+    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"Datastream\",\"namespace\":\"com.linkedin.datastream.common\",\"doc\":\"Extensible data model of Datastream\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"Name of the Datastream.\"},{\"name\":\"connectorType\",\"type\":\"string\",\"doc\":\"Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc..\"},{\"name\":\"source\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamSource\",\"doc\":\"Datastream source that connector will use to consume events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"}]},\"doc\":\"Source that connector can use to connect to the data store and consume the data.\"},{\"name\":\"destination\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamDestination\",\"doc\":\"Datastream destination details that the transport provider will use to send events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"}]},\"doc\":\"Datastream destination string that the transport provider will use to send the events\",\"optional\":true},{\"name\":\"target\",\"type\":[{\"type\":\"record\",\"name\":\"KafkaConnection\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}],\"doc\":\"Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.\",\"optional\":true},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.\",\"optional\":true}]}"));
     private final static RecordDataSchema.Field FIELD_Name = SCHEMA.getField("name");
     private final static RecordDataSchema.Field FIELD_ConnectorType = SCHEMA.getField("connectorType");
     private final static RecordDataSchema.Field FIELD_Source = SCHEMA.getField("source");
@@ -181,8 +181,8 @@ public class Datastream
      * 
      * @see Fields#source
      */
-    public String getSource(GetMode mode) {
-        return obtainDirect(FIELD_Source, String.class, mode);
+    public DatastreamSource getSource(GetMode mode) {
+        return obtainWrapped(FIELD_Source, DatastreamSource.class, mode);
     }
 
     /**
@@ -190,7 +190,7 @@ public class Datastream
      * 
      * @see Fields#source
      */
-    public String getSource() {
+    public DatastreamSource getSource() {
         return getSource(GetMode.STRICT);
     }
 
@@ -199,8 +199,8 @@ public class Datastream
      * 
      * @see Fields#source
      */
-    public Datastream setSource(String value, SetMode mode) {
-        putDirect(FIELD_Source, String.class, String.class, value, mode);
+    public Datastream setSource(DatastreamSource value, SetMode mode) {
+        putWrapped(FIELD_Source, DatastreamSource.class, value, mode);
         return this;
     }
 
@@ -209,8 +209,8 @@ public class Datastream
      * 
      * @see Fields#source
      */
-    public Datastream setSource(String value) {
-        putDirect(FIELD_Source, String.class, String.class, value, SetMode.DISALLOW_NULL);
+    public Datastream setSource(DatastreamSource value) {
+        putWrapped(FIELD_Source, DatastreamSource.class, value, SetMode.DISALLOW_NULL);
         return this;
     }
 
@@ -237,8 +237,8 @@ public class Datastream
      * 
      * @see Fields#destination
      */
-    public String getDestination(GetMode mode) {
-        return obtainDirect(FIELD_Destination, String.class, mode);
+    public DatastreamDestination getDestination(GetMode mode) {
+        return obtainWrapped(FIELD_Destination, DatastreamDestination.class, mode);
     }
 
     /**
@@ -246,7 +246,7 @@ public class Datastream
      * 
      * @see Fields#destination
      */
-    public String getDestination() {
+    public DatastreamDestination getDestination() {
         return getDestination(GetMode.STRICT);
     }
 
@@ -255,8 +255,8 @@ public class Datastream
      * 
      * @see Fields#destination
      */
-    public Datastream setDestination(String value, SetMode mode) {
-        putDirect(FIELD_Destination, String.class, String.class, value, mode);
+    public Datastream setDestination(DatastreamDestination value, SetMode mode) {
+        putWrapped(FIELD_Destination, DatastreamDestination.class, value, mode);
         return this;
     }
 
@@ -265,8 +265,8 @@ public class Datastream
      * 
      * @see Fields#destination
      */
-    public Datastream setDestination(String value) {
-        putDirect(FIELD_Destination, String.class, String.class, value, SetMode.DISALLOW_NULL);
+    public Datastream setDestination(DatastreamDestination value) {
+        putWrapped(FIELD_Destination, DatastreamDestination.class, value, SetMode.DISALLOW_NULL);
         return this;
     }
 
@@ -426,19 +426,19 @@ public class Datastream
         }
 
         /**
-         * Source string that connector can use to connect to the data store and consume the change data.
+         * Source that connector can use to connect to the data store and consume the data.
          * 
          */
-        public PathSpec source() {
-            return new PathSpec(getPathComponents(), "source");
+        public com.linkedin.datastream.common.DatastreamSource.Fields source() {
+            return new com.linkedin.datastream.common.DatastreamSource.Fields(getPathComponents(), "source");
         }
 
         /**
          * Datastream destination string that the transport provider will use to send the events
          * 
          */
-        public PathSpec destination() {
-            return new PathSpec(getPathComponents(), "destination");
+        public com.linkedin.datastream.common.DatastreamDestination.Fields destination() {
+            return new com.linkedin.datastream.common.DatastreamDestination.Fields(getPathComponents(), "destination");
         }
 
         /**
@@ -459,7 +459,7 @@ public class Datastream
 
     }
 
-    @Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Tue Nov 17 09:42:50 PST 2015")
+    @Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 09:35:26 PST 2015")
     public final static class Target
         extends UnionTemplate
     {
