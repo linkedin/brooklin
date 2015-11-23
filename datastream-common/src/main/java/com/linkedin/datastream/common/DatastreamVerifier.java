@@ -19,13 +19,11 @@ public final class DatastreamVerifier {
 
   public static void checkExisting(Datastream datastream) {
     checkNew(datastream);
-    Objects.requireNonNull(datastream.getTarget(), "invalid datastream target");
-    Objects.requireNonNull(datastream.getTarget().getKafkaConnection(), "invalid kafka connection");
-    KafkaConnection conn = datastream.getTarget().getKafkaConnection();
-    Objects.requireNonNull(conn.getMetadataBrokers(), "invalid Kafka metadata brokers");
-    Objects.requireNonNull(conn.getTopicName(), "invalid Kafka topic name");
-    if (conn.getPartitions() <= 0) {
-      throw new IllegalArgumentException("invalid Kafka topic partition count.");
+    Objects.requireNonNull(datastream.getDestination(), "invalid datastream destination");
+    Objects.requireNonNull(datastream.getDestination().getConnectionString(), "invalid destination connection");
+    Objects.requireNonNull(datastream.getDestination().getPartitions(), "invalid destination partitions");
+    if (datastream.getDestination().getPartitions() <= 0) {
+      throw new IllegalArgumentException("invalid destination partition count.");
     }
   }
 }
