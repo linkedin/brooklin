@@ -49,4 +49,19 @@ public class TestReflectionUtils {
     }
     Assert.assertTrue(exception);
   }
+
+  static class TestData {
+    private String _privateField;
+    public String _publicField;
+  }
+
+  @Test
+  public void testSetField() throws Exception {
+    TestData data = new TestData();
+    Assert.assertEquals(ReflectionUtils.setField(data, "_privateField", "world"), "world");
+    Assert.assertEquals("world", ReflectionUtils.getField(data, "_privateField"));
+
+    Assert.assertEquals(ReflectionUtils.setField(data, "_publicField", "hello"), "hello");
+    Assert.assertEquals("hello", ReflectionUtils.getField(data, "_publicField"));
+  }
 }
