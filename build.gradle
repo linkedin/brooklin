@@ -123,6 +123,7 @@ project(':datastream-kafka') {
 project(':datastream-testcommon') {
   dependencies {
     compile project(':datastream-connector')
+    compile project(':datastream-common')
     // compile "org.testing:testing:$testingVersion"
     // compile "org.testing:testing:6.4"
     compile "org.apache.avro:avro:$avroVersion"

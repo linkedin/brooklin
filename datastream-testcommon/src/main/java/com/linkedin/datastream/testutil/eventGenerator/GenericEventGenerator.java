@@ -1,18 +1,24 @@
 package com.linkedin.datastream.testutil.eventGenerator;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 
 // import org.apache.log4j.Logger;
 import java.lang.String;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.apache.avro.Schema;
 // import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.Encoder;
 
 
 /*
@@ -23,7 +29,7 @@ public class GenericEventGenerator {
   // public final static String MODULE = GenericEventGenerator.class.getName();
   // public final static Logger LOG = Logger.getLogger(MODULE);
 
-  private enum EventType {
+  protected enum EventType {
     INSERT,
     UPDATE,
     DELETE_ON_INSERT,
@@ -33,9 +39,9 @@ public class GenericEventGenerator {
 
   private Schema _schema;
   // db name and partition name
-  protected String _dbName; // for the time, take them as input (could take their schemas at some point)
-  protected String _partName;
-  protected long _startScn = 0;
+  protected String _dbName = "test_db"; // for the time, take them as input (could take their schemas at some point)
+  protected String _tableName = "test_table";
+  protected long _startScn = 1;
   private int _numPartitions = 1; // defaults for now
   private int _maxTransactionSize = 1;
   private int _percentageUpdates = 0; // percentage of inserts that will be updates - should be 0 - 50
@@ -72,8 +78,8 @@ public class GenericEventGenerator {
     _dbName = dbName;
   }
 
-  public void setPartName(String partName) {
-    _partName = partName;
+  public void setTableName(String tableName) {
+    _tableName = tableName;
   }
 
   public void setStartScn(long startScn) {
@@ -121,8 +127,20 @@ public class GenericEventGenerator {
     return record;
   }
 
+  protected ByteBuffer getNextEvent() throws UnknownTypeException, IOException {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    Encoder e = new BinaryEncoder(out);
+    GenericDatumWriter<GenericRecord> w = new GenericDatumWriter<GenericRecord>(_schema);
+    GenericRecord nextRecord = getNextGenericRecord();
+    w.write(nextRecord, e);
+    e.flush();
+    ByteBuffer serialized = ByteBuffer.allocate(out.toByteArray().length);
+    serialized.put(out.toByteArray());
+    return serialized;
+  }
+
   // expected to be overriden in derived classed
-  protected GenericRecord getNextEvent(EventType eventType, int partNum) throws UnknownTypeException {
+  protected Object getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException {
     // at this level, we don't have any wrapper on top of data event. So, just create a random event based on the given schema and return it
     return getNextGenericRecord();
   }
@@ -133,13 +151,15 @@ public class GenericEventGenerator {
    *
    * @return returns the list of generated records
    */
-  public List<GenericRecord> generateGenericEventList(int numEvents) throws UnknownTypeException {
+  public List<Object> generateGenericEventList(int numEvents) throws UnknownTypeException, IOException {
 
     if (_schema.getType() != Schema.Type.RECORD) {
       // LOG.error("The schema first level must be record.");
       return null;
     }
 
+    // todo - compute min and max inserts needed and pick a random num between them and then compute updates-on-updates,
+    //        updates-on-inserts, so on. In that sense, updates can go up to 99%, but deletes can't go beyond 50%
     int numControls = numEvents * _percentageControls / 100;
     int numDataEvents = numEvents - numControls;
     int numUpdates = numDataEvents * _percentageUpdates / 100;
@@ -154,11 +174,11 @@ public class GenericEventGenerator {
     long lastInsertScn = -1;
     long lastUpdateScn = -1;
     int curPartition = 0;
-    // rowImage for insert
-    // rowImage for update
 
-    List<GenericRecord> eventList = new ArrayList<>();
+    List<Object> eventList = new ArrayList<>();
     // todo - randomizing it truly and guaranteeing that every event happens
+    //        mean while we are using a simple logic to determine whether it is an insert, update or delete
+    //        update and deletes need preimage - so we choose them only when that condition met, otherwise, it is insert
     for (int i = 0; i < numEvents; ++i) {
       EventType eventType = EventType.INSERT;
       if (((i + 1) % controlIndex) == 0) { // transition event
@@ -167,27 +187,33 @@ public class GenericEventGenerator {
       } else if ((lastUpdateScn >= 0) && (numDeletesOnUpdates > 0)) {
         eventType = EventType.DELETE_ON_UPDATE; // make it a delete on update
         --numDeletesOnUpdates;
+        lastUpdateScn = -1;
       } else if ((lastInsertScn >= 0) && ((numDeletesOnInserts > 0) || (numUpdates > 0))) {
         // todo - make it probabilistically either a delete on insert or an update
         if ((((i % 2) == 1) || (numDeletesOnInserts == 0)) && (numUpdates > 0)) {
           eventType = EventType.UPDATE; // make it an update
+          lastUpdateScn = _startScn;
           --numUpdates;
         } else {
           // assert (numDeletesOnInserts > 0)
           eventType = EventType.DELETE_ON_INSERT; // make it a delete on insert
           --numDeletesOnInserts;
         }
+        lastInsertScn = -1;
       } else if (numInserts > 0) {
         eventType = EventType.INSERT;
+        lastInsertScn = _startScn;
         --numInserts;
       } else {
         eventType = EventType.CONTROL; // make it a transition - this is from the remainder part
         --numControls;
       }
-      GenericRecord genericEvent = getNextEvent(eventType, curPartition++);
+      Object genericEvent = getNextEvent(eventType, curPartition++);
       eventList.add(genericEvent);
-      if (curPartition >= _numPartitions)
+      if (curPartition >= _numPartitions) {
         curPartition = 0;
+      }
+      ++_startScn;
     }
     return eventList;
   }
