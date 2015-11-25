@@ -162,6 +162,7 @@ project(':datastream-server') {
     compile project(':datastream-connector')
     compile project(':datastream-transport')
     compile project(':datastream-common')
+    compile project(':datastream-kafka')
 
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:1.+"
