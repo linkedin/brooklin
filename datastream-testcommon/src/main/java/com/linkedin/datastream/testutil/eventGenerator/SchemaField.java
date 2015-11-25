@@ -26,11 +26,9 @@ public abstract class SchemaField {
    */
   public SchemaField(Field field) {
     _field = field;
-    if (_seed < 0) { // true first time only if no external seed is given
+    if (_randGenerator == null) { // true first time only if no external seed is given
       _seed = System.currentTimeMillis();
-    }
-    if (_randGenerator == null) {
-      _randGenerator = new RandomValueGenerator(_seed);
+      createRandomValueGenerator();
     }
   }
 
@@ -45,6 +43,10 @@ public abstract class SchemaField {
   }
    */
 
+  private static void createRandomValueGenerator() {
+    _randGenerator = new RandomValueGenerator(_seed);
+  }
+
   public static void setDataRange(int minValue, int maxValue) {
     _minValue = minValue;
     _maxValue = maxValue;
@@ -56,6 +58,7 @@ public abstract class SchemaField {
 
   public static void setSeed(long seed) {
     _seed = seed;
+    createRandomValueGenerator();
   }
 
   public static long getSeed() {
