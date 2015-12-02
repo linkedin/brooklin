@@ -33,6 +33,7 @@ public enum DatastreamServer {
   public static final String CONFIG_EVENT_COLLECTOR_CLASS_NAME = DatastreamEventCollectorFactory.CONFIG_COLLECTOR_NAME;
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
+  public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = CoordinatorConfig.CONFIG_TRANSPORT_PROVIDER_FACTORY;
   public static final String CONFIG_CONNECTOR_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
@@ -119,7 +120,7 @@ public enum DatastreamServer {
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
-    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(verifiableProperties);
+    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
     _coordinator = new Coordinator(coordinatorConfig);
 
     LOG.info("Loading connectors.");

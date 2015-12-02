@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -13,10 +14,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.KafkaConnection;
-import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
@@ -103,13 +105,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final DatastreamEventCollectorFactory _eventCollectorFactory;
 
+  private final TransportProvider _transportProvider;
+
+  private final DestinationManager _destinationManager;
+
   // all datastreams by connector type. This is also valid for the coordinator leader
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
-  public Coordinator(VerifiableProperties properties)
+  public Coordinator(Properties config)
       throws DatastreamException {
-    this(new CoordinatorConfig((properties)));
+    this(new CoordinatorConfig((config)));
   }
 
   public Coordinator(CoordinatorConfig config)
@@ -123,6 +129,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
     _eventCollectorFactory = new DatastreamEventCollectorFactory(config.getConfigProperties());
+
+    String transportFactory = config.getTransportProviderFactory();
+    TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
+    if (factory == null) {
+      throw new DatastreamException("invalid transport provider factory: " + transportFactory);
+    }
+    _transportProvider = factory.createTransportProvider(_config.getConfigProperties());
+    if (_transportProvider == null) {
+      throw new DatastreamException("failed to create transport provider, factory: " + transportFactory);
+    }
+
+    _destinationManager = new DestinationManager(_transportProvider);
   }
 
   public void start() {
@@ -295,22 +313,26 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   protected synchronized void handleEvent(CoordinatorEvent event) {
     LOG.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
 
-    switch (event.getType()) {
-      case LEADER_DO_ASSIGNMENT:
-        assignDatastreamTasksToInstances();
-        break;
+    try {
+      switch (event.getType()) {
+        case LEADER_DO_ASSIGNMENT:
+          assignDatastreamTasksToInstances();
+          break;
 
-      case HANDLE_ASSIGNMENT_CHANGE:
-        handleAssignmentChange();
-        break;
+        case HANDLE_ASSIGNMENT_CHANGE:
+          handleAssignmentChange();
+          break;
 
-      case HANDLE_NEW_DATASTREAM:
-        handleNewDatastream();
-        break;
+        case HANDLE_NEW_DATASTREAM:
+          handleNewDatastream();
+          break;
 
-      case HANDLE_INSTANCE_ERROR:
-        handleInstanceError(event);
+        case HANDLE_INSTANCE_ERROR:
+          handleInstanceError(event);
 
+      }
+    } catch (Throwable e) {
+      LOG.error("ERROR: event + " + event + " failed.", e);
     }
 
     LOG.info("END: Handle event " + event);
@@ -330,43 +352,42 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // detect the target of a datastream when it is first added. We do not handle the case at this point
   // when the datastream definition can be updated in DSM.
   private void handleNewDatastream() {
-    // get a list of datastreams that has null target, set the target from connector
-    // and then filter out only the ones that are successfully added with target.
-    List<Datastream> newDatastreams =
-        _adapter.getAllDatastreams().stream().filter(ds -> ds.getTarget() == null).map(ds -> setDatastreamTarget(ds))
-            .filter(ds -> ds.getTarget() != null).collect(Collectors.toList());
+    // Allow further retry scheduling
+    leaderDoAssignmentScheduled.set(false);
 
-    // do nothing if none of the datastream has target set
+    // Get the list of all datastreams
+    List<Datastream> newDatastreams = _adapter.getAllDatastreams();
+
+    // do nothing if there is zero datastreams
     if (newDatastreams.size() == 0) {
       return;
     }
 
-    // for each new Datastream, obtain the target from connector and update the znodes
-    // if successful, make sure they are assigned.
-    boolean succeeded = newDatastreams.stream().allMatch(ds -> {
-      boolean updated = _adapter.updateDatastream(ds);
-      if (!updated) {
-        LOG.error(String.format("Failed to update datastream target for datastream %s, "
-            + "This datastream will not be scheduled for producing events ", ds.getName()));
+    try {
+      // populateDatastreamDestination first dedups the datastreams with
+      // the same source and only create destination for the unique ones.
+      _destinationManager.populateDatastreamDestination(newDatastreams);
+
+      // Update the znodes after destinations have been populated
+      for (Datastream stream: newDatastreams) {
+        if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
+          LOG.error(String.format("Failed to update datastream destination for datastream %s, "
+                  + "This datastream will not be scheduled for producing events ", stream.getName()));
+        }
       }
-      return updated;
-    });
 
-    if (succeeded) {
       _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-      return;
-    }
+    } catch (Exception e) {
+      LOG.error("Failed to update the destination of new datastreams.", e);
 
-    // TODO: create topics for new datastreams if necessary
-    // this.createTopicsIfNeeded(newDatastreams);
+      // If there are any failure, we will need to schedule retry if
+      // there is no pending retry scheduled already.
+      if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
+        LOG.warn("Schedule retry for handling new datastream");
+        _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent()),
+                _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+      }
 
-    // if there are any failure, we will need to schedule retry
-    if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
-      LOG.warn("Schedule retry for handling new datastream");
-      _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
-        leaderDoAssignmentScheduled.set(false);
-      }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
     }
   }
 
@@ -401,25 +422,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // because connectors do not have access to the producers and event collectors and
     // will assume any assigned tasks are ready to collect events.
     List<Datastream> allStreams =
-        _adapter.getAllDatastreams().stream().filter(datastream -> datastream.getTarget() != null)
+        _adapter.getAllDatastreams().stream().filter(datastream -> datastream.getDestination() != null)
             .collect(Collectors.toList());
 
-    Map<String, List<Datastream>> streamsByConnectoryType = new HashMap<>();
+    // The inner map is used to dedup Datastreams with the same destination
+    Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
 
     for (Datastream ds : allStreams) {
-      if (!streamsByConnectoryType.containsKey(ds.getConnectorType())) {
-        streamsByConnectoryType.put(ds.getConnectorType(), new ArrayList<>());
+      Map<DatastreamDestination, Datastream> streams =
+              streamsByConnectorType.getOrDefault(ds.getConnectorType(), null);
+      if (streams == null) {
+        streams = new HashMap<>();
+        streamsByConnectorType.put(ds.getConnectorType(), streams);
       }
 
-      streamsByConnectoryType.get(ds.getConnectorType()).add(ds);
+      // Only keep the datastreams with unique destinations
+      if (!streams.containsKey(ds.getDestination())) {
+        streams.put(ds.getDestination(), ds);
+      }
     }
 
     // for each connector type, call the corresponding assignment strategy
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
-    streamsByConnectoryType.forEach((connectorType, streams) -> {
+    streamsByConnectorType.forEach((connectorType, streams) -> {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
+      List<Datastream> streamList = new ArrayList<>(streams.values());
       Map<String, List<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(streamsByConnectoryType.get(connectorType), liveInstances, null);
+          strategy.assign(streamList, liveInstances, null);
 
       tasksByConnectorAndInstance.forEach((instance, assigned) -> {
         if (!assigmentsByInstance.containsKey(instance)) {

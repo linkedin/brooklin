@@ -8,6 +8,7 @@ import org.apache.commons.lang.StringUtils;
 
 import java.lang.reflect.Constructor;
 import java.util.Objects;
+import java.util.Properties;
 
 
 /**
@@ -21,10 +22,10 @@ public class DatastreamEventCollectorFactory {
   private final VerifiableProperties _config;
   private final Class _collectorClass;
 
-  public DatastreamEventCollectorFactory(VerifiableProperties config)
+  public DatastreamEventCollectorFactory(Properties config)
       throws DatastreamException {
     Objects.requireNonNull(config, "invalid config.");
-    _config = config;
+    _config = new VerifiableProperties(config);
     String className = _config.getProperty(CONFIG_COLLECTOR_NAME);
     if (StringUtils.isEmpty(className)) {
       throw new IllegalArgumentException("invalid event collector class in config.");

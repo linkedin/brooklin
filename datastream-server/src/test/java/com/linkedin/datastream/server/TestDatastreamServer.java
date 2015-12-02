@@ -20,6 +20,7 @@ public class TestDatastreamServer {
   private static final String BROADCAST_STRATEGY =  BroadcastStrategy.class.getTypeName();
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
+  private static final String DUMMY_TRANSPORT_FACTORY = DummyTransportProviderFactory.class.getTypeName();
 
   public static Properties initializeTestDatastreamServerWithBootstrap() throws Exception {
     Properties override = new Properties();
@@ -43,6 +44,7 @@ public class TestDatastreamServer {
     properties.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR);
+    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, DUMMY_TRANSPORT_FACTORY);
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY,
                    BROADCAST_STRATEGY);
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,

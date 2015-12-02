@@ -3,14 +3,18 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.zk.ZkClient;
 
+import java.util.Properties;
 
-public class CoordinatorConfig {
+
+public final class CoordinatorConfig {
   private final String _cluster;
   private final String _zkAddress;
   private final int _zkSessionTimeout;
   private final int _zkConnectionTimeout;
-  private final VerifiableProperties _config;
+  private final Properties _config;
+  private final VerifiableProperties _properties;
   private final int _retryIntervalMS;
+  private final String _transportProviderFactory;
 
   private static final String PREFIX = "datastream.server.coordinator.";
   public static final String CONFIG_CLUSTER = PREFIX + "cluster";
@@ -18,38 +22,44 @@ public class CoordinatorConfig {
   public static final String CONFIG_ZK_SESSION_TIMEOUT = PREFIX + "zkSessionTimeout";
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMS";
+  public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = PREFIX + "transportProviderFactory";
 
-  public CoordinatorConfig(VerifiableProperties properties) {
-    _config = properties;
-    _cluster = properties.getString(CONFIG_CLUSTER);
-    _zkAddress = properties.getString(CONFIG_ZK_ADDRESS);
-    _zkSessionTimeout = properties.getInt(CONFIG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
-    _zkConnectionTimeout = properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
-    _retryIntervalMS = properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
-
+  public CoordinatorConfig(Properties config) {
+    _config = config;
+    _properties = new VerifiableProperties(config);
+    _cluster = _properties.getString(CONFIG_CLUSTER);
+    _zkAddress = _properties.getString(CONFIG_ZK_ADDRESS);
+    _zkSessionTimeout = _properties.getInt(CONFIG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
+    _zkConnectionTimeout = _properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+    _retryIntervalMS = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
+    _transportProviderFactory = _properties.getString(CONFIG_TRANSPORT_PROVIDER_FACTORY);
   }
 
-  public VerifiableProperties getConfigProperties() {
+  public Properties getConfigProperties() {
     return _config;
   }
 
-  public final String getCluster() {
+  public String getCluster() {
     return _cluster;
   }
 
-  public final String getZkAddress() {
+  public String getZkAddress() {
     return _zkAddress;
   }
 
-  public final int getZkSessionTimeout() {
+  public int getZkSessionTimeout() {
     return _zkSessionTimeout;
   }
 
-  public final int getZkConnectionTimeout() {
+  public int getZkConnectionTimeout() {
     return _zkConnectionTimeout;
   }
 
-  public final int getRetryIntervalMS() {
+  public int getRetryIntervalMS() {
     return _retryIntervalMS;
+  }
+
+  public String getTransportProviderFactory() {
+    return _transportProviderFactory;
   }
 }

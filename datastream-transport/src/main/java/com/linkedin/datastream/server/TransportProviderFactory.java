@@ -2,7 +2,6 @@ package com.linkedin.datastream.server;
 
 import java.util.Properties;
 
-
 /**
  * Factory to create the Transport provider
  */

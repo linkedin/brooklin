@@ -3,24 +3,32 @@ package com.linkedin.datastream.server;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.IntStream;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.CreateResponse;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -31,7 +39,8 @@ import org.slf4j.LoggerFactory;
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
-  private static final String COLLECTOR_CLASS = "com.linkedin.datastream.server.DummyDatastreamEventCollector";
+  private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
+  private static final String TRANSPORT_FCTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
   private static final int waitDurationForZk = 1000;
   private static final int waitTimeoutMS = 30000;
 
@@ -45,8 +54,9 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
+    props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FCTORY_CLASS);
 
-    return new Coordinator(new VerifiableProperties(props));
+    return new Coordinator(props);
   }
 
   @BeforeMethod
@@ -68,7 +78,6 @@ public class TestCoordinator {
     DatastreamEventCollectorFactory _factory;
     String _instance = "";
     String _name;
-    boolean _withTarget = true;
 
     public TestHookConnector(String name, String connectorType) {
       _name = name;
@@ -86,10 +95,6 @@ public class TestCoordinator {
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
-    }
-
-    public void useTarget(boolean withTarget) {
-      _withTarget = withTarget;
     }
 
     @Override
@@ -124,11 +129,6 @@ public class TestCoordinator {
     }
 
     @Override
-    public DatastreamTarget getDatastreamTarget(Datastream stream) {
-      return _withTarget ? new DatastreamTarget("dummyTopic", 1, "localhost:11111") : null;
-    }
-
-    @Override
     public DatastreamValidationResult validateDatastream(Datastream stream) {
       return new DatastreamValidationResult();
     }
@@ -136,6 +136,11 @@ public class TestCoordinator {
     @Override
     public String getConnectorType() {
       return _connectorType;
+    }
+
+    @Override
+    public DatastreamTarget getDatastreamTarget(Datastream datastream) {
+      return null;
     }
 
     @Override
@@ -334,10 +339,39 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  /**
+   * This fake destination manager is used to selectively populate
+   * destination for a datastream based on the preset values.
+   */
+  class TestDestinationManager extends DestinationManager {
+    private final Map<Datastream, Boolean> _destinationMap = new HashMap<>();
+
+    public TestDestinationManager() {
+      super(null);
+    }
+
+    public void addDatastream(Datastream datastream, boolean hasDestination) {
+      _destinationMap.put(datastream, hasDestination);
+    }
+
+    @Override
+    public void populateDatastreamDestination(List<Datastream> datastreams) {
+      for (Datastream stream: datastreams) {
+        boolean hasDestination = true;
+        if (_destinationMap.containsKey(stream)) {
+          hasDestination = _destinationMap.get(stream);
+        }
+        if (hasDestination) {
+          stream.setDestination(new DatastreamDestination());
+        }
+      }
+    }
+  }
+
   // This test verify the code path that a datastream is only assignable after it has a valid
-  // target setup. That is, if a datastream is defined for a connector that returns null for
-  // getDatastreamTarget, we will not actually pass this datastream to the connector using
-  // onAssignmentChange, so that the connector would not start producing events for this
+  // destination setup. That is, if a datastream is defined for a connector but DestinationManager
+  // failed to populate its destination, we will not actually pass this datastream to the connector
+  // using onAssignmentChange, so that the connector would not start producing events for this
   // datastream when there is no target to accept it.
   @Test
   public void testUnassignableStreams() throws Exception {
@@ -346,18 +380,18 @@ public class TestCoordinator {
     String connectorType1 = "unassignable";
     String connectorType2 = "assignable";
 
-    //
-    // create connector that returns null target
-    //
-    TestHookConnector connector1 = new TestHookConnector(connectorType1);
-    connector1.useTarget(false);
+    TestDestinationManager destinationManager = new TestDestinationManager();
 
     //
-    // create a real assignable connector
+    // create two connectors
     //
+    TestHookConnector connector1 = new TestHookConnector(connectorType1);
     TestHookConnector connector2 = new TestHookConnector(connectorType2);
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+    // Hijack the destinationManager to selectively populate destinations
+    ReflectionUtils.setField(instance1, "_destinationManager", destinationManager);
 
     instance1.addConnector(connector1, new BroadcastStrategy());
     instance1.addConnector(connector2, new BroadcastStrategy());
@@ -369,8 +403,15 @@ public class TestCoordinator {
     // create 2 new datastreams, 1 for each type
     //
     LOG.info("create 2 new datastreams, 1 for each type");
-    createDatastreamForDSM(zkClient, testCluster, connectorType1, "datastream1");
-    createDatastreamForDSM(zkClient, testCluster, connectorType2, "datastream2");
+    Datastream[] streams1 = createDatastreams(connectorType1, "datastream1");
+    Datastream[] streams2 = createDatastreams(connectorType2, "datastream2");
+
+    LOG.info("enable destination for datastream #2, disable it for datastream #1");
+    destinationManager.addDatastream(streams1[0], false);
+    destinationManager.addDatastream(streams2[0], true);
+
+    storeDatastreams(zkClient, testCluster, streams1);
+    storeDatastreams(zkClient, testCluster, streams2);
     Thread.sleep(waitDurationForZk);
 
     //
@@ -383,8 +424,8 @@ public class TestCoordinator {
     //
     // now enable the connector1 with target
     //
-    LOG.info("enable target for connector1");
-    connector1.useTarget(true);
+    LOG.info("enable destination for datastream #1");
+    destinationManager.addDatastream(streams1[0], true);
     //
     // trigger the datastream change event
     //
@@ -1050,24 +1091,53 @@ public class TestCoordinator {
 
   }
 
-  // helper method: assert that within a timeout value, the connector are assigned the specific
+  /**
+   * Test create datastream sceanrio with the actual DSM.
+   *
+   * The expected outcome include:
+   *
+   * 1) a new datastream is created by DSM and can be queried by name afterwards
+   * 2) the datastream has valid destination (populated by DestinationManager)
+   * 3) connector is assigned the task for the datastream
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testCreateDatastreamHappyPath() throws Exception {
+    Properties properties = TestDatastreamServer.initializeTestDatastreamServer(null);
+    DatastreamResources resource = new DatastreamResources();
+
+    Coordinator coordinator = createCoordinator(
+            properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
+            properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+
+    TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
+
+    coordinator.addConnector(connector, new BroadcastStrategy());
+    coordinator.start();
+
+    String datastreamName = "TestDatastream";
+    Datastream stream = createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    CreateResponse response = resource.create(stream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Make sure connector has received the assignment (timeout in 30 seconds)
+    assertConnectorAssignment(connector, 30000, datastreamName);
+
+    Datastream queryStream = resource.get(stream.getName());
+    Assert.assertNotNull(queryStream.getDestination());
+  }
+
+    // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
-  private void assertConnectorAssignment(TestHookConnector connector, int timeout, String... datastreamNames)
+  private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)
       throws InterruptedException {
 
-    int totalWait = 0;
-    final int interval = 500;
+    final int interval = timeoutMs < 500 ? timeoutMs : 500;
 
-    List<DatastreamTask> assignment = connector.getTasks();
-
-    boolean result = validateAssignment(assignment, datastreamNames);
-
-    while (result == false && totalWait < timeout) {
-      Thread.sleep(interval);
-      totalWait += interval;
-      assignment = connector.getTasks();
-      result = validateAssignment(assignment, datastreamNames);
-    }
+    boolean result = PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
 
     LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", Type: " + connector.getConnectorType()
         + ", ASSERT: " + result);
@@ -1096,20 +1166,36 @@ public class TestCoordinator {
     return result;
   }
 
-  private void createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType,
-      String... datastreamNames) {
+  private Datastream[] createDatastreams(String connectorType, String... datastreamNames) {
+    List<Datastream> datastreams = new ArrayList<>();
+    Integer counter = 0;
+    String ts = String.valueOf(System.currentTimeMillis());
     for (String datastreamName : datastreamNames) {
-      zkClient.ensurePath(KeyBuilder.datastreams(cluster));
-
       Datastream datastream = new Datastream();
       datastream.setName(datastreamName);
       datastream.setConnectorType(connectorType);
       datastream.setSource(new DatastreamSource());
-      datastream.getSource().setConnectionString("sampleSource");
+      datastream.getSource().setConnectionString("sampleSource-" + ts + counter);
+      datastream.setMetadata(new StringMap());
+      datastreams.add(datastream);
+      ++counter;
+    }
+    return datastreams.toArray(new Datastream[datastreams.size()]);
+  }
 
+  private void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams) {
+    for (Datastream datastream : datastreams) {
+      zkClient.ensurePath(KeyBuilder.datastreams(cluster));
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
       dsStore.createDatastream(datastream.getName(), datastream);
     }
+  }
+
+  private Datastream[] createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType,
+      String... datastreamNames) {
+    Datastream[] datasteams = createDatastreams(connectorType, datastreamNames);
+    storeDatastreams(zkClient, cluster, datasteams);
+    return datasteams;
   }
 
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {
