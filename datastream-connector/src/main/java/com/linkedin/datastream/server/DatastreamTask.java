@@ -6,9 +6,9 @@ import com.linkedin.datastream.common.Datastream;
 public interface DatastreamTask {
 
   /**
-   * @return the datastream for the datastream task.
+   * @return the connector type that generates events for this datastream task.
    */
-  public Datastream getDatastream();
+  public String getConnectorType();
 
   /**
    * @return the event producer that the connector can use to produce events for this datastream task.

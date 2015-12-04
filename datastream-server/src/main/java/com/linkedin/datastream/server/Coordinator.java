@@ -251,7 +251,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     assignment.forEach(ds -> {
       DatastreamTask task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), ds);
 
-      String connectorType = task.getDatastream().getConnectorType();
+      String connectorType = task.getConnectorType();
       if (!currentAssignment.containsKey(connectorType)) {
         currentAssignment.put(connectorType, new ArrayList<>());
       }

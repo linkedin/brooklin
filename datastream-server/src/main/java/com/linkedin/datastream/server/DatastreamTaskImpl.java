@@ -14,6 +14,7 @@ import java.io.StringWriter;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.UUID;
 
 
 /**
@@ -70,6 +71,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _datastreamName = datastream.getName();
     _connectorType = datastream.getConnectorType();
     _datastream = datastream;
+    _id = UUID.randomUUID().toString();
   }
 
   // construct DatastreamTask from json string

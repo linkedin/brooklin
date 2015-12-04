@@ -588,8 +588,7 @@ public class ZkAdapter {
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getDatastream().getConnectorType(),
-            datastreamTask.getDatastream().getName(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -600,10 +599,8 @@ public class ZkAdapter {
    * @param value
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
-    Datastream datastream = datastreamTask.getDatastream();
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastream.getConnectorType(),
-            datastream.getName(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
