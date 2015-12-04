@@ -2,7 +2,6 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,16 +10,20 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.BooleanSupplier;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
@@ -29,15 +32,8 @@ import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
-import org.testng.Assert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class TestCoordinator {
@@ -132,16 +128,6 @@ public class TestCoordinator {
     }
 
     @Override
-    public String getConnectorType() {
-      return _connectorType;
-    }
-
-    @Override
-    public DatastreamTarget getDatastreamTarget(Datastream datastream) {
-      return null;
-    }
-
-    @Override
     public String toString() {
       return "Connector " + _name + ", Type: " + _connectorType + ", Instance: " + _instance;
     }
@@ -177,11 +163,6 @@ public class TestCoordinator {
       }
 
       @Override
-      public String getConnectorType() {
-        return testConectorType;
-      }
-
-      @Override
       public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
         // for each instance of assigned DatastreamTask, we keep a state with the key
         // "counter". Every time onAssignmentChange() is called, we increment this counter
@@ -200,16 +181,11 @@ public class TestCoordinator {
       }
 
       @Override
-      public DatastreamTarget getDatastreamTarget(Datastream stream) {
-        return new DatastreamTarget("dummyTopic", 1, "localhost:11111");
-      }
-
-      @Override
       public DatastreamValidationResult validateDatastream(Datastream stream) {
         return null;
       }
     };
-    coordinator.addConnector(testConnector, new BroadcastStrategy());
+    coordinator.addConnector(testConectorType, testConnector, new BroadcastStrategy());
     coordinator.start();
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     //
@@ -262,7 +238,7 @@ public class TestCoordinator {
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConectorType);
-    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy());
     instance1.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -298,7 +274,7 @@ public class TestCoordinator {
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConectorType);
-    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy());
     instance1.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -318,7 +294,7 @@ public class TestCoordinator {
     //
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConectorType);
-    instance2.addConnector(connector2, new BroadcastStrategy());
+    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy());
     instance2.start();
     Thread.sleep(waitDurationForZk);
 
@@ -401,8 +377,8 @@ public class TestCoordinator {
     // Hijack the destinationManager to selectively populate destinations
     ReflectionUtils.setField(instance1, "_destinationManager", destinationManager);
 
-    instance1.addConnector(connector1, new BroadcastStrategy());
-    instance1.addConnector(connector2, new BroadcastStrategy());
+    instance1.addConnector(connectorType1, connector1, new BroadcastStrategy());
+    instance1.addConnector(connectorType2, connector2, new BroadcastStrategy());
     instance1.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -470,13 +446,13 @@ public class TestCoordinator {
     TestHookConnector connector22 = new TestHookConnector(connectorType2);
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-    instance1.addConnector(connector11, new BroadcastStrategy());
-    instance1.addConnector(connector12, new BroadcastStrategy());
+    instance1.addConnector(connectorType1, connector11, new BroadcastStrategy());
+    instance1.addConnector(connectorType2, connector12, new BroadcastStrategy());
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
-    instance2.addConnector(connector21, new BroadcastStrategy());
-    instance2.addConnector(connector22, new BroadcastStrategy());
+    instance2.addConnector(connectorType1, connector21, new BroadcastStrategy());
+    instance2.addConnector(connectorType2, connector22, new BroadcastStrategy());
     instance2.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -576,13 +552,13 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConectorType);
-    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy());
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
 
     TestHookConnector connector2 = new TestHookConnector(testConectorType);
-    instance2.addConnector(connector2, new BroadcastStrategy());
+    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy());
     instance2.start();
 
     Thread.sleep(waitDurationForZk);
@@ -637,7 +613,7 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
-    instance1.addConnector(connector1, new SimpleStrategy());
+    instance1.addConnector(testConnectoryType, connector1, new SimpleStrategy());
     instance1.start();
     Thread.sleep(waitDurationForZk);
 
@@ -657,7 +633,7 @@ public class TestCoordinator {
     //
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
-    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.addConnector(testConnectoryType, connector2, new SimpleStrategy());
     instance2.start();
     Thread.sleep(waitDurationForZk);
 
@@ -671,7 +647,7 @@ public class TestCoordinator {
     //
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
-    instance3.addConnector(connector3, new SimpleStrategy());
+    instance3.addConnector(testConnectoryType, connector3, new SimpleStrategy());
     instance3.start();
     Thread.sleep(waitDurationForZk);
     //
@@ -705,13 +681,13 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
-    instance1.addConnector(connector1, new SimpleStrategy());
+    instance1.addConnector(testConnectoryType, connector1, new SimpleStrategy());
     instance1.start();
 
     // make sure the instance2 can be taken offline cleanly with session expiration
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
-    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.addConnector(testConnectoryType, connector2, new SimpleStrategy());
     instance2.start();
 
     //
@@ -767,19 +743,19 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
-    instance1.addConnector(connector1, new SimpleStrategy());
+    instance1.addConnector(testConnectoryType, connector1, new SimpleStrategy());
     instance1.start();
     Thread.sleep(waitDurationForZk);
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
-    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.addConnector(testConnectoryType, connector2, new SimpleStrategy());
     instance2.start();
     Thread.sleep(waitDurationForZk);
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector(testConnectoryType);
-    instance3.addConnector(connector3, new SimpleStrategy());
+    instance3.addConnector(testConnectoryType, connector3, new SimpleStrategy());
     instance3.start();
 
     //
@@ -851,7 +827,7 @@ public class TestCoordinator {
     for (int i = 0; i < count; i++) {
       coordinators[i] = createCoordinator(_zkConnectionString, testCluster);
       connectors[i] = new TestHookConnector(testConnectoryType);
-      coordinators[i].addConnector(connectors[i], new SimpleStrategy());
+      coordinators[i].addConnector(testConnectoryType, connectors[i], new SimpleStrategy());
       coordinators[i].start();
       Thread.sleep(100);
     }
@@ -912,13 +888,13 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
-    instance1.addConnector(connector1, new SimpleStrategy());
+    instance1.addConnector(testConnectoryType, connector1, new SimpleStrategy());
     instance1.start();
     Thread.sleep(waitDurationForZk);
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
-    instance2.addConnector(connector2, new SimpleStrategy());
+    instance2.addConnector(testConnectoryType, connector2, new SimpleStrategy());
     instance2.start();
 
     //
@@ -971,8 +947,8 @@ public class TestCoordinator {
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1a = new TestHookConnector("connector1a", connectoryType1);
     TestHookConnector connector1b = new TestHookConnector("connector1b", connectoryType2);
-    instance1.addConnector(connector1a, new SimpleStrategy());
-    instance1.addConnector(connector1b, new BroadcastStrategy());
+    instance1.addConnector(connectoryType1, connector1a, new SimpleStrategy());
+    instance1.addConnector(connectoryType2, connector1b, new BroadcastStrategy());
     instance1.start();
 
     Thread.sleep(waitDurationForZk);
@@ -980,8 +956,8 @@ public class TestCoordinator {
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2a = new TestHookConnector("connector2a", connectoryType1);
     TestHookConnector connector2b = new TestHookConnector("connector2b", connectoryType2);
-    instance2.addConnector(connector2a, new SimpleStrategy());
-    instance2.addConnector(connector2b, new BroadcastStrategy());
+    instance2.addConnector(connectoryType1, connector2a, new SimpleStrategy());
+    instance2.addConnector(connectoryType2, connector2b, new BroadcastStrategy());
     instance2.start();
 
     Thread.sleep(waitDurationForZk);
@@ -1030,19 +1006,9 @@ public class TestCoordinator {
       }
 
       @Override
-      public String getConnectorType() {
-        return connectoryType1;
-      }
-
-      @Override
       public void onAssignmentChange(List<DatastreamTask> tasks) {
         // throw a fake exception to trigger the error handling
         throw new RuntimeException();
-      }
-
-      @Override
-      public DatastreamTarget getDatastreamTarget(Datastream stream) {
-        return new DatastreamTarget("dummyTopic", 1, "localhost:11111");
       }
 
       @Override
@@ -1050,7 +1016,7 @@ public class TestCoordinator {
         return new DatastreamValidationResult();
       }
     };
-    instance1.addConnector(connector1, new BroadcastStrategy());
+    instance1.addConnector(connectoryType1, connector1, new BroadcastStrategy());
     instance1.start();
     Thread.sleep(waitDurationForZk);
 
@@ -1121,7 +1087,7 @@ public class TestCoordinator {
 
     TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
 
-    coordinator.addConnector(connector, new BroadcastStrategy());
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy());
     coordinator.start();
 
     String datastreamName = "TestDatastream";
@@ -1147,8 +1113,7 @@ public class TestCoordinator {
 
     boolean result = PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
 
-    LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", Type: " + connector.getConnectorType()
-        + ", ASSERT: " + result);
+    LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", ASSERT: " + result);
 
     Assert.assertTrue(result);
   }

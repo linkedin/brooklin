@@ -26,17 +26,6 @@ public interface Connector {
   void stop();
 
   /**
-   * @return the type of the connector. This type should be a globally unique string, because the Coordinator
-   * can only link to one connector instance per connector type.
-   */
-  String getConnectorType();
-
-  /**
-   * @return the datastream target
-   */
-  DatastreamTarget getDatastreamTarget(Datastream datastream);
-
-  /**
    * callback when the datastreams assignment to this instance is changed. This is called whenever
    * there is a change for the assignment. The implementation of the Connector is responsible
    * to keep a state of the previous assignment.

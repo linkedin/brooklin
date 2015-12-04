@@ -16,6 +16,7 @@ import java.util.List;
  */
 public class ConnectorWrapper {
   private static final Logger LOG = LoggerFactory.getLogger(ConnectorWrapper.class.getName());
+  private final String _connectorType;
 
   private String _instanceName;
   private Connector _connector;
@@ -24,7 +25,8 @@ public class ConnectorWrapper {
   private long _startTime;
   private long _endTime;
 
-  public ConnectorWrapper(Connector connector) {
+  public ConnectorWrapper(String connectorType, Connector connector) {
+    _connectorType = connectorType;
     _connector = connector;
   }
 
@@ -47,7 +49,7 @@ public class ConnectorWrapper {
   }
 
   private void logApiStart(String method) {
-    LOG.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connector.getConnectorType(),
+    LOG.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType,
         _instanceName));
     _startTime = System.currentTimeMillis();
     _lastError = null;
@@ -56,7 +58,7 @@ public class ConnectorWrapper {
   private void logApiEnd(String method) {
     _endTime = System.currentTimeMillis();
     LOG.info(String.format("END: Connector::%s. Connector: %s, Instance: %s, Duration: %d milliseconds", method,
-        _connector.getConnectorType(), _instanceName, _endTime - _startTime));
+        _connectorType, _instanceName, _endTime - _startTime));
   }
 
   public void start(DatastreamEventCollectorFactory collectorFactory) {
@@ -84,17 +86,7 @@ public class ConnectorWrapper {
   }
 
   public String getConnectorType() {
-    logApiStart("getConnectorType");
-    String ret = null;
-
-    try {
-      ret = _connector.getConnectorType();
-    } catch (Exception ex) {
-      logErrorAndException("getConnectorType", ex);
-    }
-
-    logApiEnd("getConnectorType");
-    return ret;
+    return _connectorType;
   }
 
   public void onAssignmentChange(List<DatastreamTask> tasks) {
@@ -107,22 +99,6 @@ public class ConnectorWrapper {
     }
 
     logApiEnd("onAssignmentChange");
-  }
-
-  public DatastreamTarget getDatastreamTarget(Datastream stream) {
-    logApiStart("getDatastreamTarget");
-
-    DatastreamTarget ret = null;
-
-    try {
-      ret = _connector.getDatastreamTarget(stream);
-    } catch (Exception ex) {
-      logErrorAndException("getDatastreamTarget", ex);
-    }
-
-    logApiEnd("getDatastreamTarget");
-
-    return ret;
   }
 
   public DatastreamValidationResult validateDatastream(Datastream stream) {
