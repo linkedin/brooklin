@@ -14,9 +14,9 @@ public class KeyBuilder {
   private static final String _connectors = "/%s/connectors";
   private static final String _connector = "/%s/connectors/%s";
   private static final String _connectorDatastreamTask = _connector +  "/%s";
-  private static final String _datastreamTaskState = _connector + "/%s/%s/state";
-  private static final String _datastreamTaskStateKey = _connector + "/%s/%s/state/%s";
-  private static final String _datastreamTaskConfig = _connector + "/%s/%s/config";
+  private static final String _datastreamTaskState = _connector + "/tasks/%s/state";
+  private static final String _datastreamTaskStateKey = _connector + "/tasks/%s/state/%s";
+  private static final String _datastreamTaskConfig = _connector + "/tasks/%s/config";
 
   public static String cluster(String clusterName) {
     return String.format(_cluster, clusterName);
@@ -70,22 +70,22 @@ public class KeyBuilder {
     return String.format(_connectorDatastreamTask, cluster, connectorType, task);
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{datastream}/{taskId}/state
-  public static String datastreamTaskState(String cluster, String connectorType, String datastreamName, String taskId) {
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/state
+  public static String datastreamTaskState(String cluster, String connectorType, String taskId) {
     // taskId could be empty space, which can result in "//" in the path
-    return String.format(_datastreamTaskState, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
+    return String.format(_datastreamTaskState, cluster, connectorType, taskId).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{datastream}/{taskId}/config
-  public static String datastreamTaskConfig(String cluster, String connectorType, String datastreamName, String taskId) {
-    return String.format(_datastreamTaskConfig, cluster, connectorType, datastreamName, taskId).replaceAll("//", "/");
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/config
+  public static String datastreamTaskConfig(String cluster, String connectorType, String taskId) {
+    return String.format(_datastreamTaskConfig, cluster, connectorType, taskId).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{datastream}/{taskId}/state
-  public static String datastreamTaskStateKey(String cluster, String connectorType, String datastreamName,
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/state
+  public static String datastreamTaskStateKey(String cluster, String connectorType,
       String taskId, String key) {
     // taskId could be empty space, which can result in "//" in the path
-    return String.format(_datastreamTaskStateKey, cluster, connectorType, datastreamName, taskId, key).replaceAll("//",
+    return String.format(_datastreamTaskStateKey, cluster, connectorType, taskId, key).replaceAll("//",
         "/");
   }
 

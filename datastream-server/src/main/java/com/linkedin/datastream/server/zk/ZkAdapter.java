@@ -16,6 +16,8 @@ import java.util.Set;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
+
 import org.I0Itec.zkclient.IZkChildListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,10 +116,6 @@ public class ZkAdapter {
 
   public ZkAdapter(String zkServers, String cluster) {
     this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-  }
-
-  public ZkAdapter(String zkServers, String cluster, ZkAdapterListener listener) {
-    this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, listener);
   }
 
   public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout) {
@@ -394,12 +392,13 @@ public class ZkAdapter {
    */
   public DatastreamTask getAssignedDatastreamTask(String instance, String taskName) {
     String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
-    DatastreamTask task = DatastreamTask.fromJson(content);
+    DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
     String dsName = task.getDatastreamName();
 
     String dsContent = _zkclient.ensureReadData(KeyBuilder.datastream(_cluster, dsName));
     Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(dsContent);
     task.setDatastream(stream);
+    task.setZkAdapter(this);
     return task;
   }
 
@@ -473,7 +472,7 @@ public class ZkAdapter {
       LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
 
       for (String name : added) {
-        DatastreamTask task = assignmentsMap.get(name);
+        DatastreamTaskImpl task = (DatastreamTaskImpl) assignmentsMap.get(name);
         String path = KeyBuilder.instanceAssignment(_cluster, instance, name);
         try {
           String created = _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
@@ -589,8 +588,7 @@ public class ZkAdapter {
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-            datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -602,8 +600,7 @@ public class ZkAdapter {
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-            datastreamTask.getDatastreamName(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
@@ -796,7 +793,7 @@ public class ZkAdapter {
           // read the DatastreamTask json data
           String content = _zkclient.ensureReadData(p);
           // deserialize to DatastreamTask
-          DatastreamTask t = DatastreamTask.fromJson(content);
+          DatastreamTask t = DatastreamTaskImpl.fromJson(content);
           _allDatastreamTasks.get(connectorType).add(t);
         }
       }
