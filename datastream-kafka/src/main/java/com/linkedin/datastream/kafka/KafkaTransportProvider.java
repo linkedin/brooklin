@@ -31,9 +31,9 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventRecord;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.TransportProvider;
+import com.linkedin.datastream.server.DatastreamEventRecord;
 
 import kafka.admin.AdminUtils;
 
@@ -77,15 +77,15 @@ public class KafkaTransportProvider implements TransportProvider {
 
     byte[] payload;
     try {
-      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, record.event());
+      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, record.getEvent());
     } catch (IOException e) {
-      throw new DatastreamException("Failed to encode event in Avro, event=" + record.event(), e);
+      throw new DatastreamException("Failed to encode event in Avro, event=" + record.getEvent(), e);
     }
 
     if (partition >= 0) {
-      return new ProducerRecord<>(record.getTopicName(), partition, null, payload);
+      return new ProducerRecord<>(record.getDestination(), partition, null, payload);
     } else {
-      return new ProducerRecord<>(record.getTopicName(), null, payload);
+      return new ProducerRecord<>(record.getDestination(), null, payload);
     }
   }
 
@@ -135,14 +135,14 @@ public class KafkaTransportProvider implements TransportProvider {
   public void send(DatastreamEventRecord record) {
     try {
       Objects.requireNonNull(record, "invalid event record.");
-      Objects.requireNonNull(record.event(), "invalid datastream event.");
-      Objects.requireNonNull(record.event().metadata, "Metadata cannot be null");
-      Objects.requireNonNull(record.event().key, "Key cannot be null");
-      Objects.requireNonNull(record.event().payload, "Payload cannot be null");
-      Objects.requireNonNull(record.event().previous_payload, "Payload cannot be null");
+      Objects.requireNonNull(record.getEvent(), "invalid datastream event.");
+      Objects.requireNonNull(record.getEvent().metadata, "Metadata cannot be null");
+      Objects.requireNonNull(record.getEvent().key, "Key cannot be null");
+      Objects.requireNonNull(record.getEvent().payload, "Payload cannot be null");
+      Objects.requireNonNull(record.getEvent().previous_payload, "Payload cannot be null");
 
       LOG.info(String
-          .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getTopicName(),
+          .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getDestination(),
               record.getPartition()));
 
       ProducerRecord<byte[], byte[]> outgoing;
@@ -157,7 +157,7 @@ public class KafkaTransportProvider implements TransportProvider {
     } catch (Exception e) {
       LOG.error(String
           .format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-              record.event(), record.getTopicName(), _brokers, e));
+              record.getEvent(), record.getDestination(), _brokers, e));
       throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
     }
   }

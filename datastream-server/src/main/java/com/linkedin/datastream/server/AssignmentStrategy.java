@@ -16,7 +16,7 @@ public interface AssignmentStrategy {
    * Datastreams, and optionally the current assignment, returns a new assignment.
    *
    * <p>Note that the output is a map from instance to list of DatastreamTask instead of Datastream.
-   * {@link com.linkedin.datastream.server.DatastreamTask} is the minimum assignable element of Datastream.
+   * {@link DatastreamTask} is the minimum assignable element of Datastream.
    * This makes it possible to split a Datastream into multiple assignable DatastreamTask so that they
    * can be assigned to multiple instances, and hence allowing load balancing. For example, the Oracle
    * bootstrap Datastream can be splitted into multiple instances of DatastreamTask, one per partition,

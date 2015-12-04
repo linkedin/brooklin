@@ -48,8 +48,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   // The Id of the datastreamtask. It is a string that will represent one assignable element of
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
-  // mapped to one Datastream. In the case when a Datastream is split into multiple partitions, the id
-  // value should be the partition number. Each of the _id value will be represented in zookeeper
+  // mapped to one Datastream. Each of the _id value will be represented in zookeeper
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
@@ -63,17 +62,22 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private ZkAdapter _zkAdapter;
 
   private Map<String, String> _properties = new HashMap<>();
-  private EventProducer _eventProducer;
+  private DatastreamEventProducer _eventProducer;
 
   public DatastreamTaskImpl() {
-
   }
 
   public DatastreamTaskImpl(Datastream datastream) {
+    this(datastream, UUID.randomUUID().toString());
+  }
+
+  public DatastreamTaskImpl(Datastream datastream, String id) {
+    Validate.isTrue(datastream != null, "null datastream");
+    Validate.isTrue(id != null, "null id");
     _datastreamName = datastream.getName();
     _connectorType = datastream.getConnectorType();
     _datastream = datastream;
-    _id = UUID.randomUUID().toString();
+    _id = id;
   }
 
   // construct DatastreamTask from json string
@@ -116,11 +120,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   @JsonIgnore
-  public EventProducer getEventProducer() {
+  public DatastreamEventProducer getEventProducer() {
     return _eventProducer;
   }
 
-  public void setEventProducer(EventProducer eventProducer) {
+  public void setEventProducer(DatastreamEventProducer eventProducer) {
     _eventProducer = eventProducer;
   }
 

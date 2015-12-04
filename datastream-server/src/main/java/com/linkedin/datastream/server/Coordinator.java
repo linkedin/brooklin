@@ -89,7 +89,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
-  private final EventProducerPool _eventProducerPool;
+  private final DatastreamEventProducerPool _eventProducerPool;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
@@ -142,7 +142,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     _destinationManager = new DestinationManager(_transportProvider);
-    _eventProducerPool = new EventProducerPool();
+    _eventProducerPool = new DatastreamEventProducerPool();
   }
 
   public void start() {
@@ -324,7 +324,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (needed) {
 
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, EventProducer> producerMap = _eventProducerPool.getEventProducers(assignment);
+      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool.getEventProducers(assignment);
       for(DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if(producerMap.containsKey(task)) {

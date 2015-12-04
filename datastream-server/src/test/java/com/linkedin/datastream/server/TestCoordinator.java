@@ -1104,6 +1104,34 @@ public class TestCoordinator {
     Assert.assertNotNull(queryStream.getDestination());
   }
 
+  @Test
+  public void testEndToEndHappyPath() throws Exception {
+    Properties properties = TestDatastreamServer.initializeTestDatastreamServer(null);
+    DatastreamResources resource = new DatastreamResources();
+
+    Coordinator coordinator = createCoordinator(
+            properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
+            properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+
+    TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
+
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy());
+    coordinator.start();
+
+    String datastreamName = "TestDatastream";
+    Datastream stream = createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    CreateResponse response = resource.create(stream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Make sure connector has received the assignment (timeout in 30 seconds)
+    assertConnectorAssignment(connector, 30000, datastreamName);
+
+    Datastream queryStream = resource.get(stream.getName());
+    Assert.assertNotNull(queryStream.getDestination());
+  }
+
     // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)

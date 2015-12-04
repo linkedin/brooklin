@@ -1,7 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamEventRecord;
-
 import java.util.Properties;
 
 public class DummyTransportProviderFactory implements TransportProviderFactory {

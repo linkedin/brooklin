@@ -9,17 +9,17 @@ public interface DatastreamTask {
   /**
    * @return the connector type that generates events for this datastream task.
    */
-  public String getConnectorType();
+  String getConnectorType();
 
   /**
    * @return the event producer that the connector can use to produce events for this datastream task.
    */
-  public EventProducer getEventProducer();
+  DatastreamEventProducer getEventProducer();
 
   /**
    * @return Id of the datastream task. Each datastream task will have a unique id.
    */
-  public String getId();
+  String getId();
 
   /**
    * The Connector implementation can use this method to obtain the last saved state.

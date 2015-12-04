@@ -6,10 +6,17 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
 
+import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
 /**
  * Utility class to simplify usage of Java reflection.
  */
 public class ReflectionUtils {
+  private static Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
+
   /**
    * Create an instance of the specified class with constuctor
    * matching the argument array.
@@ -27,6 +34,7 @@ public class ReflectionUtils {
       Constructor<T> ctor = classObj.getDeclaredConstructor(argTypes);
       return ctor.newInstance(args);
     } catch (Exception e) {
+      LOG.warn("Failed to create instance for: " + clazz, e);
       return null;
     }
   }
@@ -49,6 +57,7 @@ public class ReflectionUtils {
       fieldObj.set(object, value);
       return value;
     } catch (Exception e) {
+      LOG.warn(String.format("Failed to set field, object = %s field = %s value = %s", object, field, value), e);
       return null;
     }
   }
@@ -69,6 +78,7 @@ public class ReflectionUtils {
       fieldObj.setAccessible(true);
       return (T)fieldObj.get(object);
     } catch (Exception e) {
+      LOG.warn(String.format("Failed to set field, object = %s field = %s", object, field), e);
       return null;
     }
   }
