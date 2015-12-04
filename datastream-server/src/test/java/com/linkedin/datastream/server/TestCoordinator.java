@@ -110,11 +110,10 @@ public class TestCoordinator {
     }
 
     @Override
-    public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
-      _instance = context.getInstanceName();
+    public void onAssignmentChange(List<DatastreamTask> tasks) {
 
-      LOG.info("START: onAssignmentChange. Name: " + _name + ", Instance: " + context.getInstanceName()
-          + ", ConnectorType: " + _connectorType + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
+      LOG.info("START: onAssignmentChange. Name: " + _name +
+          ", ConnectorType: " + _connectorType + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
@@ -182,17 +181,17 @@ public class TestCoordinator {
       }
 
       @Override
-      public synchronized void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+      public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
         // for each instance of assigned DatastreamTask, we keep a state with the key
         // "counter". Every time onAssignmentChange() is called, we increment this counter
         // by one for each assigned task.
         tasks.forEach(task -> {
-          String counter = context.getState(task, "counter");
+          String counter = task.getState("counter");
           if (counter == null) {
-            context.saveState(task, "counter", "1");
+            task.saveState("counter", "1");
           } else {
             int c = Integer.parseInt(counter);
-            context.saveState(task, "counter", Integer.toString(c + 1));
+            task.saveState("counter", Integer.toString(c + 1));
           }
 
         });
@@ -1027,7 +1026,7 @@ public class TestCoordinator {
       }
 
       @Override
-      public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+      public void onAssignmentChange(List<DatastreamTask> tasks) {
         // throw a fake exception to trigger the error handling
         throw new RuntimeException();
       }
@@ -1156,12 +1155,15 @@ public class TestCoordinator {
 
     boolean result = true;
     for (DatastreamTask task : assignment) {
-      if (!list.contains(task.getDatastreamName())) {
+      if (!list.contains(task.getDatastream().getName())) {
         result = false;
-        LOG.error("Missing " + task.getDatastreamName() + ", list: " + list);
+        LOG.error("Missing " + task.getDatastream().getName() + ", list: " + list);
         break;
       }
+
+      Assert.assertNotNull(task.getEventProducer());
     }
+
 
     return result;
   }

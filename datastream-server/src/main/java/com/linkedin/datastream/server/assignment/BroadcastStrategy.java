@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.assignment;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.AssignmentStrategy;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ public class BroadcastStrategy implements AssignmentStrategy {
 
     List<DatastreamTask> templateAssignment = new ArrayList<>();
     for (Datastream stream : datastreams) {
-      templateAssignment.add(new DatastreamTask(stream));
+      templateAssignment.add(new DatastreamTaskImpl(stream));
     }
 
     for (String instance : instances) {

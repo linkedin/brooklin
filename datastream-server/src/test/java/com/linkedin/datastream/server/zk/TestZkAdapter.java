@@ -5,20 +5,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.linkedin.datastream.server.DatastreamContext;
-import com.linkedin.datastream.server.DatastreamContextImpl;
-import com.linkedin.datastream.server.DatastreamTask;
-
+import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.zookeeper.CreateMode;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class TestZkAdapter {
@@ -283,7 +281,7 @@ public class TestZkAdapter {
     //
     // simulate assigning one task [task1] to the connector
     //
-    DatastreamTask task1 = new DatastreamTask();
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
     task1.setDatastreamName("task1");
     task1.setConnectorType(connectorType);
     tasks.add(task1);
@@ -299,7 +297,7 @@ public class TestZkAdapter {
     //
     // simuate assigning two tasks [task1, task2] to the same instance
     //
-    DatastreamTask task2 = new DatastreamTask();
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
     task2.setDatastreamName("task2");
     task2.setConnectorType(connectorType);
     tasks.add(task2);
@@ -316,7 +314,7 @@ public class TestZkAdapter {
     //
     // simuate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
     //
-    DatastreamTask task3 = new DatastreamTask();
+    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
     task3.setDatastreamName("task3");
     task3.setConnectorType(connectorType);
     tasks.add(task3);
@@ -349,25 +347,25 @@ public class TestZkAdapter {
     //
     // simulate assigning one task [task1] to the connector. task1 has 4 partitions
     //
-    DatastreamTask task1_0 = new DatastreamTask();
+    DatastreamTaskImpl task1_0 = new DatastreamTaskImpl();
     task1_0.setDatastreamName("task1");
     task1_0.setId("0");
     task1_0.setConnectorType(connectorType);
     tasks.add(task1_0);
 
-    DatastreamTask task1_1 = new DatastreamTask();
+    DatastreamTaskImpl task1_1 = new DatastreamTaskImpl();
     task1_1.setDatastreamName("task1");
     task1_1.setId("1");
     task1_1.setConnectorType(connectorType);
     tasks.add(task1_1);
 
-    DatastreamTask task1_2 = new DatastreamTask();
+    DatastreamTaskImpl task1_2 = new DatastreamTaskImpl();
     task1_2.setDatastreamName("task1");
     task1_2.setId("2");
     task1_2.setConnectorType(connectorType);
     tasks.add(task1_2);
 
-    DatastreamTask task1_3 = new DatastreamTask();
+    DatastreamTaskImpl task1_3 = new DatastreamTaskImpl();
     task1_3.setDatastreamName("task1");
     task1_3.setId("3");
     task1_3.setConnectorType(connectorType);

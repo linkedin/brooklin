@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.assignment;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.AssignmentStrategy;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 import java.util.*;
 
@@ -47,7 +48,7 @@ public class SimpleStrategy implements AssignmentStrategy {
   }
 
   private void assign(String instance, Datastream datastream, Map<String, List<DatastreamTask>> assignment) {
-    DatastreamTask datastreamTask = new DatastreamTask(datastream);
+    DatastreamTask datastreamTask = new DatastreamTaskImpl(datastream);
     if (!assignment.containsKey(instance)) {
       assignment.put(instance, new ArrayList<>());
     }

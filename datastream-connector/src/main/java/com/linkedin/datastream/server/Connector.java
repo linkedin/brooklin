@@ -41,10 +41,9 @@ public interface Connector {
    * there is a change for the assignment. The implementation of the Connector is responsible
    * to keep a state of the previous assignment.
    *
-   * @param context context information including producer
    * @param tasks the list of the current assignment.
    */
-  void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks);
+  void onAssignmentChange(List<DatastreamTask> tasks);
 
   /**
    * Validate the datastream. Datastream management service call this before writing the

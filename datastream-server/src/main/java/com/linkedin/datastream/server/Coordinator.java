@@ -89,6 +89,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
+  private final EventProducerPool _eventProducerPool;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
@@ -141,6 +142,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     _destinationManager = new DestinationManager(_transportProvider);
+    _eventProducerPool = new EventProducerPool();
   }
 
   public void start() {
@@ -182,24 +184,40 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     return _adapter.getInstanceName();
   }
 
+  /**
+   * This method is called when the current datastream server instance becomes a leader.
+   * There can only be only one leader in a datastream cluster.
+   */
   @Override
   public void onBecomeLeader() {
+    LOG.info("Coordinator::onBecomeLeader is called");
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    LOG.info("Coordinator::onBecomeLeader completed successfully");
   }
 
+  /**
+   * This method is called when a new datastream server is added or existing datastream server goes down.
+   */
   @Override
   public void onLiveInstancesChange() {
+    LOG.info("Coordinator::onLiveInstancesChange is called");
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    LOG.info("Coordinator::onLiveInstancesChange completed successfully");
   }
 
+  /**
+   * This method is called when a new datastream is created. Right now we do not handle datastream updates/deletes.
+   */
   @Override
   public void onDatastreamChange() {
+    LOG.info("Coordinator::onDatastreamChange is called");
     // if there are new datastreams created, we need to trigger the topic creation logic
     _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    LOG.info("Coordinator::onDatastreamChange completed successfully");
   }
 
   /**
@@ -213,7 +231,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onAssignmentChange() {
+    LOG.info("Coordinator::onAssignmentChange is called");
     _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+    LOG.info("Coordinator::onAssignmentChange completed successfully");
   }
 
   private void handleAssignmentChange() {
@@ -231,15 +251,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     assignment.forEach(ds -> {
       DatastreamTask task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), ds);
 
-      if (!currentAssignment.containsKey(task.getConnectorType())) {
-        currentAssignment.put(task.getConnectorType(), new ArrayList<>());
+      String connectorType = task.getDatastream().getConnectorType();
+      if (!currentAssignment.containsKey(connectorType)) {
+        currentAssignment.put(connectorType, new ArrayList<>());
       }
-      currentAssignment.get(task.getConnectorType()).add(task);
+      currentAssignment.get(connectorType).add(task);
     });
 
     LOG.info(printAssignmentByType(currentAssignment));
-
-    DatastreamContext context = new DatastreamContextImpl(_adapter);
 
     //
     // diff the currentAssignment with last saved assignment _allStreamsByConnectorType and make sure
@@ -260,11 +279,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(context, new ArrayList<>()));
+    deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(new ArrayList<>()));
 
     // case (2)
     newConnectorList
-        .forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, context, currentAssignment));
+        .forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment));
 
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
@@ -274,7 +293,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     LOG.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
-  private void dispatchAssignmentChangeIfNeeded(String connectorType, DatastreamContext context,
+  private void dispatchAssignmentChangeIfNeeded(String connectorType,
       Map<String, List<DatastreamTask>> currentAssignment) {
 
     ConnectorWrapper connector = _connectors.get(connectorType);
@@ -303,7 +322,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     if (needed) {
-      connector.onAssignmentChange(context, assignment);
+
+      // Populate the event producers before calling the connector with the list of tasks.
+      Map<DatastreamTask, EventProducer> producerMap = _eventProducerPool.getEventProducers(assignment);
+      for(DatastreamTask task : assignment) {
+        DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
+        if(producerMap.containsKey(task)) {
+          taskImpl.setEventProducer(producerMap.get(task));
+        } else {
+          // TODO Set the status of the datastream task here.
+          LOG.error("Event producer not created for datastream task " + task);
+        }
+      }
+
+      connector.onAssignmentChange(assignment);
       if (connector.hasError()) {
         _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
       }

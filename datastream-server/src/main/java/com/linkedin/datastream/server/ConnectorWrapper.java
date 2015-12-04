@@ -97,11 +97,11 @@ public class ConnectorWrapper {
     return ret;
   }
 
-  public void onAssignmentChange(DatastreamContext context, List<DatastreamTask> tasks) {
+  public void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
 
     try {
-      _connector.onAssignmentChange(context, tasks);
+      _connector.onAssignmentChange(tasks);
     } catch (Exception ex) {
       logErrorAndException("onAssignmentChange", ex);
     }

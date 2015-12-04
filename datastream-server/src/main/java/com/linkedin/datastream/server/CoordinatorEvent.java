@@ -1,8 +1,5 @@
 package com.linkedin.datastream.server;
 
-
-import java.util.List;
-
 public class CoordinatorEvent<T> {
 
   public enum EventType {
