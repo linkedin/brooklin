@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamSource;
 
 
 public interface DatastreamTask {
@@ -51,4 +52,14 @@ public interface DatastreamTask {
    * @return the name of the datastream task.
    */
   String getDatastreamTaskName();
+
+  /**
+   * @return the Datastream source.
+   */
+  DatastreamSource getDatastreamSource();
+
+  /**
+   * @return the Datastream destination.
+   */
+  DatastreamDestination getDatastreamDestination();
 }

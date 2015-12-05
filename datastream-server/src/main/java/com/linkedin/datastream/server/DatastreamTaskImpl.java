@@ -1,6 +1,8 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.apache.commons.lang.Validate;
@@ -95,6 +97,18 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   public String getDatastreamTaskName() {
     return _id.equals("") ? _datastreamName : _datastreamName + "_" + _id;
+  }
+
+  @JsonIgnore
+  @Override
+  public DatastreamSource getDatastreamSource() {
+    return _datastream.getSource();
+  }
+
+  @JsonIgnore
+  @Override
+  public DatastreamDestination getDatastreamDestination() {
+    return _datastream.getDestination();
   }
 
   public void setDatastream(Datastream datastream) {
