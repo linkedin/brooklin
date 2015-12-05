@@ -1,14 +1,13 @@
 package com.linkedin.datastream.connectors;
 
+import java.util.List;
+import java.util.Properties;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.Connector;
 import com.linkedin.datastream.server.DatastreamEventCollectorFactory;
-import com.linkedin.datastream.common.DatastreamTarget;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamValidationResult;
-
-import java.util.List;
-import java.util.Properties;
 
 
 /**
@@ -33,18 +32,8 @@ public class DummyBootstrapConnector implements Connector {
   }
 
   @Override
-  public String getConnectorType() {
-    return CONNECTOR_TYPE;
-  }
-
-  @Override
   public void onAssignmentChange(List<DatastreamTask> tasks) {
 
-  }
-
-  @Override
-  public DatastreamTarget getDatastreamTarget(Datastream stream) {
-    return null;
   }
 
   @Override

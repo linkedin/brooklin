@@ -423,27 +423,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
   }
 
-  // translate from DatastreamTarget to Datastream.Target
-  private Datastream setDatastreamTarget(Datastream ds) {
-    DatastreamTarget target = _connectors.get(ds.getConnectorType()).getDatastreamTarget(ds);
-    if (target == null) {
-      LOG.error(String.format("getDatastreamTarget for datastream %s returned null, "
-          + "This datastream will not be scheduled for producing events", ds));
-      return ds;
-    }
-
-    Datastream.Target t = new Datastream.Target();
-
-    KafkaConnection kc = new KafkaConnection();
-    kc.setTopicName(target.getTopicName());
-    kc.setPartitions(target.getPartitions());
-    kc.setMetadataBrokers(target.getMetadataBrokers());
-    t.setKafkaConnection(kc);
-
-    ds.setTarget(t);
-    return ds;
-  }
-
   private void assignDatastreamTasksToInstances() {
 
     // get all current live instances
@@ -517,8 +496,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param connector a connector that implements the Connector interface
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
    */
-  public void addConnector(Connector connector, AssignmentStrategy strategy) {
-    String connectorType = connector.getConnectorType();
+  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy) {
     LOG.info("Add new connector of type " + connectorType + " to coordinator");
 
     if (_connectors.containsKey(connectorType)) {
@@ -527,7 +505,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       throw new IllegalArgumentException(err);
     }
 
-    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connector);
+    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorType, connector);
     _connectors.put(connectorType, connectorWrapper);
     _strategies.put(connectorWrapper, strategy);
   }

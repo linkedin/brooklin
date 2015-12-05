@@ -78,12 +78,6 @@ public enum DatastreamServer {
 
       Connector connectorInstance = connectorFactoryInstance.createConnector(connectorProperties);
 
-      // Verify the connector type of the connector
-      if (!connectorInstance.getConnectorType().equals(connectorStr)) {
-        throw new DatastreamException(String.format("Wrong connector type for %s, expected: %s actual: %s",
-            className, connectorStr, connectorInstance.getConnectorType()));
-      }
-
       // Read the bootstrap connector type for the connector if there is one
       String bootstrapConnector = connectorProperties.getProperty(CONFIG_CONNECTOR_BOOTSTRAP_TYPE, "");
       if (!bootstrapConnector.isEmpty()) {
@@ -103,7 +97,7 @@ public enum DatastreamServer {
       if (assignmentStrategyInstance == null) {
         assignmentStrategyInstance = new SimpleStrategy();
       }
-      _coordinator.addConnector(connectorInstance, assignmentStrategyInstance);
+      _coordinator.addConnector(connectorStr, connectorInstance, assignmentStrategyInstance);
 
     } catch (Exception ex) {
       LOG.error(String.format("Instantiating connector %s failed with exception", connectorStr, ex));
