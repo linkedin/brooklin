@@ -1,5 +1,8 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,7 +92,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
-  private final DatastreamEventProducerPool _eventProducerPool;
+  private final EventProducerPool _eventProducerPool;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
@@ -144,7 +147,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(_transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new DatastreamEventProducerPool(cpProvider, factory, config.getConfigProperties());
+    _eventProducerPool = new EventProducerPool(cpProvider, factory, config.getConfigProperties());
   }
 
   public void start() {
@@ -326,7 +329,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (needed) {
 
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool.getEventProducers(assignment);
+      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool.getEventProducers(assignment,
+          connectorType);
       for(DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if(producerMap.containsKey(task)) {
@@ -470,6 +474,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         assigmentsByInstance.get(instance).addAll(assigned);
       });
     });
+
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
     // assignment and do remove and add znodes accordingly. In the case of zookeeper failure (when
