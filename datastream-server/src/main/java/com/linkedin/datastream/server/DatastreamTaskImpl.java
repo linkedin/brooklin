@@ -5,11 +5,11 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
-import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.codehaus.jackson.annotate.JsonIgnore;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
 import java.io.StringWriter;

@@ -19,13 +19,13 @@ package com.linkedin.datastream.kafka;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Objects;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkClient;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,8 +91,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
-    Objects.requireNonNull(topicName, "topicName should not be null");
-    Objects.requireNonNull(topicConfig, "topicConfig should not be null");
+    Validate.notNull(topicName, "topicName should not be null");
+    Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
     LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s",
@@ -115,7 +115,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void dropTopic(String destinationUri) {
-    Objects.requireNonNull(destinationUri, "destinationuri should not null");
+    Validate.notNull(destinationUri, "destinationuri should not null");
     String topicName = URI.create(destinationUri).getPath();
 
     try {
@@ -134,12 +134,12 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void send(DatastreamEventRecord record) {
     try {
-      Objects.requireNonNull(record, "invalid event record.");
-      Objects.requireNonNull(record.getEvent(), "invalid datastream event.");
-      Objects.requireNonNull(record.getEvent().metadata, "Metadata cannot be null");
-      Objects.requireNonNull(record.getEvent().key, "Key cannot be null");
-      Objects.requireNonNull(record.getEvent().payload, "Payload cannot be null");
-      Objects.requireNonNull(record.getEvent().previous_payload, "Payload cannot be null");
+      Validate.notNull(record, "invalid event record.");
+      Validate.notNull(record.getEvent(), "invalid datastream event.");
+      Validate.notNull(record.getEvent().metadata, "Metadata cannot be null");
+      Validate.notNull(record.getEvent().key, "Key cannot be null");
+      Validate.notNull(record.getEvent().payload, "Payload cannot be null");
+      Validate.notNull(record.getEvent().previous_payload, "Payload cannot be null");
 
       LOG.info(String
           .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getDestination(),

@@ -1,8 +1,10 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-
 import java.util.Objects;
+
+import org.apache.commons.lang.Validate;
+
+import com.linkedin.datastream.common.DatastreamEvent;
 
 
 /**
@@ -15,8 +17,8 @@ public class DatastreamEventRecord {
   private final String _checkpoint;
 
   public DatastreamEventRecord(DatastreamEvent event, int partition, String checkpoint, DatastreamTask task) {
-    Objects.requireNonNull(event, "null event");
-    Objects.requireNonNull(task, "null task");
+    Validate.notNull(event, "null event");
+    Validate.notNull(task, "null task");
 
     // TODO: partition can be negative magic number for special meaning, eg. re-partitioning.
     // For now, we requires partition to be non-negative.

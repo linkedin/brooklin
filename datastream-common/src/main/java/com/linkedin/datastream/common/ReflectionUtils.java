@@ -1,8 +1,6 @@
 package com.linkedin.datastream.common;
 
-
 import java.lang.reflect.Field;
-import java.util.Objects;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
 
@@ -26,7 +24,7 @@ public class ReflectionUtils {
    * @return instance of the class, or null if anything went wrong
    */
   public static <T> T createInstance(String clazz, Object... args) {
-    Objects.requireNonNull(clazz, "null class name");
+    Validate.notNull(clazz, "null class name");
     try {
       Class classObj = Class.forName(clazz);
       Class[] argTypes = new Class[args.length];
@@ -48,8 +46,8 @@ public class ReflectionUtils {
    * @return the new value just set or null if failed
    */
   public static <T> T setField(Object object, String field, T value) {
-    Objects.requireNonNull(object, "null target object");
-    Objects.requireNonNull(field, "null field name");
+    Validate.notNull(object, "null target object");
+    Validate.notNull(field, "null field name");
 
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);
@@ -70,8 +68,8 @@ public class ReflectionUtils {
    * @return the value of the field or null if failed
    */
   public static <T> T getField(Object object, String field) {
-    Objects.requireNonNull(object, "null target object");
-    Objects.requireNonNull(field, "null field name");
+    Validate.notNull(object, "null target object");
+    Validate.notNull(field, "null field name");
 
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);

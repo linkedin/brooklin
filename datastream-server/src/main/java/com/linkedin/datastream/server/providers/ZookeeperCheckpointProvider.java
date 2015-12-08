@@ -2,7 +2,7 @@ package com.linkedin.datastream.server.providers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import org.apache.commons.lang.Validate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,7 +26,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    */
   @Override
   public void commit(Map<DatastreamTask, String> checkpoints) {
-    Objects.requireNonNull(checkpoints, "Checkpoints should not be null");
+    Validate.notNull(checkpoints, "Checkpoints should not be null");
     for(DatastreamTask datastreamTask : checkpoints.keySet()) {
       _zkAdapter.setDatastreamTaskStateForKey(datastreamTask, CHECKPOINT_KEY_NAME, checkpoints.get(datastreamTask));
     }
@@ -39,7 +39,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    */
   @Override
   public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
-    Objects.requireNonNull(datastreamTasks, "datastreamTasks should not be null");
+    Validate.notNull(datastreamTasks, "datastreamTasks should not be null");
     return datastreamTasks.stream().collect(
         Collectors.toMap(Function.identity(), dt -> _zkAdapter.getDatastreamTaskStateForKey(dt, CHECKPOINT_KEY_NAME)));
   }
