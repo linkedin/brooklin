@@ -324,7 +324,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (needed) {
 
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, EventProducer> producerMap = _eventProducerPool.getEventProducers(assignment);
+      Map<DatastreamTask, EventProducer> producerMap = _eventProducerPool.getEventProducers(assignment, connectorType);
       for(DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if(producerMap.containsKey(task)) {
