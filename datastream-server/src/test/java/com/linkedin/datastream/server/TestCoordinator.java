@@ -347,6 +347,8 @@ public class TestCoordinator {
         }
         if (hasDestination) {
           stream.setDestination(new DatastreamDestination());
+          // TODO: Need to evaluate if we really need this class. The below line is a temp-workaround to fix test failure
+          stream.getDestination().setConnectionString(stream.getSource().getConnectionString());
         }
       }
     }
