@@ -4,7 +4,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamTarget;
 
 import java.util.List;
-import java.util.Properties;
 
 
 /**

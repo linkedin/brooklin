@@ -3,13 +3,13 @@ package com.linkedin.datastream.server;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.commons.lang.Validate;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -38,7 +38,7 @@ public class DestinationManager {
    * @param datastreams All datastreams in the current system.
    */
   public void populateDatastreamDestination(List<Datastream> datastreams) {
-    Objects.requireNonNull(datastreams, "Datastream should not be null");
+    Validate.notNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
     datastreams.stream().filter(d -> d.hasDestination() && !d.getDestination().getConnectionString().isEmpty())
@@ -93,9 +93,9 @@ public class DestinationManager {
    * @param allDatastreams All the datastreams in the system.
    */
   public void deleteDatastreamDestination(Datastream datastream, List<Datastream> allDatastreams) {
-    Objects.requireNonNull(datastream, "Datastream should not be null");
-    Objects.requireNonNull(datastream.getDestination(), "Datastream destination should not be null");
-    Objects.requireNonNull(allDatastreams, "allDatastreams should not be null");
+    Validate.notNull(datastream, "Datastream should not be null");
+    Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
+    Validate.notNull(allDatastreams, "allDatastreams should not be null");
     Stream<Datastream> duplicateDatastreams =
         allDatastreams.stream().filter(
             d -> d.getDestination().equals(datastream.getDestination())

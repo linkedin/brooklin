@@ -19,21 +19,21 @@ package com.linkedin.datastream.kafka;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Objects;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkClient;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventRecord;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.TransportProvider;
+import com.linkedin.datastream.server.DatastreamEventRecord;
 
 import kafka.admin.AdminUtils;
 
@@ -77,22 +77,22 @@ public class KafkaTransportProvider implements TransportProvider {
 
     byte[] payload;
     try {
-      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, record.event());
+      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, record.getEvent());
     } catch (IOException e) {
-      throw new DatastreamException("Failed to encode event in Avro, event=" + record.event(), e);
+      throw new DatastreamException("Failed to encode event in Avro, event=" + record.getEvent(), e);
     }
 
     if (partition >= 0) {
-      return new ProducerRecord<>(record.getTopicName(), partition, null, payload);
+      return new ProducerRecord<>(record.getDestination(), partition, null, payload);
     } else {
-      return new ProducerRecord<>(record.getTopicName(), null, payload);
+      return new ProducerRecord<>(record.getDestination(), null, payload);
     }
   }
 
   @Override
   public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
-    Objects.requireNonNull(topicName, "topicName should not be null");
-    Objects.requireNonNull(topicConfig, "topicConfig should not be null");
+    Validate.notNull(topicName, "topicName should not be null");
+    Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
     LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s",
@@ -115,7 +115,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void dropTopic(String destinationUri) {
-    Objects.requireNonNull(destinationUri, "destinationuri should not null");
+    Validate.notNull(destinationUri, "destinationuri should not null");
     String topicName = URI.create(destinationUri).getPath();
 
     try {
@@ -134,15 +134,15 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void send(DatastreamEventRecord record) {
     try {
-      Objects.requireNonNull(record, "invalid event record.");
-      Objects.requireNonNull(record.event(), "invalid datastream event.");
-      Objects.requireNonNull(record.event().metadata, "Metadata cannot be null");
-      Objects.requireNonNull(record.event().key, "Key cannot be null");
-      Objects.requireNonNull(record.event().payload, "Payload cannot be null");
-      Objects.requireNonNull(record.event().previous_payload, "Payload cannot be null");
+      Validate.notNull(record, "invalid event record.");
+      Validate.notNull(record.getEvent(), "invalid datastream event.");
+      Validate.notNull(record.getEvent().metadata, "Metadata cannot be null");
+      Validate.notNull(record.getEvent().key, "Key cannot be null");
+      Validate.notNull(record.getEvent().payload, "Payload cannot be null");
+      Validate.notNull(record.getEvent().previous_payload, "Payload cannot be null");
 
       LOG.info(String
-          .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getTopicName(),
+          .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getDestination(),
               record.getPartition()));
 
       ProducerRecord<byte[], byte[]> outgoing;
@@ -157,7 +157,7 @@ public class KafkaTransportProvider implements TransportProvider {
     } catch (Exception e) {
       LOG.error(String
           .format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-              record.event(), record.getTopicName(), _brokers, e));
+              record.getEvent(), record.getDestination(), _brokers, e));
       throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
     }
   }

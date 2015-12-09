@@ -1,15 +1,20 @@
 package com.linkedin.datastream.common;
 
-
 import java.lang.reflect.Field;
-import java.util.Objects;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
+
+import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 /**
  * Utility class to simplify usage of Java reflection.
  */
 public class ReflectionUtils {
+  private static Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
+
   /**
    * Create an instance of the specified class with constuctor
    * matching the argument array.
@@ -19,7 +24,7 @@ public class ReflectionUtils {
    * @return instance of the class, or null if anything went wrong
    */
   public static <T> T createInstance(String clazz, Object... args) {
-    Objects.requireNonNull(clazz, "null class name");
+    Validate.notNull(clazz, "null class name");
     try {
       Class classObj = Class.forName(clazz);
       Class[] argTypes = new Class[args.length];
@@ -27,6 +32,7 @@ public class ReflectionUtils {
       Constructor<T> ctor = classObj.getDeclaredConstructor(argTypes);
       return ctor.newInstance(args);
     } catch (Exception e) {
+      LOG.warn("Failed to create instance for: " + clazz, e);
       return null;
     }
   }
@@ -40,8 +46,8 @@ public class ReflectionUtils {
    * @return the new value just set or null if failed
    */
   public static <T> T setField(Object object, String field, T value) {
-    Objects.requireNonNull(object, "null target object");
-    Objects.requireNonNull(field, "null field name");
+    Validate.notNull(object, "null target object");
+    Validate.notNull(field, "null field name");
 
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);
@@ -49,6 +55,7 @@ public class ReflectionUtils {
       fieldObj.set(object, value);
       return value;
     } catch (Exception e) {
+      LOG.warn(String.format("Failed to set field, object = %s field = %s value = %s", object, field, value), e);
       return null;
     }
   }
@@ -61,14 +68,15 @@ public class ReflectionUtils {
    * @return the value of the field or null if failed
    */
   public static <T> T getField(Object object, String field) {
-    Objects.requireNonNull(object, "null target object");
-    Objects.requireNonNull(field, "null field name");
+    Validate.notNull(object, "null target object");
+    Validate.notNull(field, "null field name");
 
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);
       fieldObj.setAccessible(true);
       return (T)fieldObj.get(object);
     } catch (Exception e) {
+      LOG.warn(String.format("Failed to set field, object = %s field = %s", object, field), e);
       return null;
     }
   }

@@ -81,4 +81,10 @@ public class TestDatastreamServer {
     Assert.assertTrue(caughtException);
   }
 
+  @Test
+  public void testEndToEndHappyBasic() throws Exception {
+    initializeTestDatastreamServer(null);
+
+  }
+
 }

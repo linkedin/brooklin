@@ -2,8 +2,6 @@ package com.linkedin.datastream.server;
 
 import java.util.Properties;
 
-import com.linkedin.datastream.common.DatastreamEventRecord;
-
 
 /**
  * Datastream is transport agnostic system, This is the interface that each TransportProvider needs to be implement

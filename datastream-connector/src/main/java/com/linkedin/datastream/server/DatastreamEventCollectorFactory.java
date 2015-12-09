@@ -7,7 +7,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import org.apache.commons.lang.StringUtils;
 
 import java.lang.reflect.Constructor;
-import java.util.Objects;
+import org.apache.commons.lang.Validate;
 import java.util.Properties;
 
 
@@ -24,7 +24,7 @@ public class DatastreamEventCollectorFactory {
 
   public DatastreamEventCollectorFactory(Properties config)
       throws DatastreamException {
-    Objects.requireNonNull(config, "invalid config.");
+    Validate.notNull(config, "invalid config.");
     _config = new VerifiableProperties(config);
     String className = _config.getProperty(CONFIG_COLLECTOR_NAME);
     if (StringUtils.isEmpty(className)) {

@@ -11,6 +11,6 @@ public class DummyDatastreamEventCollector implements DatastreamEventCollector {
   }
 
   @Override
-  public void send(com.linkedin.datastream.common.DatastreamEventRecord record) {
+  public void send(DatastreamEventRecord record) {
   }
 }

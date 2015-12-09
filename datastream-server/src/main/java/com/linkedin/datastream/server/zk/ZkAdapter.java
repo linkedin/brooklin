@@ -112,7 +112,6 @@ public class ZkAdapter {
   // only the leader should maintain this list
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedTaskListProvider _assignmentList = null;
-  private ZkBackedDatastreamTasksMap _datastreamMap = null;
 
   public ZkAdapter(String zkServers, String cluster) {
     this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
@@ -199,8 +198,6 @@ public class ZkAdapter {
     // both leader and follower needs to listen to its own instance change
     // under /{cluster}/instances/{instance}
     _assignmentList = new ZkBackedTaskListProvider();
-    // each instance will need the full map of all datastream tasks
-    _datastreamMap = new ZkBackedDatastreamTasksMap();
 
     // start with follower state, then join leader election
     onBecomeFollower();

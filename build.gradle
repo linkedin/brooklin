@@ -109,6 +109,7 @@ project(':datastream-connector') {
 project(':datastream-transport') {
   dependencies {
     compile project(':datastream-common')
+    compile project(':datastream-connector')
   }
 }
 

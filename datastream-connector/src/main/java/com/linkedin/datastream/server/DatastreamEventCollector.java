@@ -1,7 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamEventRecord;
-
 
 /**
  * Interface for Connector to send Datastream events over Kafka.
