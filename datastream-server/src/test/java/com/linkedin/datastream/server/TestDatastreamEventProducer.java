@@ -6,6 +6,9 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -81,7 +84,8 @@ public class TestDatastreamEventProducer {
   }
 
   @Test
-  public void testSendWithDatastreamCheckpoint() throws InterruptedException {
+  public void testSendWithDatastreamCheckpoint()
+      throws InterruptedException, TransportException {
     Datastream datastream = createDatastream();
 
     DatastreamTask task1 = new DatastreamTaskImpl(datastream);

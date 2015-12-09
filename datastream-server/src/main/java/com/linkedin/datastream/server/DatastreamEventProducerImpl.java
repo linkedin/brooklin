@@ -4,6 +4,9 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -209,7 +212,8 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    */
   @Override
-  public synchronized void send(DatastreamEventRecord record) {
+  public synchronized void send(DatastreamEventRecord record)
+      throws TransportException {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
       return;

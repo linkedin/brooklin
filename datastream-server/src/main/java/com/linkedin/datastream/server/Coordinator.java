@@ -19,6 +19,9 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
@@ -104,8 +107,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // mapping from connector type to connector instance
   private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
 
-  private final DatastreamEventCollectorFactory _eventCollectorFactory;
-
   private final TransportProvider _transportProvider;
 
   private final DestinationManager _destinationManager;
@@ -129,7 +130,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
         _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
-    _eventCollectorFactory = new DatastreamEventCollectorFactory(config.getConfigProperties());
 
     String transportFactory = config.getTransportProviderFactory();
     TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
@@ -160,7 +160,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         _adapter.ensureConnectorZNode(connector.getConnectorType());
 
         // call connector::start API
-        connector.start(_eventCollectorFactory);
+        connector.start();
       });
 
     // now that instance is started, make sure it doesn't miss any assignment created during

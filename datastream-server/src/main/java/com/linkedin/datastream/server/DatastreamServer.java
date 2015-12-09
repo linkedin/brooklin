@@ -1,22 +1,24 @@
 package com.linkedin.datastream.server;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.restli.server.NettyStandaloneLauncher;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
 
 
 /**
@@ -30,7 +32,6 @@ public enum DatastreamServer {
   public static final String CONFIG_PREFIX = "datastream.server.";
   public static final String CONFIG_CONNECTOR_TYPES = CONFIG_PREFIX + "connectorTypes";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
-  public static final String CONFIG_EVENT_COLLECTOR_CLASS_NAME = DatastreamEventCollectorFactory.CONFIG_COLLECTOR_NAME;
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
   public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = CoordinatorConfig.CONFIG_TRANSPORT_PROVIDER_FACTORY;

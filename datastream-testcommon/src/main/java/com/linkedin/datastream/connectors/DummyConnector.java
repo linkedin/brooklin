@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.server.Connector;
-import com.linkedin.datastream.server.DatastreamEventCollectorFactory;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamValidationResult;
 
@@ -29,7 +28,7 @@ public class DummyConnector implements Connector {
   }
 
   @Override
-  public void start(DatastreamEventCollectorFactory factory) {
+  public void start() {
   }
 
   @Override

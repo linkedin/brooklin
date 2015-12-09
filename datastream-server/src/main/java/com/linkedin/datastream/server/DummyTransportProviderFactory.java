@@ -2,6 +2,10 @@ package com.linkedin.datastream.server;
 
 import java.util.Properties;
 
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
+
+
 public class DummyTransportProviderFactory implements TransportProviderFactory {
   @Override
   public TransportProvider createTransportProvider(Properties config) {

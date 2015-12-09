@@ -16,7 +16,7 @@ import com.linkedin.data.template.SetMode;
  * Datastream source that connector will use to consume events
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/pdu/datastream/Datastream-github-new/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 14:50:10 PST 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Wed Dec 09 10:45:32 PST 2015")
 public class DatastreamSource
     extends RecordTemplate
 {

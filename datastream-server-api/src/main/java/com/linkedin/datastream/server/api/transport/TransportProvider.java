@@ -1,6 +1,8 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.api.transport;
 
 import java.util.Properties;
+
+import com.linkedin.datastream.server.DatastreamEventRecord;
 
 
 /**
@@ -14,23 +16,28 @@ public interface TransportProvider {
    * @param topicName  Name of the topic to be created.
    * @param numberOfPartitions Number of partitions in the topic.
    * @param topicConfig Configuration to use to create the topic.
+   * @return Destination uri for the topic that is created.
+   * @throws TransportException if the topic creation fails.
    */
-  String createTopic(String topicName, int numberOfPartitions, Properties topicConfig);
+  String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) throws TransportException;
 
   /**
    * Drop the topic with the topic name
    * @param destination Destination uri.
+   * @throws TransportException if the topic deletion fails.
    */
-  void dropTopic(String destination);
+  void dropTopic(String destination) throws TransportException;
 
   /**
    * Send the DatastreamEvent to the topic.
    * @param record DatastreamEvent that needs to be sent to the stream.
+   * @throws TransportException if the send fails.
    */
-  void send(DatastreamEventRecord record);
+  void send(DatastreamEventRecord record) throws TransportException;
 
   /**
    * Flush to make sure that the current set of events that are in the buffer gets flushed to the server.
+   * @throws TransportException if the flush fails.
    */
-  void flush();
+  void flush() throws TransportException;
 }
