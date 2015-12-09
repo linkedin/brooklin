@@ -5,7 +5,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,11 +97,11 @@ public class TestDatastreamEventProducer {
 
     // Checkpoint every 50ms
     Properties config = new Properties();
-    config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    VerifiableProperties producerConfig = new VerifiableProperties(config);
+    String key = DatastreamEventProducerImpl.CONFIG_PRODUCER + "." +
+                 DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS;
+    config.put(key, "50");
 
-    DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport,
-      cpProvider, DatastreamEventProducer.CheckpointPolicy.DATASTREAM, producerConfig);
+    DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport, cpProvider, config);
 
     // No checkpoints for brand new tasks
     Assert.assertEquals(producer.getSafeCheckpoints().size(), 0);
@@ -141,8 +140,7 @@ public class TestDatastreamEventProducer {
     producer.shutdown();
 
     // Create a new producer
-    producer = new DatastreamEventProducerImpl(tasks, transport,
-            cpProvider, DatastreamEventProducer.CheckpointPolicy.DATASTREAM, producerConfig);
+    producer = new DatastreamEventProducerImpl(tasks, transport, cpProvider, config);
 
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, String> checkpointsNew = producer.getSafeCheckpoints();

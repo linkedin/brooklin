@@ -16,9 +16,9 @@ import java.util.stream.Collectors;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamTarget;
-import com.linkedin.datastream.common.KafkaConnection;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
@@ -142,7 +142,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     _destinationManager = new DestinationManager(_transportProvider);
-    _eventProducerPool = new DatastreamEventProducerPool();
+
+    CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
+    _eventProducerPool = new DatastreamEventProducerPool(cpProvider, factory, config.getConfigProperties());
   }
 
   public void start() {
