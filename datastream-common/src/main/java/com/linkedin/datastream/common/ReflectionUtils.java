@@ -6,10 +6,16 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
 /**
  * Utility class to simplify usage of Java reflection.
  */
 public class ReflectionUtils {
+  private static final Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
+
   /**
    * Create an instance of the specified class with constuctor
    * matching the argument array.
@@ -27,6 +33,7 @@ public class ReflectionUtils {
       Constructor<T> ctor = classObj.getDeclaredConstructor(argTypes);
       return ctor.newInstance(args);
     } catch (Exception e) {
+      LOG.error(String.format("Creating instance of class %s failed with exception", clazz), e);
       return null;
     }
   }
@@ -49,6 +56,7 @@ public class ReflectionUtils {
       fieldObj.set(object, value);
       return value;
     } catch (Exception e) {
+      LOG.error(String.format("Setting a field %s on object %s failed with exception", field, object), e);
       return null;
     }
   }
@@ -69,6 +77,7 @@ public class ReflectionUtils {
       fieldObj.setAccessible(true);
       return (T)fieldObj.get(object);
     } catch (Exception e) {
+      LOG.error(String.format("Fetching a field %s on object %s failed with exception", field, object), e);
       return null;
     }
   }
