@@ -56,4 +56,26 @@ public class TestZookeeperCheckpointProvider {
     Assert.assertEquals(commitedCheckpoints.get(datastreamTask1), checkpoints.get(datastreamTask1));
     Assert.assertEquals(commitedCheckpoints.get(datastreamTask2), checkpoints.get(datastreamTask2));
   }
+
+  @Test
+  public void testReadCommited_ShouldIncludeDatastreamTasks_WhoseCheckpointsAreNotCommitted() {
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster");
+    adapter.connect();
+    ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
+    Map<DatastreamTask, String> checkpoints = new HashMap<>();
+    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1));
+    datastreamTask1.setId("dt1");
+    checkpoints.put(datastreamTask1, "checkpoint1");
+
+    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2));
+    datastreamTask2.setId("dt2");
+
+    checkpointProvider.commit(checkpoints);
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(datastreamTask1);
+    tasks.add(datastreamTask2);
+    Map<DatastreamTask, String> commitedCheckpoints = checkpointProvider.getCommitted(tasks);
+    Assert.assertEquals(commitedCheckpoints.get(datastreamTask1), checkpoints.get(datastreamTask1));
+    Assert.assertFalse(commitedCheckpoints.containsKey(datastreamTask2));
+  }
 }
