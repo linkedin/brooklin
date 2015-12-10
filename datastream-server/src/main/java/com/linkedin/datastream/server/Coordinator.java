@@ -446,8 +446,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
 
     for (Datastream ds : allStreams) {
-      Map<DatastreamDestination, Datastream> streams =
-              streamsByConnectorType.getOrDefault(ds.getConnectorType(), null);
+      Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.getOrDefault(ds.getConnectorType(), null);
       if (streams == null) {
         streams = new HashMap<>();
         streamsByConnectorType.put(ds.getConnectorType(), streams);
@@ -459,21 +458,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       }
     }
 
-    // for each connector type, call the corresponding assignment strategy
+    // Map between Instance and the tasks
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
-    streamsByConnectorType.forEach((connectorType, streams) -> {
+    for(String connectorType: streamsByConnectorType.keySet()){
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
-      List<Datastream> streamList = new ArrayList<>(streams.values());
-      Map<String, List<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(streamList, liveInstances, null);
+      List<Datastream> datastreamsPerConnectorType = new ArrayList<>(streamsByConnectorType.get(connectorType).values());
 
-      tasksByConnectorAndInstance.forEach((instance, assigned) -> {
+      // Get the list of tasks per instance for the given connectortype
+      Map<String, List<DatastreamTask>> tasksByConnectorAndInstance =
+          strategy.assign(datastreamsPerConnectorType, liveInstances, null);
+
+      for(String instance: tasksByConnectorAndInstance.keySet()){
         if (!assigmentsByInstance.containsKey(instance)) {
           assigmentsByInstance.put(instance, new ArrayList<>());
         }
-        assigmentsByInstance.get(instance).addAll(assigned);
-      });
-    });
+        // Add the tasks for this connector type to the instance
+        assigmentsByInstance.get(instance).addAll(tasksByConnectorAndInstance.get(instance));
+      }
+    }
 
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
