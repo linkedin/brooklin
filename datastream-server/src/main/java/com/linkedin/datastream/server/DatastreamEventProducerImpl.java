@@ -4,6 +4,9 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.providers.SchemaRegistryProvider;
+
+import org.apache.avro.Schema;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +38,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private final List<DatastreamTask> _tasks;
 
   private final TransportProvider _transportProvider;
+  private final SchemaRegistryProvider _schemaRegistryProvider;
   private final CheckpointProvider _checkpointProvider;
   private final CheckpointPolicy _checkpointPolicy;
 
@@ -158,11 +162,13 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    */
   public DatastreamEventProducerImpl(List<DatastreamTask> tasks,
                                      TransportProvider transportProvider,
+                                     SchemaRegistryProvider schemaRegistryProvider,
                                      CheckpointProvider checkpointProvider,
                                      Properties config) {
     Validate.notNull(tasks, "null tasks");
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
+    Validate.notNull(schemaRegistryProvider, "null schemaRegistry provider");
     Validate.notNull(config, "null config");
     Validate.notEmpty(tasks, "empty task list");
 
@@ -174,6 +180,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     _tasks = tasks;
     _transportProvider = transportProvider;
+    _schemaRegistryProvider = schemaRegistryProvider;
     _checkpointProvider = checkpointProvider;
 
     // TODO: always do checkpoint for now
@@ -225,6 +232,18 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     // Dirty the flag
     _pendingCheckpoint = true;
+  }
+
+  /**
+   * Register the schema in schema registry. If the schema already exists in the registry
+   * Just return the schema Id of the existing
+   * @param schema Schema that needs to be registered.
+   * @return
+   *   SchemaId of the registered schema.
+   */
+  @Override
+  public String registerSchema(Schema schema) {
+    return _schemaRegistryProvider.registerSchema(schema);
   }
 
   @Override

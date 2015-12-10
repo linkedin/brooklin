@@ -23,6 +23,8 @@ public final class CoordinatorConfig {
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMS";
   public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = PREFIX + "transportProviderFactory";
+  private static final String CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY = "schemaRegistryProviderFactory";
+  private final String _schemaRegistryProviderFactory;
 
   public CoordinatorConfig(Properties config) {
     _config = config;
@@ -33,6 +35,7 @@ public final class CoordinatorConfig {
     _zkConnectionTimeout = _properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
     _retryIntervalMS = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
     _transportProviderFactory = _properties.getString(CONFIG_TRANSPORT_PROVIDER_FACTORY);
+    _schemaRegistryProviderFactory = _properties.getString(CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY);
   }
 
   public Properties getConfigProperties() {
@@ -61,5 +64,9 @@ public final class CoordinatorConfig {
 
   public String getTransportProviderFactory() {
     return _transportProviderFactory;
+  }
+
+  public String getSchemaRegistryProviderFactory() {
+    return _schemaRegistryProviderFactory;
   }
 }

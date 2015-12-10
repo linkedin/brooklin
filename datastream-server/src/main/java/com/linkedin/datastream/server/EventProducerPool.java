@@ -3,6 +3,8 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.providers.SchemaRegistryProvider;
+
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,7 @@ public class EventProducerPool {
 
   // Map between Connector type and <Destination URI, Producer>
   private final Map<String, Map<String, DatastreamEventProducer>> _producers = new HashMap<String, Map<String, DatastreamEventProducer>>();
+  private final SchemaRegistryProvider _schemaRegistryProvider;
 
   private CheckpointProvider _checkpointProvider;
   private TransportProviderFactory _transportProviderFactory;
@@ -31,7 +34,7 @@ public class EventProducerPool {
   private static final Logger LOG = LoggerFactory.getLogger(EventProducerPool.class.getName());
 
   public EventProducerPool(CheckpointProvider checkpointProvider, TransportProviderFactory transportProviderFactory,
-      Properties config) {
+      SchemaRegistryProvider schemaRegistryProvider, Properties config) {
 
     Validate.notNull(checkpointProvider, "null checkpoint provider");
     Validate.notNull(transportProviderFactory, "null transport provider factory");
@@ -39,6 +42,7 @@ public class EventProducerPool {
 
     _checkpointProvider = checkpointProvider;
     _transportProviderFactory = transportProviderFactory;
+    _schemaRegistryProvider = schemaRegistryProvider;
     _config = config;
   }
 
@@ -91,7 +95,7 @@ public class EventProducerPool {
         tasksPerProducer.add(task);
         producersForConnectorType.put(destination,
             new DatastreamEventProducerImpl(tasksPerProducer,_transportProviderFactory.createTransportProvider(_config),
-                _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER)));
+                _schemaRegistryProvider, _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER)));
       }
       taskProducerMapping.put(task, producersForConnectorType.get(destination));
     }

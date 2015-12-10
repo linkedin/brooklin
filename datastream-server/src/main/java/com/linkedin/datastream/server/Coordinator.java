@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.providers.SchemaRegistryProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
 import java.util.Properties;
@@ -108,6 +109,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private final TransportProvider _transportProvider;
 
+  private final SchemaRegistryProvider _schemaRegistryProvider;
+
   private final DestinationManager _destinationManager;
 
   // all datastreams by connector type. This is also valid for the coordinator leader
@@ -139,6 +142,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _transportProvider = factory.createTransportProvider(_config.getConfigProperties());
     if (_transportProvider == null) {
       throw new DatastreamException("failed to create transport provider, factory: " + transportFactory);
+    }
+
+    String schemaRegistryFactory = config.getSchemaRegistryProviderFactory();
+    if(schemaRegistryFactory != null) {
+      SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance()
+    } else {
+      LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
     }
 
     _destinationManager = new DestinationManager(_transportProvider);

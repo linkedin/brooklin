@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.avro.Schema;
+
 public class DatastreamEventProducerPool {
   private final CheckpointProvider _checkpointProvider;
   private final TransportProviderFactory _transportProviderFactory;
@@ -34,6 +36,11 @@ public class DatastreamEventProducerPool {
         @Override
         public void send(DatastreamEventRecord event) {
 
+        }
+
+        @Override
+        public String registerSchema(Schema schema) {
+          return null;
         }
 
         @Override
