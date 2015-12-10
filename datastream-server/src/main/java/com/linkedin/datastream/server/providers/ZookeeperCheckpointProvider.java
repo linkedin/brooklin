@@ -1,17 +1,20 @@
 package com.linkedin.datastream.server.providers;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.commons.lang.Validate;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 
-
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
+  private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
+
   private final ZkAdapter _zkAdapter;
 
   private static String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
@@ -26,6 +29,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    */
   @Override
   public void commit(Map<DatastreamTask, String> checkpoints) {
+    LOG.info("Commit called with checkpoints " + checkpoints.toString());
     Validate.notNull(checkpoints, "Checkpoints should not be null");
     for(DatastreamTask datastreamTask : checkpoints.keySet()) {
       _zkAdapter.setDatastreamTaskStateForKey(datastreamTask, CHECKPOINT_KEY_NAME, checkpoints.get(datastreamTask));
@@ -40,7 +44,17 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   @Override
   public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
     Validate.notNull(datastreamTasks, "datastreamTasks should not be null");
-    return datastreamTasks.stream().collect(
-        Collectors.toMap(Function.identity(), dt -> _zkAdapter.getDatastreamTaskStateForKey(dt, CHECKPOINT_KEY_NAME)));
+    Map<DatastreamTask, String> checkpoints = new HashMap<>();
+    for(DatastreamTask task : datastreamTasks) {
+      String checkpoint = _zkAdapter.getDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME);
+      if(checkpoint != null) {
+        checkpoints.put(task, checkpoint);
+      } else {
+        LOG.debug("Checkpoint doesn't exist for DatastreamTask " + task.toString());
+      }
+    }
+
+    LOG.info("GetCommitted returning the last committed checkpoints " + checkpoints.toString());
+    return checkpoints;
   }
 }
