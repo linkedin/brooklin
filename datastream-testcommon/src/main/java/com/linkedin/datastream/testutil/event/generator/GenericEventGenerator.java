@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil.eventGenerator;
+package com.linkedin.datastream.testutil.event.generator;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -169,7 +169,6 @@ public class GenericEventGenerator {
     // assert(numInserts > max(numUpdates, numDeletes));
     int numDeletesOnUpdates = numDeletes * numUpdates / numDataEvents;
     int numDeletesOnInserts = numDeletes - numDeletesOnUpdates;
-    int maxUpdateRange = numInserts / Math.max(numDeletes, numUpdates);
     int controlIndex = (numControls > 0) ? (numEvents / numControls) : (numEvents + 1);
     long lastInsertScn = -1;
     long lastUpdateScn = -1;

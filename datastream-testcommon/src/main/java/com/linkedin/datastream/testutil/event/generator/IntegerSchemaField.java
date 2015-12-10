@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil.eventGenerator;
+package com.linkedin.datastream.testutil.event.generator;
 
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericRecord;

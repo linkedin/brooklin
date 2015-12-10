@@ -130,6 +130,7 @@ project(':datastream-testcommon') {
     compile project(':datastream-utils')
     compile project(':datastream-kafka')
     compile project(':datastream-server')
+    compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"

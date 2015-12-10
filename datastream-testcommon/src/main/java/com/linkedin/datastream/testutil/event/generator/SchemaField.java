@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil.eventGenerator;
+package com.linkedin.datastream.testutil.event.generator;
 
 import java.lang.IncompatibleClassChangeError;
 import java.lang.Integer;
@@ -13,11 +13,11 @@ import com.linkedin.datastream.testutil.common.RandomValueGenerator;
  */
 public abstract class SchemaField {
 
-  protected static RandomValueGenerator _randGenerator = null;
-  protected static long _seed = -1;
-  protected static int _minValue = 0;
-  protected static int _maxValue = Integer.MAX_VALUE;
-  protected static int _maxNumElements = 10;
+  static RandomValueGenerator _randGenerator = null;
+  static long _seed = -1;
+  static int _minValue = 0;
+  static int _maxValue = Integer.MAX_VALUE;
+  static int _maxNumElements = 10;
   protected Field _field;
 
   /*
