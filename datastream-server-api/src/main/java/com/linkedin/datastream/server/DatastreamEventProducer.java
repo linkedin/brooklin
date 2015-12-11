@@ -2,6 +2,9 @@ package com.linkedin.datastream.server;
 
 import java.util.Map;
 
+import com.linkedin.datastream.server.api.transport.TransportException;
+
+
 /**
  * DatastreamEventProducer is the interface for Connectors to send
  * events to the designated destination. The producer also supports
@@ -23,7 +26,8 @@ public interface DatastreamEventProducer {
    * Send event onto the transport
    * @param event
    */
-  void send(DatastreamEventRecord event);
+  void send(DatastreamEventRecord event)
+      throws TransportException;
 
   /**
    * @return a map of safe checkpoints which are guaranteed

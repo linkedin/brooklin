@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.server.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.DatastreamEventRecord;
 
 import kafka.admin.AdminUtils;

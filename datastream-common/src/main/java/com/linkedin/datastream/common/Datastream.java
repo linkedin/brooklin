@@ -4,34 +4,30 @@ package com.linkedin.datastream.common;
 import java.util.List;
 import javax.annotation.Generated;
 import com.linkedin.data.DataMap;
-import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.PathSpec;
 import com.linkedin.data.schema.RecordDataSchema;
-import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.GetMode;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringMap;
-import com.linkedin.data.template.UnionTemplate;
 
 
 /**
  * Extensible data model of Datastream
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/pdu/datastream/Datastream-github-new/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 14:50:10 PST 2015")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Wed Dec 09 10:45:32 PST 2015")
 public class Datastream
     extends RecordTemplate
 {
 
     private final static Datastream.Fields _fields = new Datastream.Fields();
-    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"Datastream\",\"namespace\":\"com.linkedin.datastream.common\",\"doc\":\"Extensible data model of Datastream\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"Name of the Datastream.\"},{\"name\":\"connectorType\",\"type\":\"string\",\"doc\":\"Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc..\"},{\"name\":\"source\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamSource\",\"doc\":\"Datastream source that connector will use to consume events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"}]},\"doc\":\"Source that connector can use to connect to the data store and consume the data.\"},{\"name\":\"destination\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamDestination\",\"doc\":\"Datastream destination details that the transport provider will use to send events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"}]},\"doc\":\"Datastream destination string that the transport provider will use to send the events\",\"optional\":true},{\"name\":\"target\",\"type\":[{\"type\":\"record\",\"name\":\"KafkaConnection\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}],\"doc\":\"Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.\",\"optional\":true},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.\",\"optional\":true}]}"));
+    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"Datastream\",\"namespace\":\"com.linkedin.datastream.common\",\"doc\":\"Extensible data model of Datastream\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"Name of the Datastream.\"},{\"name\":\"connectorType\",\"type\":\"string\",\"doc\":\"Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc..\"},{\"name\":\"source\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamSource\",\"doc\":\"Datastream source that connector will use to consume events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"}]},\"doc\":\"Source that connector can use to connect to the data store and consume the data.\"},{\"name\":\"destination\",\"type\":{\"type\":\"record\",\"name\":\"DatastreamDestination\",\"doc\":\"Datastream destination details that the transport provider will use to send events\",\"fields\":[{\"name\":\"connectionString\",\"type\":\"string\",\"doc\":\"Source connection string to consume the data from.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"}]},\"doc\":\"Datastream destination string that the transport provider will use to send the events\",\"optional\":true},{\"name\":\"metadata\",\"type\":{\"type\":\"map\",\"values\":\"string\"},\"doc\":\"Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.\",\"optional\":true}]}"));
     private final static RecordDataSchema.Field FIELD_Name = SCHEMA.getField("name");
     private final static RecordDataSchema.Field FIELD_ConnectorType = SCHEMA.getField("connectorType");
     private final static RecordDataSchema.Field FIELD_Source = SCHEMA.getField("source");
     private final static RecordDataSchema.Field FIELD_Destination = SCHEMA.getField("destination");
-    private final static RecordDataSchema.Field FIELD_Target = SCHEMA.getField("target");
     private final static RecordDataSchema.Field FIELD_Metadata = SCHEMA.getField("metadata");
 
     public Datastream() {
@@ -271,62 +267,6 @@ public class Datastream
     }
 
     /**
-     * Existence checker for target
-     * 
-     * @see Fields#target
-     */
-    public boolean hasTarget() {
-        return contains(FIELD_Target);
-    }
-
-    /**
-     * Remover for target
-     * 
-     * @see Fields#target
-     */
-    public void removeTarget() {
-        remove(FIELD_Target);
-    }
-
-    /**
-     * Getter for target
-     * 
-     * @see Fields#target
-     */
-    public Datastream.Target getTarget(GetMode mode) {
-        return obtainWrapped(FIELD_Target, Datastream.Target.class, mode);
-    }
-
-    /**
-     * Getter for target
-     * 
-     * @see Fields#target
-     */
-    public Datastream.Target getTarget() {
-        return getTarget(GetMode.STRICT);
-    }
-
-    /**
-     * Setter for target
-     * 
-     * @see Fields#target
-     */
-    public Datastream setTarget(Datastream.Target value, SetMode mode) {
-        putWrapped(FIELD_Target, Datastream.Target.class, value, mode);
-        return this;
-    }
-
-    /**
-     * Setter for target
-     * 
-     * @see Fields#target
-     */
-    public Datastream setTarget(Datastream.Target value) {
-        putWrapped(FIELD_Target, Datastream.Target.class, value, SetMode.DISALLOW_NULL);
-        return this;
-    }
-
-    /**
      * Existence checker for metadata
      * 
      * @see Fields#metadata
@@ -442,88 +382,11 @@ public class Datastream
         }
 
         /**
-         * Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.
-         * 
-         */
-        public com.linkedin.datastream.common.Datastream.Target.Fields target() {
-            return new com.linkedin.datastream.common.Datastream.Target.Fields(getPathComponents(), "target");
-        }
-
-        /**
          * Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.
          * 
          */
         public PathSpec metadata() {
             return new PathSpec(getPathComponents(), "metadata");
-        }
-
-    }
-
-    @Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/pdu/datastream/Datastream-github-new/datastream-common/src/main/pegasus/com/linkedin/datastream/common/Datastream.pdsc.", date = "Fri Nov 20 14:50:10 PST 2015")
-    public final static class Target
-        extends UnionTemplate
-    {
-
-        private final static UnionDataSchema SCHEMA = ((UnionDataSchema) DataTemplateUtil.parseSchema("[{\"type\":\"record\",\"name\":\"KafkaConnection\",\"namespace\":\"com.linkedin.datastream.common\",\"fields\":[{\"name\":\"topicName\",\"type\":\"string\",\"doc\":\"Name of the kafka topic.\"},{\"name\":\"partitions\",\"type\":\"int\",\"doc\":\"Number of partitions of the kafka topic.\"},{\"name\":\"metadataBrokers\",\"type\":\"string\",\"doc\":\"Comma separated list of kafka metadata brokers.\"}]}]"));
-        private final static DataSchema MEMBER_KafkaConnection = SCHEMA.getType("com.linkedin.datastream.common.KafkaConnection");
-
-        public Target() {
-            super(new DataMap(), SCHEMA);
-        }
-
-        public Target(Object data) {
-            super(data, SCHEMA);
-        }
-
-        public static Datastream.Target create(com.linkedin.datastream.common.KafkaConnection value) {
-            Datastream.Target newUnion = new Datastream.Target();
-            newUnion.setKafkaConnection(value);
-            return newUnion;
-        }
-
-        public boolean isKafkaConnection() {
-            return memberIs("com.linkedin.datastream.common.KafkaConnection");
-        }
-
-        public com.linkedin.datastream.common.KafkaConnection getKafkaConnection() {
-            return obtainWrapped(MEMBER_KafkaConnection, com.linkedin.datastream.common.KafkaConnection.class, "com.linkedin.datastream.common.KafkaConnection");
-        }
-
-        public void setKafkaConnection(com.linkedin.datastream.common.KafkaConnection value) {
-            selectWrapped(MEMBER_KafkaConnection, com.linkedin.datastream.common.KafkaConnection.class, "com.linkedin.datastream.common.KafkaConnection", value);
-        }
-
-        @Override
-        public Datastream.Target clone()
-            throws CloneNotSupportedException
-        {
-            return ((Datastream.Target) super.clone());
-        }
-
-        @Override
-        public Datastream.Target copy()
-            throws CloneNotSupportedException
-        {
-            return ((Datastream.Target) super.copy());
-        }
-
-        public static class Fields
-            extends PathSpec
-        {
-
-
-            public Fields(List<String> path, String name) {
-                super(path, name);
-            }
-
-            public Fields() {
-                super();
-            }
-
-            public com.linkedin.datastream.common.KafkaConnection.Fields KafkaConnection() {
-                return new com.linkedin.datastream.common.KafkaConnection.Fields(getPathComponents(), "com.linkedin.datastream.common.KafkaConnection");
-            }
-
         }
 
     }

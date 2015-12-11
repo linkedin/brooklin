@@ -1,12 +1,12 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamTarget;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.api.connector.Connector;
 
 
 /**
@@ -61,11 +61,11 @@ public class ConnectorWrapper {
         _connectorType, _instanceName, _endTime - _startTime));
   }
 
-  public void start(DatastreamEventCollectorFactory collectorFactory) {
+  public void start() {
     logApiStart("start");
 
     try {
-      _connector.start(collectorFactory);
+      _connector.start();
     } catch (Exception ex) {
       logErrorAndException("start", ex);
     }

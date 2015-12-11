@@ -11,6 +11,8 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -38,7 +40,8 @@ public class TestDestinationManager {
     return ds;
   }
   @Test
-  public void testPopulateDatastreamDestination_UsesExistingTarget_WhenSourceIsSame() {
+  public void testPopulateDatastreamDestination_UsesExistingTarget_WhenSourceIsSame()
+      throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for(int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
@@ -54,7 +57,8 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testPopulateDatastreamDestination_CallsCreateTopic_OnlyWhenDatastreamWithNewSource() {
+  public void testPopulateDatastreamDestination_CallsCreateTopic_OnlyWhenDatastreamWithNewSource()
+      throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for(int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
@@ -75,7 +79,8 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldCallDropTopic_WhenThereAreNoReferences() {
+  public void testDeleteDatastreamDestination_ShouldCallDropTopic_WhenThereAreNoReferences()
+      throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for(int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
@@ -89,7 +94,8 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldNotCallDropTopic_WhenThereAreReferences() {
+  public void testDeleteDatastreamDestination_ShouldNotCallDropTopic_WhenThereAreReferences()
+      throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for(int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));

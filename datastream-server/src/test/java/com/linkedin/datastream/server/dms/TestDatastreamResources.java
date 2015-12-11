@@ -1,21 +1,19 @@
 package com.linkedin.datastream.server.dms;
 
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.KafkaConnection;
-
-import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.CreateResponse;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.CreateResponse;
 
 
 /**
@@ -43,9 +41,6 @@ public class TestDatastreamResources {
     if (!missingFields.contains("target")) {
       String metadataBrokers = "kafkaBrokers_" + seed;
       String targetTopic = "kafkaTopic_" + seed;
-      Datastream.Target target = new Datastream.Target();
-      target.setKafkaConnection(new KafkaConnection().setMetadataBrokers(metadataBrokers).setTopicName(targetTopic));
-      ds.setTarget(target);
     }
     if (!missingFields.contains("metadata")) {
       StringMap metadata = new StringMap();

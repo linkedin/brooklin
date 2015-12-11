@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.api.connector;
 
 import java.util.Properties;
 

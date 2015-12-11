@@ -53,34 +53,6 @@
       "optional": true
     },
     {
-      "name": "target",
-      "doc": "Target kafka cluster and topic that the connector will use for this Datastream. If BYOT (bring your own topic) is not enabled, this will be populated by connector by default.",
-      "type": [
-        {
-          "type": "record",
-          "name": "KafkaConnection",
-          "fields": [
-            {
-              "name": "topicName",
-              "doc": "Name of the kafka topic.",
-              "type": "string"
-            },
-            {
-              "name": "partitions",
-              "doc": "Number of partitions of the kafka topic.",
-              "type": "int"
-            },
-            {
-              "name": "metadataBrokers",
-              "doc": "Comma separated list of kafka metadata brokers.",
-              "type": "string"
-            }
-          ]
-        }
-      ],
-      "optional": true
-    },
-    {
       "name": "metadata",
       "doc": "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.",
       "type": {

@@ -15,6 +15,8 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
 /**
@@ -37,7 +39,8 @@ public class DestinationManager {
    * datastream with the same source, they will use the same destination.
    * @param datastreams All datastreams in the current system.
    */
-  public void populateDatastreamDestination(List<Datastream> datastreams) {
+  public void populateDatastreamDestination(List<Datastream> datastreams)
+      throws TransportException {
     Validate.notNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
@@ -73,7 +76,8 @@ public class DestinationManager {
         sourceDestinationMapping);
   }
 
-  private String createTopic(Datastream datastream) {
+  private String createTopic(Datastream datastream)
+      throws TransportException {
     Properties datastreamProperties = new Properties();
     datastreamProperties.putAll(datastream.getMetadata());
     Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
@@ -92,7 +96,8 @@ public class DestinationManager {
    * @param datastream Datastream whose destination needs to be deleted.
    * @param allDatastreams All the datastreams in the system.
    */
-  public void deleteDatastreamDestination(Datastream datastream, List<Datastream> allDatastreams) {
+  public void deleteDatastreamDestination(Datastream datastream, List<Datastream> allDatastreams)
+      throws TransportException {
     Validate.notNull(datastream, "Datastream should not be null");
     Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
     Validate.notNull(allDatastreams, "allDatastreams should not be null");

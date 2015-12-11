@@ -5,8 +5,8 @@ import java.util.Properties;
 import org.apache.commons.lang.Validate;
 
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.TransportProvider;
-import com.linkedin.datastream.server.TransportProviderFactory;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 
 
 /**

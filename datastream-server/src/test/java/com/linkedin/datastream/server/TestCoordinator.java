@@ -27,6 +27,7 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
@@ -38,7 +39,6 @@ import com.linkedin.restli.server.CreateResponse;
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
-  private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
   private static final String TRANSPORT_FCTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
   private static final int waitDurationForZk = 1000;
   private static final int waitTimeoutMS = 30000;
@@ -52,7 +52,6 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
-    props.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FCTORY_CLASS);
 
     return new Coordinator(props);
@@ -74,7 +73,6 @@ public class TestCoordinator {
     boolean _isStarted = false;
     String _connectorType = "TestConnector";
     List<DatastreamTask> _tasks = new ArrayList<>();
-    DatastreamEventCollectorFactory _factory;
     String _instance = "";
     String _name;
 
@@ -97,9 +95,8 @@ public class TestCoordinator {
     }
 
     @Override
-    public void start(DatastreamEventCollectorFactory factory) {
+    public void start() {
       _isStarted = true;
-      _factory = factory;
       LOG.info("Connector " + _name + " started");
     }
 
@@ -155,7 +152,7 @@ public class TestCoordinator {
     //
     Connector testConnector = new Connector() {
       @Override
-      public void start(DatastreamEventCollectorFactory factory) {
+      public void start() {
       }
 
       @Override
@@ -998,7 +995,7 @@ public class TestCoordinator {
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     Connector connector1 = new Connector() {
       @Override
-      public void start(DatastreamEventCollectorFactory collectorFactory) {
+      public void start() {
 
       }
 
