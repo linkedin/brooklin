@@ -5,9 +5,10 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,13 +98,14 @@ public class TestDatastreamEventProducer {
 
     //ValidatingTransport transport = new ValidatingTransport();
     TransportProvider transport = mock(TransportProvider.class);
+    SchemaRegistryProvider schemaRegistryProvider = mock(SchemaRegistryProvider.class);
     InMemoryCheckpointProvider cpProvider = new InMemoryCheckpointProvider();
 
     // Checkpoint every 50ms
     Properties config = new Properties();
     config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
 
-    DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport, cpProvider, config);
+    DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport, schemaRegistryProvider, cpProvider, config);
 
     // No checkpoints for brand new tasks
     Assert.assertEquals(producer.getSafeCheckpoints().size(), 0);
@@ -142,7 +144,7 @@ public class TestDatastreamEventProducer {
     producer.shutdown();
 
     // Create a new producer
-    producer = new DatastreamEventProducerImpl(tasks, transport, cpProvider, config);
+    producer = new DatastreamEventProducerImpl(tasks, transport, schemaRegistryProvider, cpProvider, config);
 
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, String> checkpointsNew = producer.getSafeCheckpoints();

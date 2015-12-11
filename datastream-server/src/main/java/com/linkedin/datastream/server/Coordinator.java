@@ -1,5 +1,11 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProviderFactory;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
@@ -19,9 +25,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.server.api.connector.Connector;
-import com.linkedin.datastream.server.api.transport.TransportProvider;
-import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
@@ -89,6 +92,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+  private static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "schemaRegistry";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
@@ -108,7 +112,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
 
   private final TransportProvider _transportProvider;
-
   private final DestinationManager _destinationManager;
 
   // all datastreams by connector type. This is also valid for the coordinator leader
@@ -130,6 +133,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
         _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
+    VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     String transportFactory = config.getTransportProviderFactory();
     TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
@@ -141,10 +145,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       throw new DatastreamException("failed to create transport provider, factory: " + transportFactory);
     }
 
+    String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
+    SchemaRegistryProvider schemaRegistry = null;
+    if(schemaRegistryFactoryType != null) {
+      SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
+      schemaRegistryFactory.createSchemaRegistryProvider(coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
+    } else {
+      LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
+    }
+
     _destinationManager = new DestinationManager(_transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new EventProducerPool(cpProvider, factory, config.getConfigProperties());
+    _eventProducerPool = new EventProducerPool(cpProvider, factory, schemaRegistry, config.getConfigProperties());
   }
 
   public void start() {

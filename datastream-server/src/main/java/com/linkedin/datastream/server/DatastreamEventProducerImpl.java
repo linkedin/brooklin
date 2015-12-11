@@ -3,10 +3,13 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
+import org.apache.avro.Schema;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +41,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private final List<DatastreamTask> _tasks;
 
   private final TransportProvider _transportProvider;
+  private final SchemaRegistryProvider _schemaRegistryProvider;
   private final CheckpointProvider _checkpointProvider;
   private final CheckpointPolicy _checkpointPolicy;
 
@@ -161,6 +165,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    */
   public DatastreamEventProducerImpl(List<DatastreamTask> tasks,
                                      TransportProvider transportProvider,
+                                     SchemaRegistryProvider schemaRegistryProvider,
                                      CheckpointProvider checkpointProvider,
                                      Properties config) {
     Validate.notNull(tasks, "null tasks");
@@ -177,6 +182,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     _tasks = tasks;
     _transportProvider = transportProvider;
+    _schemaRegistryProvider = schemaRegistryProvider;
     _checkpointProvider = checkpointProvider;
 
     // TODO: always do checkpoint for now
@@ -229,6 +235,23 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     // Dirty the flag
     _pendingCheckpoint = true;
+  }
+
+  /**
+   * Register the schema in schema registry. If the schema already exists in the registry
+   * Just return the schema Id of the existing
+   * @param schema Schema that needs to be registered.
+   * @return
+   *   SchemaId of the registered schema.
+   */
+  @Override
+  public String registerSchema(Schema schema)
+      throws SchemaRegistryException {
+    if(_schemaRegistryProvider != null) {
+      return _schemaRegistryProvider.registerSchema(schema);
+    } else {
+      throw new RuntimeException("SchemaRegistryProvider is not configured, So registerSchema is not supported");
+    }
   }
 
   @Override

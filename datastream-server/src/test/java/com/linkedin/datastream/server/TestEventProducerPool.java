@@ -28,7 +28,7 @@ public class TestEventProducerPool {
     TransportProviderFactory transportProviderFactory = new DummyTransportProviderFactory();;
     Properties config = new Properties();
     config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProviderFactory, config);
+    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProviderFactory, null, config);
   }
 
   @Test

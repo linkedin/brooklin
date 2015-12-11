@@ -2,6 +2,9 @@ package com.linkedin.datastream.server;
 
 import java.util.Map;
 
+import org.apache.avro.Schema;
+
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
 import com.linkedin.datastream.server.api.transport.TransportException;
 
 
@@ -28,6 +31,16 @@ public interface DatastreamEventProducer {
    */
   void send(DatastreamEventRecord event)
       throws TransportException;
+
+  /**
+   * Register the schema in schema registry. If the schema already exists in the registry
+   * Just return the schema Id of the existing
+   * @param schema Schema that needs to be registered.
+   * @return
+   *   SchemaId of the registered schema.
+   */
+  String registerSchema(Schema schema)
+      throws SchemaRegistryException;
 
   /**
    * @return a map of safe checkpoints which are guaranteed
