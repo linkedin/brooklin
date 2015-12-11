@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerImpl.class);
 
-  public static final String CONFIG_PRODUCER = "datastream.server.eventProducer";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
   public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000;
   public static final Integer SHUTDOWN_POLL_MS = 1000;
@@ -65,7 +64,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     public CheckpointHandler(Properties config) {
       VerifiableProperties props = new VerifiableProperties(config);
-      _periodMs = Long.valueOf(props.getLong(CHECKPOINT_PERIOD_MS, DEFAULT_CHECKPOINT_PERIOD_MS));
+      _periodMs = props.getLong(CHECKPOINT_PERIOD_MS, DEFAULT_CHECKPOINT_PERIOD_MS);
 
       // Create a string representation of all the tasks for logging
       List<String> tasks = new ArrayList<>(_tasks.size());
@@ -180,9 +179,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     // TODO: always do checkpoint for now
     _checkpointPolicy = CheckpointPolicy.DATASTREAM;
 
-    VerifiableProperties globalConfig = new VerifiableProperties(config);
-    Properties producerConfig = globalConfig.getDomainProperties(CONFIG_PRODUCER);
-    _checkpointHandler = new CheckpointHandler(producerConfig);
+    _checkpointHandler = new CheckpointHandler(config);
 
     // For DATASTREAM checkpoint policy, load initial checkpoints
     if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
