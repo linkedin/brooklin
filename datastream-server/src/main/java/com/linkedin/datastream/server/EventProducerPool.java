@@ -19,6 +19,7 @@ import java.util.Map;
  * The coordinator uses this to create producers before passing it on to the connectors
  */
 public class EventProducerPool {
+  private static final String CONFIG_PRODUCER = "datastream.eventProducer";
 
   // Map between Connector type and <Destination URI, Producer>
   private final Map<String, Map<String, DatastreamEventProducer>> _producers = new HashMap<String, Map<String, DatastreamEventProducer>>();
@@ -58,7 +59,7 @@ public class EventProducerPool {
 
     if (tasks.isEmpty()) {
       LOG.info("Tasks is empty");
-      return new HashMap<DatastreamTask, DatastreamEventProducer>();
+      return new HashMap<>();
     }
 
     // Mapping between the task and the producer.This is the result that is returned
@@ -68,12 +69,14 @@ public class EventProducerPool {
     Map<String, DatastreamEventProducer> producersForConnectorType = _producers.get(connectorType);
 
     if (producersForConnectorType == null) {
-      producersForConnectorType = new HashMap<String, DatastreamEventProducer>();
+      producersForConnectorType = new HashMap<>();
       _producers.put(connectorType, producersForConnectorType);
     }
 
     // List of producers that don't have a corresponding task. These producers need to be shutdown
     Map<String, DatastreamEventProducer> unusedProducers = new HashMap<String, DatastreamEventProducer>(producersForConnectorType);
+
+    VerifiableProperties properties = new VerifiableProperties(_config);
 
     // Check if we can reuse existing EventProducers
     for (DatastreamTask task : tasks) {
@@ -88,7 +91,7 @@ public class EventProducerPool {
         tasksPerProducer.add(task);
         producersForConnectorType.put(destination,
             new DatastreamEventProducerImpl(tasksPerProducer,_transportProviderFactory.createTransportProvider(_config),
-                _checkpointProvider, _config));
+                _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER)));
       }
       taskProducerMapping.put(task, producersForConnectorType.get(destination));
     }

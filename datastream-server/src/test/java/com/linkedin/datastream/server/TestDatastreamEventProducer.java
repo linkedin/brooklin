@@ -97,9 +97,7 @@ public class TestDatastreamEventProducer {
 
     // Checkpoint every 50ms
     Properties config = new Properties();
-    String key = DatastreamEventProducerImpl.CONFIG_PRODUCER + "." +
-                 DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS;
-    config.put(key, "50");
+    config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
 
     DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport, cpProvider, config);
 
