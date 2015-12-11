@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
@@ -20,8 +19,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
-import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
