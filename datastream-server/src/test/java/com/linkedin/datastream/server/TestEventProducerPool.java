@@ -1,18 +1,18 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import org.apache.log4j.Level;
-import org.testng.Assert;
-import org.testng.annotations.*;
 
-import static org.mockito.Mockito.mock;
+import org.testng.Assert;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -28,7 +28,7 @@ public class TestEventProducerPool {
     TransportProviderFactory transportProviderFactory = new DummyTransportProviderFactory();;
     Properties config = new Properties();
     config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProviderFactory, config);
+    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProviderFactory, null, config);
   }
 
   @Test

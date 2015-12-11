@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server.providers;
+package com.linkedin.datastream.server.api.schemaregistry;
 
 import org.apache.avro.Schema;
 
@@ -14,6 +14,7 @@ public interface SchemaRegistryProvider {
    * @param schema Schema that needs to be registered.
    * @return
    *   SchemaId of the registered schema.
+   * @throws SchemaRegistryException if the register schema fails.
    */
-  String registerSchema(Schema schema);
+  String registerSchema(Schema schema) throws SchemaRegistryException;
 }

@@ -1,7 +1,8 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.api.connector;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamTarget;
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamValidationResult;
 
 import java.util.List;
 
@@ -17,7 +18,7 @@ public interface Connector {
    * Method to start the connector. This is called immediately after the connector is instantiated.
    * This typically happens when datastream instance starts up.
    */
-  void start(DatastreamEventCollectorFactory eventCollectorFactory);
+  void start();
 
   /**
    * Method to stop the connector. This is called when the datastream instance is being stopped.

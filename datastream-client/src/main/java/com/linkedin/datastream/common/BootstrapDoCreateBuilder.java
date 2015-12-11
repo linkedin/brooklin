@@ -14,7 +14,7 @@ import com.linkedin.restli.common.ResourceSpec;
  *  datastream.
  * 
  */
-@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Thu Nov 19 16:41:26 PST 2015")
+@Generated(value = "com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator", comments = "LinkedIn Request Builder", date = "Wed Dec 09 10:45:58 PST 2015")
 public class BootstrapDoCreateBuilder
     extends ActionRequestBuilderBase<Void, Datastream, BootstrapDoCreateBuilder>
 {

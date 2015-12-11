@@ -100,16 +100,15 @@ project(':datastream-common') {
   }
 }
 
-project(':datastream-connector') {
+project(':datastream-server-api') {
   dependencies {
     compile project(':datastream-common')
   }
 }
 
-project(':datastream-transport') {
+project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
-    compile project(':datastream-connector')
   }
 }
 
@@ -117,14 +116,16 @@ project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
 
-    compile project(':datastream-transport')
+    compile project(':datastream-server-api')
+    compile project(':datastream-utils')
   }
 }
 
 project(':datastream-testcommon') {
   dependencies {
-    compile project(':datastream-connector')
+    compile project(':datastream-server-api')
     compile project(':datastream-common')
+    compile project(':datastream-utils')
     // compile "org.testing:testing:$testingVersion"
     // compile "org.testing:testing:6.4"
     compile "org.apache.avro:avro:$avroVersion"
@@ -142,6 +143,7 @@ project(':datastream-client') {
     compile "org.apache.avro:avro:$avroVersion"
 
     compile project(':datastream-common')
+    compile project(':datastream-utils')
 
     testCompile project(':datastream-testcommon')
     testCompile project(':datastream-server')
@@ -160,9 +162,9 @@ project(':datastream-server') {
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
-    compile project(':datastream-connector')
-    compile project(':datastream-transport')
+    compile project(':datastream-server-api')
     compile project(':datastream-common')
+    compile project(':datastream-utils')
 
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:1.+"

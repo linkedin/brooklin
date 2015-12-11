@@ -4,6 +4,10 @@ import java.util.Map;
 
 import org.apache.avro.Schema;
 
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
+import com.linkedin.datastream.server.api.transport.TransportException;
+
+
 /**
  * DatastreamEventProducer is the interface for Connectors to send
  * events to the designated destination. The producer also supports
@@ -25,7 +29,8 @@ public interface DatastreamEventProducer {
    * Send event onto the transport
    * @param event
    */
-  void send(DatastreamEventRecord event);
+  void send(DatastreamEventRecord event)
+      throws TransportException;
 
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
@@ -34,7 +39,8 @@ public interface DatastreamEventProducer {
    * @return
    *   SchemaId of the registered schema.
    */
-  String registerSchema(Schema schema);
+  String registerSchema(Schema schema)
+      throws SchemaRegistryException;
 
   /**
    * @return a map of safe checkpoints which are guaranteed

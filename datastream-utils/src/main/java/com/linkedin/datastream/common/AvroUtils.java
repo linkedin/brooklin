@@ -18,9 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 
-/**
- * Created by spunuru on 6/15/15.
- */
 public class AvroUtils {
 
   /**

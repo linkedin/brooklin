@@ -8,7 +8,6 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
-import com.linkedin.datastream.server.DummyDatastreamEventCollector;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import org.apache.log4j.Level;
@@ -30,7 +29,6 @@ import com.linkedin.r2.RemoteInvocationException;
 @Test(singleThreaded=true)
 public class TestDatastreamRestClient {
   // "com.linkedin.datastream.server.DummyDatastreamEventCollector"
-  private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
 
   Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
@@ -71,7 +69,6 @@ public class TestDatastreamRestClient {
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);

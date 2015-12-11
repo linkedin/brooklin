@@ -15,7 +15,6 @@ import java.util.Properties;
 @Test(singleThreaded=true)
 public class TestDatastreamServer {
   // "com.linkedin.datastream.server.DummyDatastreamEventCollector"
-  private static final String COLLECTOR_CLASS = DummyDatastreamEventCollector.class.getTypeName();
   // "com.linkedin.datastream.server.assignment.BroadcastStrategy"
   private static final String BROADCAST_STRATEGY =  BroadcastStrategy.class.getTypeName();
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
@@ -41,7 +40,6 @@ public class TestDatastreamServer {
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_EVENT_COLLECTOR_CLASS_NAME, COLLECTOR_CLASS);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, DUMMY_TRANSPORT_FACTORY);

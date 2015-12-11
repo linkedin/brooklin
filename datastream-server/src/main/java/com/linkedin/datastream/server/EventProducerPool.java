@@ -1,9 +1,9 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
-import com.linkedin.datastream.server.providers.SchemaRegistryProvider;
 
 import java.util.Properties;
 import org.slf4j.Logger;

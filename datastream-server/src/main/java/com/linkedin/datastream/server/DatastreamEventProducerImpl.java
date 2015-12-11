@@ -3,8 +3,11 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
-import com.linkedin.datastream.server.providers.SchemaRegistryProvider;
 
 import org.apache.avro.Schema;
 import org.apache.commons.lang.Validate;
@@ -168,7 +171,6 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     Validate.notNull(tasks, "null tasks");
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
-    Validate.notNull(schemaRegistryProvider, "null schemaRegistry provider");
     Validate.notNull(config, "null config");
     Validate.notEmpty(tasks, "empty task list");
 
@@ -216,7 +218,8 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    */
   @Override
-  public synchronized void send(DatastreamEventRecord record) {
+  public synchronized void send(DatastreamEventRecord record)
+      throws TransportException {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
       return;
@@ -242,8 +245,13 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    *   SchemaId of the registered schema.
    */
   @Override
-  public String registerSchema(Schema schema) {
-    return _schemaRegistryProvider.registerSchema(schema);
+  public String registerSchema(Schema schema)
+      throws SchemaRegistryException {
+    if(_schemaRegistryProvider != null) {
+      return _schemaRegistryProvider.registerSchema(schema);
+    } else {
+      throw new RuntimeException("SchemaRegistryProvider is not configured, So registerSchema is not supported");
+    }
   }
 
   @Override
