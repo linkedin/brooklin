@@ -93,6 +93,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
   private static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "schemaRegistry";
+  private static final String TRANSPORT_PROVIDER_CONFIG_DOMAIN = "transportProvider";
+  private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
@@ -140,7 +142,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (factory == null) {
       throw new DatastreamException("invalid transport provider factory: " + transportFactory);
     }
-    _transportProvider = factory.createTransportProvider(_config.getConfigProperties());
+    _transportProvider = factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
       throw new DatastreamException("failed to create transport provider, factory: " + transportFactory);
     }
@@ -157,7 +159,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(_transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new EventProducerPool(cpProvider, factory, schemaRegistry, config.getConfigProperties());
+    _eventProducerPool = new EventProducerPool(cpProvider, factory, schemaRegistry,
+        coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
   }
 
   public void start() {
