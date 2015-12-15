@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.linkedin.datastream.common.PollUtils;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,13 +120,9 @@ public class TestZkAdapter {
 
     //
     // wait for leadership election to happen
-    //
-    Thread.sleep(_zkWaitInMs);
-
-    //
     // adapter2 should now be the new leader
     //
-    Assert.assertTrue(adapter2.isLeader());
+    Assert.assertTrue(PollUtils.poll(() -> adapter2.isLeader(), 100, _zkWaitInMs));
 
     //
     // adapter2 goes offline, but new instance adapter2 goes online
@@ -134,12 +131,11 @@ public class TestZkAdapter {
     // now a new client goes online
     ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
     adapter3.connect();
-    Thread.sleep(_zkWaitInMs);
 
     //
     // verify that the adapter3 is the current leader
     //
-    Assert.assertTrue(adapter3.isLeader());
+    Assert.assertTrue(PollUtils.poll(() -> adapter3.isLeader(), 100, _zkWaitInMs));
   }
 
   @Test
@@ -184,8 +180,8 @@ public class TestZkAdapter {
     //
     // new leader should be the next inline, adapters[concurrencyLevel/2]
     //
-    Thread.sleep(_zkWaitInMs);
-    Assert.assertTrue(adapters[concurrencyLevel / 2].isLeader());
+    Assert.assertTrue(PollUtils.poll(() -> adapters[concurrencyLevel / 2].isLeader(), 100, _zkWaitInMs));
+
     //
     // clean up
     //
@@ -222,19 +218,22 @@ public class TestZkAdapter {
     // stop the adapter3, current leader will be elcted and do cleanup
     //
     adapter3.forceDisconnect();
-    Thread.sleep(_zkWaitInMs * 2);
     //
     // verify 2 instance nodes
     //
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 2);
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 2);
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
+            KeyBuilder.liveInstances(testCluster)) == 2, 100, 2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
+            KeyBuilder.instances(testCluster)) == 2, 100, 2 * _zkWaitInMs));
+
     //
     // stop current leader adapter1, new leader will do the cleanup
     //
     adapter1.forceDisconnect();
-    Thread.sleep(_zkWaitInMs * 2);
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 1);
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 1);
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
+            KeyBuilder.liveInstances(testCluster)) == 1, 100, 2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
+            KeyBuilder.instances(testCluster)) == 1, 100, 2 * _zkWaitInMs));
 
     adapter2.disconnect();
     zkClient.close();
@@ -251,16 +250,12 @@ public class TestZkAdapter {
 
     // create new datastreams in zookeeper
     zkClient.create(KeyBuilder.datastream(testCluster, "stream1"), "stream1", CreateMode.PERSISTENT);
-    Thread.sleep(_zkWaitInMs);
 
-    List<Datastream> streams = adapter1.getAllDatastreams();
-    Assert.assertEquals(streams.size(), 1);
+    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 1, 100, _zkWaitInMs));
 
     // create new datastreams in zookeeper
     zkClient.create(KeyBuilder.datastream(testCluster, "stream2"), "stream1", CreateMode.PERSISTENT);
-    Thread.sleep(_zkWaitInMs);
-    streams = adapter1.getAllDatastreams();
-    Assert.assertEquals(streams.size(), 2);
+    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 2, 100, _zkWaitInMs));
 
     adapter1.disconnect();
     zkClient.close();
