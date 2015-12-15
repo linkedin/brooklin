@@ -25,6 +25,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
@@ -32,7 +33,7 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.server.zk.ZkClient;
+import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
@@ -1032,7 +1033,9 @@ public class TestCoordinator {
    */
   @Test
   public void testCreateDatastreamHappyPath() throws Exception {
-    Properties properties = TestDatastreamServer.initializeTestDatastreamServer(null);
+    EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    datastreamKafkaCluster.startup();
+    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources();
 
     Coordinator coordinator = createCoordinator(
@@ -1056,11 +1059,14 @@ public class TestCoordinator {
 
     Datastream queryStream = resource.get(stream.getName());
     Assert.assertNotNull(queryStream.getDestination());
+    datastreamKafkaCluster.shutdown();
   }
 
   @Test
   public void testEndToEndHappyPath() throws Exception {
-    Properties properties = TestDatastreamServer.initializeTestDatastreamServer(null);
+    EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    datastreamKafkaCluster.startup();
+    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources();
 
     Coordinator coordinator = createCoordinator(
@@ -1084,6 +1090,7 @@ public class TestCoordinator {
 
     Datastream queryStream = resource.get(stream.getName());
     Assert.assertNotNull(queryStream.getDestination());
+    datastreamKafkaCluster.shutdown();
   }
 
     // helper method: assert that within a timeout value, the connector are assigned the specific

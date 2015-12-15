@@ -39,13 +39,13 @@ public class TestDatastreamRestClient {
   @BeforeTest
   public void setUp() throws Exception {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
-    DatastreamServer.INSTANCE.shutDown();
+    DatastreamServer.INSTANCE.shutdown();
     setupServer();
   }
 
   @AfterTest
   public void tearDown() throws Exception {
-    DatastreamServer.INSTANCE.shutDown();
+    DatastreamServer.INSTANCE.shutdown();
   }
 
   public static Datastream generateDatastream(int seed) {

@@ -1,7 +1,7 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.zk.ZkClient;
+import com.linkedin.datastream.common.zk.ZkClient;
 
 import java.util.Properties;
 

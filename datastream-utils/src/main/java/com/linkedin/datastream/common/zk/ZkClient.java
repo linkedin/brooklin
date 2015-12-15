@@ -1,15 +1,19 @@
-package com.linkedin.datastream.server.zk;
+package com.linkedin.datastream.common.zk;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.Stack;
+import java.util.concurrent.Callable;
 
 import org.I0Itec.zkclient.ZkConnection;
-import org.I0Itec.zkclient.exception.*;
+import org.I0Itec.zkclient.exception.ZkException;
+import org.I0Itec.zkclient.exception.ZkInterruptedException;
+import org.I0Itec.zkclient.exception.ZkMarshallingError;
+import org.I0Itec.zkclient.exception.ZkNoNodeException;
+import org.I0Itec.zkclient.exception.ZkNodeExistsException;
 import org.I0Itec.zkclient.serialize.ZkSerializer;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
@@ -112,7 +116,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
 
   // override exists(path, watch), so we can record all exists requests
   @Override
-  protected boolean exists(final String path, final boolean watch) {
+  public boolean exists(final String path, final boolean watch) {
     long startT = System.nanoTime();
 
     try {
@@ -132,7 +136,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
 
   // override getChildren(path, watch), so we can record all getChildren requests
   @Override
-  protected List<String> getChildren(final String path, final boolean watch) {
+  public List<String> getChildren(final String path, final boolean watch) {
     long startT = System.nanoTime();
 
     try {
@@ -208,13 +212,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   protected <T extends Object> T readData(final String path, final Stat stat, final boolean watch) {
     long startT = System.nanoTime();
     try {
-      byte[] data = retryUntilConnected(new Callable<byte[]>() {
-
-        @Override
-        public byte[] call() throws Exception {
-          return _connection.readData(path, stat, watch);
-        }
-      });
+      byte[] data = retryUntilConnected(() -> _connection.readData(path, stat, watch));
       return (T) deserialize(data);
     } finally {
       long endT = System.nanoTime();
@@ -243,13 +241,9 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     try {
       final byte[] data = serialize(datat);
 
-      retryUntilConnected(new Callable<Object>() {
-
-        @Override
-        public Object call() throws Exception {
-          _connection.writeData(path, data, expectedVersion);
-          return null;
-        }
+      retryUntilConnected(() -> {
+        _connection.writeData(path, data, expectedVersion);
+        return null;
       });
     } finally {
       long endT = System.nanoTime();
@@ -263,13 +257,8 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long start = System.nanoTime();
     try {
       final byte[] bytes = _zkSerializer.serialize(datat);
-      return retryUntilConnected(new Callable<Stat>() {
-
-        @Override
-        public Stat call() throws Exception {
-          return ((ZkConnection) _connection).getZookeeper().setData(path, bytes, expectedVersion);
-        }
-      });
+      return retryUntilConnected(
+          () -> ((ZkConnection) _connection).getZookeeper().setData(path, bytes, expectedVersion));
     } finally {
       long end = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -289,13 +278,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     try {
       final byte[] bytes = data == null ? null : serialize(data);
 
-      return retryUntilConnected(new Callable<String>() {
-
-        @Override
-        public String call() throws Exception {
-          return _connection.create(path, bytes, mode);
-        }
-      });
+      return retryUntilConnected(() -> _connection.create(path, bytes, mode));
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -309,13 +292,9 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long startT = System.nanoTime();
     try {
       try {
-        retryUntilConnected(new Callable<Object>() {
-
-          @Override
-          public Object call() throws Exception {
-            _connection.delete(path);
-            return null;
-          }
+        retryUntilConnected(() -> {
+          _connection.delete(path);
+          return null;
         });
 
         return true;

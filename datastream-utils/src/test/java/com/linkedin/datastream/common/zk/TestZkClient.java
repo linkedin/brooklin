@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server.zk;
+package com.linkedin.datastream.common.zk;
 
 import java.io.IOException;
 import java.util.List;

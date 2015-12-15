@@ -3,7 +3,7 @@ package com.linkedin.datastream.server.dms;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.server.zk.ZkClient;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 import org.slf4j.Logger;
