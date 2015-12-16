@@ -13,6 +13,8 @@ import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Objects;
@@ -59,6 +61,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   private Datastream _datastream;
 
+  // List of partitions the task covers.
+  private List<Integer> _partitions;
+
   private ZkAdapter _zkAdapter;
 
   private Map<String, String> _properties = new HashMap<>();
@@ -72,12 +77,23 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   public DatastreamTaskImpl(Datastream datastream, String id) {
+    this(datastream, id, null);
+  }
+
+  public DatastreamTaskImpl(Datastream datastream, String id, List<Integer> partitions) {
     Validate.isTrue(datastream != null, "null datastream");
     Validate.isTrue(id != null, "null id");
     _datastreamName = datastream.getName();
     _connectorType = datastream.getConnectorType();
     _datastream = datastream;
     _id = id;
+    _partitions = new ArrayList<>();
+    if (partitions != null && partitions.size() > 0) {
+      _partitions.addAll(partitions);
+    } else {
+      // By default, there is at least one partition
+      _partitions.add(1);
+    }
   }
 
   // construct DatastreamTask from json string
@@ -113,6 +129,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public DatastreamDestination getDatastreamDestination() {
     return _datastream.getDestination();
+  }
+
+  public void setPartitions(List<Integer> partitions) {
+    Validate.notNull(partitions);
+    _partitions = partitions;
+  }
+
+  @Override
+  public List<Integer> getPartitions() {
+    return _partitions;
   }
 
   public void setDatastream(Datastream datastream) {

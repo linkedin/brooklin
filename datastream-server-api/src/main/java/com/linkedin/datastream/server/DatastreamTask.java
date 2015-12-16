@@ -3,6 +3,8 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 
+import java.util.List;
+
 
 public interface DatastreamTask {
 
@@ -62,4 +64,9 @@ public interface DatastreamTask {
    * @return the Datastream destination.
    */
   DatastreamDestination getDatastreamDestination();
+
+  /**
+   * @return the list of partitions this task covers.
+   */
+  List<Integer> getPartitions();
 }
