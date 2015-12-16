@@ -267,7 +267,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
   private void validateEventRecord(DatastreamEventRecord record) {
     Validate.notNull(record, "null event record.");
-    Validate.notNull(record.getEvent(), "null event payload.");
+    Validate.notNull(record.getEvents(), "null event payload.");
     DatastreamTask task =  record.getDatastreamTask();
     Validate.notNull(task, "null event task.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
