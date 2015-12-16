@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.DatastreamValidationResult;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
 /**
@@ -41,13 +41,13 @@ public class DummyConnector implements Connector {
   }
 
   @Override
-  public DatastreamValidationResult validateDatastream(Datastream stream) {
+  public void initializeDatastream(Datastream stream)
+      throws DatastreamValidationException {
     if (stream == null || stream.getSource() == null) {
-      return new DatastreamValidationResult("Failed to get source from datastream.");
+      throw new DatastreamValidationException("Failed to get source from datastream.");
     }
     if (!stream.getSource().getConnectionString().equals(VALID_DUMMY_SOURCE)) {
-      return new DatastreamValidationResult("Invalid source (" + stream.getSource() + ") in datastream.");
+      throw new DatastreamValidationException("Invalid source (" + stream.getSource() + ") in datastream.");
     }
-    return new DatastreamValidationResult();
   }
 }

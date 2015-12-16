@@ -1,5 +1,17 @@
 package com.linkedin.datastream.server;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -10,25 +22,16 @@ import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 class InMemoryCheckpointProvider implements CheckpointProvider {
   private Map<DatastreamTask, String> _cpMap = new HashMap<>();
+
 
   @Override
   public void commit(Map<DatastreamTask, String> checkpoints) {
@@ -51,6 +54,13 @@ class InMemoryCheckpointProvider implements CheckpointProvider {
 
 public class TestDatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamEventProducer.class);
+  private ArrayList<DatastreamTask> _tasks;
+  private DatastreamEventProducerImpl _producer;
+  private Datastream _datastream;
+  private TransportProvider _transport;
+  private CheckpointProvider _cpProvider;
+  private SchemaRegistryProvider _schemaRegistryProvider;
+  private Properties _config;
 
   private Datastream createDatastream() {
     Datastream datastream = new Datastream();
@@ -85,69 +95,101 @@ public class TestDatastreamEventProducer {
   }
 
   @Test
-  public void testSendWithDatastreamCheckpoint()
-      throws InterruptedException, TransportException {
-    Datastream datastream = createDatastream();
+  public void testSendWithCustomCheckpoint()
+      throws TransportException, InterruptedException {
+    setup(true);
+    DatastreamEventRecord record;
+    DatastreamTask task;
+    for (int i = 0; i < 500; i++) {
+      task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
+      record = createEventRecord(_datastream, task);
+      _producer.send(record);
+    }
+    final boolean[] isCommitCalled = {false};
 
-    DatastreamTask task1 = new DatastreamTaskImpl(datastream);
-    DatastreamTask task2 = new DatastreamTaskImpl(datastream);
+    verify(_transport, times(500)).send(any());
+    doAnswer(invocation -> isCommitCalled[0] = true).when(_cpProvider).commit(anyMap());
 
-    List<DatastreamTask> tasks = new ArrayList<>();
-    tasks.add(task1);
-    tasks.add(task2);
+    // Ensure that commit is not called even after 1 second.
+    Thread.sleep(1000);
+    Assert.assertTrue(!isCommitCalled[0]);
+  }
+
+
+
+  private void setup(boolean customCheckpointing) {
+    _datastream = createDatastream();
+
+    DatastreamTask task1 = new DatastreamTaskImpl(_datastream);
+    DatastreamTask task2 = new DatastreamTaskImpl(_datastream);
+
+    _tasks = new ArrayList<>();
+    _tasks.add(task1);
+    _tasks.add(task2);
 
     //ValidatingTransport transport = new ValidatingTransport();
-    TransportProvider transport = mock(TransportProvider.class);
-    SchemaRegistryProvider schemaRegistryProvider = mock(SchemaRegistryProvider.class);
-    InMemoryCheckpointProvider cpProvider = new InMemoryCheckpointProvider();
+    _transport = mock(TransportProvider.class);
+    _schemaRegistryProvider = mock(SchemaRegistryProvider.class);
+    if(!customCheckpointing) {
+      _cpProvider = new InMemoryCheckpointProvider();
+    } else {
+      _cpProvider = mock(CheckpointProvider.class);
+    }
 
     // Checkpoint every 50ms
-    Properties config = new Properties();
-    config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
+    _config = new Properties();
+    _config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
 
-    DatastreamEventProducer producer = new DatastreamEventProducerImpl(tasks, transport, schemaRegistryProvider, cpProvider, config);
+    _producer = new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, customCheckpointing);
+  }
 
+  @Test
+  public void testSendWithDatastreamCheckpoint()
+      throws InterruptedException, TransportException {
+
+    setup(false);
     // No checkpoints for brand new tasks
-    Assert.assertEquals(producer.getSafeCheckpoints().size(), 0);
+    Assert.assertEquals(_producer.getSafeCheckpoints().size(), 0);
 
     DatastreamEventRecord record;
     DatastreamTask task;
     DatastreamEventRecord record1 = null;
     DatastreamEventRecord record2 = null;
     for (int i = 0; i < 500; i++) {
-      task = i % 3 == 0 ? task1 : task2;
-      record = createEventRecord(datastream, task);
-      producer.send(record);
-      if (task == task1) {
+      task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
+      record = createEventRecord(_datastream, task);
+      _producer.send(record);
+      if (task == _tasks.get(0)) {
         record1 = record;
       } else {
         record2 = record;
       }
     }
 
-    verify(transport, times(500)).send(any());
+    verify(_transport, times(500)).send(any());
+    InMemoryCheckpointProvider cpProvider = (InMemoryCheckpointProvider) _cpProvider;
 
     // Allow enough time after the send loop for checkpoint to take place
     Thread.sleep(200);
 
     // Expect saved checkpoint to match that of the last event
-    Map<DatastreamTask, String> checkpoints = cpProvider.getCommitted(tasks);
+    Map<DatastreamTask, String> checkpoints = _cpProvider.getCommitted(_tasks);
 
     // Verify the checkpoints in the provider matches the event records
-    Assert.assertTrue(validateCheckpoint(checkpoints, task1, record1));
-    Assert.assertTrue(validateCheckpoint(checkpoints, task2, record2));
+    Assert.assertTrue(validateCheckpoint(checkpoints, _tasks.get(0), record1));
+    Assert.assertTrue(validateCheckpoint(checkpoints, _tasks.get(1), record2));
 
     // Verify safeCheckpoints match the ones in the checkpointProvider
-    Map<DatastreamTask, String> safeCheckpoints = producer.getSafeCheckpoints();
+    Map<DatastreamTask, String> safeCheckpoints = _producer.getSafeCheckpoints();
     checkpoints.forEach((k, v) -> Assert.assertEquals(v, safeCheckpoints.get(k)));
 
-    producer.shutdown();
+    _producer.shutdown();
 
     // Create a new producer
-    producer = new DatastreamEventProducerImpl(tasks, transport, schemaRegistryProvider, cpProvider, config);
+    _producer = new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, false);
 
     // Expect saved checkpoint to match that of the last event
-    Map<DatastreamTask, String> checkpointsNew = producer.getSafeCheckpoints();
+    Map<DatastreamTask, String> checkpointsNew = _producer.getSafeCheckpoints();
     for (DatastreamTask t: checkpoints.keySet()) {
       Assert.assertEquals(checkpoints.get(t), checkpointsNew.get(t));
     }

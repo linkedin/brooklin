@@ -27,8 +27,10 @@ public class DestinationManager {
 
   private final TransportProvider _transportProvider;
   private final int DEFAULT_NUMBER_PARTITIONS = 1;
+  private final boolean _reuseExistingTopic;
 
-  public DestinationManager(TransportProvider transportProvider) {
+  public DestinationManager(boolean reuseExistingTopic, TransportProvider transportProvider) {
+    _reuseExistingTopic = reuseExistingTopic;
     _transportProvider = transportProvider;
   }
 
@@ -55,16 +57,20 @@ public class DestinationManager {
         continue;
       }
 
+      boolean topicReuse = Boolean.parseBoolean(datastream.getMetadata()
+          .getOrDefault(CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
+
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
-      if (sourceDestinationMapping.containsKey(datastream.getSource())) {
+      if (topicReuse && sourceDestinationMapping.containsKey(datastream.getSource())) {
         DatastreamDestination destination = sourceDestinationMapping.get(datastream.getSource());
         LOG.info(String.format("Datastream %s has same source as existing datastream, Setting the destination %s",
             datastream.getName(), destination));
         datastream.setDestination(destination);
       } else {
         String connectionString = createTopic(datastream);
-        LOG.info(String.format("Datastream %s has an unique source, Creating a new destination topic %s",
-                datastream.getName(), connectionString));
+        LOG.info(String.format(
+            "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
+            datastream.getName(), topicReuse, connectionString));
         DatastreamDestination destination = new DatastreamDestination();
         destination.setConnectionString(connectionString);
         datastream.setDestination(destination);
@@ -101,10 +107,9 @@ public class DestinationManager {
     Validate.notNull(datastream, "Datastream should not be null");
     Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
     Validate.notNull(allDatastreams, "allDatastreams should not be null");
-    Stream<Datastream> duplicateDatastreams =
-        allDatastreams.stream().filter(
-            d -> d.getDestination().equals(datastream.getDestination())
-                && !d.getName().equalsIgnoreCase(datastream.getName()));
+    Stream<Datastream> duplicateDatastreams = allDatastreams.stream().filter(
+        d -> d.getDestination().equals(datastream.getDestination()) && !d.getName()
+            .equalsIgnoreCase(datastream.getName()));
 
     // If there are no datastreams using the same destination, then delete the topic.
     if (duplicateDatastreams.count() == 0) {

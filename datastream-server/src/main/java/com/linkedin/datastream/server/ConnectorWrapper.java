@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
 /**
@@ -101,18 +102,17 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
-  public DatastreamValidationResult validateDatastream(Datastream stream) {
-    logApiStart("validateDatastream");
-    DatastreamValidationResult ret = null;
+  public void initializeDatastream(Datastream stream)
+      throws DatastreamValidationException {
+    logApiStart("initializeDatastream");
 
     try {
-      ret = _connector.validateDatastream(stream);
+      _connector.initializeDatastream(stream);
     } catch (Exception ex) {
-      logErrorAndException("alidateDatastream", ex);
+      logErrorAndException("initializeDatastream", ex);
+      throw ex;
     }
 
-    logApiEnd("validateDatastream");
-
-    return ret;
+    logApiEnd("initializeDatastream");
   }
 }

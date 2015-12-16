@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProviderFactory;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -93,8 +94,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
   private static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "schemaRegistry";
-  private static final String TRANSPORT_PROVIDER_CONFIG_DOMAIN = "transportProvider";
-  private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
@@ -109,6 +108,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   // mapping from connector instance to associated assignment strategy
   private final Map<ConnectorWrapper, AssignmentStrategy> _strategies = new HashMap<>();
+
+  // Connector types which has custom checkpointing enabled.
+  private Set<String> _customCheckpointingConnectorTypes = new HashSet<>();
 
   // mapping from connector type to connector instance
   private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
@@ -156,7 +158,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
     }
 
-    _destinationManager = new DestinationManager(_transportProvider);
+    _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
     _eventProducerPool = new EventProducerPool(cpProvider, factory, schemaRegistry,
@@ -343,7 +345,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
       // Populate the event producers before calling the connector with the list of tasks.
       Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool.getEventProducers(assignment,
-          connectorType);
+          connectorType, _customCheckpointingConnectorTypes.contains(connectorType));
       for(DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if(producerMap.containsKey(task)) {
@@ -515,10 +517,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
    * connector per connector type.
    *
+   * @param connectorType type of the connector.
    * @param connector a connector that implements the Connector interface
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
+   * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
+   *                            Coordinator will not perform checkpointing to the zookeeper.
    */
-  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy) {
+  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing) {
     LOG.info("Add new connector of type " + connectorType + " to coordinator");
 
     if (_connectors.containsKey(connectorType)) {
@@ -530,27 +535,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorType, connector);
     _connectors.put(connectorType, connectorWrapper);
     _strategies.put(connectorWrapper, strategy);
+    if (customCheckpointing) {
+      _customCheckpointingConnectorTypes.add(connectorType);
+    }
   }
 
   /**
-   * Validate the datastream. Datastream management service will call this before writing the
+   * initializes the datastream. Datastream management service will call this before writing the
    * Datastream into zookeeper. This method should ensure that the source has sufficient details.
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public DatastreamValidationResult validateDatastream(Datastream datastream) {
+  public void initializeDatastream(Datastream datastream)
+      throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {
-      return new DatastreamValidationResult("Invalid connector type: " + connectorType);
+      throw new DatastreamValidationException("Invalid connector type: " + connectorType);
     }
 
-    DatastreamValidationResult result = connector.validateDatastream(datastream);
+    connector.initializeDatastream(datastream);
     if (connector.hasError()) {
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
-
-    return result;
   }
 
   private class CoordinatorEventProcessor extends Thread {
