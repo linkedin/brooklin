@@ -38,6 +38,7 @@ public enum DatastreamServer {
   public static final String CONFIG_CONNECTOR_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
+  public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
 
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
@@ -98,7 +99,9 @@ public enum DatastreamServer {
       if (assignmentStrategyInstance == null) {
         assignmentStrategyInstance = new SimpleStrategy();
       }
-      _coordinator.addConnector(connectorStr, connectorInstance, assignmentStrategyInstance);
+
+      boolean customCheckpointing = Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
+      _coordinator.addConnector(connectorStr, connectorInstance, assignmentStrategyInstance, customCheckpointing);
 
     } catch (Exception ex) {
       LOG.error(String.format("Instantiating connector %s failed with exception", connectorStr, ex));

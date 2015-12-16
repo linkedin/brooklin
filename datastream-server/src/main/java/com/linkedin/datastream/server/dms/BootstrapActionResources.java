@@ -4,7 +4,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.DatastreamValidationResult;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
@@ -42,10 +42,11 @@ public class BootstrapActionResources {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e);
     }
     bootstrapDatastream.setSource(baseDatastream.getSource());
-    DatastreamValidationResult validation = _coordinator.validateDatastream(bootstrapDatastream);
-    if (!validation.getSuccess()) {
+    try {
+      _coordinator.initializeDatastream(bootstrapDatastream);
+    } catch (DatastreamValidationException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          validation.getErrorMsg());
+          e.getMessage());
     }
 
     if (!_store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream)) {

@@ -1,19 +1,14 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.DatastreamValidationResult;
-import com.linkedin.datastream.server.zk.ZkClient;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
-import com.linkedin.restli.server.annotations.Optional;
-import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
-import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
@@ -63,10 +58,11 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Must specify source of Datastream!"));
     }
 
-    DatastreamValidationResult validation = _coordinator.validateDatastream(datastream);
-    if (!validation.getSuccess()) {
+    try {
+      _coordinator.initializeDatastream(datastream);
+    } catch (DatastreamValidationException e) {
       return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          validation.getErrorMsg()));
+          e.getMessage()));
     }
 
     if (_store.createDatastream(datastream.getName(), datastream)) {

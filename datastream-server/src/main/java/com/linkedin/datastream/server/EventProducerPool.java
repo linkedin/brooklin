@@ -47,15 +47,16 @@ public class EventProducerPool {
   }
 
   /**
-  *
-  * This method is called when the coordinator is assigned new datastream tasks
-  * and is used to retrieve DatastreamEventProducer corresponding to the assigned tasks
+   * This method is called when the coordinator is assigned new datastream tasks
+   * and is used to retrieve DatastreamEventProducer corresponding to the assigned tasks
    * @param tasks list of datastream tasks
    * @param connectorType type of connector.
-  * @return map of task to event producer mapping for this connector type
-  */
+   * @param customCheckpointing  decides whether custom checkpointing needs to be used or datastream server provided
+   *                             checkpointing.
+   * @return map of task to event producer mapping for this connector type
+   */
   public synchronized Map<DatastreamTask, DatastreamEventProducer> getEventProducers(List<DatastreamTask> tasks,
-      String connectorType) {
+      String connectorType, boolean customCheckpointing) {
 
     Validate.notNull(tasks);
     Validate.notNull(connectorType);
@@ -95,7 +96,7 @@ public class EventProducerPool {
         tasksPerProducer.add(task);
         producersForConnectorType.put(destination,
             new DatastreamEventProducerImpl(tasksPerProducer,_transportProviderFactory.createTransportProvider(_config),
-                _schemaRegistryProvider, _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER)));
+                _schemaRegistryProvider, _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing));
       }
       taskProducerMapping.put(task, producersForConnectorType.get(destination));
     }

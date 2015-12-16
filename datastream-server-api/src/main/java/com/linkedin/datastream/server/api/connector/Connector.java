@@ -1,10 +1,9 @@
 package com.linkedin.datastream.server.api.connector;
 
+import java.util.List;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.DatastreamValidationResult;
-
-import java.util.List;
 
 
 /**
@@ -38,7 +37,7 @@ public interface Connector {
    * Validate the datastream. Datastream management service call this before writing the
    * Datastream into zookeeper. DMS ensures that stream.source has sufficient details.
    * @param stream: Datastream model
-   * @return validation result
    */
-  DatastreamValidationResult validateDatastream(Datastream stream);
+  void initializeDatastream(Datastream stream)
+      throws DatastreamValidationException;
 }

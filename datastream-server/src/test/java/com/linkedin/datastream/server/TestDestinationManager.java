@@ -51,9 +51,34 @@ public class TestDestinationManager {
     datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
     newDatastream.removeDestination();
-    DestinationManager targetManager = new DestinationManager(null);
+    DestinationManager targetManager = new DestinationManager(true, null);
     targetManager.populateDatastreamDestination(datastreams);
     Assert.assertEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
+  }
+
+  @Test
+  public void testPopulateDatastreamDestination_CallsCreateTopicTopic_WhenSourceIsSameButTopicReuseIsSetFalse()
+      throws TransportException {
+    List<Datastream> datastreams = new ArrayList<>();
+    for(int index = 0; index < 10; index++) {
+      datastreams.add(generateDatastream(index));
+    }
+
+    Datastream newDatastream = generateDatastream(11);
+    newDatastream.getMetadata().put(CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, "false");
+
+    datastreams.add(newDatastream);
+    newDatastream.setSource(datastreams.get(0).getSource());
+    newDatastream.removeDestination();
+
+
+    TransportProvider transportProvider = mock(TransportProvider.class);
+    when(transportProvider.createTopic(anyString(), anyInt(), any())).thenReturn("destination");
+    DestinationManager targetManager = new DestinationManager(true, transportProvider);
+    targetManager.populateDatastreamDestination(datastreams);
+
+    verify(transportProvider, times(1)).createTopic(anyString(), anyInt(), any());
+    Assert.assertNotEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
   }
 
   @Test
@@ -72,7 +97,7 @@ public class TestDestinationManager {
     TransportProvider transportProvider = mock(TransportProvider.class);
     when(transportProvider.createTopic(anyString(), anyInt(), any())).thenReturn("destination");
 
-    DestinationManager targetManager = new DestinationManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(true, transportProvider);
     targetManager.populateDatastreamDestination(datastreams);
 
     verify(transportProvider, times(2)).createTopic(anyString(), anyInt(), any());
@@ -87,7 +112,7 @@ public class TestDestinationManager {
     }
 
     TransportProvider transportProvider = mock(TransportProvider.class);
-    DestinationManager targetManager = new DestinationManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(true, transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(1)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
@@ -103,11 +128,9 @@ public class TestDestinationManager {
 
     datastreams.get(0).setDestination(datastreams.get(1).getDestination());
     TransportProvider transportProvider = mock(TransportProvider.class);
-    DestinationManager targetManager = new DestinationManager(transportProvider);
+    DestinationManager targetManager = new DestinationManager(true, transportProvider);
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(0)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
   }
-
-
 }

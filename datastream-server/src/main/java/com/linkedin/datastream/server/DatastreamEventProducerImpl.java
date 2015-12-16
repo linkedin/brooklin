@@ -160,14 +160,18 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * Construct a DatastreamEventProducerImpl instance.
    * @param tasks list of tasks which have the same destination
    * @param transportProvider event transport
+   * @param schemaRegistryProvider
    * @param checkpointProvider checkpoint store
    * @param config global config
+   * @param customCheckpointing decides whether Producer should use custom checkpointing or the datastream server
+   *                            provided checkpointing.
    */
   public DatastreamEventProducerImpl(List<DatastreamTask> tasks,
                                      TransportProvider transportProvider,
                                      SchemaRegistryProvider schemaRegistryProvider,
                                      CheckpointProvider checkpointProvider,
-                                     Properties config) {
+                                     Properties config,
+                                     boolean customCheckpointing) {
     Validate.notNull(tasks, "null tasks");
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
@@ -185,8 +189,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     _schemaRegistryProvider = schemaRegistryProvider;
     _checkpointProvider = checkpointProvider;
 
-    // TODO: always do checkpoint for now
-    _checkpointPolicy = CheckpointPolicy.DATASTREAM;
+    _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
 
     _checkpointHandler = new CheckpointHandler(config);
 
