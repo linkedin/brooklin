@@ -13,10 +13,39 @@ public class KeyBuilder {
   private static final String _datastream = "/%s/dms/%s";
   private static final String _connectors = "/%s/connectors";
   private static final String _connector = "/%s/connectors/%s";
+  /**
+   * There are two ZK nodes for any given DatastreamTask, one under "instances"
+   * and the other one under "connectors/connectorType". The former represents
+   * an assignment and holds the JSON serialization of the task itself. The one
+   * under connectors hold the remaining information of the task, ie. config and
+   * state. This separation is because assignment change can be a hot path when
+   * there is node up/down, datastream creation/deletion. With the JSON text
+   * under "instances", Coordinator only needs to read ZooKeeper once per task,
+   * as opposed to a 2nd read into connectors.
+   *
+   * Below keys represent the various locations under connectors for parts of
+   * a DatastreamTask can be persisted.
+   */
+
+  /**
+   * Task node
+   */
   private static final String _connectorDatastreamTask = _connector +  "/%s";
-  private static final String _datastreamTaskState = _connector + "/tasks/%s/state";
-  private static final String _datastreamTaskStateKey = _connector + "/tasks/%s/state/%s";
-  private static final String _datastreamTaskConfig = _connector + "/tasks/%s/config";
+
+  /**
+   * Task state node under connectorType/task
+   */
+  private static final String _datastreamTaskState = _connector + "/%s/state";
+
+  /**
+   * Specific task state node under connectorType/task/state
+   */
+  private static final String _datastreamTaskStateKey = _connector + "/%s/state/%s";
+
+  /**
+   * Task config node under connectorType/task
+   */
+  private static final String _datastreamTaskConfig = _connector + "/%s/config";
 
   public static String cluster(String clusterName) {
     return String.format(_cluster, clusterName);
@@ -66,26 +95,26 @@ public class KeyBuilder {
     return String.format(_connectors, cluster);
   }
 
-  public static String connectorTask(String cluster, String connectorType, String task) {
-    return String.format(_connectorDatastreamTask, cluster, connectorType, task);
+  public static String connectorTask(String cluster, String connectorType, String name) {
+    return String.format(_connectorDatastreamTask, cluster, connectorType, name);
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/state
-  public static String datastreamTaskState(String cluster, String connectorType, String taskId) {
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
+  public static String datastreamTaskState(String cluster, String connectorType, String name) {
     // taskId could be empty space, which can result in "//" in the path
-    return String.format(_datastreamTaskState, cluster, connectorType, taskId).replaceAll("//", "/");
+    return String.format(_datastreamTaskState, cluster, connectorType, name).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/config
-  public static String datastreamTaskConfig(String cluster, String connectorType, String taskId) {
-    return String.format(_datastreamTaskConfig, cluster, connectorType, taskId).replaceAll("//", "/");
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
+  public static String datastreamTaskConfig(String cluster, String connectorType, String name) {
+    return String.format(_datastreamTaskConfig, cluster, connectorType, name).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskId}/state
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
   public static String datastreamTaskStateKey(String cluster, String connectorType,
-      String taskId, String key) {
+      String name, String key) {
     // taskId could be empty space, which can result in "//" in the path
-    return String.format(_datastreamTaskStateKey, cluster, connectorType, taskId, key).replaceAll("//",
+    return String.format(_datastreamTaskStateKey, cluster, connectorType, name, key).replaceAll("//",
         "/");
   }
 

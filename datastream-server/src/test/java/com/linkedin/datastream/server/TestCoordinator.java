@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -127,7 +128,7 @@ public class TestCoordinator {
 
     @Override
     public String toString() {
-      return "Connector " + _name + ", Type: " + _connectorType + ", Instance: " + _instance;
+      return "Connector " + _name + ", StatusId: " + _connectorType + ", Instance: " + _instance;
     }
   }
 
@@ -145,7 +146,7 @@ public class TestCoordinator {
     String testConectorType = "testConnectorType";
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
-    Set<String> taskIds = new HashSet<>();
+    Set<String> taskNames = new HashSet<>();
     //
     // create a Connector instance, its sole purpose is to record the number of times
     // the onAssignmentChange() is called, and it will persist this value for each
@@ -169,7 +170,7 @@ public class TestCoordinator {
           String counter = task.getState("counter");
           if (counter == null) {
             task.saveState("counter", "1");
-            taskIds.add(task.getId());
+            taskNames.add(task.getDatastreamTaskName());
           } else {
             int c = Integer.parseInt(counter);
             task.saveState("counter", Integer.toString(c + 1));
@@ -190,27 +191,27 @@ public class TestCoordinator {
     // create a new datastream so that the onAssignmentChange() can be called
     //
     String datastreamName1 = "datastream1";
-    createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName1);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName1);
 
     //
     // verify that the counter value for the connector is 1 because the onAssignmentChange
     // should be called once
     //
-    PollUtils.poll(() -> taskIds.size() == 1, 500, 30000);
-    String uuid1 = (String) taskIds.toArray()[0];
+    PollUtils.poll(() -> taskNames.size() == 1, 500, 30000);
+    String name1 = (String) taskNames.toArray()[0];
     String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-            uuid1, "counter");
+            name1, "counter");
     Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream1CounterPath));
     Assert.assertEquals(zkClient.readData(datastream1CounterPath), "1");
     //
     // add a second datastream named datastream2
     //
     String datastreamName2 = "datastream2";
-    createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName2);
-    PollUtils.poll(() -> taskIds.size() == 2, 500, 30000);
-    String uuid2 = (String) taskIds.toArray()[1];
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName2);
+    PollUtils.poll(() -> taskNames.size() == 2, 500, 30000);
+    String name2 = (String) taskNames.toArray()[1];
     String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-        uuid2, "counter");
+        name2, "counter");
     Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream2CounterPath));
     //
     // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
@@ -280,7 +281,7 @@ public class TestCoordinator {
     //
     // create datastream definitions under /testAssignmentBasic/datastream/datastream1
     //
-    createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName1);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName1);
 
     //
     // verify the instance has 1 task assigned: datastream1
@@ -304,7 +305,7 @@ public class TestCoordinator {
     // create a new datastream definition for the same connector type, /testAssignmentBasic/datastream/datastream2
     //
     String datastreamName2 = "datastream2";
-    createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName2);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName2);
 
     //
     // verify both instance1 and instance2 now have two datastreamtasks assigned
@@ -385,15 +386,15 @@ public class TestCoordinator {
     // create 2 new datastreams, 1 for each type
     //
     LOG.info("create 2 new datastreams, 1 for each type");
-    Datastream[] streams1 = createDatastreams(connectorType1, "datastream1");
-    Datastream[] streams2 = createDatastreams(connectorType2, "datastream2");
+    Datastream[] streams1 = DatastreamTestUtils.createDatastreams(connectorType1, "datastream1");
+    Datastream[] streams2 = DatastreamTestUtils.createDatastreams(connectorType2, "datastream2");
 
     LOG.info("enable destination for datastream #2, disable it for datastream #1");
     destinationManager.addDatastream(streams1[0], false);
     destinationManager.addDatastream(streams2[0], true);
 
-    storeDatastreams(zkClient, testCluster, streams1);
-    storeDatastreams(zkClient, testCluster, streams2);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams1);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams2);
 
     //
     // verify only connector2 has assignment
@@ -456,7 +457,7 @@ public class TestCoordinator {
     //
     // create a new datastream for connectorType1
     //
-    createDatastreamForDSM(zkClient, testCluster, connectorType1, "datastream1");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType1, "datastream1");
 
     //
     // verify both live instances have tasks assigned for connector type 1 only
@@ -470,7 +471,7 @@ public class TestCoordinator {
     //
     // create a new datastream for connectorType2
     //
-    createDatastreamForDSM(zkClient, testCluster, connectorType2, "datastream2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType2, "datastream2");
 
     //
     // verify both live instances have tasks assigned for both connector types
@@ -563,7 +564,7 @@ public class TestCoordinator {
     // create large number of datastreams
     //
     for (int i = 0; i < concurrencyLevel; i++) {
-      createDatastreamForDSM(zkClient, testCluster, testConectorType, datastreamName + i);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName + i);
       datastreamNames[i] = datastreamName + i;
     }
 
@@ -596,8 +597,8 @@ public class TestCoordinator {
     //
     // create 2 datastreams, [datastream0, datastream1]
     //
-    createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream0");
-    createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream1");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream0");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream1");
 
     //
     // verify both datastreams are assigned to instance1
@@ -669,7 +670,7 @@ public class TestCoordinator {
     // create 4 datastreams, [datastream0, datastream1, datatream2, datastream3]
     //
     for (int i = 0; i < 4; i++) {
-      createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, datastreamName + i);
     }
 
     //
@@ -729,7 +730,7 @@ public class TestCoordinator {
     // create 6 datastreams, [datastream0, ..., datastream5]
     //
     for (int i = 0; i < 6; i++) {
-      createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, datastreamName + i);
     }
 
     //
@@ -796,7 +797,7 @@ public class TestCoordinator {
     // create 1 datastream per instance
     //
     for (int i = 0; i < count; i++) {
-      createDatastreamForDSM(zkClient, testCluster, testConnectoryType, datastreamName + i);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, datastreamName + i);
     }
 
     //
@@ -857,8 +858,8 @@ public class TestCoordinator {
     //
     // create 2 datastreams [datastream1, datastream2]
     //
-    createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream1");
-    createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream1");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream2");
     //
     // verify assignment instance1: [datastream1], instance2:[datastream2]
     //
@@ -867,7 +868,7 @@ public class TestCoordinator {
     //
     // create 1 new datastream "datastream0", which has the smallest lexicographical order
     //
-    createDatastreamForDSM(zkClient, testCluster, testConnectoryType, "datastream0");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream0");
     //
     // verify assignment instance1:[datastream0, datastream2], instance2:[datastream1]
     //
@@ -917,11 +918,11 @@ public class TestCoordinator {
     //
     // create 3 datastreams ["simple0", "simple1", "simple2"] for ConnectoryType1
     //
-    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "simple0", "simple1", "simple2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "simple0", "simple1", "simple2");
     //
     // create 3 datastreams [datastream2, datastream3, datastream4] for ConnectorType2
     //
-    createDatastreamForDSM(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1", "broadcast2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1", "broadcast2");
     //
     // verify assignment: instance1.connector1: [datastream0], connector2:[datastream2, datastream4"]
     // instance2.connector1:[datastream1], connector2:[datastream3]
@@ -989,7 +990,7 @@ public class TestCoordinator {
     //
     // create a new datastream, which will trigger the error path
     //
-    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream0");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream0");
 
     //
     // validate the error nodes now has 1 child
@@ -999,14 +1000,14 @@ public class TestCoordinator {
     //
     // create another datastream, and validate the error nodes have 2 children
     //
-    createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream1");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream1");
     PollUtils.poll(() -> zkClient.countChildren(errorPath) == 2, 500, waitTimeoutMS);
 
     //
     // create 10 more datastream, and validate the error children is caped at 10
     //
     for (int i = 2; i < 12; i++) {
-      createDatastreamForDSM(zkClient, testCluster, connectoryType1, "datastream" + i);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream" + i);
     }
     PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, waitDurationForZk * 5);
     int childrenCount = zkClient.countChildren(errorPath);
@@ -1048,7 +1049,7 @@ public class TestCoordinator {
     coordinator.start();
 
     String datastreamName = "TestDatastream";
-    Datastream stream = createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     CreateResponse response = resource.create(stream);
     Assert.assertNull(response.getError());
@@ -1079,7 +1080,7 @@ public class TestCoordinator {
     coordinator.start();
 
     String datastreamName = "TestDatastream";
-    Datastream stream = createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     CreateResponse response = resource.create(stream);
     Assert.assertNull(response.getError());
@@ -1120,38 +1121,6 @@ public class TestCoordinator {
     }
 
     return result;
-  }
-
-  private Datastream[] createDatastreams(String connectorType, String... datastreamNames) {
-    List<Datastream> datastreams = new ArrayList<>();
-    Integer counter = 0;
-    String ts = String.valueOf(System.currentTimeMillis());
-    for (String datastreamName : datastreamNames) {
-      Datastream datastream = new Datastream();
-      datastream.setName(datastreamName);
-      datastream.setConnectorType(connectorType);
-      datastream.setSource(new DatastreamSource());
-      datastream.getSource().setConnectionString("sampleSource-" + ts + counter);
-      datastream.setMetadata(new StringMap());
-      datastreams.add(datastream);
-      ++counter;
-    }
-    return datastreams.toArray(new Datastream[datastreams.size()]);
-  }
-
-  private void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams) {
-    for (Datastream datastream : datastreams) {
-      zkClient.ensurePath(KeyBuilder.datastreams(cluster));
-      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
-      dsStore.createDatastream(datastream.getName(), datastream);
-    }
-  }
-
-  private Datastream[] createDatastreamForDSM(ZkClient zkClient, String cluster, String connectorType,
-      String... datastreamNames) {
-    Datastream[] datasteams = createDatastreams(connectorType, datastreamNames);
-    storeDatastreams(zkClient, cluster, datasteams);
-    return datasteams;
   }
 
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {

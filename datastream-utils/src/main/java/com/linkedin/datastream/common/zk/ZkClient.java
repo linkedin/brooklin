@@ -6,10 +6,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.Stack;
-import java.util.concurrent.Callable;
 
 import org.I0Itec.zkclient.ZkConnection;
-import org.I0Itec.zkclient.exception.ZkException;
 import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.I0Itec.zkclient.exception.ZkMarshallingError;
 import org.I0Itec.zkclient.exception.ZkNoNodeException;
@@ -96,16 +94,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long startT = System.nanoTime();
 
     try {
-      Stat stat = retryUntilConnected(new Callable<Stat>() {
-
-        @Override
-        public Stat call() throws Exception {
-          Stat stat = ((ZkConnection) _connection).getZookeeper().exists(path, false);
-          return stat;
-        }
-      });
-
-      return stat;
+      return retryUntilConnected(() -> ((ZkConnection) _connection).getZookeeper().exists(path, false));
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -120,12 +109,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long startT = System.nanoTime();
 
     try {
-      return retryUntilConnected(new Callable<Boolean>() {
-        @Override
-        public Boolean call() throws Exception {
-          return _connection.exists(path, watch);
-        }
-      });
+      return retryUntilConnected(() -> _connection.exists(path, watch));
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -140,12 +124,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long startT = System.nanoTime();
 
     try {
-      return retryUntilConnected(new Callable<List<String>>() {
-        @Override
-        public List<String> call() throws Exception {
-          return _connection.getChildren(path, watch);
-        }
-      });
+      return retryUntilConnected(() -> _connection.getChildren(path, watch));
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -268,8 +247,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   @Override
-  public String create(final String path, Object data, final CreateMode mode) throws ZkInterruptedException,
-      IllegalArgumentException, ZkException, RuntimeException {
+  public String create(final String path, Object data, final CreateMode mode) throws RuntimeException {
     if (path == null) {
       throw new NullPointerException("path must not be null.");
     }
@@ -340,9 +318,29 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       LOG.info("creating path in zookeeper: " + p);
       try {
         this.createPersistent(p);
-      } catch (ZkNodeExistsException ex) {
-        LOG.info(ex.getMessage());
+      } catch (ZkNodeExistsException e) {
+        LOG.info(e.getMessage());
       }
+    }
+  }
+
+  /**
+   * Remove a directory tree recursively. This is DFS given the hierarchy
+   * in zookeeper is expected to be shallow.
+   * @param path path to the directory tree to be removed
+   */
+  public void removeTree(String path) {
+    if (path == null || !this.exists(path)) {
+      return;
+    }
+
+    List<String> children = getChildren(path, false);
+    children.forEach((child) -> removeTree(path + "/" + child));
+
+    // return if the path does not exist
+    if (exists(path)) {
+      LOG.info("delete path in zookeeper: " + path);
+      delete(path);
     }
   }
 

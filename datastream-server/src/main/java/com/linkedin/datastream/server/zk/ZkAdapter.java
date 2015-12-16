@@ -392,12 +392,73 @@ public class ZkAdapter {
     String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
     DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
     String dsName = task.getDatastreamName();
-
-    String dsContent = _zkclient.ensureReadData(KeyBuilder.datastream(_cluster, dsName));
-    Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(dsContent);
-    task.setDatastream(stream);
     task.setZkAdapter(this);
+
+    String dsPath = KeyBuilder.datastream(_cluster, dsName);
+    if (!_zkclient.exists(dsPath)) {
+      // FIXME: we should do some error handling
+      throw new RuntimeException("Missing Datastream in ZooKeeper for task=" + task + " instance=" + instance);
+    }
+    String dsContent = _zkclient.ensureReadData(dsPath);
+    Datastream stream = DatastreamUtils.fromJSON(dsContent);
+    task.setDatastream(stream);
+
     return task;
+  }
+
+  /**
+   * Three directories need to be created for a new task:
+   *
+   *  - /<cluster>/instances/<instance>/<task>[JSON]
+   *  - /<cluster>/connectors/<connectorType>/<task>/<config>
+   *  - /<cluster>/connectors/<connectorType>/<task>/<state>
+   *
+   *  If any one failed, RuntimeException will be thrown.
+   */
+  private void addTaskNodes(String instance, DatastreamTaskImpl task) {
+    String name = task.getDatastreamTaskName();
+    String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
+    String json;
+    try {
+      json = task.toJson();
+    } catch (IOException e) {
+      // This should never happen
+      throw new RuntimeException("Failed to serialize task into JSON.", e);
+    }
+    String created = _zkclient.create(instancePath, json, CreateMode.PERSISTENT);
+    if (created != null && !created.isEmpty()) {
+      LOG.info("create zookeeper node: " + instancePath);
+    } else {
+      // FIXME: we should do some error handling
+      throw new RuntimeException("failed to create zookeeper node: " + instancePath);
+    }
+
+    // Task config
+    String taskConfigPath = KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(),
+            task.getDatastreamTaskName());
+    _zkclient.ensurePath(taskConfigPath);
+
+    // Task state
+    String taskStatePath = KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(),
+            task.getDatastreamTaskName());
+    _zkclient.ensurePath(taskStatePath);
+  }
+
+  /**
+   * Two nodes need to be removed for a removed task:
+   *
+   *  - /<cluster>/instances/<instance>/<task>[JSON]
+   *  - /<cluster>/connectors/<connectorType>/<task>
+   *
+   *  If either failed, RuntimeException will be thrown.
+   */
+  private void removeTaskNodes(String instance, String name) {
+    String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
+    DatastreamTask task = getAssignedDatastreamTask(instance, name);
+    String connectorPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), name);
+
+    _zkclient.removeTree(instancePath);
+    _zkclient.removeTree(connectorPath);
   }
 
   /**
@@ -405,6 +466,10 @@ public class ZkAdapter {
    * coordinator leader. To execute the update, first retrieve the existing assignment,
    * then capture the difference, and only act on the differences. That is, add new
    * assignments, remove old assignments. For ones that didn't change, do nothing.
+   * Two places will be written to:
+   *
+   *  - /<cluster>/instances/<instance>/<task1>,<task2>...
+   *  - /<cluster>/connectors/<connectorType>/<task-name1>,<task-name2>...
    *
    * Return true if assignments are persisted in zookeeper successfully.
    *
@@ -427,6 +492,7 @@ public class ZkAdapter {
       assignmentsMap.put(name, task);
     });
 
+
     // get the old assignment from zookeeper
     Set<String> oldAssignmentNames;
     try {
@@ -448,14 +514,7 @@ public class ZkAdapter {
     if (removed.size() > 0) {
       LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
       for (String name : removed) {
-        String path = KeyBuilder.instanceAssignment(_cluster, instance, name);
-        boolean deleted = _zkclient.delete(path);
-        if (deleted) {
-          LOG.info("deleted zookeeper node: " + path);
-        } else if (_zkclient.exists(path)) {
-          LOG.warn("failed to delete zookeeper node: " + path);
-          result = false;
-        }
+        removeTaskNodes(instance, name);
       }
     }
     //
@@ -470,20 +529,7 @@ public class ZkAdapter {
       LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
 
       for (String name : added) {
-        DatastreamTaskImpl task = (DatastreamTaskImpl) assignmentsMap.get(name);
-        String path = KeyBuilder.instanceAssignment(_cluster, instance, name);
-        try {
-          String created = _zkclient.create(path, task.toJson(), CreateMode.PERSISTENT);
-          if (created != null && !created.isEmpty()) {
-            LOG.info("create zookeeper node: " + path);
-          } else {
-            LOG.warn("failed to create zookeeper node: " + path);
-          }
-        } catch (IOException e) {
-          // We should never get here. If we do, need to fix it with retry logic
-          LOG.warn("Failed to assign task [" + name + "] to instance " + instance + ", error: " + e.getMessage());
-          result = false;
-        }
+        addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
       }
     }
 
@@ -586,7 +632,7 @@ public class ZkAdapter {
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -598,7 +644,7 @@ public class ZkAdapter {
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getId(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
@@ -798,11 +844,16 @@ public class ZkAdapter {
     }
 
     @Override
-    public void handleChildChange(String parentPath, List<String> currentChilds) throws Exception {
+    public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
       reloadData();
     }
   }
 
+  /**
+   * ZkBackedTaskListProvider provides informations about all DatastreamTasks existing in the cluster
+   * grouped by the connector type. In addition, it notifies the listener about changes happened to
+   * task node changes under the connector node.
+   */
   public class ZkBackedTaskListProvider implements IZkChildListener {
     private String _path = KeyBuilder.instanceAssignments(_cluster, _instanceName);
 
@@ -821,5 +872,4 @@ public class ZkAdapter {
       }
     }
   }
-
 }
