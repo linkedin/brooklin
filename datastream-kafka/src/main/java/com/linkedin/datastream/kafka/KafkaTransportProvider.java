@@ -70,16 +70,16 @@ public class KafkaTransportProvider implements TransportProvider {
     _producer = new KafkaProducer<>(props);
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(DatastreamEventRecord record)
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(DatastreamEventRecord record, DatastreamEvent event)
       throws DatastreamException {
 
     Integer partition = record.getPartition();
 
     byte[] payload;
     try {
-      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, record.getEvent());
+      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event);
     } catch (IOException e) {
-      throw new DatastreamException("Failed to encode event in Avro, event=" + record.getEvent(), e);
+      throw new DatastreamException("Failed to encode event in Avro, event=" + event, e);
     }
 
     if (partition >= 0) {
@@ -134,32 +134,38 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void send(DatastreamEventRecord record) {
     try {
-      Validate.notNull(record, "invalid event record.");
-      Validate.notNull(record.getEvent(), "invalid datastream event.");
-      Validate.notNull(record.getEvent().metadata, "Metadata cannot be null");
-      Validate.notNull(record.getEvent().key, "Key cannot be null");
-      Validate.notNull(record.getEvent().payload, "Payload cannot be null");
-      Validate.notNull(record.getEvent().previous_payload, "Payload cannot be null");
+      Validate.notNull(record, "null event record.");
+      Validate.notNull(record.getEvents(), "null datastream events.");
 
-      LOG.info(String
-          .format("Sending Datastream event %s to topic %s and partition %d", record.toString(), record.getDestination(),
-              record.getPartition()));
-
-      ProducerRecord<byte[], byte[]> outgoing;
-      try {
-        outgoing = convertToProducerRecord(record);
-      } catch (Exception ex) {
-        LOG.error("Failed to convert DatastreamEvent to ProducerRecord.", ex);
-        // TODO: Error handling
-        return;
+      // Validate all events before sending
+      for (DatastreamEvent event : record.getEvents()) {
+        Validate.notNull(event.metadata, "Metadata cannot be null");
+        Validate.notNull(event.key, "Key cannot be null");
+        Validate.notNull(event.payload, "Payload cannot be null");
+        Validate.notNull(event.previous_payload, "Payload cannot be null");
       }
-      _producer.send(outgoing);
+
+      LOG.debug("Sending Datastream event record: " + record);
+
+      for (DatastreamEvent event : record.getEvents()) {
+        ProducerRecord<byte[], byte[]> outgoing;
+        try {
+          outgoing = convertToProducerRecord(record, event);
+        } catch (Exception e) {
+          LOG.error(String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event), e);
+          // TODO: Error handling
+          return;
+        }
+        _producer.send(outgoing);
+      }
     } catch (Exception e) {
       LOG.error(String
           .format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-              record.getEvent(), record.getDestination(), _brokers, e));
+              record.getEvents(), record.getDestination(), _brokers, e));
       throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
     }
+
+    LOG.debug("Done sending Datastream event record: " + record);
   }
 
   @Override

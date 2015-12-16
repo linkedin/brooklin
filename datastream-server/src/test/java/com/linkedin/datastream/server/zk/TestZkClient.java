@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.util.List;
 
+import com.linkedin.datastream.common.PollUtils;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.apache.zookeeper.CreateMode;
@@ -136,21 +137,15 @@ public class TestZkClient {
     // now create the node
     zkClient2.create(znodePath, "", CreateMode.PERSISTENT);
 
-    // wait for a second so the callback can finish
-    Thread.sleep(1000);
-
     // child changed after new node created
-    Assert.assertTrue(l.childChanged);
+    Assert.assertTrue(PollUtils.poll(() -> l.childChanged, 100, 1000));
 
     // now write some content to the node
     String textContent = "some content";
     zkClient2.writeData(znodePath, textContent);
 
-    // wait for a second so the callback can finish
-    Thread.sleep(1000);
-
     // now the data changed should have been called
-    Assert.assertTrue(l.dataChanged);
+    Assert.assertTrue(PollUtils.poll(() -> l.dataChanged, 100, 1000));
 
     String result = zkClient2.ensureReadData(znodePath);
     Assert.assertEquals(result, textContent);
@@ -184,32 +179,24 @@ public class TestZkClient {
     zkClient2.subscribeDataChanges(instance1, l);
 
     // test existance and setup watch
-    Thread.sleep(1000);
-    boolean instance1live = zkClient2.exists(instance1, true);
-    Assert.assertTrue(instance1live);
+    Assert.assertTrue(PollUtils.poll(() -> zkClient2.exists(instance1, true), 100, 1000));
 
     // now disconnect zkClient1 so the node will disappear
     zkClient1.close();
 
-    // wait for the ephemeral node to disappear
-    Thread.sleep(1000);
-
-    // test the node is gong
-    instance1live = zkClient2.exists(instance1);
-    Assert.assertFalse(instance1live);
+    // test the node is gone
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient2.exists(instance1, true), 100, 1000));
 
     // verify the node disappear is registered in callbacks
-    Assert.assertTrue(l.dataDeleted);
-    Assert.assertFalse(l.dataChanged);
+    Assert.assertTrue(PollUtils.poll(() -> l.dataDeleted, 100, 1000));
+    Assert.assertTrue(PollUtils.poll(() -> !l.dataChanged, 100, 1000));
 
     // what if the original live instance is temp offlien (GC pause)?
     zkClient1 = new ZkClient(_zkConnectionString);
     zkClient1.create(instance1, "text", CreateMode.EPHEMERAL);
 
-    Thread.sleep(1000);
-
     // verify the data is changed
-    Assert.assertTrue(l.dataChanged);
+    Assert.assertTrue(PollUtils.poll(() -> l.dataChanged, 100, 1000));
 
     zkClient1.close();
     zkClient2.close();
