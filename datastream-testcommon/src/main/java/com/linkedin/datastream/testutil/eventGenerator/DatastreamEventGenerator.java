@@ -86,7 +86,6 @@ public class DatastreamEventGenerator extends GenericEventGenerator {
   @Override
   protected Object getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException {
     DatastreamEvent datastreamEvent = new DatastreamEvent();
-    datastreamEvent.datastream = _datastreamName;
     datastreamEvent.payload = getPayload();
     datastreamEvent.previous_payload = null;
     DatastreamEvent preEvent = null;
