@@ -3,9 +3,11 @@ package com.linkedin.datastream.server.dms;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
+import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
 import com.linkedin.restli.server.RestLiServiceException;
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 /**
@@ -14,9 +16,17 @@ import org.testng.annotations.Test;
 @Test(singleThreaded=true)
 public class TestBootstrapActionResources {
 
-  @BeforeTest
+  private EmbeddedDatastreamCluster _datastreamKafkaCluster;
+
+  @BeforeMethod
   public void setUp() throws Exception {
-    TestDatastreamServer.initializeTestDatastreamServerWithBootstrap();
+    _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServerWithBootstrap();
+    _datastreamKafkaCluster.startup();
+  }
+
+  @AfterMethod
+  public void cleanup() {
+    _datastreamKafkaCluster.shutdown();
   }
 
   @Test

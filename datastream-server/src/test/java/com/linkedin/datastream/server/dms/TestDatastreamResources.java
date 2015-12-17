@@ -4,7 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
@@ -12,6 +13,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 
@@ -21,6 +23,8 @@ import com.linkedin.restli.server.CreateResponse;
  */
 @Test(singleThreaded=true)
 public class TestDatastreamResources {
+
+  private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
   public static Datastream generateDatastream(int seed) {
     return generateDatastream(seed, new HashSet<>());
@@ -50,9 +54,15 @@ public class TestDatastreamResources {
     return ds;
   }
 
-  @BeforeTest
+  @BeforeMethod
   public void setUp() throws Exception {
-    TestDatastreamServer.initializeTestDatastreamServer(null);
+    _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    _datastreamKafkaCluster.startup();
+  }
+
+  @AfterMethod
+  public void cleanup() {
+    _datastreamKafkaCluster.shutdown();
   }
 
   @Test

@@ -1,15 +1,16 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-import org.testng.Assert;
+import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
+
 import org.testng.annotations.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 @Test(singleThreaded=true)
@@ -19,64 +20,46 @@ public class TestDatastreamServer {
   private static final String BROADCAST_STRATEGY =  BroadcastStrategy.class.getTypeName();
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
-  private static final String DUMMY_TRANSPORT_FACTORY = DummyTransportProviderFactory.class.getTypeName();
 
-  public static Properties initializeTestDatastreamServerWithBootstrap() throws Exception {
-    Properties override = new Properties();
-    override.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
-    override.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
-                 DUMMY_BOOTSTRAP_CONNECTOR);
-    override.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-                 DummyBootstrapConnectorFactory.class.getTypeName());
-    return initializeTestDatastreamServer(override);
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
+    DatastreamServer.INSTANCE.shutdown();
+    Map<String, Properties> connectorProperties = new HashMap<>();
+    connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
+    connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
+    return EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(),  -1);
   }
 
-  public static Properties initializeTestDatastreamServer(Properties override) throws Exception {
-    DatastreamServer.INSTANCE.shutDown();
-    EmbeddedZookeeper embeddedZookeeper = new EmbeddedZookeeper();
-    String zkConnectionString = embeddedZookeeper.getConnection();
-    embeddedZookeeper.startup();
+  private static Properties getBootstrapConnectorProperties() {
+    Properties props = new Properties();
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
+    return props;
+  }
 
-    Properties properties = new Properties();
-    properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
-    properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR);
-    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, DUMMY_TRANSPORT_FACTORY);
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY,
-                   BROADCAST_STRATEGY);
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-                   DummyConnectorFactory.class.getTypeName());
-    properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
+    DatastreamServer.INSTANCE.shutdown();
+    Map<String, Properties> connectorProperties = new HashMap<>();
+    connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
+    EmbeddedDatastreamCluster
+        datastreamKafkaCluster = EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override, -1);
+    return datastreamKafkaCluster;
+  }
 
-    if (override != null) {
-      override.entrySet().forEach(entry -> properties.put(entry.getKey(), entry.getValue()));
+  private static Properties getDummyConnectorProperties(boolean boostrap) {
+    Properties props = new Properties();
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
+    if(boostrap) {
+      props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     }
-
-    DatastreamServer.INSTANCE.init(properties);
-    return properties;
+    props.put("dummyProperty", "dummyValue");
+    return props;
   }
 
   @Test
   public void testDatastreamServerBasics() throws Exception {
     initializeTestDatastreamServer(null);
     initializeTestDatastreamServerWithBootstrap();
-  }
-
-  @Test
-  public void testDatastreamServerMisConfig() throws Exception {
-    // Wrong class name was assigned to DummyConnector; DatastreamServer should detect it and throw
-    Properties override = new Properties();
-    override.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-        DummyBootstrapConnector.class.getTypeName());
-    boolean caughtException = false;
-    try {
-      initializeTestDatastreamServer(override);
-    } catch (DatastreamException ds) {
-      caughtException = true;
-    }
-
-    Assert.assertTrue(caughtException);
   }
 
   @Test

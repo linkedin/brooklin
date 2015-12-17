@@ -13,12 +13,10 @@ import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
  * Factory that creates a KafkaTransportProvider
  */
 public class KafkaTransportProviderFactory implements TransportProviderFactory {
-  private static final String CONFIG_PREFIX = "datastream.server.transportProvider.";
 
   @Override
   public TransportProvider createTransportProvider(Properties config) {
     Validate.notNull(config, "null config");
-    VerifiableProperties props = new VerifiableProperties(config);
-    return new KafkaTransportProvider(props.getDomainProperties(CONFIG_PREFIX));
+    return new KafkaTransportProvider(config);
   }
 }

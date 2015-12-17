@@ -12,12 +12,12 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
-import com.linkedin.datastream.server.zk.ZkClient;
 import com.linkedin.restli.server.NettyStandaloneLauncher;
 
 
@@ -132,8 +132,7 @@ public enum DatastreamServer {
     }
 
     LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient =
-        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
             coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
@@ -151,7 +150,7 @@ public enum DatastreamServer {
     LOG.info("DatastreamServer initialized successfully.");
   }
 
-  public synchronized void shutDown() {
+  public synchronized void shutdown() {
     if (_coordinator != null) {
       _coordinator.stop();
       _coordinator = null;

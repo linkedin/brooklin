@@ -2,8 +2,8 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.server.zk.ZkClient;
 
 
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {

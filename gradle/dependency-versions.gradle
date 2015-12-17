@@ -1,7 +1,7 @@
 ext {
     slf4jVersion = "1.7.5"
     log4jVersion = "1.2.17"
-    kafkaVersion = "0.8.2.2"
+    kafkaVersion = "0.9.0.0"
     jacksonVersion = "1.8.5"
     avroVersion = "1.4.0"
     pegasusVersion = "2.6.0"

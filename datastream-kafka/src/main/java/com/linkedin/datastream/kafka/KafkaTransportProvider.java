@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Properties;
 
-import org.I0Itec.zkclient.ZkClient;
+import org.I0Itec.zkclient.ZkConnection;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -32,10 +32,12 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.DatastreamEventRecord;
 
 import kafka.admin.AdminUtils;
+import kafka.utils.ZkUtils;
 
 
 /**
@@ -46,12 +48,16 @@ public class KafkaTransportProvider implements TransportProvider {
 
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
+
+  public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
+
   private static final String DEFAULT_REPLICATION_FACTOR = "3";
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
   private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
   private final ZkClient _zkClient;
+  private final ZkUtils _zkUtils;
 
   public KafkaTransportProvider(Properties props) {
 
@@ -59,9 +65,15 @@ public class KafkaTransportProvider implements TransportProvider {
       throw new RuntimeException("Bootstrap servers are not set");
     }
 
+    if(!props.containsKey(CONFIG_ZK_CONNECT)) {
+      throw new RuntimeException("Zk connection string config is not set");
+    }
+
     _brokers = props.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
-    _zkAddress = props.getProperty("zookeeper.connect");
+    _zkAddress = props.getProperty(CONFIG_ZK_CONNECT);
     _zkClient = new ZkClient(_zkAddress);
+    ZkConnection zkConnection = new ZkConnection(_zkAddress);
+    _zkUtils =  new ZkUtils(_zkClient, zkConnection, false);
 
     // Assign mandatory arguments
     props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
@@ -100,8 +112,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
     try {
       // Create only if it doesn't exist.
-      if (!AdminUtils.topicExists(_zkClient, topicName)) {
-        AdminUtils.createTopic(_zkClient, topicName, numberOfPartitions, replicationFactor, topicConfig);
+      if (!AdminUtils.topicExists(_zkUtils, topicName)) {
+        AdminUtils.createTopic(_zkUtils, topicName, numberOfPartitions, replicationFactor, topicConfig);
       } else {
         LOG.warn(String.format("Topic with name %s already exists", topicName));
       }
@@ -120,8 +132,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
     try {
       // Delete only if it exist.
-      if(AdminUtils.topicExists(_zkClient, topicName)) {
-        AdminUtils.deleteTopic(_zkClient, topicName);
+      if(AdminUtils.topicExists(_zkUtils, topicName)) {
+        AdminUtils.deleteTopic(_zkUtils, topicName);
       } else {
         LOG.warn(String.format("Trying to delete topic %s that doesn't exist", topicName));
       }
