@@ -6,11 +6,6 @@
     "type": "record",
     "fields": [
         {
-            "name": "datastream",
-            "doc": "Name of the datastream that this event is generated for.",
-            "type": "string"
-        },
-        {
             "name": "metadata",
             "doc": "Event metadata.",
             "type": {

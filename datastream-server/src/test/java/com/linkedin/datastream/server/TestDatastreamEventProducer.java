@@ -83,7 +83,6 @@ public class TestDatastreamEventProducer {
 
   private DatastreamEventRecord createEventRecord(Datastream datastream, DatastreamTask task, Integer partition) {
     DatastreamEvent event = new DatastreamEvent();
-    event.datastream = datastream.getName();
     event.key = ByteBuffer.allocate(1);
     event.payload = ByteBuffer.allocate(1);
     ++_eventSeed;
