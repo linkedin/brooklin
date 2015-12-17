@@ -159,7 +159,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     private void doRun() {
       try {
         flushAndMakeCheckpoints();
-        LOG.info(String.format("Checkpoint handler exited, tasks = [%s].", _taskDesc));
+        LOG.debug(String.format("Checkpoint handler exited, tasks = [%s].", _taskDesc));
       } catch (Throwable t){
         // Since have have handled all exceptions here, there would be no exceptions leaked
         // to the executor, which will reschedules as usual so no explicit retry is needed.
