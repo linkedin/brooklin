@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
+import com.linkedin.datastream.common.DatastreamException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import org.codehaus.jackson.type.TypeReference;
@@ -128,7 +129,7 @@ public class TestDatastreamEventProducer {
 
   @Test
   public void testSendWithCustomCheckpoint()
-      throws TransportException, InterruptedException {
+      throws DatastreamException, TransportException, InterruptedException {
     setup(true);
     DatastreamTask task;
     Integer partition;
@@ -170,7 +171,7 @@ public class TestDatastreamEventProducer {
 
   @Test
   public void testSendWithDatastreamCheckpoint()
-      throws InterruptedException, TransportException {
+      throws DatastreamException, InterruptedException, TransportException {
 
     setup(false);
 

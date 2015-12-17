@@ -4,6 +4,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 
 import java.util.List;
+import java.util.Map;
 
 
 public interface DatastreamTask {
@@ -69,4 +70,11 @@ public interface DatastreamTask {
    * @return the list of partitions this task covers.
    */
   List<Integer> getPartitions();
+
+  /**
+   * @return a map of safe checkpoints which are guaranteed
+   * to have been flushed onto the transport. Key is partition
+   * number, and value is the safe checkpoint for it.
+   */
+  Map<Integer, String> getCheckpoints();
 }

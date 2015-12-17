@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -16,7 +15,6 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +28,16 @@ import java.util.concurrent.TimeUnit;
 /**
  * DatastreamEventProducerImpl is the default implementation of {@link DatastreamEventProducer}.
  * It allows connectors to send events to the transport and handles save/restore checkpoints
- * automatically if {@link DatastreamEventProducer.CheckpointPolicy#DATASTREAM} is specified.
+ * automatically if {@link DatastreamEventProducerImpl.CheckpointPolicy#DATASTREAM} is specified.
  * Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
  */
-public class DatastreamEventProducerImpl implements DatastreamEventProducer {
+class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerImpl.class);
+
+  /**
+   * Policy for checkpoint handling
+   */
+  enum CheckpointPolicy { DATASTREAM, CUSTOM }
 
   public static final String INVALID_CHECKPOINT = "INVALID_CHECKPOINT";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
@@ -75,28 +78,18 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * Default period is 1 second.
    */
   class CheckpointHandler implements Runnable {
-
     private final Long _periodMs;
-    private final String _taskDesc;
     private final ScheduledExecutorService _executor;
 
     public CheckpointHandler(Properties config) {
       VerifiableProperties props = new VerifiableProperties(config);
       _periodMs = props.getLong(CHECKPOINT_PERIOD_MS, DEFAULT_CHECKPOINT_PERIOD_MS);
-
-      // Create a string representation of all the tasks for logging
-      List<String> tasks = new ArrayList<>(_tasks.size());
-      _tasks.forEach(task -> tasks.add(task.toString()));
-      _taskDesc = "[" + String.join(",", tasks) + "]";
-
       _executor = new ScheduledThreadPoolExecutor(1);
       _executor.scheduleAtFixedRate(this, 0, _periodMs, TimeUnit.MILLISECONDS);
     }
 
     public void shutdown() {
-      LOG.info(String.format("Shutdown requested, tasks = [%s].", _taskDesc));
-
-      _shutdownRequested = true;
+      LOG.info(String.format("Shutdown requested, tasks = [%s].", _tasks));
 
       // Initial shutdown and interrupt the thread
       _executor.shutdown();
@@ -105,61 +98,15 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
       PollUtils.poll(() -> _executor.isTerminated(), SHUTDOWN_POLL_MS, SHUTDOWN_POLL_PERIOD_MS);
 
       // Final flush
-      doRun();
+      flushAndCheckpoint();
 
-      LOG.info(String.format("Shutdown finished, tasks = [%s].", _taskDesc));
+      LOG.info(String.format("Shutdown finished, tasks = [%s].", _tasks));
     }
 
-    /**
-     * Trigger a flush on the underlying transport
-     * and save the checkpoints after completion
-     */
-    private void flushAndMakeCheckpoints() throws DatastreamException {
-      synchronized (DatastreamEventProducerImpl.this)
-      {
-        if (!_pendingCheckpoint) {
-          return;
-        }
-
-        try {
-          LOG.info(String.format("Staring transport flush, tasks = [%s].", _taskDesc));
-
-          _transportProvider.flush();
-
-          LOG.info("Transport has been successfully flushed.");
-        } catch (Throwable t) {
-          throw new DatastreamException(String.format("Flush failed, tasks = [%s].", _taskDesc), t);
-        }
-        if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
-          try {
-            LOG.info(String.format("Start committing checkpoints, cpMap = %s, tasks = [%s].",
-                    _pendingCheckpoints, _taskDesc));
-
-            // Populate checkpoint map for checkpoint provider
-            _latestCheckpoints.keySet().forEach(task -> _pendingCheckpoints.put(
-                    task, JsonUtils.toJson(_latestCheckpoints.get(task))));
-
-            _checkpointProvider.commit(_pendingCheckpoints);
-
-            // Update the safe checkpoints for the task
-            _latestCheckpoints.keySet().forEach(task -> _safeCheckpoints.put(task, _latestCheckpoints.get(task)));
-
-            LOG.info("Checkpoints have been successfully committed.");
-          } catch (Throwable t) {
-            throw new DatastreamException(String.format("Checkpoint commit failed, tasks = [%s].", _taskDesc), t);
-          }
-        }
-
-        _pendingCheckpoint = false;
-
-        LOG.debug("Safe checkpoints: " + _safeCheckpoints);
-      }
-    }
-
-    private void doRun() {
+    private void flushAndCheckpoint() {
       try {
-        flushAndMakeCheckpoints();
-        LOG.info(String.format("Checkpoint handler exited, tasks = [%s].", _taskDesc));
+        flush();
+        LOG.debug(String.format("Checkpoint handler exited, tasks = [%s].", _tasks));
       } catch (Throwable t){
         // Since have have handled all exceptions here, there would be no exceptions leaked
         // to the executor, which will reschedules as usual so no explicit retry is needed.
@@ -169,10 +116,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     @Override
     public void run() {
-      if (_shutdownRequested) {
-        return;
-      }
-      doRun();
+      flushAndCheckpoint();
     }
   }
 
@@ -284,7 +228,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    */
   @Override
-  public synchronized void send(DatastreamEventRecord record) throws TransportException {
+  public synchronized void send(DatastreamEventRecord record) {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
       throw new IllegalStateException("send() is not allowed on a shutdown producer");
@@ -292,14 +236,18 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
     validateEventRecord(record);
 
-    // Send the event to transport
-    _transportProvider.send(record);
+    try {
+      // Send the event to transport
+      _transportProvider.send(record);
 
-    // Update the checkpoint for the task/partition
-    _latestCheckpoints.get(record.getDatastreamTask()).put(record.getPartition(), record.getCheckpoint());
+      // Update the checkpoint for the task/partition
+      _latestCheckpoints.get(record.getDatastreamTask()).put(record.getPartition(), record.getCheckpoint());
 
-    // Dirty the flag
-    _pendingCheckpoint = true;
+      // Dirty the flag
+      _pendingCheckpoint = true;
+    } catch (TransportException e) {
+      throw new RuntimeException("Failed to send: " + record, e);
+    }
   }
 
   /**
@@ -320,13 +268,59 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   }
 
   @Override
+  public synchronized void flush() {
+    if (!_pendingCheckpoint) {
+      return;
+    }
+
+    try {
+      LOG.info(String.format("Staring transport flush, tasks = [%s].", _tasks));
+
+      _transportProvider.flush();
+
+      LOG.info("Transport has been successfully flushed.");
+    } catch (Throwable t) {
+      throw new RuntimeException(String.format("Flush failed, tasks = [%s].", _tasks), t);
+    }
+    if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
+      try {
+        LOG.info(String.format("Start committing checkpoints, cpMap = %s, tasks = [%s].",
+                _pendingCheckpoints, _tasks));
+
+        // Populate checkpoint map for checkpoint provider
+        _latestCheckpoints.keySet().forEach(task -> _pendingCheckpoints.put(
+                task, JsonUtils.toJson(_latestCheckpoints.get(task))));
+
+        _checkpointProvider.commit(_pendingCheckpoints);
+
+        // Update the safe checkpoints for the task
+        _latestCheckpoints.keySet().forEach(task -> _safeCheckpoints.put(task, _latestCheckpoints.get(task)));
+
+        LOG.info("Checkpoints have been successfully committed.");
+      } catch (Throwable t) {
+        throw new RuntimeException(String.format("Checkpoint commit failed, tasks = [%s].", _tasks), t);
+      }
+    }
+
+    _pendingCheckpoint = false;
+
+    LOG.info("Safe checkpoints: " + _safeCheckpoints);
+  }
+
+  /**
+   * @return a map of safe checkpoints per task, per partition.
+   * This is internally used by DatastreamTaskImpl. Connectors
+   * are expected to all {@link DatastreamTask#getCheckpoints()}.
+   */
   public synchronized Map<DatastreamTask, Map<Integer, String>> getSafeCheckpoints() {
     return _safeCheckpoints;
   }
 
-  @Override
+  /**
+   * shutdown should only be called when all tasks associated with it are out of mission.
+   * It is the responsibility of the {@link EventProducerPool} to ensure this.
+   */
   public void shutdown() {
-    _shutdownRequested = true;
     _checkpointHandler.shutdown();
   }
 }
