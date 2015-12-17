@@ -1,11 +1,8 @@
 package com.linkedin.datastream.server;
 
-import java.util.Map;
-
 import org.apache.avro.Schema;
 
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
-import com.linkedin.datastream.server.api.transport.TransportException;
 
 
 /**
@@ -21,16 +18,10 @@ import com.linkedin.datastream.server.api.transport.TransportException;
  */
 public interface DatastreamEventProducer {
   /**
-   * Policy for checkpoint handling
-   */
-  enum CheckpointPolicy { DATASTREAM, CUSTOM }
-
-  /**
    * Send event onto the transport
    * @param event
    */
-  void send(DatastreamEventRecord event)
-      throws TransportException;
+  void send(DatastreamEventRecord event);
 
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
@@ -43,15 +34,8 @@ public interface DatastreamEventProducer {
       throws SchemaRegistryException;
 
   /**
-   * @return a map of safe checkpoints which are guaranteed
-   * to have been flushed onto the transport. The checkpoints
-   * are per-partition and the second level key is partition
-   * number.
+   * Flush the transport for the pending events. This can be a slow and heavy operation.
+   * As such, it is not efficient to be invoked very frequently.
    */
-  Map<DatastreamTask, Map<Integer, String>> getSafeCheckpoints();
-
-  /**
-   * Shutdown the producer and cleanup any resources.
-   */
-  void shutdown();
+  void flush();
 }

@@ -141,6 +141,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _partitions;
   }
 
+  @JsonIgnore
+  @Override
+  public Map<Integer, String> getCheckpoints() {
+    // There is only one implementation of EventProducer so it's safe to cast
+    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl)_eventProducer;
+    // Checkpoint map of the owning task must be present in the producer
+    Validate.isTrue(impl.getSafeCheckpoints().containsKey(this), "null checkpoints for task: " + this);
+    return ((DatastreamEventProducerImpl)_eventProducer).getSafeCheckpoints().get(this);
+  }
+
   public void setDatastream(Datastream datastream) {
     _datastream = datastream;
   }

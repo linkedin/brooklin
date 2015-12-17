@@ -105,7 +105,8 @@ public class EventProducerPool {
     for (String destination : unusedProducers.keySet()) {
       producersForConnectorType.remove(destination);
     }
-    // TODO: Call producer shutdown once event producer interface is ready
+
+    unusedProducers.values().forEach((producer) -> ((DatastreamEventProducerImpl)producer).shutdown());
     unusedProducers.clear();
 
     return taskProducerMapping;
