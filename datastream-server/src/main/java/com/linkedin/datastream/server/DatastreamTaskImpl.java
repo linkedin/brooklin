@@ -14,6 +14,7 @@ import org.apache.commons.lang.Validate;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -145,10 +146,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public Map<Integer, String> getCheckpoints() {
     // There is only one implementation of EventProducer so it's safe to cast
-    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl)_eventProducer;
+    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl) _eventProducer;
     // Checkpoint map of the owning task must be present in the producer
     Validate.isTrue(impl.getSafeCheckpoints().containsKey(this), "null checkpoints for task: " + this);
-    return ((DatastreamEventProducerImpl)_eventProducer).getSafeCheckpoints().get(this);
+    return ((DatastreamEventProducerImpl) _eventProducer).getSafeCheckpoints().get(this);
+  }
+
+  @JsonIgnore
+  @Override
+  public List<String> getDatastreams() {
+    return Arrays.asList(_datastreamName);
   }
 
   public void setDatastream(Datastream datastream) {

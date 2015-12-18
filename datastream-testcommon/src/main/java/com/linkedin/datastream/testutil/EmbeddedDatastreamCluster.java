@@ -84,7 +84,9 @@ public class EmbeddedDatastreamCluster {
 
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
-    properties.putAll(override);
+    if(override != null) {
+      properties.putAll(override);
+    }
     _datastreamServerProperties = properties;
   }
 

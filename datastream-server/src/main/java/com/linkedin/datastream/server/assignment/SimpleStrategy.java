@@ -11,8 +11,8 @@ import java.util.*;
 public class SimpleStrategy implements AssignmentStrategy {
 
   @Override
-  public Map<String, List<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
-      Map<String, List<DatastreamTask>> currentAssignment) {
+  public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
+      Map<String, Set<DatastreamTask>> currentAssignment) {
     // if there are no live instances, return empty assignment
     if (instances.size() == 0) {
       return new HashMap<>();
@@ -21,7 +21,7 @@ public class SimpleStrategy implements AssignmentStrategy {
     Collections.sort(instances);
     datastreams = sortDatastreams(datastreams);
 
-    Map<String, List<DatastreamTask>> assignment = new HashMap<>();
+    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
 
     for (int i = 0; i < datastreams.size(); i++) {
       int instanceIndex = i % instances.size();
@@ -47,10 +47,10 @@ public class SimpleStrategy implements AssignmentStrategy {
     return result;
   }
 
-  private void assign(String instance, Datastream datastream, Map<String, List<DatastreamTask>> assignment) {
+  private void assign(String instance, Datastream datastream, Map<String, Set<DatastreamTask>> assignment) {
     DatastreamTask datastreamTask = new DatastreamTaskImpl(datastream);
     if (!assignment.containsKey(instance)) {
-      assignment.put(instance, new ArrayList<>());
+      assignment.put(instance, new HashSet<>());
     }
     assignment.get(instance).add(datastreamTask);
   }
