@@ -10,6 +10,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executors;
@@ -482,7 +483,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       List<Datastream> datastreamsPerConnectorType = new ArrayList<>(streamsByConnectorType.get(connectorType).values());
 
       // Get the list of tasks per instance for the given connectortype
-      Map<String, List<DatastreamTask>> tasksByConnectorAndInstance =
+      Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
           strategy.assign(datastreamsPerConnectorType, liveInstances, null);
 
       for(String instance: tasksByConnectorAndInstance.keySet()){

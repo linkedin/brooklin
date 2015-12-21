@@ -1,10 +1,10 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamSource;
-
 import java.util.List;
 import java.util.Map;
+
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamSource;
 
 
 public interface DatastreamTask {
@@ -77,4 +77,9 @@ public interface DatastreamTask {
    * number, and value is the safe checkpoint for it.
    */
   Map<Integer, String> getCheckpoints();
+
+  /**
+   * @return the list of datastream names for which this task is producing events for.
+   */
+  List<String> getDatastreams();
 }
