@@ -3,7 +3,6 @@ package com.linkedin.datastream.common.zk;
 import java.io.IOException;
 import java.util.List;
 
-import com.linkedin.datastream.common.PollUtils;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.apache.zookeeper.CreateMode;
@@ -16,7 +15,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-
+import com.linkedin.datastream.common.PollUtils;
 
 public class TestZkClient {
   private static final Logger logger = LoggerFactory.getLogger(TestZkClient.class.getName());
@@ -116,6 +115,31 @@ public class TestZkClient {
 
     // make sure both paths now exist
     Assert.assertTrue(client.exists(path1));
+
+    client.close();
+  }
+
+  @Test
+  public void testRemoveTree() throws Exception {
+    String [] paths = {
+            "/a/b/c/d/e",
+            "/a/b/c/d/f",
+            "/a/b/c/g/j",
+            "/a/b/c/y/j",
+            "/a/b/m/k",
+            "/a/b/m/n/p"};
+
+    ZkClient client = new ZkClient(_zkConnectionString);
+
+    for (String path  : paths) {
+      client.ensurePath(path);
+      Assert.assertTrue(client.exists(path));
+    }
+
+    client.removeTree("/a/b");
+    for (String path  : paths) {
+      Assert.assertFalse(client.exists(path));
+    }
 
     client.close();
   }

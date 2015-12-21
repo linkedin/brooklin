@@ -1,7 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
@@ -29,11 +29,11 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       return null;
     }
     String path = getZnodePath(key);
-    String data = _zkClient.readData(path, true /* returnNullIfPathNotExists */);
-    if (data == null) {
+    String json = _zkClient.readData(path, true /* returnNullIfPathNotExists */);
+    if (json == null) {
       return null;
     }
-    return DatastreamJSonUtil.getDatastreamFromJsonString(data);
+    return DatastreamUtils.fromJSON(json);
   }
 
   @Override
@@ -54,8 +54,8 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       return false;
     }
     _zkClient.ensurePath(path);
-    String data = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
-    _zkClient.writeData(path, data);
+    String json = DatastreamUtils.toJSON(datastream);
+    _zkClient.writeData(path, json);
     return true;
   }
 

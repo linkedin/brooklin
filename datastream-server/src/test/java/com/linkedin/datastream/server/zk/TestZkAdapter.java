@@ -6,6 +6,9 @@ import java.util.Collections;
 import java.util.List;
 
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import org.I0Itec.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -262,6 +265,14 @@ public class TestZkAdapter {
     zkClient.close();
   }
 
+  private void validateConnectorTask(String cluster, String connectorType, String task, ZkClient zkClient) {
+    List<String> connectorAssignment =
+            zkClient.getChildren(KeyBuilder.connectorTask(cluster, connectorType, task));
+    Assert.assertEquals(connectorAssignment.size(), 2); // state + config
+    Assert.assertTrue(connectorAssignment.contains("state"));
+    Assert.assertTrue(connectorAssignment.contains("config"));
+  }
+
   // When Coordinator leader writes the assignment to a specific instance, the change is indeed
   // persisted in zookeeper
   @Test
@@ -271,6 +282,9 @@ public class TestZkAdapter {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     ZkAdapter adapter = new ZkAdapter(_zkConnectionString, testCluster);
     adapter.connect();
+
+    // Create all the Datastreams to be referenced by the tasks
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "task1", "task2", "task3");
 
     List<DatastreamTask> tasks = new ArrayList<>();
 
@@ -287,11 +301,12 @@ public class TestZkAdapter {
     //
     List<String> assignment =
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
-    Assert.assertEquals(assignment.size(), 1);
+    Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 1, 100, 5000, assignment));
     Assert.assertEquals(assignment.get(0), "task1");
+    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
 
     //
-    // simuate assigning two tasks [task1, task2] to the same instance
+    // simulate assigning two tasks [task1, task2] to the same instance
     //
     DatastreamTaskImpl task2 = new DatastreamTaskImpl();
     task2.setDatastreamName("task2");
@@ -303,9 +318,11 @@ public class TestZkAdapter {
     //
     assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Collections.sort(assignment);
-    Assert.assertEquals(assignment.size(), 2);
+    Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 2, 100, 5000, assignment));
     Assert.assertEquals(assignment.get(0), "task1");
     Assert.assertEquals(assignment.get(1), "task2");
+    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task2", zkClient);
 
     //
     // simuate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
@@ -320,10 +337,22 @@ public class TestZkAdapter {
     // verify that there are still 2 znodes under zookeeper path /{cluster}/instances/{instance}
     //
     assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
-    Assert.assertEquals(assignment.size(), 2);
+    Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 2, 100, 5000, assignment));
     Collections.sort(assignment);
     Assert.assertEquals(assignment.get(0), "task1");
     Assert.assertEquals(assignment.get(1), "task3");
+    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task3", zkClient);
+
+    // Ensure task2 node under connector is gone
+    boolean exception = false;
+    try {
+      zkClient.getChildren(KeyBuilder.connectorTask(testCluster, connectorType, "task2"));
+    } catch (ZkNoNodeException e) {
+      exception = true;
+    }
+    Assert.assertTrue(exception);
+
     //
     // cleanup
     //

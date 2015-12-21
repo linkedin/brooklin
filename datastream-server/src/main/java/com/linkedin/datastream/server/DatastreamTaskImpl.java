@@ -71,6 +71,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private DatastreamEventProducer _eventProducer;
 
   public DatastreamTaskImpl() {
+    _partitions = new ArrayList<>();
   }
 
   public DatastreamTaskImpl(Datastream datastream) {
