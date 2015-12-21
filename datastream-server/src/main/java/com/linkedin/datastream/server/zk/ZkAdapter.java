@@ -14,7 +14,7 @@ import java.util.Random;
 import java.util.Set;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamJSonUtil;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -346,7 +346,7 @@ public class ZkAdapter {
     for (String streamNode : datastreamNames) {
       String path = KeyBuilder.datastream(_cluster, streamNode);
       String content = _zkclient.ensureReadData(path);
-      Datastream stream = DatastreamJSonUtil.getDatastreamFromJsonString(content);
+      Datastream stream = DatastreamUtils.fromJSON(content);
       result.add(stream);
     }
 
@@ -360,7 +360,7 @@ public class ZkAdapter {
       return false;
     }
 
-    String data = DatastreamJSonUtil.getJSonStringFromDatastream(datastream);
+    String data = DatastreamUtils.toJSON(datastream);
     _zkclient.updateDataSerialized(path, old -> data);
     return true;
   }
