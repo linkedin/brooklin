@@ -3,7 +3,7 @@ package com.linkedin.datastream.testutil;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
 
-import com.linkedin.datastream.testutil.eventGenerator.DatastreamEventGenerator;
+import com.linkedin.datastream.testutil.event.generator.DatastreamEventGenerator;
 import java.lang.CharSequence;
 import java.lang.Object;
 import java.lang.Override;

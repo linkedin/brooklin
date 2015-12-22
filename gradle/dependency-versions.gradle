@@ -1,4 +1,5 @@
 ext {
+    commonsCliVersion = "1.2"
     slf4jVersion = "1.7.5"
     log4jVersion = "1.2.17"
     kafkaVersion = "0.9.0.0"

@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil.eventGenerator;
+package com.linkedin.datastream.testutil.event.generator;
 
 // import org.slf4j.Logger;
 // import org.slf4j.LoggerFactory;
