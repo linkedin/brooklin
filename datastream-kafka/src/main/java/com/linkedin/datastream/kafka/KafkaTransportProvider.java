@@ -51,7 +51,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
 
-  private static final String DEFAULT_REPLICATION_FACTOR = "3";
+  private static final String DEFAULT_REPLICATION_FACTOR = "1";
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
@@ -94,10 +94,12 @@ public class KafkaTransportProvider implements TransportProvider {
       throw new DatastreamException("Failed to encode event in Avro, event=" + event, e);
     }
 
+    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(record.getDestination());
+
     if (partition >= 0) {
-      return new ProducerRecord<>(record.getDestination(), partition, null, payload);
+      return new ProducerRecord<>(destination.topicName(), partition, null, payload);
     } else {
-      return new ProducerRecord<>(record.getDestination(), null, payload);
+      return new ProducerRecord<>(destination.topicName(), null, payload);
     }
   }
 

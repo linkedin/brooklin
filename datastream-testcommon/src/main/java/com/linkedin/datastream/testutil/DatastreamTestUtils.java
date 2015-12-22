@@ -28,16 +28,29 @@ public class DatastreamTestUtils {
     Integer counter = 0;
     String ts = String.valueOf(System.currentTimeMillis());
     for (String datastreamName : datastreamNames) {
-      Datastream datastream = new Datastream();
-      datastream.setName(datastreamName);
-      datastream.setConnectorType(connectorType);
-      datastream.setSource(new DatastreamSource());
-      datastream.getSource().setConnectionString("sampleSource-" + ts + counter);
-      datastream.setMetadata(new StringMap());
+      Datastream datastream = createDatastream(connectorType, datastreamName, "sampleSource-" + ts + counter);
       datastreams.add(datastream);
       ++counter;
     }
     return datastreams.toArray(new Datastream[datastreams.size()]);
+  }
+
+  /**
+   * Creates a test datastream of specific connector type
+   * @param connectorType connector type of the datastream to be created.
+   * @param datastreamName Name of the datastream to be created.
+   * @param source source connection string to be used.
+   * @return Datastream that is created.
+   */
+  public static Datastream createDatastream(String connectorType, String datastreamName, String source) {
+    Datastream ds = new Datastream();
+    ds.setName(datastreamName);
+    ds.setConnectorType(connectorType);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString(source);
+    StringMap metadata = new StringMap();
+    ds.setMetadata(metadata);
+    return ds;
   }
 
   /**
