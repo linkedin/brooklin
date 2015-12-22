@@ -157,6 +157,7 @@ public class EmbeddedDatastreamCluster {
     _embeddedKafkaCluster.startup();
 
     DatastreamServer.INSTANCE.init(_datastreamServerProperties);
+    DatastreamServer.INSTANCE.startup();
   }
 
   public void shutdown() {
@@ -169,8 +170,6 @@ public class EmbeddedDatastreamCluster {
     if (_embeddedZookeeper != null) {
       _embeddedZookeeper.shutdown();
     }
-
-
 
     // make this zookeeper port available
     MUTEX.lock();

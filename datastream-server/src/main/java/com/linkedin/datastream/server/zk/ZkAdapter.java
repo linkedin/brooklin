@@ -695,16 +695,20 @@ public class ZkAdapter {
     public ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
+      LOG.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
       _datastreams = _zkclient.getChildren(_path, true);
     }
 
     public void close() {
+      LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+      LOG.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
+          + "parentPath %s,children %s", parentPath, currentChildren));
       _datastreams = currentChildren;
       if (_listener != null) {
         _listener.onDatastreamChange();
@@ -740,6 +744,7 @@ public class ZkAdapter {
     public ZkBackedLiveInstanceListProvider() {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
+      LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
       cleanUpDeadInstances();
@@ -765,6 +770,7 @@ public class ZkAdapter {
     }
 
     public void close() {
+      LOG.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
@@ -774,6 +780,8 @@ public class ZkAdapter {
 
     @Override
     public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+      LOG.info(String.format("ZkBackedTaskListProvider::Received Child change notification on the instances list "
+          + "parentPath %s,children %s", parentPath, currentChildren));
       List<String> liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
       List<String> deadInstances = new ArrayList<>(_liveInstances);
       deadInstances.removeAll(liveInstances);
@@ -802,54 +810,6 @@ public class ZkAdapter {
   }
 
   /**
-   * ZkBackedDatastreamTasksMap provides informations about all DatastreamTasks existing in the cluster
-   * grouped by the connector type. That is, this map will obtain
-   */
-  public class ZkBackedDatastreamTasksMap implements IZkChildListener {
-    private Map<String, List<DatastreamTask>> _allDatastreamTasks = null;
-    private String _path = KeyBuilder.connectors(_cluster);
-
-    public ZkBackedDatastreamTasksMap() {
-      _zkclient.ensurePath(_path);
-    }
-
-    public Map<String, List<DatastreamTask>> getAllDatastreamTasks() {
-      if (_allDatastreamTasks == null) {
-        reloadData();
-      }
-      return _allDatastreamTasks;
-    }
-
-    private synchronized void reloadData() {
-      _allDatastreamTasks = new HashMap<>();
-      List<String> connectorTypes = _zkclient.getChildren(_path);
-
-      for (String connectorType: connectorTypes) {
-        if (!_allDatastreamTasks.containsKey(connectorType)) {
-          _allDatastreamTasks.put(connectorType, new ArrayList<>());
-        }
-
-        String path = KeyBuilder.connector(_cluster, connectorType);
-        List<String> tasksForConnector = _zkclient.getChildren(path);
-
-        for (String taskName: tasksForConnector) {
-          String p = KeyBuilder.connectorTask(_cluster, connectorType, taskName);
-          // read the DatastreamTask json data
-          String content = _zkclient.ensureReadData(p);
-          // deserialize to DatastreamTask
-          DatastreamTask t = DatastreamTaskImpl.fromJson(content);
-          _allDatastreamTasks.get(connectorType).add(t);
-        }
-      }
-    }
-
-    @Override
-    public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      reloadData();
-    }
-  }
-
-  /**
    * ZkBackedTaskListProvider provides informations about all DatastreamTasks existing in the cluster
    * grouped by the connector type. In addition, it notifies the listener about changes happened to
    * task node changes under the connector node.
@@ -858,15 +818,19 @@ public class ZkAdapter {
     private String _path = KeyBuilder.instanceAssignments(_cluster, _instanceName);
 
     public ZkBackedTaskListProvider() {
+      LOG.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
     }
 
     public void close() {
+      LOG.info("ZkBackedTaskListProvider::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(KeyBuilder.instanceAssignments(_cluster, _instanceName), this);
     }
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+      LOG.info(String.format("ZkBackedTaskListProvider::Received Child change notification on the datastream task list "
+          + "parentPath %s,children %s", parentPath, currentChildren));
       if (_listener != null) {
         _listener.onAssignmentChange();
       }

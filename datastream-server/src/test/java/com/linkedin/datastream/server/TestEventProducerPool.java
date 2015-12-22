@@ -25,10 +25,11 @@ public class TestEventProducerPool {
   @BeforeTest
   public void setUp() throws Exception {
     CheckpointProvider checkpointProvider = new InMemoryCheckpointProvider();
-    TransportProviderFactory transportProviderFactory = new DummyTransportProviderFactory();;
+    TransportProviderFactory transportProviderFactory = new DummyTransportProviderFactory();
     Properties config = new Properties();
     config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProviderFactory, null, config);
+    _eventProducerPool = new EventProducerPool(checkpointProvider,
+        transportProviderFactory.createTransportProvider(config), null, config);
   }
 
   @Test

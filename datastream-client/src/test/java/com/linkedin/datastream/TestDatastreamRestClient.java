@@ -80,6 +80,7 @@ public class TestDatastreamRestClient {
                    DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     DatastreamServer.INSTANCE.init(properties);
+    DatastreamServer.INSTANCE.startup();
   }
 
   @Test

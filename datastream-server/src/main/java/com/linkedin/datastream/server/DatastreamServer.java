@@ -138,16 +138,24 @@ public enum DatastreamServer {
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
     _nettyLauncher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
 
+    verifiableProperties.verify();
+    _isInitialized = true;
+
+    LOG.info("DatastreamServer initialized successfully.");
+  }
+
+  public synchronized void startup() throws DatastreamException {
+    // Start the coordinator
+    if(_coordinator != null) {
+      _coordinator.start();
+    }
+
+    // Start the DMS rest endpoint.
     try {
       _nettyLauncher.start();
     } catch (IOException ex) {
       throw new DatastreamException("Failed to start netty.", ex);
     }
-
-    verifiableProperties.verify();
-    _isInitialized = true;
-
-    LOG.info("DatastreamServer initialized successfully.");
   }
 
   public synchronized void shutdown() {

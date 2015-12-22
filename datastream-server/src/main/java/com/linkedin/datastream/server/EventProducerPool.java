@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -26,22 +27,22 @@ public class EventProducerPool {
   // Map between Connector type and <Destination URI, Producer>
   private final Map<String, Map<String, DatastreamEventProducer>> _producers = new HashMap<String, Map<String, DatastreamEventProducer>>();
   private final SchemaRegistryProvider _schemaRegistryProvider;
+  private final TransportProvider _transportProvider;
 
   private CheckpointProvider _checkpointProvider;
-  private TransportProviderFactory _transportProviderFactory;
   private Properties _config;
 
   private static final Logger LOG = LoggerFactory.getLogger(EventProducerPool.class.getName());
 
-  public EventProducerPool(CheckpointProvider checkpointProvider, TransportProviderFactory transportProviderFactory,
+  public EventProducerPool(CheckpointProvider checkpointProvider, TransportProvider transportProvider,
       SchemaRegistryProvider schemaRegistryProvider, Properties config) {
 
     Validate.notNull(checkpointProvider, "null checkpoint provider");
-    Validate.notNull(transportProviderFactory, "null transport provider factory");
+    Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(config, "null config");
 
     _checkpointProvider = checkpointProvider;
-    _transportProviderFactory = transportProviderFactory;
+    _transportProvider = transportProvider;
     _schemaRegistryProvider = schemaRegistryProvider;
     _config = config;
   }
@@ -95,9 +96,10 @@ public class EventProducerPool {
         ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<DatastreamTask>();
         tasksPerProducer.add(task);
         producersForConnectorType.put(destination,
-            new DatastreamEventProducerImpl(tasksPerProducer,_transportProviderFactory.createTransportProvider(_config),
-                _schemaRegistryProvider, _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing));
+            new DatastreamEventProducerImpl(tasksPerProducer,_transportProvider, _schemaRegistryProvider,
+                _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing));
       }
+
       taskProducerMapping.put(task, producersForConnectorType.get(destination));
     }
 

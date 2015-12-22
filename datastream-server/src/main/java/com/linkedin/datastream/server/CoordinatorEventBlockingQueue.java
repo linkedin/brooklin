@@ -24,6 +24,7 @@ public class CoordinatorEventBlockingQueue {
   * @param event CoordinatorEvent event to add to the queue
   */
   public synchronized void put(CoordinatorEvent event) {
+    LOG.info(String.format("Queuing event %s to event queue", event.getType()));
     if (!_eventMap.containsKey(event.getType())) {
       // only insert if there isn't an event present in the queue with the same name
       boolean result = _eventQueue.offer(event);
@@ -34,7 +35,6 @@ public class CoordinatorEventBlockingQueue {
 
     // always overwrite the event in the map
     _eventMap.put(event.getType(), event);
-    LOG.debug("Putting event " + event.getType());
     LOG.debug("Event queue size " + _eventQueue.size());
     notify();
   }
@@ -47,7 +47,7 @@ public class CoordinatorEventBlockingQueue {
     CoordinatorEvent queuedEvent = _eventQueue.poll();
 
     if (queuedEvent != null) {
-      LOG.debug("Taking event " + queuedEvent.getType());
+      LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: " + _eventQueue.size());
       return _eventMap.remove(queuedEvent.getType());
     }

@@ -114,6 +114,13 @@ project(':datastream-utils') {
   }
 }
 
+project(':datastream-file-connector') {
+  dependencies {
+    compile project(':datastream-server-api')
+    compile project(':datastream-common')
+  }
+}
+
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
@@ -169,6 +176,8 @@ project(':datastream-server') {
     compile project(':datastream-common')
     compile project(':datastream-utils')
 
+    testCompile project(':datastream-client')
+    testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:1.+"
   }

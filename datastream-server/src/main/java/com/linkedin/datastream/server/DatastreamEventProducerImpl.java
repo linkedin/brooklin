@@ -218,8 +218,6 @@ class DatastreamEventProducerImpl implements DatastreamEventProducer {
     Validate.notEmpty(record.getDestination(), "invalid event destination.");
     Map<Integer, String> checkpoints = _latestCheckpoints.get(task);
     Validate.notNull(checkpoints, "unknown task: " + task);
-    Validate.notNull(checkpoints.get(record.getPartition()), String.format(
-            "unknown partition (%d) in task (%s): ", record.getPartition(), task));
   }
 
   /**
@@ -228,7 +226,7 @@ class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    */
   @Override
-  public synchronized void send(DatastreamEventRecord record) {
+  public void send(DatastreamEventRecord record) {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
       throw new IllegalStateException("send() is not allowed on a shutdown producer");
@@ -246,6 +244,7 @@ class DatastreamEventProducerImpl implements DatastreamEventProducer {
       // Dirty the flag
       _pendingCheckpoint = true;
     } catch (TransportException e) {
+      LOG.info(String.format("Failed send the event %s exception %s", record, e));
       throw new RuntimeException("Failed to send: " + record, e);
     }
   }
@@ -263,6 +262,7 @@ class DatastreamEventProducerImpl implements DatastreamEventProducer {
     if(_schemaRegistryProvider != null) {
       return _schemaRegistryProvider.registerSchema(schema);
     } else {
+      LOG.info("SchemaRegistryProvider is not configured, so registerSchema is not supported");
       throw new RuntimeException("SchemaRegistryProvider is not configured, So registerSchema is not supported");
     }
   }

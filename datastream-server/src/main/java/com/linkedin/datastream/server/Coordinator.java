@@ -164,7 +164,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new EventProducerPool(cpProvider, factory, schemaRegistry,
+    _eventProducerPool = new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
   }
 
@@ -416,6 +416,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     // do nothing if there is zero datastreams
     if (newDatastreams.size() == 0) {
+      LOG.warn("Received a new datastream event, but there were no datastreams");
       return;
     }
 
