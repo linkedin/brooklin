@@ -183,7 +183,14 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
+  public void close() {
+    if(_producer != null) {
+      _producer.close();
+    }
+  }
+
+  @Override
   public void flush() {
-    // TODO current kafka open source released version (0.8.2.2) doesn't have this capability. unreleased 0.9 should have this.
+    _producer.flush();
   }
 }

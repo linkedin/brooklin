@@ -321,6 +321,11 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * It is the responsibility of the {@link EventProducerPool} to ensure this.
    */
   public void shutdown() {
+    try {
+      _transportProvider.close();
+    } catch (TransportException e) {
+      LOG.warn("Closing the TransportProvider failed with exception", e);
+    }
     _checkpointHandler.shutdown();
   }
 }
