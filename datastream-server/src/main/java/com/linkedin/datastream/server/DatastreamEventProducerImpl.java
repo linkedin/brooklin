@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * automatically if {@link DatastreamEventProducerImpl.CheckpointPolicy#DATASTREAM} is specified.
  * Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
  */
-class DatastreamEventProducerImpl implements DatastreamEventProducer {
+public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerImpl.class);
 
   /**
