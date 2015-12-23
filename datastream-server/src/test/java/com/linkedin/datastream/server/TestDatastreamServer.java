@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -18,7 +19,6 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
@@ -42,6 +42,7 @@ public class TestDatastreamServer {
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
   private static final String TEST_CONNECTOR = FileConnector.CONNECTOR_TYPE;
+  private EmbeddedDatastreamCluster _datastreamCluster;
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap()
       throws Exception {
@@ -88,41 +89,74 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testCreateDatastreamOfTestConnector_ProduceEvents_ReceiveEvents()
+  public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents()
       throws Exception {
-    EmbeddedDatastreamCluster datastreamCluster = initializeTestDatastreamServerWithFileConnector();
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector();
     int totalEvents = 10;
-    datastreamCluster.startup();
-    File testFile = new File("/tmp/testFile1");
-    testFile.createNewFile();
-    Datastream fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE,"file_" + testFile.getName(),
-        testFile.getAbsolutePath());
-    String restUrl = String.format("http://localhost:%d/", datastreamCluster.getDatastreamPort());
-    DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
-    restClient.createDatastream(fileDatastream1);
-    Collection<String> events = generateStrings(totalEvents);
-    FileUtils.writeLines(testFile, events);
-    DatastreamDestination destination = getDatastreamDestination(restClient, fileDatastream1);
-    KafkaDestination kafkaDestination = KafkaDestination.parseKafkaDestinationUri(destination.getConnectionString());
-    final int[] numberOfMessages = {0};
-    List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.topicName(), 0, datastreamCluster.getBrokerList(), (key, value) -> {
-          DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
-          String eventValue = new String(datastreamEvent.payload.array());
-          eventsReceived.add(eventValue);
-          numberOfMessages[0]++;
-          return numberOfMessages[0] < totalEvents;
-        });
+    _datastreamCluster.startup();
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Collection<String> eventsWritten1 = generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
 
-    LOG.info("Events Received " + eventsReceived);
-    LOG.info("Events Written to file " + events);
+    Collection<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents);
 
-    Assert.assertTrue(eventsReceived.containsAll(events));
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
 
-    datastreamCluster.shutdown();
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+
+    // Test with the second datastream
+
+    String fileName2 = "/tmp/testFile2_" + UUID.randomUUID().toString();
+    Datastream fileDatastream2 = createFileDatastream(fileName2);
+
+    Collection<String> eventsWritten2 = generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName2), eventsWritten2);
+
+    Collection<String> eventsReceived2 = readEvents(fileDatastream2, totalEvents);
+
+    LOG.info("Events Received " + eventsReceived2);
+    LOG.info("Events Written to file " + eventsWritten2);
+
+    Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+
+    _datastreamCluster.shutdown();
   }
 
-  private DatastreamDestination getDatastreamDestination(DatastreamRestClient restClient, Datastream fileDatastream1) {
+  private Collection<String> readEvents(Datastream fileDatastream1, int totalEvents)
+      throws Exception {
+    KafkaDestination kafkaDestination = KafkaDestination
+        .parseKafkaDestinationUri(fileDatastream1.getDestination().getConnectionString());
+    final int[] numberOfMessages = {0};
+    List<String> eventsReceived = new ArrayList<>();
+    KafkaTestUtils.readTopic(kafkaDestination.topicName(), 0, _datastreamCluster.getBrokerList(), (key, value) -> {
+      DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
+      String eventValue = new String(datastreamEvent.payload.array());
+      eventsReceived.add(eventValue);
+      numberOfMessages[0]++;
+      return numberOfMessages[0] < totalEvents;
+    });
+
+    return eventsReceived;
+  }
+
+  private Datastream createFileDatastream(String fileName)
+      throws IOException, DatastreamException {
+    File testFile = new File(fileName);
+    testFile.createNewFile();
+    testFile.deleteOnExit();
+    Datastream fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE,"file_" + testFile.getName(),
+        testFile.getAbsolutePath());
+    String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
+    DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
+    restClient.createDatastream(fileDatastream1);
+    return getPopulatedDatastream(restClient, fileDatastream1);
+  }
+
+
+
+  private Datastream getPopulatedDatastream(DatastreamRestClient restClient, Datastream fileDatastream1) {
     Boolean pollResult = PollUtils.poll(() -> {
       Datastream ds = null;
       try {
@@ -135,7 +169,7 @@ public class TestDatastreamServer {
 
     if (pollResult) {
       try {
-        return restClient.getDatastream(fileDatastream1.getName()).getDestination();
+        return restClient.getDatastream(fileDatastream1.getName());
       } catch (DatastreamException e) {
         throw new RuntimeException("GetDatastream threw an exception", e);
       }
@@ -147,7 +181,7 @@ public class TestDatastreamServer {
   private Collection<String> generateStrings(int numberOfEvents) {
     Collection<String> generatedValues = new ArrayList<>();
     for (int index = 0; index < numberOfEvents; index++) {
-      generatedValues.add("Value_" + index);
+      generatedValues.add("Value_" + UUID.randomUUID().toString() + "_" + index);
     }
     return generatedValues;
   }
