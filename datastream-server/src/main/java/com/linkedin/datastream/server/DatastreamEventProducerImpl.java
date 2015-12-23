@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -15,6 +16,7 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -233,6 +235,16 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     }
 
     validateEventRecord(record);
+
+    for (DatastreamEvent event : record.getEvents()) {
+      if(event.metadata == null) {
+        event.metadata = new HashMap<>();
+      }
+
+      event.key = event.key == null ? ByteBuffer.allocate(0) : event.key;
+      event.payload = event.payload == null ? ByteBuffer.allocate(0) : event.payload;
+      event.previous_payload = event.previous_payload == null ? ByteBuffer.allocate(0) : event.previous_payload;
+    }
 
     try {
       // Send the event to transport
