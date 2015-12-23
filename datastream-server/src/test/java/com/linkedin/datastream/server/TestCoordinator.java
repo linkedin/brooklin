@@ -8,11 +8,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -34,6 +39,10 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+
 
 
 public class TestCoordinator {
@@ -316,37 +325,6 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  /**
-   * This fake destination manager is used to selectively populate
-   * destination for a datastream based on the preset values.
-   */
-  class TestDestinationManager extends DestinationManager {
-    private final Map<Datastream, Boolean> _destinationMap = new HashMap<>();
-
-    public TestDestinationManager() {
-      super(true, null);
-    }
-
-    public void addDatastream(Datastream datastream, boolean hasDestination) {
-      _destinationMap.put(datastream, hasDestination);
-    }
-
-    @Override
-    public void populateDatastreamDestination(List<Datastream> datastreams) {
-      for (Datastream stream: datastreams) {
-        boolean hasDestination = true;
-        if (_destinationMap.containsKey(stream)) {
-          hasDestination = _destinationMap.get(stream);
-        }
-        if (hasDestination) {
-          stream.setDestination(new DatastreamDestination());
-          // TODO: Need to evaluate if we really need this class. The below line is a temp-workaround to fix test failure
-          stream.getDestination().setConnectionString(stream.getSource().getConnectionString());
-        }
-      }
-    }
-  }
-
   // This test verify the code path that a datastream is only assignable after it has a valid
   // destination setup. That is, if a datastream is defined for a connector but DestinationManager
   // failed to populate its destination, we will not actually pass this datastream to the connector
@@ -359,8 +337,6 @@ public class TestCoordinator {
     String connectorType1 = "unassignable";
     String connectorType2 = "assignable";
 
-    TestDestinationManager destinationManager = new TestDestinationManager();
-
     //
     // create two connectors
     //
@@ -368,15 +344,13 @@ public class TestCoordinator {
     TestHookConnector connector2 = new TestHookConnector(connectorType2);
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-
+    DestinationManager destinationManager = mock(DestinationManager.class);
     // Hijack the destinationManager to selectively populate destinations
     ReflectionUtils.setField(instance1, "_destinationManager", destinationManager);
 
     instance1.addConnector(connectorType1, connector1, new BroadcastStrategy(), false);
     instance1.addConnector(connectorType2, connector2, new BroadcastStrategy(), false);
     instance1.start();
-
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     //
     // create 2 new datastreams, 1 for each type
@@ -385,10 +359,26 @@ public class TestCoordinator {
     Datastream[] streams1 = DatastreamTestUtils.createDatastreams(connectorType1, "datastream1");
     Datastream[] streams2 = DatastreamTestUtils.createDatastreams(connectorType2, "datastream2");
 
-    LOG.info("enable destination for datastream #2, disable it for datastream #1");
-    destinationManager.addDatastream(streams1[0], false);
-    destinationManager.addDatastream(streams2[0], true);
 
+    // Stub for populateDatastreamDestination to set destination on datastream2
+    LOG.info("Set destination only for datastream2, leave it unassigned for datastream1");
+    Mockito.doAnswer(new Answer() {
+      @Override
+      public Object answer(InvocationOnMock invocation)
+          throws Throwable {
+        Object[] args = invocation.getArguments();
+        List<Datastream> streams = (List<Datastream>) args[0];
+        for (Datastream stream : streams) {
+          // Populate Destination only for datastream2
+          if (stream.getName().equals("datastream2")) {
+            setDatastreamDestination(stream);
+          }
+        }
+        return null;
+      }
+    }).when(destinationManager).populateDatastreamDestination(any());
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams1);
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams2);
 
@@ -399,18 +389,28 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, waitTimeoutMS);
     assertConnectorAssignment(connector2, waitTimeoutMS, "datastream2");
 
-    //
-    // now enable the connector1 with target
-    //
-    LOG.info("enable destination for datastream #1");
-    destinationManager.addDatastream(streams1[0], true);
+    LOG.info("enable destination for all datastreams including datastream1");
+    // Stub for populateDatastreamDestination to set destination on all datastreams
+    Mockito.doAnswer(new Answer() {
+      @Override
+      public Object answer(InvocationOnMock invocation)
+          throws Throwable {
+        Object[] args = invocation.getArguments();
+        List<Datastream> streams = (List<Datastream>) args[0];
+        for(Datastream stream:streams){
+          setDatastreamDestination(stream);
+        }
+        return null;
+      }
+    }).when(destinationManager).populateDatastreamDestination(any());
+
     //
     // trigger the datastream change event
     //
     instance1.onDatastreamChange();
+
     //
-    // verify both connectors have 1 assignment. This is because the connector1 would trigger a
-    // retry loop for handle new datastream process
+    // verify both connectors have 1 assignment.
     //
     assertConnectorAssignment(connector1, waitTimeoutMS, "datastream1");
     assertConnectorAssignment(connector2, waitTimeoutMS, "datastream2");
@@ -418,8 +418,17 @@ public class TestCoordinator {
     //
     // clean up
     //
-    instance1.stop();
     zkClient.close();
+    instance1.stop();
+  }
+
+  private void setDatastreamDestination(Datastream stream) {
+    if (stream.getDestination() == null) {
+      stream.setDestination(new DatastreamDestination());
+      // The connection string here needs to be unique
+      String destinationConnectionString = UUID.randomUUID().toString();
+      stream.getDestination().setConnectionString(destinationConnectionString);
+    }
   }
 
   @Test
