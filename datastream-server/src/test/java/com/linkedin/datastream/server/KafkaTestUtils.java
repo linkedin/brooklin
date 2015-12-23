@@ -1,4 +1,4 @@
-package com.linkedin.datastream;
+package com.linkedin.datastream.server;
 
 /*
  * Copyright 2015 LinkedIn Corp. All rights reserved

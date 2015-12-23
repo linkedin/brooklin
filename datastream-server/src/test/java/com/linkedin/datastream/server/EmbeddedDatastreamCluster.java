@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil;
+package com.linkedin.datastream.server;
 
 /*
  * Copyright 2015 LinkedIn Corp. All rights reserved
@@ -33,8 +33,8 @@ import org.apache.log4j.Logger;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.kafka.KafkaTransportProvider;
-import com.linkedin.datastream.server.Coordinator;
-import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.TestUtils;
 
 
 public class EmbeddedDatastreamCluster {
