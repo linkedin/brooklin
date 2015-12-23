@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -8,22 +7,15 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
-import com.linkedin.datastream.common.DatastreamException;
+import org.codehaus.jackson.type.TypeReference;
 import org.testng.Assert;
 import org.testng.annotations.Test;
-import org.codehaus.jackson.type.TypeReference;
-
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -31,6 +23,13 @@ import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class TestDatastreamEventProducer {
   private ArrayList<DatastreamTask> _tasks;
@@ -62,8 +61,9 @@ public class TestDatastreamEventProducer {
 
   private DatastreamEventRecord createEventRecord(Datastream datastream, DatastreamTask task, Integer partition) {
     DatastreamEvent event = new DatastreamEvent();
-    event.key = ByteBuffer.allocate(1);
-    event.payload = ByteBuffer.allocate(1);
+    event.key = null;
+    event.payload = null;
+    event.previous_payload = null;
     ++_eventSeed;
     return new DatastreamEventRecord(event, partition, "new dummy checkpoint " + String.valueOf(_eventSeed), task);
   }

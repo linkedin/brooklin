@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.util.Properties;
 
+import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 
@@ -23,6 +24,11 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       @Override
       public void send(DatastreamEventRecord record) {
 
+      }
+
+      @Override
+      public void close()
+          throws TransportException {
       }
 
       @Override

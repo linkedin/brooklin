@@ -36,6 +36,12 @@ public interface TransportProvider {
   void send(DatastreamEventRecord record) throws TransportException;
 
   /**
+   * Closes the transport provider and its corresponding producer.
+   * @throws TransportException if the close fails.
+   */
+  void close() throws TransportException;
+
+  /**
    * Flush to make sure that the current set of events that are in the buffer gets flushed to the server.
    * @throws TransportException if the flush fails.
    */
