@@ -13,7 +13,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
+import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 

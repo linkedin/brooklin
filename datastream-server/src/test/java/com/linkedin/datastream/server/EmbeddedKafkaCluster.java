@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil;
+package com.linkedin.datastream.server;
 
 /*
  * Copyright 2015 LinkedIn Corp. All rights reserved
@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+
+import com.linkedin.datastream.testutil.TestUtils;
 
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;

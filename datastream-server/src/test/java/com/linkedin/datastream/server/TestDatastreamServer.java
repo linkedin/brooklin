@@ -16,7 +16,6 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.KafkaTestUtils;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -32,7 +31,6 @@ import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
-import com.linkedin.datastream.testutil.EmbeddedDatastreamCluster;
 
 
 @Test(singleThreaded = true)
