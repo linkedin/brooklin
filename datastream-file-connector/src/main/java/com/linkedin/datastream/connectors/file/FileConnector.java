@@ -19,8 +19,10 @@ package com.linkedin.datastream.connectors.file;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,6 +35,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
@@ -45,51 +48,82 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 public class FileConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
   public static final String CONNECTOR_TYPE = "file";
-  private static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
+  public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
+  public static final String CFG_CHECKPOINTING = "checkpointing";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
+  private static final String DEFAULT_CHECKPOINTING = "false";
   private static final int SHUTDOWN_TIMEOUT_MS = 5000;
 
   private final ExecutorService _executorService;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
+  // Checkpointing of file-connector is not compatible with BROADCAST strategy.
+  // As such, we allow the test to turn off checkpointing if BROADCAST is the
+  // strategy being tested.
+  private final boolean _checkpointing;
+
   public FileConnector(Properties config) throws DatastreamException {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
     _fileProcessors = new ConcurrentHashMap<>();
+    _checkpointing = Boolean.parseBoolean(config.getProperty(CFG_CHECKPOINTING, DEFAULT_CHECKPOINTING));
+    LOG.info("Created file-connector, checkpointing = " + _checkpointing);
   }
 
   @Override
   public void start() {
-
+    LOG.info("FileConnector started");
   }
 
   @Override
   public synchronized void stop() {
-    // Cancel all ongoing file processors
-    _fileProcessors.keySet().stream().forEach(task -> {
-      FileProcessor processor = _fileProcessors.get(task);
-      if (!processor.isStopped()) {
-        processor.stop();
-      }
-    });
-
+    // Stop all current processors
+    stopProcessorForTasks(_fileProcessors.keySet());
     _executorService.shutdown();
+    Long now = System.currentTimeMillis();
     try {
       _executorService.awaitTermination(SHUTDOWN_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       LOG.warn("Unexpected error in shutting down.", e);
     }
-    LOG.info("stopped.");
+    Long done = System.currentTimeMillis();
+    LOG.info("FileConnector topped after " + (done - now) + "ms.");
+  }
+
+  private void stopProcessorForTasks(Set<DatastreamTask> unassigned) {
+    // Initiate stops for all unassigned tasks
+    for (DatastreamTask task : unassigned) {
+      FileProcessor processor = _fileProcessors.get(task);
+      if (!processor.isStopped()) {
+        processor.stop();
+      }
+    }
+
+    // Ensure the processors have actually stopped
+    for (DatastreamTask task : unassigned) {
+      FileProcessor processor = _fileProcessors.get(task);
+      if (!PollUtils.poll(() -> processor.isStopped(), 200, SHUTDOWN_TIMEOUT_MS)) {
+        throw new RuntimeException("Failed to stop processor for " + task);
+      }
+      _fileProcessors.remove(task);
+      LOG.info("Processor stopped for task: " + task);
+    }
   }
 
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
-    LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks.toString()));
+    LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks));
+    Set<DatastreamTask> unassigned = new HashSet<>(_fileProcessors.keySet());
+    unassigned.removeAll(tasks);
+
+    // Stop any processors for unassigned tasks
+    stopProcessorForTasks(unassigned);
+
     for (DatastreamTask task : tasks) {
-      if (!_fileProcessors.contains(task)) {
+      if (!_fileProcessors.containsKey(task)) {
         try {
-          LOG.info("Creating file processor for " + task.toString());
-          FileProcessor processor = new FileProcessor(task, task.getEventProducer());
+          LOG.info("Creating file processor for " + task);
+          FileProcessor processor = new FileProcessor(task, task.getEventProducer(), _checkpointing);
           _fileProcessors.put(task, processor);
           _executorService.submit(processor);
         } catch (FileNotFoundException e) {
