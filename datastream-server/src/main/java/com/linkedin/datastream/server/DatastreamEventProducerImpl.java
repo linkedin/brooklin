@@ -45,7 +45,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     CUSTOM
   }
 
-  public static final String INVALID_CHECKPOINT = "INVALID_CHECKPOINT";
+  public static final String INVALID_CHECKPOINT = "";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
   public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000;
   public static final Integer SHUTDOWN_POLL_MS = 1000;
@@ -77,7 +77,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private final CheckpointHandler _checkpointHandler;
 
   private volatile boolean _pendingCheckpoint = false;
-  private volatile boolean _shutdownRequested = false;
+  private volatile boolean _shutdownCompleted = false;
 
   /**
    * Flush transport periodically and save checkpoints.
@@ -190,6 +190,8 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     }
 
     _latestCheckpoints = new HashMap<>(_safeCheckpoints);
+
+    LOG.info("Created event producer, tasks: " + _tasks + ", safe checkpoints: " + _safeCheckpoints);
   }
 
   private void loadCheckpoints() {
@@ -229,9 +231,9 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    */
   @Override
-  public void send(DatastreamEventRecord record) {
+  public synchronized void send(DatastreamEventRecord record) {
     // Prevent sending if we have been shutdown
-    if (_shutdownRequested) {
+    if (_shutdownCompleted) {
       throw new IllegalStateException("send() is not allowed on a shutdown producer");
     }
 
@@ -332,11 +334,13 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * It is the responsibility of the {@link EventProducerPool} to ensure this.
    */
   public void shutdown() {
+    LOG.info("Shutting down event producer for " + _tasks);
     try {
       _transportProvider.close();
     } catch (TransportException e) {
       LOG.warn("Closing the TransportProvider failed with exception", e);
     }
     _checkpointHandler.shutdown();
+    _shutdownCompleted = true;
   }
 }

@@ -23,6 +23,7 @@ import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.testutil.InMemoryCheckpointProvider;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;

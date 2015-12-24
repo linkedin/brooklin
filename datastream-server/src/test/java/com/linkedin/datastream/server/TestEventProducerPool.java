@@ -13,6 +13,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.testutil.InMemoryCheckpointProvider;
 
 
 /**

@@ -19,10 +19,10 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
-import org.I0Itec.zkclient.IZkChildListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.apache.zookeeper.CreateMode;
@@ -377,6 +377,23 @@ public class ZkAdapter {
   public List<String> getInstanceAssignment(String instance) {
     String path = KeyBuilder.instanceAssignments(_cluster, instance);
     return _zkclient.getChildren(path);
+  }
+
+  /**
+   * @return a map from all instances to their currently assigned tasks
+   */
+  public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
+    List<String> allInstances = getLiveInstances();
+    Map<String, Set<DatastreamTask>> assignmentMap = new HashMap<>();
+    for (String instance : allInstances) {
+      Set<DatastreamTask> taskMap = new HashSet<>();
+      assignmentMap.put(instance, taskMap);
+      List<String> assignment = getInstanceAssignment(instance);
+      for (String taskName : assignment) {
+        taskMap.add(getAssignedDatastreamTask(instance, taskName));
+      }
+    }
+    return assignmentMap;
   }
 
   /**

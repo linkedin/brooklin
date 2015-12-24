@@ -12,7 +12,6 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -410,7 +409,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
-          assignDatastreamTasksToInstances();
+          handleLeaderDoAssignment();
           break;
 
         case HANDLE_ASSIGNMENT_CHANGE:
@@ -484,7 +483,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
   }
 
-  private void assignDatastreamTasksToInstances() {
+  private void handleLeaderDoAssignment() {
 
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
@@ -519,10 +518,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
       List<Datastream> datastreamsPerConnectorType =
           new ArrayList<>(streamsByConnectorType.get(connectorType).values());
+      Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
       // Get the list of tasks per instance for the given connectortype
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, null);
+          strategy.assign(datastreamsPerConnectorType, liveInstances, currentAssignment);
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
         if (!assigmentsByInstance.containsKey(instance)) {
