@@ -45,8 +45,7 @@ public class FileProcessor implements Runnable {
   private boolean _cancelRequested;
   private boolean _isStopped;
 
-  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer)
-      throws FileNotFoundException {
+  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
     _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
@@ -88,7 +87,7 @@ public class FileProcessor implements Runnable {
         }
       }
       _isStopped = true;
-    } catch(Throwable e) {
+    } catch (Throwable e) {
       LOG.error("File processor is quitting with exception ", e);
       throw e;
     }

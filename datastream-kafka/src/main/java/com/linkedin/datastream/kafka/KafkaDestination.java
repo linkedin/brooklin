@@ -16,7 +16,7 @@ public class KafkaDestination {
   public static KafkaDestination parseKafkaDestinationUri(String kafkaDestinationUri) {
     URI kafkaUri = URI.create(kafkaDestinationUri);
     String zkAddress = kafkaUri.getAuthority();
-    String topicName = kafkaUri.getPath().replace("/","");
+    String topicName = kafkaUri.getPath().replace("/", "");
     return new KafkaDestination(zkAddress, topicName);
   }
 

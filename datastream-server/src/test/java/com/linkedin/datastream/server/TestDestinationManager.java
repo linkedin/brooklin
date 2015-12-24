@@ -39,11 +39,11 @@ public class TestDestinationManager {
     ds.setMetadata(metadata);
     return ds;
   }
+
   @Test
-  public void testPopulateDatastreamDestination_UsesExistingTarget_WhenSourceIsSame()
-      throws TransportException {
+  public void testPopulateDatastreamDestination_UsesExistingTarget_WhenSourceIsSame() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index = 0; index < 10; index++) {
+    for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
     }
 
@@ -60,7 +60,7 @@ public class TestDestinationManager {
   public void testPopulateDatastreamDestination_CallsCreateTopicTopic_WhenSourceIsSameButTopicReuseIsSetFalse()
       throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index = 0; index < 10; index++) {
+    for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
     }
 
@@ -70,7 +70,6 @@ public class TestDestinationManager {
     datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
     newDatastream.removeDestination();
-
 
     TransportProvider transportProvider = mock(TransportProvider.class);
     when(transportProvider.createTopic(anyString(), anyInt(), any())).thenReturn("destination");
@@ -85,7 +84,7 @@ public class TestDestinationManager {
   public void testPopulateDatastreamDestination_CallsCreateTopic_OnlyWhenDatastreamWithNewSource()
       throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index = 0; index < 10; index++) {
+    for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
     }
 
@@ -104,10 +103,9 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldCallDropTopic_WhenThereAreNoReferences()
-      throws TransportException {
+  public void testDeleteDatastreamDestination_ShouldCallDropTopic_WhenThereAreNoReferences() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index = 0; index < 10; index++) {
+    for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
     }
 
@@ -119,10 +117,9 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldNotCallDropTopic_WhenThereAreReferences()
-      throws TransportException {
+  public void testDeleteDatastreamDestination_ShouldNotCallDropTopic_WhenThereAreReferences() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index = 0; index < 10; index++) {
+    for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
     }
 

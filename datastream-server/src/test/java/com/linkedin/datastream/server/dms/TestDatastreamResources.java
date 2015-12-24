@@ -21,7 +21,7 @@ import com.linkedin.restli.server.CreateResponse;
 /**
  * Test DatastreamResources with zookeeper backed DatastreamStore
  */
-@Test(singleThreaded=true)
+@Test(singleThreaded = true)
 public class TestDatastreamResources {
 
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;

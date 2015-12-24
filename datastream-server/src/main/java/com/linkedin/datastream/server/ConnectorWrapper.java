@@ -50,8 +50,7 @@ public class ConnectorWrapper {
   }
 
   private void logApiStart(String method) {
-    LOG.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType,
-        _instanceName));
+    LOG.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType, _instanceName));
     _startTime = System.currentTimeMillis();
     _lastError = null;
   }
@@ -102,8 +101,7 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
-  public void initializeDatastream(Datastream stream)
-      throws DatastreamValidationException {
+  public void initializeDatastream(Datastream stream) throws DatastreamValidationException {
     logApiStart("initializeDatastream");
 
     try {

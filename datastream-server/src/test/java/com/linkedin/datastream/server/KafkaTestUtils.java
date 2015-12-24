@@ -35,8 +35,7 @@ import java.util.Properties;
  */
 public final class KafkaTestUtils {
   public interface ReaderCallback {
-    boolean onMessage(byte[] key, byte[] value)
-        throws IOException;
+    boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
 
   private KafkaTestUtils() {
@@ -59,9 +58,11 @@ public final class KafkaTestUtils {
 
     KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(props);
     TopicPartition subscription = new TopicPartition(topic, partition);
-    List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>() { {
-      add(subscription);
-    } };
+    List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>() {
+      {
+        add(subscription);
+      }
+    };
     consumer.assign(topicPartitions);
     consumer.seekToBeginning(subscription);
 

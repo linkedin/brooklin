@@ -31,7 +31,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   public void commit(Map<DatastreamTask, String> checkpoints) {
     LOG.info("Commit called with checkpoints " + checkpoints.toString());
     Validate.notNull(checkpoints, "Checkpoints should not be null");
-    for(DatastreamTask datastreamTask : checkpoints.keySet()) {
+    for (DatastreamTask datastreamTask : checkpoints.keySet()) {
       _zkAdapter.setDatastreamTaskStateForKey(datastreamTask, CHECKPOINT_KEY_NAME, checkpoints.get(datastreamTask));
     }
   }
@@ -45,9 +45,9 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
     Validate.notNull(datastreamTasks, "datastreamTasks should not be null");
     Map<DatastreamTask, String> checkpoints = new HashMap<>();
-    for(DatastreamTask task : datastreamTasks) {
+    for (DatastreamTask task : datastreamTasks) {
       String checkpoint = _zkAdapter.getDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME);
-      if(checkpoint != null) {
+      if (checkpoint != null) {
         checkpoints.put(task, checkpoint);
       } else {
         LOG.debug("Checkpoint doesn't exist for DatastreamTask " + task.toString());

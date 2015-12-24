@@ -20,7 +20,7 @@ class InMemoryCheckpointProvider implements CheckpointProvider {
   @Override
   public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
     Map<DatastreamTask, String> ret = new HashMap<>();
-    for (DatastreamTask task: datastreamTasks) {
+    for (DatastreamTask task : datastreamTasks) {
       if (_cpMap.containsKey(task)) {
         ret.put(task, _cpMap.get(task));
       }

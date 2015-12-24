@@ -30,8 +30,7 @@ public interface DatastreamEventProducer {
    * @return
    *   SchemaId of the registered schema.
    */
-  String registerSchema(Schema schema)
-      throws SchemaRegistryException;
+  String registerSchema(Schema schema) throws SchemaRegistryException;
 
   /**
    * Flush the transport for the pending events. This can be a slow and heavy operation.

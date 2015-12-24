@@ -222,15 +222,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public DatastreamTaskStatus getStatus() {
     String statusStr = this.getState(STATUS);
-    if(statusStr != null && !statusStr.isEmpty()) {
+    if (statusStr != null && !statusStr.isEmpty()) {
       return DatastreamTaskStatus.valueOf(statusStr);
     } else {
       throw new RuntimeException("Datastream task status is either null or empty");
     }
   }
 
-  public String toJson()
-      throws IOException {
+  public String toJson() throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     StringWriter out = new StringWriter(1024);
     mapper.writeValue(out, this);
@@ -246,9 +245,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
       return false;
     }
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
-    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects
-        .equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream) && Objects
-        .equals(_properties, task._properties);
+    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
+        && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
+        && Objects.equals(_properties, task._properties);
   }
 
   @Override

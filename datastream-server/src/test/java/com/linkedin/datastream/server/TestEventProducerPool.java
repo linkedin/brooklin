@@ -28,8 +28,9 @@ public class TestEventProducerPool {
     TransportProviderFactory transportProviderFactory = new DummyTransportProviderFactory();
     Properties config = new Properties();
     config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool = new EventProducerPool(checkpointProvider,
-        transportProviderFactory.createTransportProvider(config), null, config);
+    _eventProducerPool =
+        new EventProducerPool(checkpointProvider, transportProviderFactory.createTransportProvider(config), null,
+            config);
   }
 
   @Test
@@ -81,7 +82,7 @@ public class TestEventProducerPool {
 
     // Check that the producers are not shared
     for (DatastreamEventProducer producer1 : taskProducerMapConnectorType1.values()) {
-      for (DatastreamEventProducer producer2: taskProducerMapConnectorType2.values()) {
+      for (DatastreamEventProducer producer2 : taskProducerMapConnectorType2.values()) {
         Assert.assertNotEquals(producer1, producer2);
       }
     }
@@ -98,12 +99,14 @@ public class TestEventProducerPool {
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
     String connectorType = "connectorType";
 
-    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap1 = _eventProducerPool.getEventProducers(tasks, connectorType, false);
+    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap1 =
+        _eventProducerPool.getEventProducers(tasks, connectorType, false);
 
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(3)));
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(4)));
 
-    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap2 = _eventProducerPool.getEventProducers(tasks, connectorType, false);
+    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap2 =
+        _eventProducerPool.getEventProducers(tasks, connectorType, false);
 
     // Check if producers are reused
     Assert.assertTrue(taskProducerMap1.get(tasks.get(0)) == taskProducerMap2.get(tasks.get(0)));
@@ -127,7 +130,8 @@ public class TestEventProducerPool {
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
     String connectorType = "connectorType";
 
-    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap = _eventProducerPool.getEventProducers(tasks, connectorType, false);
+    Map<DatastreamTask, DatastreamEventProducer> taskProducerMap =
+        _eventProducerPool.getEventProducers(tasks, connectorType, false);
 
     // Check if producers are reused
     Assert.assertTrue(taskProducerMap.get(tasks.get(0)) == taskProducerMap.get(tasks.get(2)));

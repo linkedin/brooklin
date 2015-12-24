@@ -25,7 +25,8 @@ public class EventProducerPool {
   private static final String CONFIG_PRODUCER = "datastream.eventProducer";
 
   // Map between Connector type and <Destination URI, Producer>
-  private final Map<String, Map<String, DatastreamEventProducer>> _producers = new HashMap<String, Map<String, DatastreamEventProducer>>();
+  private final Map<String, Map<String, DatastreamEventProducer>> _producers =
+      new HashMap<String, Map<String, DatastreamEventProducer>>();
   private final SchemaRegistryProvider _schemaRegistryProvider;
   private final TransportProvider _transportProvider;
 
@@ -69,7 +70,8 @@ public class EventProducerPool {
     }
 
     // Mapping between the task and the producer.This is the result that is returned
-    Map<DatastreamTask, DatastreamEventProducer> taskProducerMapping = new HashMap<DatastreamTask, DatastreamEventProducer>();
+    Map<DatastreamTask, DatastreamEventProducer> taskProducerMapping =
+        new HashMap<DatastreamTask, DatastreamEventProducer>();
 
     // List of already created producers for the specified connector type
     Map<String, DatastreamEventProducer> producersForConnectorType = _producers.get(connectorType);
@@ -80,7 +82,8 @@ public class EventProducerPool {
     }
 
     // List of producers that don't have a corresponding task. These producers need to be shutdown
-    Map<String, DatastreamEventProducer> unusedProducers = new HashMap<String, DatastreamEventProducer>(producersForConnectorType);
+    Map<String, DatastreamEventProducer> unusedProducers =
+        new HashMap<String, DatastreamEventProducer>(producersForConnectorType);
 
     VerifiableProperties properties = new VerifiableProperties(_config);
 
@@ -96,7 +99,7 @@ public class EventProducerPool {
         ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<DatastreamTask>();
         tasksPerProducer.add(task);
         producersForConnectorType.put(destination,
-            new DatastreamEventProducerImpl(tasksPerProducer,_transportProvider, _schemaRegistryProvider,
+            new DatastreamEventProducerImpl(tasksPerProducer, _transportProvider, _schemaRegistryProvider,
                 _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing));
       }
 
@@ -108,7 +111,7 @@ public class EventProducerPool {
       producersForConnectorType.remove(destination);
     }
 
-    unusedProducers.values().forEach((producer) -> ((DatastreamEventProducerImpl)producer).shutdown());
+    unusedProducers.values().forEach((producer) -> ((DatastreamEventProducerImpl) producer).shutdown());
     unusedProducers.clear();
 
     return taskProducerMapping;

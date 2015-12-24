@@ -23,8 +23,7 @@ public class TestZookeeperCheckpointProvider {
   private EmbeddedZookeeper _zookeeper;
 
   @BeforeMethod
-  public void setup()
-      throws IOException {
+  public void setup() throws IOException {
     _zookeeper = new EmbeddedZookeeper();
     _zookeeper.startup();
   }

@@ -34,7 +34,7 @@ public class BroadcastStrategy implements AssignmentStrategy {
       if (currentAssignment != null && currentAssignment.containsKey(instance)) {
         Map<String, DatastreamTask> datastreamToTaskMap = new HashMap<>();
         Collection<DatastreamTask> currentAssignmentForInstance = currentAssignment.get(instance);
-        for(DatastreamTask datastreamTask : currentAssignmentForInstance) {
+        for (DatastreamTask datastreamTask : currentAssignmentForInstance) {
           datastreamTask.getDatastreams().stream().forEach(d -> datastreamToTaskMap.put(d, datastreamTask));
         }
         for (Datastream datastream : datastreams) {

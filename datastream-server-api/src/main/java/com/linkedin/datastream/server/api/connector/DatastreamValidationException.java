@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.api.connector;
 
 import com.linkedin.datastream.common.DatastreamException;
 
+
 public class DatastreamValidationException extends DatastreamException {
   public DatastreamValidationException() {
     super();
