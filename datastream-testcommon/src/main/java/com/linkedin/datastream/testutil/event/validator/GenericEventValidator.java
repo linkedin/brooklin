@@ -51,6 +51,13 @@ public class GenericEventValidator {
     return obj;        // treat this as generic payload record
   }
 
+  /**
+   *
+   * @param event1
+   * @param event2
+   * @return true if payloads match
+   */
+
   public static boolean matchPayloads(Object event1, Object event2) {
     Object payload1 = getPayload(event1);
     Object payload2 = getPayload(event2);
@@ -61,6 +68,12 @@ public class GenericEventValidator {
     return payload1.equals(payload2);
   }
 
+  /**
+   *
+   * @param event1
+   * @param event2
+   * @return true if keys match
+   */
   public static boolean matchKeys(Object event1, Object event2) {
     Object key1 = getKey(event1);
     Object key2 = getKey(event2);
@@ -71,10 +84,24 @@ public class GenericEventValidator {
     return (key1.equals(key2));
   }
 
+  /**
+   *
+   * @param event1
+   * @param event2
+   * @return true if metadata matches
+   */
   public static boolean matchMetadatas(Object event1, Object event2) {
     return true; // no validation needs to perform for generic events
   }
 
+  /**
+   *
+   * @param list1
+   * @param list2
+   * @return true/false
+   * @throws UnknownTypeException
+   * @throws IOException
+   */
   public static boolean validateGenericEventList(List<Object> list1, List<Object> list2)
       throws UnknownTypeException, IOException {
     if (list1 == null && list2 == null) {
