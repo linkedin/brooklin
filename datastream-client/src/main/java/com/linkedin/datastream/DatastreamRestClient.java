@@ -30,12 +30,11 @@ public class DatastreamRestClient {
   private final RestClient _restClient;
   private final BootstrapBuilders _bootstrapBuilders;
 
-  public DatastreamRestClient(String dsmUri){
+  public DatastreamRestClient(String dsmUri) {
     _builders = new DatastreamBuilders();
     _bootstrapBuilders = new BootstrapBuilders();
     final HttpClientFactory http = new HttpClientFactory();
-    final Client r2Client = new TransportClientAdapter(
-        http.getClient(Collections.<String, String>emptyMap()));
+    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String> emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
@@ -60,8 +59,8 @@ public class DatastreamRestClient {
       response = datastreamResponseFuture.getResponse();
       return response.getEntity();
     } catch (RemoteInvocationException e) {
-      if(e instanceof RestLiResponseException &&
-          ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
+      if (e instanceof RestLiResponseException
+          && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
         throw new DatastreamException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
@@ -102,8 +101,7 @@ public class DatastreamRestClient {
    *    Throws DatastreamException for any other errors encountered while creating the datastream.
    *
    */
-  public Datastream createBootstrapDatastream(String datastreamName)
-      throws DatastreamException {
+  public Datastream createBootstrapDatastream(String datastreamName) throws DatastreamException {
     ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().paramBaseDatastream(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     Response<Datastream> response;
@@ -111,12 +109,12 @@ public class DatastreamRestClient {
       response = datastreamResponseFuture.getResponse();
       return response.getEntity();
     } catch (RemoteInvocationException e) {
-      if(e instanceof RestLiResponseException &&
-          ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
+      if (e instanceof RestLiResponseException
+          && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamException(String.format(
-            "Create Bootstrap Datastream {%s} failed with error.", datastreamName), e);
+        throw new DatastreamException(String.format("Create Bootstrap Datastream {%s} failed with error.",
+            datastreamName), e);
       }
     }
   }

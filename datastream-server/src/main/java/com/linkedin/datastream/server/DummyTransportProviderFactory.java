@@ -27,8 +27,7 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       }
 
       @Override
-      public void close()
-          throws TransportException {
+      public void close() throws TransportException {
       }
 
       @Override

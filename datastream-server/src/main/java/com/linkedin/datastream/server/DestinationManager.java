@@ -41,8 +41,7 @@ public class DestinationManager {
    * datastream with the same source, they will use the same destination.
    * @param datastreams All datastreams in the current system.
    */
-  public void populateDatastreamDestination(List<Datastream> datastreams)
-      throws TransportException {
+  public void populateDatastreamDestination(List<Datastream> datastreams) throws TransportException {
     Validate.notNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
@@ -57,8 +56,9 @@ public class DestinationManager {
         continue;
       }
 
-      boolean topicReuse = Boolean.parseBoolean(datastream.getMetadata()
-          .getOrDefault(CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
+      boolean topicReuse =
+          Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
+              CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
       if (topicReuse && sourceDestinationMapping.containsKey(datastream.getSource())) {
@@ -68,9 +68,10 @@ public class DestinationManager {
         datastream.setDestination(destination);
       } else {
         String connectionString = createTopic(datastream);
-        LOG.info(String.format(
-            "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
-            datastream.getName(), topicReuse, connectionString));
+        LOG.info(String
+            .format(
+                "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
+                datastream.getName(), topicReuse, connectionString));
         DatastreamDestination destination = new DatastreamDestination();
         destination.setConnectionString(connectionString);
         datastream.setDestination(destination);
@@ -82,8 +83,7 @@ public class DestinationManager {
         sourceDestinationMapping);
   }
 
-  private String createTopic(Datastream datastream)
-      throws TransportException {
+  private String createTopic(Datastream datastream) throws TransportException {
     Properties datastreamProperties = new Properties();
     datastreamProperties.putAll(datastream.getMetadata());
     Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
@@ -107,9 +107,10 @@ public class DestinationManager {
     Validate.notNull(datastream, "Datastream should not be null");
     Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
     Validate.notNull(allDatastreams, "allDatastreams should not be null");
-    Stream<Datastream> duplicateDatastreams = allDatastreams.stream().filter(
-        d -> d.getDestination().equals(datastream.getDestination()) && !d.getName()
-            .equalsIgnoreCase(datastream.getName()));
+    Stream<Datastream> duplicateDatastreams =
+        allDatastreams.stream().filter(
+            d -> d.getDestination().equals(datastream.getDestination())
+                && !d.getName().equalsIgnoreCase(datastream.getName()));
 
     // If there are no datastreams using the same destination, then delete the topic.
     if (duplicateDatastreams.count() == 0) {

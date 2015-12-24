@@ -46,7 +46,8 @@ public class VerifiableProperties {
         } else {
           ret.put(keyStr.substring(fullPrefix.length()), getProperty(keyStr));
         }
-      }});
+      }
+    });
     return ret;
   }
 

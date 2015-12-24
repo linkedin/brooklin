@@ -44,7 +44,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 
 
-
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final String TRANSPORT_FCTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
@@ -116,8 +115,8 @@ public class TestCoordinator {
     @Override
     public void onAssignmentChange(List<DatastreamTask> tasks) {
 
-      LOG.info("START: onAssignmentChange. Name: " + _name +
-          ", ConnectorType: " + _connectorType + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
+      LOG.info("START: onAssignmentChange. Name: " + _name + ", ConnectorType: " + _connectorType
+          + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
@@ -204,8 +203,7 @@ public class TestCoordinator {
     //
     PollUtils.poll(() -> taskNames.size() == 1, 500, 30000);
     String name1 = (String) taskNames.toArray()[0];
-    String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-            name1, "counter");
+    String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name1, "counter");
     Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream1CounterPath));
     Assert.assertEquals(zkClient.readData(datastream1CounterPath), "1");
     //
@@ -215,16 +213,15 @@ public class TestCoordinator {
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName2);
     PollUtils.poll(() -> taskNames.size() == 2, 500, 30000);
     String name2 = (String) taskNames.toArray()[1];
-    String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-        name2, "counter");
+    String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name2, "counter");
     Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream2CounterPath));
     //
     // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
     //
-//    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
-//    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
-//
-      Thread.sleep(1000 * 60);
+    //    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
+    //    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
+    //
+    Thread.sleep(1000 * 60);
 
     //
     // clean up
@@ -359,13 +356,11 @@ public class TestCoordinator {
     Datastream[] streams1 = DatastreamTestUtils.createDatastreams(connectorType1, "datastream1");
     Datastream[] streams2 = DatastreamTestUtils.createDatastreams(connectorType2, "datastream2");
 
-
     // Stub for populateDatastreamDestination to set destination on datastream2
     LOG.info("Set destination only for datastream2, leave it unassigned for datastream1");
     Mockito.doAnswer(new Answer() {
       @Override
-      public Object answer(InvocationOnMock invocation)
-          throws Throwable {
+      public Object answer(InvocationOnMock invocation) throws Throwable {
         Object[] args = invocation.getArguments();
         List<Datastream> streams = (List<Datastream>) args[0];
         for (Datastream stream : streams) {
@@ -393,11 +388,10 @@ public class TestCoordinator {
     // Stub for populateDatastreamDestination to set destination on all datastreams
     Mockito.doAnswer(new Answer() {
       @Override
-      public Object answer(InvocationOnMock invocation)
-          throws Throwable {
+      public Object answer(InvocationOnMock invocation) throws Throwable {
         Object[] args = invocation.getArguments();
         List<Datastream> streams = (List<Datastream>) args[0];
-        for(Datastream stream:streams){
+        for (Datastream stream : streams) {
           setDatastreamDestination(stream);
         }
         return null;
@@ -563,7 +557,7 @@ public class TestCoordinator {
     instance2.addConnector(testConectorType, connector2, new BroadcastStrategy(), false);
     instance2.start();
 
-    String [] datastreamNames = new String[concurrencyLevel];
+    String[] datastreamNames = new String[concurrencyLevel];
 
     //
     // create large number of datastreams
@@ -923,11 +917,13 @@ public class TestCoordinator {
     //
     // create 3 datastreams ["simple0", "simple1", "simple2"] for ConnectoryType1
     //
-    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "simple0", "simple1", "simple2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "simple0", "simple1",
+        "simple2");
     //
     // create 3 datastreams [datastream2, datastream3, datastream4] for ConnectorType2
     //
-    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1", "broadcast2");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType2, "broadcast0", "broadcast1",
+        "broadcast2");
     //
     // verify assignment: instance1.connector1: [datastream0], connector2:[datastream2, datastream4"]
     // instance2.connector1:[datastream1], connector2:[datastream3]
@@ -1044,8 +1040,8 @@ public class TestCoordinator {
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources();
 
-    Coordinator coordinator = createCoordinator(
-            properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
+    Coordinator coordinator =
+        createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
             properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
 
     TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
@@ -1075,8 +1071,8 @@ public class TestCoordinator {
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources();
 
-    Coordinator coordinator = createCoordinator(
-            properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
+    Coordinator coordinator =
+        createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
             properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
 
     TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
@@ -1099,14 +1095,15 @@ public class TestCoordinator {
     datastreamKafkaCluster.shutdown();
   }
 
-    // helper method: assert that within a timeout value, the connector are assigned the specific
+  // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)
       throws InterruptedException {
 
     final int interval = timeoutMs < 100 ? timeoutMs : 100;
 
-    boolean result = PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
+    boolean result =
+        PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
 
     LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", ASSERT: " + result);
 

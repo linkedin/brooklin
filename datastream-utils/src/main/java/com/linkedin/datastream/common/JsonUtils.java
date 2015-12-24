@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.StringWriter;
 
+
 /**
  * Utility class for converting objects and JSON strings.
  * Exceptions will be logged and the caller is responsible

@@ -31,6 +31,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
+
 public class TestDatastreamEventProducer {
   private ArrayList<DatastreamTask> _tasks;
   private DatastreamEventProducerImpl _producer;
@@ -92,7 +93,7 @@ public class TestDatastreamEventProducer {
     //ValidatingTransport transport = new ValidatingTransport();
     _transport = mock(TransportProvider.class);
     _schemaRegistryProvider = mock(SchemaRegistryProvider.class);
-    if(!customCheckpointing) {
+    if (!customCheckpointing) {
       _cpProvider = new InMemoryCheckpointProvider();
     } else {
       _cpProvider = mock(CheckpointProvider.class);
@@ -102,12 +103,13 @@ public class TestDatastreamEventProducer {
     _config = new Properties();
     _config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
 
-    _producer = new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, customCheckpointing);
+    _producer =
+        new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config,
+            customCheckpointing);
   }
 
   @Test
-  public void testSendWithCustomCheckpoint()
-      throws DatastreamException, TransportException, InterruptedException {
+  public void testSendWithCustomCheckpoint() throws DatastreamException, TransportException, InterruptedException {
     setup(true);
     DatastreamTask task;
     Integer partition;
@@ -119,7 +121,7 @@ public class TestDatastreamEventProducer {
       record = createEventRecord(_datastream, task, partition);
       _producer.send(record);
     }
-    final boolean[] isCommitCalled = {false};
+    final boolean[] isCommitCalled = { false };
 
     verify(_transport, times(500)).send(any());
     doAnswer(invocation -> isCommitCalled[0] = true).when(_cpProvider).commit(anyMap());
@@ -129,16 +131,16 @@ public class TestDatastreamEventProducer {
     Assert.assertTrue(!isCommitCalled[0]);
   }
 
-  private boolean validateCheckpoint(CheckpointProvider provider,
-                                     List<DatastreamTask> tasks,
-                                     Map<DatastreamTask, Map<Integer, String>> taskCpMap) {
+  private boolean validateCheckpoint(CheckpointProvider provider, List<DatastreamTask> tasks,
+      Map<DatastreamTask, Map<Integer, String>> taskCpMap) {
     Map<DatastreamTask, String> checkpoints = provider.getCommitted(tasks);
     for (DatastreamTask task : tasks) {
       String cpString = checkpoints.getOrDefault(task, null);
       if (cpString == null) { // not ready
         return false;
       }
-      TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {};
+      TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {
+      };
       Map<Integer, String> cpMap = JsonUtils.fromJson(cpString, typeRef);
       if (!cpMap.equals(taskCpMap.get(task))) {
         return false;
@@ -148,8 +150,7 @@ public class TestDatastreamEventProducer {
   }
 
   @Test
-  public void testSendWithDatastreamCheckpoint()
-      throws DatastreamException, InterruptedException, TransportException {
+  public void testSendWithDatastreamCheckpoint() throws DatastreamException, InterruptedException, TransportException {
 
     setup(false);
 
@@ -181,7 +182,8 @@ public class TestDatastreamEventProducer {
     _producer.shutdown();
 
     // Create a new producer
-    _producer = new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, false);
+    _producer =
+        new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, false);
 
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, Map<Integer, String>> checkpointsNew = _producer.getSafeCheckpoints();

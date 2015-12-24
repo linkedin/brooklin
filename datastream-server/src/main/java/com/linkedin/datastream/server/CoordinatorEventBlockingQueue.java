@@ -8,6 +8,7 @@ import java.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class CoordinatorEventBlockingQueue {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
@@ -40,7 +41,7 @@ public class CoordinatorEventBlockingQueue {
   }
 
   public synchronized CoordinatorEvent take() throws InterruptedException {
-    while(_eventQueue.isEmpty()) {
+    while (_eventQueue.isEmpty()) {
       wait();
     }
 
@@ -52,7 +53,7 @@ public class CoordinatorEventBlockingQueue {
       return _eventMap.remove(queuedEvent.getType());
     }
 
-    return null;    
+    return null;
   }
 
   public synchronized CoordinatorEvent peek() {

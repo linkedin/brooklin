@@ -125,20 +125,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
-  public Coordinator(Properties config)
-      throws DatastreamException {
+  public Coordinator(Properties config) throws DatastreamException {
     this(new CoordinatorConfig((config)));
   }
 
-  public Coordinator(CoordinatorConfig config)
-      throws DatastreamException {
+  public Coordinator(CoordinatorConfig config) throws DatastreamException {
     _config = config;
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
     _eventThread.setDaemon(true);
 
-    _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
-        _config.getZkConnectionTimeout(), this);
+    _adapter =
+        new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
+            _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
@@ -147,16 +146,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (factory == null) {
       throw new DatastreamException("invalid transport provider factory: " + transportFactory);
     }
-    _transportProvider = factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
+    _transportProvider =
+        factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
       throw new DatastreamException("failed to create transport provider, factory: " + transportFactory);
     }
 
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
     SchemaRegistryProvider schemaRegistry = null;
-    if(schemaRegistryFactoryType != null) {
+    if (schemaRegistryFactoryType != null) {
       SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
-      schemaRegistryFactory.createSchemaRegistryProvider(coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
+      schemaRegistryFactory.createSchemaRegistryProvider(coordinatorProperties
+          .getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
     } else {
       LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
     }
@@ -164,8 +165,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
-        coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
+    _eventProducerPool =
+        new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
+            coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
   }
 
   public void start() {
@@ -305,8 +307,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(new ArrayList<>()));
 
     // case (2)
-    newConnectorList
-        .forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment));
+    newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment));
 
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
@@ -347,11 +348,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (needed) {
 
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool.getEventProducers(assignment,
-          connectorType, _customCheckpointingConnectorTypes.contains(connectorType));
-      for(DatastreamTask task : assignment) {
+      Map<DatastreamTask, DatastreamEventProducer> producerMap =
+          _eventProducerPool.getEventProducers(assignment, connectorType,
+              _customCheckpointingConnectorTypes.contains(connectorType));
+      for (DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
-        if(producerMap.containsKey(task)) {
+        if (producerMap.containsKey(task)) {
           taskImpl.setEventProducer(producerMap.get(task));
         } else {
           // TODO Set the status of the datastream task here.
@@ -426,10 +428,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       _destinationManager.populateDatastreamDestination(newDatastreams);
 
       // Update the znodes after destinations have been populated
-      for (Datastream stream: newDatastreams) {
+      for (Datastream stream : newDatastreams) {
         if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
           LOG.error(String.format("Failed to update datastream destination for datastream %s, "
-                  + "This datastream will not be scheduled for producing events ", stream.getName()));
+              + "This datastream will not be scheduled for producing events ", stream.getName()));
         }
       }
 
@@ -442,7 +444,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
         LOG.warn("Schedule retry for handling new datastream");
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent()),
-                _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+            _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
       }
 
     }
@@ -479,15 +481,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     // Map between Instance and the tasks
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
-    for(String connectorType: streamsByConnectorType.keySet()){
+    for (String connectorType : streamsByConnectorType.keySet()) {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
-      List<Datastream> datastreamsPerConnectorType = new ArrayList<>(streamsByConnectorType.get(connectorType).values());
+      List<Datastream> datastreamsPerConnectorType =
+          new ArrayList<>(streamsByConnectorType.get(connectorType).values());
 
       // Get the list of tasks per instance for the given connectortype
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
           strategy.assign(datastreamsPerConnectorType, liveInstances, null);
 
-      for(String instance: tasksByConnectorAndInstance.keySet()){
+      for (String instance : tasksByConnectorAndInstance.keySet()) {
         if (!assigmentsByInstance.containsKey(instance)) {
           assigmentsByInstance.put(instance, new ArrayList<>());
         }
@@ -495,7 +498,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         assigmentsByInstance.get(instance).addAll(tasksByConnectorAndInstance.get(instance));
       }
     }
-
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
     // assignment and do remove and add znodes accordingly. In the case of zookeeper failure (when
@@ -527,7 +529,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to the zookeeper.
    */
-  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing) {
+  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy,
+      boolean customCheckpointing) {
     LOG.info("Add new connector of type " + connectorType + " to coordinator");
 
     if (_connectors.containsKey(connectorType)) {
@@ -550,8 +553,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public void initializeDatastream(Datastream datastream)
-      throws DatastreamValidationException {
+  public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {

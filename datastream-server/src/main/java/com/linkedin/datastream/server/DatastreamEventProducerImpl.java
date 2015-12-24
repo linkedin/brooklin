@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * DatastreamEventProducerImpl is the default implementation of {@link DatastreamEventProducer}.
  * It allows connectors to send events to the transport and handles save/restore checkpoints
@@ -39,7 +40,10 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   /**
    * Policy for checkpoint handling
    */
-  enum CheckpointPolicy { DATASTREAM, CUSTOM }
+  enum CheckpointPolicy {
+    DATASTREAM,
+    CUSTOM
+  }
 
   public static final String INVALID_CHECKPOINT = "INVALID_CHECKPOINT";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
@@ -109,7 +113,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
       try {
         flush();
         LOG.debug(String.format("Checkpoint handler exited, tasks = [%s].", _tasks));
-      } catch (Throwable t){
+      } catch (Throwable t) {
         // Since have have handled all exceptions here, there would be no exceptions leaked
         // to the executor, which will reschedules as usual so no explicit retry is needed.
         LOG.error(String.format("Checkpoint failed, will retry after %d ms, reason = %s", _periodMs, t.getMessage()), t);
@@ -132,12 +136,9 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    * @param customCheckpointing decides whether Producer should use custom checkpointing or the datastream server
    *                            provided checkpointing.
    */
-  public DatastreamEventProducerImpl(List<DatastreamTask> tasks,
-                                     TransportProvider transportProvider,
-                                     SchemaRegistryProvider schemaRegistryProvider,
-                                     CheckpointProvider checkpointProvider,
-                                     Properties config,
-                                     boolean customCheckpointing) {
+  public DatastreamEventProducerImpl(List<DatastreamTask> tasks, TransportProvider transportProvider,
+      SchemaRegistryProvider schemaRegistryProvider, CheckpointProvider checkpointProvider, Properties config,
+      boolean customCheckpointing) {
     Validate.notNull(tasks, "null tasks");
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
@@ -197,7 +198,8 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     Map<DatastreamTask, String> checkpoints = _checkpointProvider.getCommitted(_tasks);
 
     // Instruct jackson to convert string keys to integer
-    TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {};
+    TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {
+    };
 
     for (DatastreamTask task : checkpoints.keySet()) {
       String cpString = checkpoints.get(task);
@@ -205,8 +207,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
         _safeCheckpoints.put(task, JsonUtils.fromJson(cpString, typeRef));
       } catch (Exception e) {
         throw new IllegalArgumentException(String.format(
-                "Failed to load checkpoints, task = %s, checkpoint = %s, error = %s",
-                task, cpString, e.getMessage()), e);
+            "Failed to load checkpoints, task = %s, checkpoint = %s, error = %s", task, cpString, e.getMessage()), e);
       }
     }
   }
@@ -214,7 +215,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private void validateEventRecord(DatastreamEventRecord record) {
     Validate.notNull(record, "null event record.");
     Validate.notNull(record.getEvents(), "null event payload.");
-    DatastreamTask task =  record.getDatastreamTask();
+    DatastreamTask task = record.getDatastreamTask();
     Validate.notNull(task, "null event task.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
     Validate.notEmpty(record.getDestination(), "invalid event destination.");
@@ -237,7 +238,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     validateEventRecord(record);
 
     for (DatastreamEvent event : record.getEvents()) {
-      if(event.metadata == null) {
+      if (event.metadata == null) {
         event.metadata = new HashMap<>();
       }
 
@@ -269,9 +270,8 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
    *   SchemaId of the registered schema.
    */
   @Override
-  public String registerSchema(Schema schema)
-      throws SchemaRegistryException {
-    if(_schemaRegistryProvider != null) {
+  public String registerSchema(Schema schema) throws SchemaRegistryException {
+    if (_schemaRegistryProvider != null) {
       return _schemaRegistryProvider.registerSchema(schema);
     } else {
       LOG.info("SchemaRegistryProvider is not configured, so registerSchema is not supported");
@@ -296,12 +296,11 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     }
     if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
       try {
-        LOG.info(String.format("Start committing checkpoints, cpMap = %s, tasks = [%s].",
-                _pendingCheckpoints, _tasks));
+        LOG.info(String.format("Start committing checkpoints, cpMap = %s, tasks = [%s].", _pendingCheckpoints, _tasks));
 
         // Populate checkpoint map for checkpoint provider
-        _latestCheckpoints.keySet().forEach(task -> _pendingCheckpoints.put(
-                task, JsonUtils.toJson(_latestCheckpoints.get(task))));
+        _latestCheckpoints.keySet().forEach(
+            task -> _pendingCheckpoints.put(task, JsonUtils.toJson(_latestCheckpoints.get(task))));
 
         _checkpointProvider.commit(_pendingCheckpoints);
 

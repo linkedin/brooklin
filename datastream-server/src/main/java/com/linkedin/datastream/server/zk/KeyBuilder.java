@@ -30,7 +30,7 @@ public class KeyBuilder {
   /**
    * Task node
    */
-  private static final String _connectorDatastreamTask = _connector +  "/%s";
+  private static final String _connectorDatastreamTask = _connector + "/%s";
 
   /**
    * Task state node under connectorType/task
@@ -111,11 +111,9 @@ public class KeyBuilder {
   }
 
   // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
-  public static String datastreamTaskStateKey(String cluster, String connectorType,
-      String name, String key) {
+  public static String datastreamTaskStateKey(String cluster, String connectorType, String name, String key) {
     // taskId could be empty space, which can result in "//" in the path
-    return String.format(_datastreamTaskStateKey, cluster, connectorType, name, key).replaceAll("//",
-        "/");
+    return String.format(_datastreamTaskStateKey, cluster, connectorType, name, key).replaceAll("//", "/");
   }
 
 }

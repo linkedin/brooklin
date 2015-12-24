@@ -12,6 +12,7 @@ import org.apache.avro.generic.GenericRecord;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 
+
 /**
  * The class is for generating datastream events.
  * todo - right now, it returns a list of generated events. Need to support publishing to kafka topic directly
@@ -124,7 +125,7 @@ public class DatastreamEventGenerator extends GenericEventGenerator {
         datastreamEvent.previous_payload = preEvent.payload;
       }
 
-    } else {  // default event
+    } else { // default event
       datastreamEvent.key = getKey();
       opcode = "INSERT";
       datastreamEvent.previous_payload = null;

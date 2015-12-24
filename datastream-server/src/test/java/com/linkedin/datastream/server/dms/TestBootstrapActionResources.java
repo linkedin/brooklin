@@ -10,10 +10,11 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+
 /**
  * Test BootstrapActionResources with zookeeper backed DatastreamStore
  */
-@Test(singleThreaded=true)
+@Test(singleThreaded = true)
 public class TestBootstrapActionResources {
 
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;

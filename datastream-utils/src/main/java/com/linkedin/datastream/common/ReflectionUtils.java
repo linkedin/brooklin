@@ -74,7 +74,7 @@ public class ReflectionUtils {
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);
       fieldObj.setAccessible(true);
-      return (T)fieldObj.get(object);
+      return (T) fieldObj.get(object);
     } catch (Exception e) {
       LOG.warn(String.format("Failed to get field, object = %s field = %s", object, field), e);
       return null;

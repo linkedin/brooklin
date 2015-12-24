@@ -434,13 +434,13 @@ public class ZkAdapter {
     }
 
     // Task config
-    String taskConfigPath = KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(),
-            task.getDatastreamTaskName());
+    String taskConfigPath =
+        KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     _zkclient.ensurePath(taskConfigPath);
 
     // Task state
-    String taskStatePath = KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(),
-            task.getDatastreamTaskName());
+    String taskStatePath =
+        KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     _zkclient.ensurePath(taskStatePath);
   }
 
@@ -491,7 +491,6 @@ public class ZkAdapter {
       assignmentsNames.add(name);
       assignmentsMap.put(name, task);
     });
-
 
     // get the old assignment from zookeeper
     Set<String> oldAssignmentNames;
@@ -632,7 +631,8 @@ public class ZkAdapter {
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getDatastreamTaskName(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
+            datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -644,7 +644,8 @@ public class ZkAdapter {
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(), datastreamTask.getDatastreamTaskName(), key);
+        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
+            datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
@@ -829,8 +830,9 @@ public class ZkAdapter {
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      LOG.info(String.format("ZkBackedTaskListProvider::Received Child change notification on the datastream task list "
-          + "parentPath %s,children %s", parentPath, currentChildren));
+      LOG.info(String.format(
+          "ZkBackedTaskListProvider::Received Child change notification on the datastream task list "
+              + "parentPath %s,children %s", parentPath, currentChildren));
       if (_listener != null) {
         _listener.onAssignmentChange();
       }

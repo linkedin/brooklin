@@ -40,7 +40,6 @@ public enum DatastreamServer {
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
 
-
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
   private static final ClassLoader _classLoader = DatastreamServer.class.getClassLoader();
 
@@ -100,7 +99,8 @@ public enum DatastreamServer {
         assignmentStrategyInstance = new SimpleStrategy();
       }
 
-      boolean customCheckpointing = Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
+      boolean customCheckpointing =
+          Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
       _coordinator.addConnector(connectorStr, connectorInstance, assignmentStrategyInstance, customCheckpointing);
 
     } catch (Exception ex) {
@@ -132,7 +132,8 @@ public enum DatastreamServer {
     }
 
     LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+    ZkClient zkClient =
+        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
             coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
@@ -146,7 +147,7 @@ public enum DatastreamServer {
 
   public synchronized void startup() throws DatastreamException {
     // Start the coordinator
-    if(_coordinator != null) {
+    if (_coordinator != null) {
       _coordinator.start();
     }
 

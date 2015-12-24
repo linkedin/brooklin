@@ -65,7 +65,7 @@ public class KafkaTransportProvider implements TransportProvider {
       throw new RuntimeException("Bootstrap servers are not set");
     }
 
-    if(!props.containsKey(CONFIG_ZK_CONNECT)) {
+    if (!props.containsKey(CONFIG_ZK_CONNECT)) {
       throw new RuntimeException("Zk connection string config is not set");
     }
 
@@ -73,7 +73,7 @@ public class KafkaTransportProvider implements TransportProvider {
     _zkAddress = props.getProperty(CONFIG_ZK_CONNECT);
     _zkClient = new ZkClient(_zkAddress);
     ZkConnection zkConnection = new ZkConnection(_zkAddress);
-    _zkUtils =  new ZkUtils(_zkClient, zkConnection, false);
+    _zkUtils = new ZkUtils(_zkClient, zkConnection, false);
 
     // Assign mandatory arguments
     props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
@@ -109,8 +109,8 @@ public class KafkaTransportProvider implements TransportProvider {
     Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-    LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s",
-        topicConfig, numberOfPartitions, topicConfig));
+    LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s", topicConfig,
+        numberOfPartitions, topicConfig));
 
     try {
       // Create only if it doesn't exist.
@@ -134,12 +134,12 @@ public class KafkaTransportProvider implements TransportProvider {
 
     try {
       // Delete only if it exist.
-      if(AdminUtils.topicExists(_zkUtils, topicName)) {
+      if (AdminUtils.topicExists(_zkUtils, topicName)) {
         AdminUtils.deleteTopic(_zkUtils, topicName);
       } else {
         LOG.warn(String.format("Trying to delete topic %s that doesn't exist", topicName));
       }
-    } catch(Throwable e) {
+    } catch (Throwable e) {
       LOG.error(String.format("Deleting topic %s failed with exception %s", topicName, e));
       throw e;
     }
@@ -173,9 +173,9 @@ public class KafkaTransportProvider implements TransportProvider {
         _producer.send(outgoing);
       }
     } catch (Exception e) {
-      LOG.error(String
-          .format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-              record.getEvents(), record.getDestination(), _brokers, e));
+      LOG.error(String.format(
+          "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
+          record.getEvents(), record.getDestination(), _brokers, e));
       throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
     }
 
@@ -184,7 +184,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void close() {
-    if(_producer != null) {
+    if (_producer != null) {
       _producer.close();
     }
   }

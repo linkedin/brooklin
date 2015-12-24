@@ -58,8 +58,8 @@ public class DatastreamEventGeneratorCmdline {
     }
     Date endTime = new Date();
     long elapsedSeconds = (endTime.getTime() - startTime.getTime()) / 1000;
-    LOG.info(
-        String.format("Finished: " + elapsedSeconds + " seconds with " + globalSettings.getErrorCount() + " Errors"));
+    LOG.info(String.format("Finished: " + elapsedSeconds + " seconds with " + globalSettings.getErrorCount()
+        + " Errors"));
     if (globalSettings.getErrorCount() > 0) {
       isMainThreadDone = true;
       return false;
@@ -106,7 +106,8 @@ public class DatastreamEventGeneratorCmdline {
       indexWriter.flush();
       indexWriter.close();
     } catch (IOException e) {
-      LOG.error(String.format("Unable to write generated index range to file. Range: %s\n%s", indexString, e.getStackTrace()));
+      LOG.error(String.format("Unable to write generated index range to file. Range: %s\n%s", indexString,
+          e.getStackTrace()));
     }
   }
 

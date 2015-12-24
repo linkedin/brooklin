@@ -38,6 +38,5 @@ public interface Connector {
    * Datastream into zookeeper. DMS ensures that stream.source has sufficient details.
    * @param stream: Datastream model
    */
-  void initializeDatastream(Datastream stream)
-      throws DatastreamValidationException;
+  void initializeDatastream(Datastream stream) throws DatastreamValidationException;
 }

@@ -225,19 +225,19 @@ public class TestZkAdapter {
     //
     // verify 2 instance nodes
     //
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
-            KeyBuilder.liveInstances(testCluster)) == 2, 100, 2 * _zkWaitInMs));
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
-            KeyBuilder.instances(testCluster)) == 2, 100, 2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.liveInstances(testCluster)) == 2, 100,
+        2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.instances(testCluster)) == 2, 100,
+        2 * _zkWaitInMs));
 
     //
     // stop current leader adapter1, new leader will do the cleanup
     //
     adapter1.forceDisconnect();
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
-            KeyBuilder.liveInstances(testCluster)) == 1, 100, 2 * _zkWaitInMs));
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(
-            KeyBuilder.instances(testCluster)) == 1, 100, 2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.liveInstances(testCluster)) == 1, 100,
+        2 * _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.instances(testCluster)) == 1, 100,
+        2 * _zkWaitInMs));
 
     adapter2.disconnect();
     zkClient.close();
@@ -266,8 +266,7 @@ public class TestZkAdapter {
   }
 
   private void validateConnectorTask(String cluster, String connectorType, String task, ZkClient zkClient) {
-    List<String> connectorAssignment =
-            zkClient.getChildren(KeyBuilder.connectorTask(cluster, connectorType, task));
+    List<String> connectorAssignment = zkClient.getChildren(KeyBuilder.connectorTask(cluster, connectorType, task));
     Assert.assertEquals(connectorAssignment.size(), 2); // state + config
     Assert.assertTrue(connectorAssignment.contains("state"));
     Assert.assertTrue(connectorAssignment.contains("config"));

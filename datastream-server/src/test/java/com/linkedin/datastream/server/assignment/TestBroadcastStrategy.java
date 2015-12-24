@@ -25,18 +25,19 @@ public class TestBroadcastStrategy {
 
   @Test
   public void testBroadcastStrategy_createsAssignmentAcrossAllInstances() {
-    String[] instances = new String[] {"instance1", "instance2", "instance3"};
+    String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-    for(String instance : instances) {
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
     }
   }
 
   private List<Datastream> generateDatastreams(String namePrefix, int numberOfDatastreams) {
     List<Datastream> datastreams = new ArrayList<>();
-    for(int index =0; index < numberOfDatastreams; index++) {
+    for (int index = 0; index < numberOfDatastreams; index++) {
       Datastream ds = new Datastream();
       ds.setName(namePrefix + index);
       ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
@@ -53,12 +54,13 @@ public class TestBroadcastStrategy {
 
   @Test
   public void testBroadcastStrategy_doesntCreateNewTasks_WhenCalledSecondTime() {
-    String[] instances = new String[] {"instance1", "instance2", "instance3"};
+    String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-    for(String instance: instances) {
+    for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
@@ -70,7 +72,7 @@ public class TestBroadcastStrategy {
 
   @Test
   public void testBroadcastStrategy_createsNewTasksOnlyForNewDatastream_WhenDatastreamIsCreated() {
-    List<String> instances = Arrays.asList(new String[]{"instance1", "instance2", "instance3"});
+    List<String> instances = Arrays.asList(new String[] { "instance1", "instance2", "instance3" });
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
@@ -82,18 +84,18 @@ public class TestBroadcastStrategy {
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
 
     // Ensure that the datastream tasks for the existing instances didn't change.
-    for(String instance: instances) {
+    for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size() + 1, newAssignmentTasks.size());
-      Assert.assertTrue(oldAssignmentTasks.stream().allMatch(x -> x.getDatastreams().contains(newDatastream.getName()) ||
-          newAssignmentTasks.contains(x)));
+      Assert.assertTrue(oldAssignmentTasks.stream().allMatch(
+          x -> x.getDatastreams().contains(newDatastream.getName()) || newAssignmentTasks.contains(x)));
     }
   }
 
   @Test
   public void testBroadcastStrategy_createsNewTasksOnlyForNewInstance_WhenInstanceIsAdded() {
-    List<String> instances = Arrays.asList(new String[] {"instance1", "instance2", "instance3"});
+    List<String> instances = Arrays.asList(new String[] { "instance1", "instance2", "instance3" });
     String instance4 = "instance4";
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
@@ -103,7 +105,7 @@ public class TestBroadcastStrategy {
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
 
     // Ensure that the datastream tasks for the existing instances didn't change.
-    for(String instance: instances) {
+    for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());

@@ -61,8 +61,8 @@ public class EmbeddedDatastreamCluster {
     setupDatastreamProperties(_embeddedZookeeper.getConnection(), connectorProperties, override);
   }
 
-  public static EmbeddedDatastreamCluster newTestDatastreamKafkaCluster(Map<String, Properties> connectorProperties, Properties override)
-      throws IllegalArgumentException, IOException, DatastreamException {
+  public static EmbeddedDatastreamCluster newTestDatastreamKafkaCluster(Map<String, Properties> connectorProperties,
+      Properties override) throws IllegalArgumentException, IOException, DatastreamException {
     return newTestDatastreamKafkaCluster(connectorProperties, override, -1);
   }
 
@@ -76,10 +76,12 @@ public class EmbeddedDatastreamCluster {
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(_datastreamPort));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, connectorTypes);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
-    properties.put(String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, ProducerConfig.BOOTSTRAP_SERVERS_CONFIG),
+    properties.put(
+        String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, ProducerConfig.BOOTSTRAP_SERVERS_CONFIG),
         _embeddedKafkaCluster.getBrokers());
 
-    properties.put(String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, KafkaTransportProvider.CONFIG_ZK_CONNECT),
+    properties.put(
+        String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, KafkaTransportProvider.CONFIG_ZK_CONNECT),
         _embeddedKafkaCluster.getZkConnection());
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
@@ -91,9 +93,9 @@ public class EmbeddedDatastreamCluster {
 
   private Properties getDomainConnectorProperties(Map<String, Properties> connectorProperties) {
     Properties domainConnectorProperties = new Properties();
-    for(String connectorType : connectorProperties.keySet()) {
+    for (String connectorType : connectorProperties.keySet()) {
       Properties props = connectorProperties.get(connectorType);
-      for(String propertyEntry : props.stringPropertyNames()) {
+      for (String propertyEntry : props.stringPropertyNames()) {
         domainConnectorProperties.put(connectorType + "." + propertyEntry, props.getProperty(propertyEntry));
       }
     }
@@ -102,8 +104,7 @@ public class EmbeddedDatastreamCluster {
   }
 
   public static EmbeddedDatastreamCluster newTestDatastreamKafkaCluster(Map<String, Properties> connectorProperties,
-      Properties override, int zkPort)
-      throws IllegalArgumentException, IOException, DatastreamException {
+      Properties override, int zkPort) throws IllegalArgumentException, IOException, DatastreamException {
 
     MUTEX.lock();
 
@@ -146,8 +147,7 @@ public class EmbeddedDatastreamCluster {
     return _embeddedZookeeper.getConnection();
   }
 
-  public void startup()
-      throws IOException, DatastreamException {
+  public void startup() throws IOException, DatastreamException {
     if (_embeddedKafkaCluster == null || _embeddedZookeeper == null) {
       LOG.error("failed to start up kafka cluster: either kafka or zookeeper service is not initialized correctly.");
       return;

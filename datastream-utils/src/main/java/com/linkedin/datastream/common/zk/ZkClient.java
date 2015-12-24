@@ -236,8 +236,8 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long start = System.nanoTime();
     try {
       final byte[] bytes = _zkSerializer.serialize(datat);
-      return retryUntilConnected(
-          () -> ((ZkConnection) _connection).getZookeeper().setData(path, bytes, expectedVersion));
+      return retryUntilConnected(() -> ((ZkConnection) _connection).getZookeeper()
+          .setData(path, bytes, expectedVersion));
     } finally {
       long end = System.nanoTime();
       if (LOG.isTraceEnabled()) {

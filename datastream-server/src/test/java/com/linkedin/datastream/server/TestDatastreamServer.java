@@ -44,8 +44,7 @@ public class TestDatastreamServer {
   private static final String TEST_CONNECTOR = FileConnector.CONNECTOR_TYPE;
   private EmbeddedDatastreamCluster _datastreamCluster;
 
-  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap()
-      throws Exception {
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
     DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
@@ -60,8 +59,7 @@ public class TestDatastreamServer {
     return props;
   }
 
-  public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override)
-      throws Exception {
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
     DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
@@ -82,15 +80,13 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testDatastreamServerBasics()
-      throws Exception {
+  public void testDatastreamServerBasics() throws Exception {
     initializeTestDatastreamServer(null);
     initializeTestDatastreamServerWithBootstrap();
   }
 
   @Test
-  public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents()
-      throws Exception {
+  public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents() throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector();
     int totalEvents = 10;
     _datastreamCluster.startup();
@@ -124,11 +120,10 @@ public class TestDatastreamServer {
     _datastreamCluster.shutdown();
   }
 
-  private Collection<String> readEvents(Datastream fileDatastream1, int totalEvents)
-      throws Exception {
-    KafkaDestination kafkaDestination = KafkaDestination
-        .parseKafkaDestinationUri(fileDatastream1.getDestination().getConnectionString());
-    final int[] numberOfMessages = {0};
+  private Collection<String> readEvents(Datastream fileDatastream1, int totalEvents) throws Exception {
+    KafkaDestination kafkaDestination =
+        KafkaDestination.parseKafkaDestinationUri(fileDatastream1.getDestination().getConnectionString());
+    final int[] numberOfMessages = { 0 };
     List<String> eventsReceived = new ArrayList<>();
     KafkaTestUtils.readTopic(kafkaDestination.topicName(), 0, _datastreamCluster.getBrokerList(), (key, value) -> {
       DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
@@ -141,20 +136,18 @@ public class TestDatastreamServer {
     return eventsReceived;
   }
 
-  private Datastream createFileDatastream(String fileName)
-      throws IOException, DatastreamException {
+  private Datastream createFileDatastream(String fileName) throws IOException, DatastreamException {
     File testFile = new File(fileName);
     testFile.createNewFile();
     testFile.deleteOnExit();
-    Datastream fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE,"file_" + testFile.getName(),
-        testFile.getAbsolutePath());
+    Datastream fileDatastream1 =
+        DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
+            testFile.getAbsolutePath());
     String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
     DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
     restClient.createDatastream(fileDatastream1);
     return getPopulatedDatastream(restClient, fileDatastream1);
   }
-
-
 
   private Datastream getPopulatedDatastream(DatastreamRestClient restClient, Datastream fileDatastream1) {
     Boolean pollResult = PollUtils.poll(() -> {
@@ -186,8 +179,8 @@ public class TestDatastreamServer {
     return generatedValues;
   }
 
-  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector()
-      throws IOException, DatastreamException {
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector() throws IOException,
+      DatastreamException {
     DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TEST_CONNECTOR, getTestConnectorProperties());

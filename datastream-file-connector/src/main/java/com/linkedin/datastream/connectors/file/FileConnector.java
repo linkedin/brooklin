@@ -52,10 +52,9 @@ public class FileConnector implements Connector {
   private final ExecutorService _executorService;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
-  public FileConnector(Properties config)
-      throws DatastreamException {
-    _executorService = Executors.newFixedThreadPool(Integer.parseInt(
-        config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
+  public FileConnector(Properties config) throws DatastreamException {
+    _executorService =
+        Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
     _fileProcessors = new ConcurrentHashMap<>();
   }
 

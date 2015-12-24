@@ -26,7 +26,7 @@ import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.r2.RemoteInvocationException;
 
 
-@Test(singleThreaded=true)
+@Test(singleThreaded = true)
 public class TestDatastreamRestClient {
   // "com.linkedin.datastream.server.DummyDatastreamEventCollector"
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
@@ -60,8 +60,7 @@ public class TestDatastreamRestClient {
     return ds;
   }
 
-  private void setupServer()
-      throws Exception {
+  private void setupServer() throws Exception {
     EmbeddedZookeeper embeddedZookeeper = new EmbeddedZookeeper();
     String zkConnectionString = embeddedZookeeper.getConnection();
     embeddedZookeeper.startup();
@@ -73,19 +72,17 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-                   DummyConnectorFactory.class.getTypeName());
+        DummyConnectorFactory.class.getTypeName());
     properties.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-                   DummyBootstrapConnectorFactory.class.getTypeName());
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
-                   DUMMY_BOOTSTRAP_CONNECTOR);
+        DummyBootstrapConnectorFactory.class.getTypeName());
+    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     DatastreamServer.INSTANCE.init(properties);
     DatastreamServer.INSTANCE.startup();
   }
 
   @Test
-  public void testCreateDatastream()
-      throws DatastreamException, IOException, RemoteInvocationException {
+  public void testCreateDatastream() throws DatastreamException, IOException, RemoteInvocationException {
     Datastream datastream = generateDatastream(1);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -96,8 +93,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testGetBootstrapDatastream()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testGetBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
     Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -117,15 +113,15 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testGetDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound() throws IOException,
+      DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.getDatastream("Datastream_doesntexist");
   }
 
   @Test(expectedExceptions = DatastreamException.class)
-  public void testCreateDatastream_throwsDatastreamException_onBadDatastream()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testCreateDatastream_throwsDatastreamException_onBadDatastream() throws IOException, DatastreamException,
+      RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(new Datastream());
   }

@@ -20,7 +20,7 @@ public class DatastreamEventRecord {
   private final List<DatastreamEvent> _events;
 
   public DatastreamEventRecord(DatastreamEvent event, int partition, String checkpoint, DatastreamTask task) {
-    this(Arrays.asList(new DatastreamEvent[] {event}), partition, checkpoint, task);
+    this(Arrays.asList(new DatastreamEvent[] { event }), partition, checkpoint, task);
   }
 
   public DatastreamEventRecord(List<DatastreamEvent> events, int partition, String checkpoint, DatastreamTask task) {
@@ -75,13 +75,13 @@ public class DatastreamEventRecord {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
     DatastreamEventRecord record = (DatastreamEventRecord) o;
-    return Objects.equals(_task, record._task) &&
-           Objects.equals(_partition, record._partition) &&
-           Objects.equals(_events, record._events) &&
-           Objects.equals(_checkpoint, record._checkpoint);
+    return Objects.equals(_task, record._task) && Objects.equals(_partition, record._partition)
+        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint);
   }
 
   @Override

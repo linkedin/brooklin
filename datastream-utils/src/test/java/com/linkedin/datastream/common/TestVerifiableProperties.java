@@ -5,6 +5,7 @@ import org.testng.annotations.Test;
 
 import java.util.Properties;
 
+
 public class TestVerifiableProperties {
 
   @Test
