@@ -93,8 +93,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
     if (partitions != null && partitions.size() > 0) {
       _partitions.addAll(partitions);
     } else {
-      // By default, there is at least one partition
-      _partitions.add(1);
+      // Add [0, N) if destination has N partitions
+      // Or add a default partition 0 otherwise
+      if (datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
+        int numPartitions = datastream.getDestination().getPartitions();
+        for (int i = 0; i < numPartitions; i++) {
+          _partitions.add(i);
+        }
+      } else {
+        _partitions.add(0);
+      }
     }
   }
 
