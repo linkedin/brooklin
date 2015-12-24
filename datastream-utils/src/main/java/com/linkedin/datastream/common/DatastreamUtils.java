@@ -6,9 +6,11 @@ import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 
 /**
@@ -64,6 +66,22 @@ public final class DatastreamUtils {
     });
 
     event.metadata = out;
+  }
+
+  public static DatastreamEvent createEvent() {
+    Random random = new Random();
+    byte[] bytes = new byte[100];
+    random.nextBytes(bytes);
+    return createEvent(bytes);
+  }
+
+  public static DatastreamEvent createEvent(byte[] payload) {
+    DatastreamEvent event = new DatastreamEvent();
+    event.payload = ByteBuffer.wrap(payload);
+    event.key = ByteBuffer.allocate(0);
+    event.metadata = new HashMap<>();
+    event.previous_payload = ByteBuffer.allocate(0);
+    return event;
   }
 
   /**
