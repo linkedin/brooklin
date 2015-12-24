@@ -30,25 +30,30 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import com.linkedin.datastream.testutil.TestUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 
 
 @Test(singleThreaded = true)
 public class TestDatastreamServer {
-
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
 
+  public static final String SIMPLE_STRATEGY = SimpleStrategy.class.getTypeName();
   public static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
-  public static final String TEST_CONNECTOR = FileConnector.CONNECTOR_TYPE;
+  public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_TYPE;
+
   private EmbeddedDatastreamCluster _datastreamCluster;
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
-    return EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(), -1);
+    return EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties());
   }
 
   private static Properties getBootstrapConnectorProperties() {
@@ -58,11 +63,12 @@ public class TestDatastreamServer {
     return props;
   }
 
-  public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithDummyConnector(Properties override)
+      throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override, -1);
+        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override);
     return datastreamKafkaCluster;
   }
 
@@ -77,20 +83,32 @@ public class TestDatastreamServer {
     return props;
   }
 
+
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers,
+                                                                                    String strategy)
+      throws IOException, DatastreamException {
+    Map<String, Properties> connectorProperties = new HashMap<>();
+    connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
+    EmbeddedDatastreamCluster datastreamKafkaCluster =
+        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(), -1, numServers);
+    return datastreamKafkaCluster;
+  }
+
   @Test
   public void testDatastreamServerBasics() throws Exception {
-    initializeTestDatastreamServer(null);
+    initializeTestDatastreamServerWithDummyConnector(null);
     initializeTestDatastreamServerWithBootstrap();
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
   }
 
   @Test
   public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents() throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector();
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY);
     int totalEvents = 10;
     _datastreamCluster.startup();
     String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
     Datastream fileDatastream1 = createFileDatastream(fileName1);
-    Collection<String> eventsWritten1 = generateStrings(totalEvents);
+    Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
 
     Collection<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents);
@@ -105,7 +123,7 @@ public class TestDatastreamServer {
     String fileName2 = "/tmp/testFile2_" + UUID.randomUUID().toString();
     Datastream fileDatastream2 = createFileDatastream(fileName2);
 
-    Collection<String> eventsWritten2 = generateStrings(totalEvents);
+    Collection<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName2), eventsWritten2);
 
     Collection<String> eventsReceived2 = readEvents(fileDatastream2, totalEvents);
@@ -118,7 +136,230 @@ public class TestDatastreamServer {
     _datastreamCluster.shutdown();
   }
 
-  private Collection<String> readEvents(Datastream fileDatastream1, int totalEvents) throws Exception {
+  @Test
+  public void testNodeDown_OneDatastream_SimpleStrategy() throws Exception {
+      _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, SIMPLE_STRATEGY);
+    _datastreamCluster.startup();
+
+    List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
+    Assert.assertEquals(servers.size(), 2);
+    Assert.assertNotNull(servers.get(0));
+    Assert.assertNotNull(servers.get(1));
+    DatastreamServer server1 = servers.get(0);
+    DatastreamServer server2 = servers.get(1);
+
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    int totalEvents = 10;
+    List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+
+    // Write some events and make sure DMS properly produces them
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    List<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+
+    // Ensure 1st instance was assigned the task
+    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+            DatastreamServer.CONFIG_CLUSTER_NAME);
+    ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
+    String instance = server1.getCoordinator().getInstanceName();
+    String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
+    List<String> assignments = zkclient.getChildren(assignmentPath);
+    Assert.assertEquals(assignments.size(), 1);
+
+    // Stop 1st instance and wait until its ZK node is gone
+    _datastreamCluster.shutdownServer(0);
+    String instancesPath = KeyBuilder.liveInstances(cluster);
+    Assert.assertTrue(PollUtils.poll(() -> zkclient.getChildren(instancesPath).size() == 1, 100, 5000));
+
+    // Ensure 2nd instance took over the task
+    instance = server2.getCoordinator().getInstanceName();
+    assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
+    Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+
+    // Ensure 2nd instance can read all
+    List<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
+
+    // Append the lines to test checkpoint functionality where 2nd instance should resume from
+    // the previous saved checkpoint by the 1st instance before it died.
+    TestUtils.appendLines(new File(fileName1), eventsWritten2);
+
+    // Read twice as many events (eventsWritten1 + eventsWritten2) because
+    // KafkaTestUtils.readTopic always seeks to the beginning of the topic.
+    List<String> eventsReceived2 = readEvents(fileDatastream1, totalEvents * 2);
+
+    LOG.info("Events Received " + eventsReceived2);
+    LOG.info("Events Written to file " + eventsWritten2);
+
+    // If no duplicate events were produced eventsReceived2 should equal eventsWritten1 + eventsWritten2
+    // because KafkaTestUtils.readTopic always seeks to the beginning of the topic.
+    Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+  }
+
+  @Test
+  public void testNodeDown_OneDatastream_BroadcastStrategy() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
+    _datastreamCluster.startup();
+
+    List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
+    Assert.assertEquals(servers.size(), 2);
+    Assert.assertNotNull(servers.get(0));
+    Assert.assertNotNull(servers.get(1));
+    DatastreamServer server1 = servers.get(0);
+    DatastreamServer server2 = servers.get(1);
+
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    int totalEvents = 10;
+    List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+
+    // Start with a few events and make sure DMS properly produces them
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    List<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents * 2);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+    // Expect two copies of eventsWritten1 given the two instances and BROADCAST strategy
+    Map<String, Integer> countMap = new HashMap<>();
+    eventsWritten1.forEach((ev) -> countMap.put(ev, 2));
+    eventsReceived1.forEach((ev) -> countMap.put(ev, countMap.getOrDefault(ev, 0) - 1));
+    countMap.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
+
+    // Ensure both instances were assigned the task
+    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+            DatastreamServer.CONFIG_CLUSTER_NAME);
+    ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
+    String instance = server1.getCoordinator().getInstanceName();
+    String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
+    List<String> assignments = zkclient.getChildren(assignmentPath);
+    Assert.assertEquals(assignments.size(), 1);
+    instance = server2.getCoordinator().getInstanceName();
+    assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
+    assignments = zkclient.getChildren(assignmentPath);
+    Assert.assertEquals(assignments.size(), 1);
+
+    // Stop 1st instance and wait until its ZK node is gone
+    _datastreamCluster.shutdownServer(0);
+    String instancesPath = KeyBuilder.liveInstances(cluster);
+    Assert.assertTrue(PollUtils.poll(() -> zkclient.getChildren(instancesPath).size() == 1, 100, 5000));
+
+    // Ensure 2nd instance still has the task
+    instance = server2.getCoordinator().getInstanceName();
+    assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
+    Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+
+    // Ensure 2nd instance can still produce events
+    List<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
+
+    // Caveat: MUST use appendLines otherwise FileConnector somehow cannot
+    // see the newly written lines. This might be due to writeLines overwrites
+    // the file. Checking the file creation time does not work because the
+    // creation timestamp does not change after writeLines().
+    TestUtils.appendLines(new File(fileName1), eventsWritten2);
+
+    // Read three times as many events (eventsWritten1 * 2 + eventsWritten2) because
+    // KafkaTestUtils.readTopic always seeks to the beginning of the topic.
+    List<String> eventsReceived2 = readEvents(fileDatastream1, totalEvents * 3);
+
+    LOG.info("Events Received " + eventsReceived2);
+    LOG.info("Events Written to file " + eventsWritten2);
+
+    // Expect to see one copy of eventsWritten2 in eventsReceived2
+    Map<String, Integer> countMap2 = new HashMap<>();
+    eventsWritten2.forEach((ev) -> countMap2.put(ev, 1));
+    eventsReceived2.forEach((ev) -> {
+      if (countMap2.containsKey(ev)) {
+        countMap2.put(ev, countMap2.get(ev) - 1);
+      }
+    });
+    countMap2.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
+  }
+
+  @Test
+  public void testNodeUpRebalance_TwoDatastreams_SimpleStrategy() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, SIMPLE_STRATEGY);
+    _datastreamCluster.startupServer(0);
+
+    List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
+    Assert.assertEquals(servers.size(), 2);
+    Assert.assertNotNull(servers.get(0));
+    DatastreamServer server1 = servers.get(0);
+
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    String fileName2 = "/tmp/testFile2_" + UUID.randomUUID().toString();
+
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Datastream fileDatastream2 = createFileDatastream(fileName2);
+
+    int totalEvents = 10;
+    List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    List<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
+
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+    FileUtils.writeLines(new File(fileName2), eventsWritten2);
+
+    List<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents);
+    List<String> eventsReceived2 = readEvents(fileDatastream2, totalEvents);
+
+    LOG.info("(1) Events Received " + eventsReceived1);
+    LOG.info("(1) Events Written to file " + eventsWritten1);
+    LOG.info("(2) Events Received " + eventsReceived2);
+    LOG.info("(2) Events Written to file " + eventsWritten2);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+    Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+
+    // Ensure 1st instance was assigned both tasks
+    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+            DatastreamServer.CONFIG_CLUSTER_NAME);
+    ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
+    String instance1 = server1.getCoordinator().getInstanceName();
+    String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
+    List<String> assignments = zkclient.getChildren(assignmentPath);
+    Assert.assertEquals(assignments.size(), 2);
+
+    // Start 2nd instance and wait until it shows up in ZK
+    _datastreamCluster.startupServer(1);
+    DatastreamServer server2 = servers.get(1);
+    Assert.assertNotNull(server2);
+    String instancesPath = KeyBuilder.liveInstances(cluster);
+    Assert.assertTrue(PollUtils.poll(() -> zkclient.getChildren(instancesPath).size() == 2, 100, 5000));
+
+    // Ensure each instance gets one task
+    assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
+    Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+    String instance2 = server2.getCoordinator().getInstanceName();
+    assignmentPath = KeyBuilder.instanceAssignments(cluster, instance2);
+    Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+
+    eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    eventsWritten2 = TestUtils.generateStrings(totalEvents);
+
+    TestUtils.appendLines(new File(fileName1), eventsWritten1);
+    TestUtils.appendLines(new File(fileName2), eventsWritten2);
+
+    // Read twice as many events because KafkaTestUtils.readTopic always seeks
+    // to the beginning of the topic such that previous events are included
+    eventsReceived1 = readEvents(fileDatastream1, totalEvents * 2);
+    eventsReceived2 = readEvents(fileDatastream2, totalEvents * 2);
+
+    LOG.info("(1-NEW) Events Received " + eventsReceived1);
+    LOG.info("(1-NEW) Events Written to file " + eventsWritten1);
+    LOG.info("(2-NEW) Events Received " + eventsReceived2);
+    LOG.info("(2-NEW) Events Written to file " + eventsWritten2);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+    Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+  }
+
+  private List<String> readEvents(Datastream fileDatastream1, int totalEvents) throws Exception {
     KafkaDestination kafkaDestination =
         KafkaDestination.parseKafkaDestinationUri(fileDatastream1.getDestination().getConnectionString());
     final int[] numberOfMessages = { 0 };
@@ -140,7 +381,7 @@ public class TestDatastreamServer {
     testFile.deleteOnExit();
     Datastream fileDatastream1 =
         DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
-            testFile.getAbsolutePath());
+                testFile.getAbsolutePath());
     String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
     DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
     restClient.createDatastream(fileDatastream1);
@@ -169,26 +410,9 @@ public class TestDatastreamServer {
     }
   }
 
-  private Collection<String> generateStrings(int numberOfEvents) {
-    Collection<String> generatedValues = new ArrayList<>();
-    for (int index = 0; index < numberOfEvents; index++) {
-      generatedValues.add("Value_" + UUID.randomUUID().toString() + "_" + index);
-    }
-    return generatedValues;
-  }
-
-  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector() throws IOException,
-      DatastreamException {
-    Map<String, Properties> connectorProperties = new HashMap<>();
-    connectorProperties.put(TEST_CONNECTOR, getTestConnectorProperties());
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(), -1);
-    return datastreamKafkaCluster;
-  }
-
-  private Properties getTestConnectorProperties() {
+  private Properties getTestConnectorProperties(String strategy) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, strategy);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
     return props;
   }

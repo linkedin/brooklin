@@ -12,11 +12,10 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
 public class TestBroadcastStrategy {
@@ -37,18 +36,12 @@ public class TestBroadcastStrategy {
 
   private List<Datastream> generateDatastreams(String namePrefix, int numberOfDatastreams) {
     List<Datastream> datastreams = new ArrayList<>();
+    String type = DummyConnector.CONNECTOR_TYPE;
     for (int index = 0; index < numberOfDatastreams; index++) {
-      Datastream ds = new Datastream();
-      ds.setName(namePrefix + index);
-      ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
-      ds.setSource(new DatastreamSource());
-      ds.getSource().setConnectionString("DummySource");
-      StringMap metadata = new StringMap();
-      metadata.put("owner", "person_" + index);
-      ds.setMetadata(metadata);
+      Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
+      ds.getMetadata().put("owner", "person_" + index);
       datastreams.add(ds);
     }
-
     return datastreams;
   }
 

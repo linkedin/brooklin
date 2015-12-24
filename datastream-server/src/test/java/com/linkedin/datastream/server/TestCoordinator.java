@@ -1115,7 +1115,8 @@ public class TestCoordinator {
    */
   @Test
   public void testCreateDatastreamHappyPath() throws Exception {
-    EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    EmbeddedDatastreamCluster datastreamKafkaCluster =
+        TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
@@ -1146,7 +1147,8 @@ public class TestCoordinator {
 
   @Test
   public void testEndToEndHappyPath() throws Exception {
-    EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    EmbeddedDatastreamCluster datastreamKafkaCluster =
+        TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());

@@ -56,7 +56,7 @@ public class TestDatastreamResources {
 
   @BeforeMethod
   public void setUp() throws Exception {
-    _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
+    _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     _datastreamKafkaCluster.startup();
   }
 

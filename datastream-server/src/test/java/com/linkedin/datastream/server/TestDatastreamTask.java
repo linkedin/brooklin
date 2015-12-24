@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -11,9 +12,7 @@ public class TestDatastreamTask {
 
   @Test
   public void testDatastreamTaskJson() throws Exception {
-    Datastream stream = new Datastream();
-    stream.setName("testDatastreamTaskJsonName");
-    stream.setConnectorType("testDatastreamTaskJson");
+    Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(stream);
     String json = task.toJson();
