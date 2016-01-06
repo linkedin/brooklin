@@ -376,11 +376,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     if (needed) {
+      List<DatastreamEventProducer> unusedProducers = new ArrayList<>();
 
       List<DatastreamTask> newAssignment = new ArrayList<>();
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool
-          .getEventProducers(assignment, connectorType, _customCheckpointingConnectorTypes.contains(connectorType));
+      Map<DatastreamTask, DatastreamEventProducer> producerMap =
+          _eventProducerPool.getEventProducers(assignment, connectorType,
+              _customCheckpointingConnectorTypes.contains(connectorType),
+              unusedProducers);
       for (DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if (producerMap.containsKey(task)) {
@@ -396,6 +399,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       _assignmentChangeThreadPool.execute(() -> {
         try{
           connector.onAssignmentChange(newAssignment);
+
+          if (unusedProducers.size() > 0) {
+            LOG.info("Shutting down all unused event producers: " + unusedProducers);
+            unusedProducers.forEach((producer) -> ((DatastreamEventProducerImpl) producer).shutdown());
+          }
         } catch(Exception ex) {
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
         }
