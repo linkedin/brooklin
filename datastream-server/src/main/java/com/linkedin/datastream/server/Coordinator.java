@@ -12,6 +12,8 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Properties;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,6 +31,7 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,6 +104,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
   private final EventProducerPool _eventProducerPool;
+  private final ThreadPoolExecutor _assignmentChangeThreadPool;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
@@ -134,6 +138,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
     _eventThread.setDaemon(true);
+    _assignmentChangeThreadPool = new ThreadPoolExecutor(
+        config.getAssignmentChangeThreadPoolThreadCount(), config.getAssignmentChangeThreadPoolThreadCount(), 10,
+        TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
     _adapter =
         new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
@@ -313,10 +320,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    deactivated.forEach(connectorType -> _connectors.get(connectorType).onAssignmentChange(new ArrayList<>()));
+    deactivated.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>()));
 
     // case (2)
-    newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment));
+    newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)));
 
     // now save the current assignment
     _allStreamsByConnectorType = currentAssignment;
@@ -327,10 +334,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   private void dispatchAssignmentChangeIfNeeded(String connectorType,
-      Map<String, List<DatastreamTask>> currentAssignment) {
+      List<DatastreamTask> assignment) {
 
     ConnectorWrapper connector = _connectors.get(connectorType);
-    List<DatastreamTask> assignment = currentAssignment.get(connectorType);
 
     // only call Connector onAssignment if it is needed
     boolean needed = false;
@@ -338,13 +344,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (!_allStreamsByConnectorType.containsKey(connectorType)) {
       // if there were no assignment in last cached version
       needed = true;
-    } else if (_allStreamsByConnectorType.get(connectorType).size() != currentAssignment.get(connectorType).size()) {
+    } else if (_allStreamsByConnectorType.get(connectorType).size() != assignment.size()) {
       needed = true;
     } else {
       // if there are any difference in the list of assignment. Note that if there are no difference
       // between the two lists, then the connector onAssignmentChange() is not called.
       Set<DatastreamTask> oldSet = new HashSet<>(_allStreamsByConnectorType.get(connectorType));
-      Set<DatastreamTask> newSet = new HashSet<>(currentAssignment.get(connectorType));
+      Set<DatastreamTask> newSet = new HashSet<>(assignment);
       Set<DatastreamTask> diffList1 = new HashSet<>(oldSet);
       Set<DatastreamTask> diffList2 = new HashSet<>(newSet);
       diffList1.removeAll(newSet);
@@ -372,10 +378,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         }
       }
 
-      connector.onAssignmentChange(newAssignment);
-      if (connector.hasError()) {
-        _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
-      }
+      // Dispatch the onAssignmentChange to the connector in a separate thread.
+      _assignmentChangeThreadPool.execute(() -> {
+        try{
+          connector.onAssignmentChange(newAssignment);
+        } catch(Exception ex) {
+          _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
+        }
+      });
     }
   }
 
