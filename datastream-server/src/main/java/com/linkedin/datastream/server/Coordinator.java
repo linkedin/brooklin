@@ -174,17 +174,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _eventThread.start();
     _adapter.connect();
 
-    _connectors.forEach((connectorType, connector) -> {
+    for(String connectorType : _connectors.keySet()) {
+      ConnectorWrapper connector = _connectors.get(connectorType);
+
       // populate the instanceName. We only know the instance name after _adapter.connect()
-        connector.setInstanceName(getInstanceName());
+      connector.setInstanceName(getInstanceName());
 
-        // make sure connector znode exists upon instance start. This way in a brand new cluster
-        // we can inspect zookeeper and know what connectors are created
-        _adapter.ensureConnectorZNode(connector.getConnectorType());
+      // make sure connector znode exists upon instance start. This way in a brand new cluster
+      // we can inspect zookeeper and know what connectors are created
+      _adapter.ensureConnectorZNode(connector.getConnectorType());
 
-        // call connector::start API
-        connector.start();
-      });
+      // call connector::start API
+      connector.start();
+    }
 
     // now that instance is started, make sure it doesn't miss any assignment created during
     // the slow startup
@@ -192,7 +194,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   public void stop() {
-    _connectors.forEach((connectorType, connector) -> connector.stop());
+    for(String connectorType : _connectors.keySet()) {
+      try {
+        _connectors.get(connectorType).stop();
+      } catch (Exception ex) {
+        LOG.warn(String.format("Connector stop threw an exception for connectorType %s, "
+                + "Swallowing it and continuing shutdown.", connectorType), ex);
+      }
+    }
 
     while (_eventThread.isAlive()) {
       try {
@@ -347,6 +356,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     if (needed) {
 
+      List<DatastreamTask> newAssignment = new ArrayList<>();
       // Populate the event producers before calling the connector with the list of tasks.
       Map<DatastreamTask, DatastreamEventProducer> producerMap =
           _eventProducerPool.getEventProducers(assignment, connectorType,
@@ -355,13 +365,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if (producerMap.containsKey(task)) {
           taskImpl.setEventProducer(producerMap.get(task));
+          newAssignment.add(task);
         } else {
-          // TODO Set the status of the datastream task here.
+          taskImpl.setStatus(DatastreamTaskStatus.ERROR);
           LOG.error("Event producer not created for datastream task " + task);
         }
       }
 
-      connector.onAssignmentChange(assignment);
+      connector.onAssignmentChange(newAssignment);
       if (connector.hasError()) {
         _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
       }
