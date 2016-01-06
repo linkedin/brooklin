@@ -550,6 +550,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
+    // clean up tasks under dead instances if everything went well
+    if (succeeded) {
+      _adapter.cleanupDeadInstanceAssignments();
+    }
+
     // schedule retry if failure
     if (!succeeded && !leaderDoAssignmentScheduled.get()) {
       LOG.info("Schedule retry for leader assigning tasks");
