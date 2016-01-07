@@ -19,6 +19,7 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.log4j.Logger;
 
@@ -49,9 +51,10 @@ public class EmbeddedDatastreamCluster {
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;
   private int _datastreamPort;
   private Properties _datastreamServerProperties;
-  private DatastreamServer _server;
+  private int _numServers;
+  private List<DatastreamServer> _servers;
 
-  private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override, int zkPort)
+  private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override, int zkPort, int numServers)
       throws IOException {
     _embeddedZookeeper = new EmbeddedZookeeper(zkPort);
     List<Integer> kafkaPorts = new ArrayList<>();
@@ -60,11 +63,16 @@ public class EmbeddedDatastreamCluster {
     kafkaPorts.add(-1);
     _embeddedKafkaCluster = new EmbeddedKafkaCluster(_embeddedZookeeper.getConnection(), new Properties(), kafkaPorts);
     setupDatastreamProperties(_embeddedZookeeper.getConnection(), connectorProperties, override);
+    _numServers = numServers;
+    _servers = new ArrayList<>(numServers);
+    for (int i = 0; i < numServers; i++) {
+      _servers.add(null);
+    }
   }
 
   public static EmbeddedDatastreamCluster newTestDatastreamKafkaCluster(Map<String, Properties> connectorProperties,
       Properties override) throws IllegalArgumentException, IOException, DatastreamException {
-    return newTestDatastreamKafkaCluster(connectorProperties, override, -1);
+    return newTestDatastreamKafkaCluster(connectorProperties, override, -1, 1);
   }
 
   private void setupDatastreamProperties(String zkConnectionString, Map<String, Properties> connectorProperties,
@@ -106,17 +114,17 @@ public class EmbeddedDatastreamCluster {
   }
 
   public static EmbeddedDatastreamCluster newTestDatastreamKafkaCluster(Map<String, Properties> connectorProperties,
-      Properties override, int zkPort) throws IllegalArgumentException, IOException, DatastreamException {
+      Properties override, int zkPort, int numServers) throws IllegalArgumentException, IOException, DatastreamException {
 
     MUTEX.lock();
 
-    if (zkPort != -1 && _zkPorts.contains(new Integer(zkPort))) {
-      throw new IllegalArgumentException("This zookeeper port " + zkPort + " is taken. Choose another port");
-    }
+    Validate.isTrue(zkPort == -1 || !_zkPorts.contains(new Integer(zkPort)),
+            "This zookeeper port " + zkPort + " is taken. Choose another port");
+    Validate.isTrue(numServers > 0, "invalid number of servers: " + numServers);
 
     _zkPorts.add(zkPort);
 
-    EmbeddedDatastreamCluster cluster = new EmbeddedDatastreamCluster(connectorProperties, override, zkPort);
+    EmbeddedDatastreamCluster cluster = new EmbeddedDatastreamCluster(connectorProperties, override, zkPort, numServers);
 
     MUTEX.unlock();
 
@@ -131,8 +139,12 @@ public class EmbeddedDatastreamCluster {
     return _datastreamPort;
   }
 
-  public DatastreamServer getDatastreamServer() {
-    return _server;
+  public DatastreamServer getPrimaryDatastreamServer() {
+    return _servers.get(0);
+  }
+
+  public List<DatastreamServer> getAllDatastreamServers() {
+    return Collections.unmodifiableList(_servers);
   }
 
   public String getBrokerList() {
@@ -153,20 +165,62 @@ public class EmbeddedDatastreamCluster {
     return _embeddedZookeeper.getConnection();
   }
 
-  public void startup() throws IOException, DatastreamException {
+  private void prepareStartup() throws IOException {
     if (_embeddedKafkaCluster == null || _embeddedZookeeper == null) {
       LOG.error("failed to start up kafka cluster: either kafka or zookeeper service is not initialized correctly.");
       return;
     }
 
-    _embeddedZookeeper.startup();
-    _embeddedKafkaCluster.startup();
-    _server = new DatastreamServer(_datastreamServerProperties);
-    _server.startup();
+    if (!_embeddedZookeeper.isStarted()) {
+      _embeddedZookeeper.startup();
+      _embeddedKafkaCluster.startup();
+    }
+  }
+
+  public void startupServer(int index) throws IOException, DatastreamException {
+    Validate.isTrue(index >= 0, "Server index out of bound: " + index);
+    if (index < _servers.size() && _servers.get(index) != null) {
+      LOG.warn(String.format("Server[%d] already exists, skipping.", index));
+      return;
+    }
+
+    prepareStartup();
+
+    DatastreamServer server = new DatastreamServer(_datastreamServerProperties);
+    _servers.set(index, server);
+    server.startup();
+
+    LOG.info(String.format("DatastreamServer[%d] started.", index));
+  }
+
+  public void startup() throws IOException, DatastreamException {
+    int numServers = _numServers;
+    for (int i = 0; i < numServers; i++) {
+      startupServer(i);
+    }
+  }
+
+  public void shutdownServer(int index) {
+    Validate.isTrue(index >= 0 && index < _servers.size(), "Server index out of bound: " + index);
+    if (_servers.get(index) == null) {
+      LOG.warn(String.format("Server[%d] has not been initialized, skipping.", index));
+      return;
+    }
+    _servers.get(index).shutdown();
+    _servers.remove(index);
+    if (_servers.size() == 0) {
+      shutdown();
+    }
   }
 
   public void shutdown() {
-    _server.shutdown();
+    _servers.forEach(server -> {
+      if (server != null && server.isStarted()) {
+        server.shutdown();
+      }
+    });
+
+    _servers.clear();
 
     if (_embeddedKafkaCluster != null) {
       _embeddedKafkaCluster.shutdown();

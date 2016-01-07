@@ -18,6 +18,8 @@ public class EmbeddedZookeeper {
   private File snapshotDir;
   private File logDir;
 
+  private boolean _started;
+
   public EmbeddedZookeeper() {
     this(-1);
   }
@@ -48,12 +50,17 @@ public class EmbeddedZookeeper {
 
     try {
       factory.startup(new ZooKeeperServer(snapshotDir, logDir, tickTime));
+      _started = true;
     } catch (InterruptedException e) {
       throw new IOException(e);
     }
   }
 
   public void shutdown() {
+    if (!_started) {
+      return;
+    }
+
     factory.shutdown();
     try {
       TestUtils.deleteFile(snapshotDir);
@@ -65,6 +72,7 @@ public class EmbeddedZookeeper {
     } catch (FileNotFoundException e) {
       // ignore
     }
+    _started = false;
   }
 
   public String getConnection() {
@@ -85,6 +93,10 @@ public class EmbeddedZookeeper {
 
   public int getTickTime() {
     return tickTime;
+  }
+
+  public boolean isStarted() {
+    return _started;
   }
 
   @Override

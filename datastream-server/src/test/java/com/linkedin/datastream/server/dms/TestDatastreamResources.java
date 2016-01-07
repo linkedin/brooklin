@@ -12,7 +12,6 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.restli.common.HttpStatus;
@@ -68,8 +67,8 @@ public class TestDatastreamResources {
 
   @Test
   public void testReadDatastream() {
-    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getDatastreamServer());
-    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     // read before creating
     Datastream ds = resource1.get("name_0");
@@ -86,7 +85,7 @@ public class TestDatastreamResources {
 
   @Test
   public void testCreateDatastream() {
-    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     Set<String> missingFields = new HashSet<>();
 
     // happy path
@@ -132,7 +131,7 @@ public class TestDatastreamResources {
 
   @Test
   public void testCreateInvalidDatastream() {
-    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     Datastream datastream1 = generateDatastream(6);
     datastream1.setConnectorType("InvalidConnectorName");
     CreateResponse response = resource.create(datastream1);

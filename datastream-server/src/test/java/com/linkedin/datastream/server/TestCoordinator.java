@@ -1054,7 +1054,7 @@ public class TestCoordinator {
     EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     Coordinator coordinator =
         createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
@@ -1085,7 +1085,7 @@ public class TestCoordinator {
     EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     Coordinator coordinator =
         createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
