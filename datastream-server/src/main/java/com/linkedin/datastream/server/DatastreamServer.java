@@ -16,6 +16,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.restli.server.NettyStandaloneLauncher;
@@ -24,10 +25,8 @@ import com.linkedin.restli.server.NettyStandaloneLauncher;
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
  * for all datastream services including the rest api service, the coordinator and so on.
- * DatastreamServer is designed to be singleton.
  */
-public enum DatastreamServer {
-  INSTANCE;
+public class DatastreamServer {
 
   public static final String CONFIG_PREFIX = "datastream.server.";
   public static final String CONFIG_CONNECTOR_TYPES = CONFIG_PREFIX + "connectorTypes";
@@ -41,11 +40,10 @@ public enum DatastreamServer {
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
-  private static final ClassLoader _classLoader = DatastreamServer.class.getClassLoader();
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
-  private NettyStandaloneLauncher _nettyLauncher;
+  private DatastreamNettyStandaloneLauncher _nettyLauncher;
   private boolean _isInitialized = false;
 
   private Map<String, String> _bootstrapConnectors;
@@ -110,7 +108,7 @@ public enum DatastreamServer {
     LOG.info("Connector loaded successfully. Type: " + connectorStr);
   }
 
-  public synchronized void init(Properties properties) throws DatastreamException {
+  public DatastreamServer(Properties properties) throws DatastreamException {
     if (isInitialized()) {
       LOG.warn("Attempt to initialize DatastreamServer while it is already initialized.");
       return;
@@ -139,7 +137,7 @@ public enum DatastreamServer {
             coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new NettyStandaloneLauncher(httpPort, "com.linkedin.datastream.server.dms");
+    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this), "com.linkedin.datastream.server.dms");
 
     verifiableProperties.verify();
     _isInitialized = true;

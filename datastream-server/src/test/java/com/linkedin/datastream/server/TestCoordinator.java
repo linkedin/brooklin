@@ -2,22 +2,17 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -31,11 +26,13 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
-import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.zk.KeyBuilder;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
@@ -1038,7 +1035,7 @@ public class TestCoordinator {
     EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources();
+    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getDatastreamServer());
 
     Coordinator coordinator =
         createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
@@ -1069,7 +1066,7 @@ public class TestCoordinator {
     EmbeddedDatastreamCluster datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServer(null);
     datastreamKafkaCluster.startup();
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources();
+    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getDatastreamServer());
 
     Coordinator coordinator =
         createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),

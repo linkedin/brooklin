@@ -45,7 +45,6 @@ public class TestDatastreamServer {
   private EmbeddedDatastreamCluster _datastreamCluster;
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
-    DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
@@ -60,7 +59,6 @@ public class TestDatastreamServer {
   }
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
-    DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
@@ -181,7 +179,6 @@ public class TestDatastreamServer {
 
   private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector() throws IOException,
       DatastreamException {
-    DatastreamServer.INSTANCE.shutdown();
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TEST_CONNECTOR, getTestConnectorProperties());
     EmbeddedDatastreamCluster datastreamKafkaCluster =

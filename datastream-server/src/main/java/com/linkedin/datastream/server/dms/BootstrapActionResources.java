@@ -17,8 +17,15 @@ import com.linkedin.restli.server.annotations.RestLiActions;
 @RestLiActions(name = "bootstrap", namespace = "com.linkedin.datastream.server.dms")
 public class BootstrapActionResources {
 
-  private final DatastreamStore _store = DatastreamServer.INSTANCE.getDatastreamStore();
-  private final Coordinator _coordinator = DatastreamServer.INSTANCE.getCoordinator();
+  private final DatastreamStore _store;
+  private final Coordinator _coordinator;
+  private final DatastreamServer _datastreamServer;
+
+  public BootstrapActionResources(DatastreamServer datastreamServer) {
+    _datastreamServer = datastreamServer;
+    _store = datastreamServer.getDatastreamStore();
+    _coordinator = datastreamServer.getCoordinator();
+  }
 
   /**
    * Process the request of creating bootstrap datastream. The request provides the name of
@@ -34,9 +41,8 @@ public class BootstrapActionResources {
     }
     Datastream bootstrapDatastream = new Datastream();
     bootstrapDatastream.setName(baseDatastream.getName() + "-" + System.currentTimeMillis());
-    DatastreamServer datastreamServer = DatastreamServer.INSTANCE;
     try {
-      String bootstrapConnectorType = datastreamServer.getBootstrapConnector(baseDatastream.getConnectorType());
+      String bootstrapConnectorType = _datastreamServer.getBootstrapConnector(baseDatastream.getConnectorType());
       bootstrapDatastream.setConnectorType(bootstrapConnectorType);
     } catch (DatastreamException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e);
