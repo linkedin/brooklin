@@ -35,17 +35,17 @@ public class TestDatastreamRestClient {
 
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
+  private DatastreamServer _datastreamServer;
 
   @BeforeTest
   public void setUp() throws Exception {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
-    DatastreamServer.INSTANCE.shutdown();
     setupServer();
   }
 
   @AfterTest
   public void tearDown() throws Exception {
-    DatastreamServer.INSTANCE.shutdown();
+    _datastreamServer.shutdown();
   }
 
   public static Datastream generateDatastream(int seed) {
@@ -77,8 +77,8 @@ public class TestDatastreamRestClient {
         DummyBootstrapConnectorFactory.class.getTypeName());
     properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
-    DatastreamServer.INSTANCE.init(properties);
-    DatastreamServer.INSTANCE.startup();
+    _datastreamServer = new DatastreamServer(properties);
+    _datastreamServer.startup();
   }
 
   @Test

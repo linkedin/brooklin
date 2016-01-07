@@ -1,5 +1,7 @@
 package com.linkedin.datastream.common;
 
+import java.lang.reflect.InvocationTargetException;
+
 import junit.framework.Assert;
 import org.testng.annotations.Test;
 
@@ -21,7 +23,9 @@ public class TestReflectionUtils {
   }
 
   @Test
-  public void testCreateInstance() {
+  public void testCreateInstance()
+      throws ClassNotFoundException, NoSuchMethodException, InstantiationException, IllegalAccessException,
+             InvocationTargetException {
     TestReflectionUtils utils;
     utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName());
     Assert.assertNotNull(utils);
@@ -32,14 +36,23 @@ public class TestReflectionUtils {
     utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, INT_ARG2);
     Assert.assertNotNull(utils);
 
-    utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, STR_ARG1);
-    Assert.assertNull(utils);
+    try {
+      utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, STR_ARG1);
+      Assert.assertTrue(true);
+    } catch (NoSuchMethodException e) {
+    }
 
-    utils = ReflectionUtils.createInstance("Foobar");
-    Assert.assertNull(utils);
+    try {
+      utils = ReflectionUtils.createInstance("Foobar");
+      Assert.assertTrue(true);
+    } catch (ClassNotFoundException e) {
+    }
 
-    utils = ReflectionUtils.createInstance("Foobar", 200);
-    Assert.assertNull(utils);
+    try {
+      utils = ReflectionUtils.createInstance("Foobar", 200);
+      Assert.assertTrue(true);
+    } catch (ClassNotFoundException e) {
+    }
 
     boolean exception = false;
     try {

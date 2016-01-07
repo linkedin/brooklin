@@ -1,6 +1,7 @@
 package com.linkedin.datastream.common;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
 
@@ -23,7 +24,9 @@ public class ReflectionUtils {
    * @param <T> type fo the class
    * @return instance of the class, or null if anything went wrong
    */
-  public static <T> T createInstance(String clazz, Object... args) {
+  public static <T> T createInstance(String clazz, Object... args)
+      throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException,
+             IllegalAccessException {
     Validate.notNull(clazz, "null class name");
     try {
       Class classObj = Class.forName(clazz);
@@ -33,7 +36,7 @@ public class ReflectionUtils {
       return ctor.newInstance(args);
     } catch (Exception e) {
       LOG.warn("Failed to create instance for: " + clazz, e);
-      return null;
+      throw e;
     }
   }
 

@@ -9,6 +9,8 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
+
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Properties;
@@ -129,11 +131,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // and it is stored after the leader finishes the datastream assignment
   private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
 
-  public Coordinator(Properties config) throws DatastreamException {
+  public Coordinator(Properties config)
+      throws DatastreamException {
     this(new CoordinatorConfig((config)));
   }
 
-  public Coordinator(CoordinatorConfig config) throws DatastreamException {
+  public Coordinator(CoordinatorConfig config)
+      throws DatastreamException {
     _config = config;
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
@@ -142,17 +146,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         config.getAssignmentChangeThreadPoolThreadCount(), config.getAssignmentChangeThreadPoolThreadCount(), 10,
         TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
-    _adapter =
-        new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
-            _config.getZkConnectionTimeout(), this);
+    _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
+        _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     String transportFactory = config.getTransportProviderFactory();
-    TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
-    if (factory == null) {
-      throw new DatastreamException("invalid transport provider factory: " + transportFactory);
+    TransportProviderFactory factory = null;
+    try {
+      factory = ReflectionUtils.createInstance(transportFactory);
+    } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException |
+        InvocationTargetException e) {
+      LOG.error("Creating transport provider factory failed with exception " + ExceptionUtils.getFullStackTrace(e));
+      throw new DatastreamException("Invalid transport provider factory: " + transportFactory, e);
     }
+
     _transportProvider =
         factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
@@ -162,9 +170,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
     SchemaRegistryProvider schemaRegistry = null;
     if (schemaRegistryFactoryType != null) {
-      SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
-      schemaRegistryFactory.createSchemaRegistryProvider(coordinatorProperties
-          .getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
+      SchemaRegistryProviderFactory schemaRegistryFactory;
+      try {
+        schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
+      } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException |
+          InvocationTargetException e) {
+        LOG.error(
+            "Creating Schema registry provider factory failed with exception " + ExceptionUtils.getFullStackTrace(e));
+        throw new DatastreamException("Invalid Schema registry provider factory: " + transportFactory, e);
+      }
+
+      schemaRegistryFactory
+          .createSchemaRegistryProvider(coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
     } else {
       LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
     }
@@ -172,9 +189,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool =
-        new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
-            coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
+    _eventProducerPool = new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
+        coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
   }
 
   public void start() {
@@ -364,9 +380,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
       List<DatastreamTask> newAssignment = new ArrayList<>();
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap =
-          _eventProducerPool.getEventProducers(assignment, connectorType,
-              _customCheckpointingConnectorTypes.contains(connectorType));
+      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool
+          .getEventProducers(assignment, connectorType, _customCheckpointingConnectorTypes.contains(connectorType));
       for (DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if (producerMap.containsKey(task)) {
@@ -408,7 +423,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
         case HANDLE_INSTANCE_ERROR:
           handleInstanceError(event);
-
       }
     } catch (Throwable e) {
       LOG.error("ERROR: event + " + event + " failed.", e);
@@ -467,7 +481,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent()),
             _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
       }
-
     }
   }
 
@@ -574,7 +587,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
+  public void initializeDatastream(Datastream datastream)
+      throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {

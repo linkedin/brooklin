@@ -1,5 +1,8 @@
 package com.linkedin.datastream.server.dms;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
@@ -19,9 +22,15 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  */
 @RestLiCollection(name = "datastream", namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class.getName());
 
-  private final DatastreamStore _store = DatastreamServer.INSTANCE.getDatastreamStore();
-  private final Coordinator _coordinator = DatastreamServer.INSTANCE.getCoordinator();
+  private final DatastreamStore _store;
+  private final Coordinator _coordinator;
+
+  public DatastreamResources(DatastreamServer datastreamServer) {
+    _store = datastreamServer.getDatastreamStore();
+    _coordinator = datastreamServer.getCoordinator();
+  }
 
   @Override
   public UpdateResponse update(String key, Datastream datastream) {

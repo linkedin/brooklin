@@ -49,6 +49,7 @@ public class EmbeddedDatastreamCluster {
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;
   private int _datastreamPort;
   private Properties _datastreamServerProperties;
+  private DatastreamServer _server;
 
   private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override, int zkPort)
       throws IOException {
@@ -129,6 +130,10 @@ public class EmbeddedDatastreamCluster {
     return _datastreamPort;
   }
 
+  public DatastreamServer getDatastreamServer() {
+    return _server;
+  }
+
   public String getBrokerList() {
     if (_embeddedKafkaCluster == null) {
       LOG.error("kafka cluster not started correctly");
@@ -155,13 +160,12 @@ public class EmbeddedDatastreamCluster {
 
     _embeddedZookeeper.startup();
     _embeddedKafkaCluster.startup();
-
-    DatastreamServer.INSTANCE.init(_datastreamServerProperties);
-    DatastreamServer.INSTANCE.startup();
+    _server = new DatastreamServer(_datastreamServerProperties);
+    _server.startup();
   }
 
   public void shutdown() {
-    DatastreamServer.INSTANCE.shutdown();
+    _server.shutdown();
 
     if (_embeddedKafkaCluster != null) {
       _embeddedKafkaCluster.shutdown();
