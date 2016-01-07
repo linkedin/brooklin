@@ -61,7 +61,7 @@ public class ConnectorWrapper {
         _connectorType, _instanceName, _endTime - _startTime));
   }
 
-  public void start() {
+  public synchronized void start() {
     logApiStart("start");
 
     try {
@@ -74,7 +74,7 @@ public class ConnectorWrapper {
     logApiEnd("start");
   }
 
-  public void stop() {
+  public synchronized void stop() {
     logApiStart("stop");
 
     try {
@@ -91,7 +91,7 @@ public class ConnectorWrapper {
     return _connectorType;
   }
 
-  public void onAssignmentChange(List<DatastreamTask> tasks) {
+  public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
 
     try {
@@ -104,7 +104,8 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
-  public void initializeDatastream(Datastream stream) throws DatastreamValidationException {
+  public synchronized void initializeDatastream(Datastream stream)
+      throws DatastreamValidationException {
     logApiStart("initializeDatastream");
 
     try {

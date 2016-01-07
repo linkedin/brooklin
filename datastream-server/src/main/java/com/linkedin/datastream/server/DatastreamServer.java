@@ -118,16 +118,18 @@ public enum DatastreamServer {
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
-    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
-    _coordinator = new Coordinator(coordinatorConfig);
 
-    LOG.info("Loading connectors.");
-    String connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES);
-    if (connectorTypes.isEmpty()) {
+    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES).split(",");
+    if (connectorTypes.length == 0) {
       throw new DatastreamException("No connectors specified in connectorTypes");
     }
+
+    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
+    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.length);
+    _coordinator = new Coordinator(coordinatorConfig);
+    LOG.info("Loading connectors.");
     _bootstrapConnectors = new HashMap<>();
-    for (String connectorStr : connectorTypes.split(",")) {
+    for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr, verifiableProperties.getDomainProperties(connectorStr));
     }
 

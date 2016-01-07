@@ -27,6 +27,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY = "schemaRegistryProviderFactory";
   public static final String CONFIG_REUSE_EXISTING_DESTINATION = "reuseExistingDestination";
   private final String _schemaRegistryProviderFactory;
+  private int _assignmentChangeThreadPoolThreadCount = 1;
 
   public CoordinatorConfig(Properties config) {
     _config = config;
@@ -75,5 +76,13 @@ public final class CoordinatorConfig {
 
   public boolean isReuseExistingDestination() {
     return _reuseExistingDestination;
+  }
+
+  public void setAssignmentChangeThreadPoolThreadCount(int count) {
+    _assignmentChangeThreadPoolThreadCount = count;
+  }
+
+  public int getAssignmentChangeThreadPoolThreadCount() {
+    return _assignmentChangeThreadPoolThreadCount;
   }
 }
