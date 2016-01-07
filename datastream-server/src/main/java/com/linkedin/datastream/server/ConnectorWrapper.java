@@ -68,6 +68,7 @@ public class ConnectorWrapper {
       _connector.start();
     } catch (Exception ex) {
       logErrorAndException("start", ex);
+      throw ex;
     }
 
     logApiEnd("start");
@@ -80,6 +81,7 @@ public class ConnectorWrapper {
       _connector.stop();
     } catch (Exception ex) {
       logErrorAndException("stop", ex);
+      throw ex;
     }
 
     logApiEnd("stop");
@@ -96,6 +98,7 @@ public class ConnectorWrapper {
       _connector.onAssignmentChange(tasks);
     } catch (Exception ex) {
       logErrorAndException("onAssignmentChange", ex);
+      throw ex;
     }
 
     logApiEnd("onAssignmentChange");
