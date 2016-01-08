@@ -5,7 +5,13 @@ import com.linkedin.datastream.server.AssignmentStrategy;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 public class SimpleStrategy implements AssignmentStrategy {
@@ -25,7 +31,7 @@ public class SimpleStrategy implements AssignmentStrategy {
 
     for (int i = 0; i < datastreams.size(); i++) {
       int instanceIndex = i % instances.size();
-      assign(instances.get(instanceIndex), datastreams.get(i), assignment);
+      assign(instances.get(instanceIndex), datastreams.get(i), assignment, currentAssignment);
     }
 
     return assignment;
@@ -47,11 +53,27 @@ public class SimpleStrategy implements AssignmentStrategy {
     return result;
   }
 
-  private void assign(String instance, Datastream datastream, Map<String, Set<DatastreamTask>> assignment) {
-    DatastreamTask datastreamTask = new DatastreamTaskImpl(datastream);
+  private void assign(String instance, Datastream datastream, Map<String, Set<DatastreamTask>> assignment,
+                      Map<String, Set<DatastreamTask>> currentAssignment) {
     if (!assignment.containsKey(instance)) {
       assignment.put(instance, new HashSet<>());
     }
-    assignment.get(instance).add(datastreamTask);
+
+    if (currentAssignment != null) {
+      // Look for the task sharing the same destination across all instances
+      for (String currentInstance : currentAssignment.keySet()) {
+        for (DatastreamTask task : currentAssignment.get(currentInstance)) {
+          DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
+          // TODO: need to account for partitions which cannot be done with destination
+          if (datastream.getDestination().equals(taskImpl.getDatastream().getDestination())) {
+            assignment.get(instance).add(taskImpl);
+            return;
+          }
+        }
+      }
+    }
+
+    // No existing task found for the destination so create a new task
+    assignment.get(instance).add(new DatastreamTaskImpl(datastream));
   }
 }
