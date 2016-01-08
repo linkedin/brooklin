@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 
 /**
@@ -49,5 +52,13 @@ public final class TestUtils {
       }
     }
     return ret && path.delete();
+  }
+
+  public static List<String> generateStrings(int count) {
+    List<String> generatedValues = new ArrayList<>();
+    for (int index = 0; index < count; index++) {
+      generatedValues.add("Value_" + UUID.randomUUID().toString() + "_" + index);
+    }
+    return generatedValues;
   }
 }

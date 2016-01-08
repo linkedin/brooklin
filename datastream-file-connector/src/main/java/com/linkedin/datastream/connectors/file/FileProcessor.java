@@ -22,42 +22,69 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.Map;
 
-import com.linkedin.datastream.server.DatastreamEventProducer;
-import com.linkedin.datastream.server.DatastreamEventRecord;
-import com.linkedin.datastream.server.api.transport.TransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.server.DatastreamEventProducer;
+import com.linkedin.datastream.server.DatastreamEventRecord;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
-public class FileProcessor implements Runnable {
+class FileProcessor implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
+
+  private static final int PARTITION = 0;
+  private static final int POLL_WAIT_MS = 100;
 
   private final DatastreamTask _task;
   private final String _fileName;
-  private final BufferedReader _fileReader;
+  private BufferedReader _fileReader;
   private final DatastreamEventProducer _producer;
+  private final boolean _checkpointing;
   private boolean _cancelRequested;
   private boolean _isStopped;
 
-  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
+  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer, boolean checkpointing) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
     _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
     _producer = producer;
+    _checkpointing = checkpointing;
     _isStopped = false;
     _cancelRequested = false;
+    LOG.info("Created FileProcessor for " + datastreamTask);
+  }
+
+  private int loadCheckpoint() throws IOException {
+    int lineNo = 0;
+    Map<Integer, String> savedCheckpoints = _task.getCheckpoints();
+    String cpString = savedCheckpoints.getOrDefault(PARTITION, null);
+    if (cpString != null && !cpString.isEmpty()) {
+      // Resume from last saved line number
+      lineNo = Integer.valueOf(cpString);
+
+      // Must skip line by line as we can't get the actual file position of the
+      // last newline character due to the buffering done by BufferedReader.
+      for (int i = 0; i < lineNo; i++) {
+        _fileReader.readLine();
+      }
+
+      LOG.info("Resumed from line " + lineNo);
+    } else {
+      LOG.info("Resumed from beginning");
+    }
+
+    return lineNo;
   }
 
   @Override
   public void run() {
     try {
-      Integer lineNo = 1;
+      int lineNo = _checkpointing ? loadCheckpoint() : 0;
       while (!_cancelRequested) {
         String text;
         try {
@@ -66,32 +93,27 @@ public class FileProcessor implements Runnable {
           throw new RuntimeException("Reading file failed.", e);
         }
         if (text != null) {
-          // TODO this is bad, We need better experience to create a datastream event record.
-          DatastreamEvent event = new DatastreamEvent();
-          event.payload = ByteBuffer.wrap(text.getBytes());
-          event.key = ByteBuffer.allocate(0);
-          event.metadata = new HashMap<>();
-          event.previous_payload = ByteBuffer.allocate(0);
+          DatastreamEvent event = DatastreamUtils.createEvent(text.getBytes());
           LOG.info("sending event " + text);
-          _producer.send(new DatastreamEventRecord(event, 0, lineNo.toString(), _task));
+          _producer.send(new DatastreamEventRecord(event, PARTITION, String.valueOf(lineNo + 1), _task));
           LOG.info("Sending event succeeded");
           ++lineNo;
         } else {
           try {
-            // If there is no data yet, check every second.
-            Thread.sleep(1000);
+            // Wait for new data
+            Thread.sleep(POLL_WAIT_MS);
           } catch (InterruptedException e) {
             _isStopped = true;
-            Thread.currentThread().interrupt();
+            LOG.info("Stopped at line " + lineNo);
           }
         }
       }
+      
       _isStopped = true;
+      LOG.info("Stopped at line " + lineNo);
     } catch (Throwable e) {
       LOG.error("File processor is quitting with exception ", e);
-      throw e;
     }
-
   }
 
   public boolean isStopped() {

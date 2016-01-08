@@ -1,13 +1,14 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.testutil;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
-class InMemoryCheckpointProvider implements CheckpointProvider {
+public class InMemoryCheckpointProvider implements CheckpointProvider {
   private Map<DatastreamTask, String> _cpMap = new HashMap<>();
 
   @Override

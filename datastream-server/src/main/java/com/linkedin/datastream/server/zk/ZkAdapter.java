@@ -19,10 +19,10 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
-import org.I0Itec.zkclient.IZkChildListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.apache.zookeeper.CreateMode;
@@ -114,6 +114,9 @@ public class ZkAdapter {
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedTaskListProvider _assignmentList = null;
 
+  // Cache all live DatastreamTasks per instance for assignment strategy
+  private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
+
   public ZkAdapter(String zkServers, String cluster) {
     this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
   }
@@ -161,9 +164,10 @@ public class ZkAdapter {
         LOG.info("deleting live instance node: " + liveInstancePath);
         _zkclient.delete(liveInstancePath);
 
-        String instancePath = KeyBuilder.instance(_cluster, _instanceName);
-        LOG.info("deleting instance node: " + instancePath);
-        _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, _instanceName));
+        // NOTE: we should not delete the instance node which still holds the
+        // assigned tasks. Coordinator will call cleanupDeadInstanceAssignments
+        // to do an ad-hoc cleanup once the tasks haven been properly handled
+        // per the strategy (reassign or discard).
       } catch (ZkException zke) {
         // do nothing, best effort clean up
       } finally {
@@ -214,11 +218,15 @@ public class ZkAdapter {
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
 
+    _zkclient.subscribeChildChanges(KeyBuilder.instances(_cluster), _liveInstancesProvider);
+
+    // Load all existing tasks when we just become the new leader. This is needed
+    // for resuming working on the tasks from previous sessions.
+    loadAllDatastreamTasks();
+
     if (_listener != null) {
       _listener.onBecomeLeader();
     }
-
-    _zkclient.subscribeChildChanges(KeyBuilder.instances(_cluster), _liveInstancesProvider);
   }
 
   private void onBecomeFollower() {
@@ -365,6 +373,15 @@ public class ZkAdapter {
     return true;
   }
 
+  /**
+   * @return a list of instances include both dead and live ones.
+   * Dead ones can be removed only after new assignments have
+   * been fully populated by the leader Coordinator via strategies.
+   */
+  public List<String> getAllInstances() {
+    return _zkclient.getChildren(KeyBuilder.instances(_cluster));
+  }
+
   public List<String> getLiveInstances() {
     return _liveInstancesProvider.getLiveInstances();
   }
@@ -377,6 +394,44 @@ public class ZkAdapter {
   public List<String> getInstanceAssignment(String instance) {
     String path = KeyBuilder.instanceAssignments(_cluster, instance);
     return _zkclient.getChildren(path);
+  }
+
+  /**
+   * When previous leader dies, we lose all the cached tasks.
+   * As the current leader, we should try to load tasks from ZK.
+   * This is very likely to be one time operation, so it should
+   * okay to hit ZK.
+   */
+  private void loadAllDatastreamTasks() {
+    if (_liveTaskMap.size() != 0) {
+      return;
+    }
+
+    List<String> allInstances = getAllInstances();
+    for (String instance : allInstances) {
+      Set<DatastreamTask> taskMap = new HashSet<>();
+      _liveTaskMap.put(instance, taskMap);
+      List<String> assignment = getInstanceAssignment(instance);
+      for (String taskName : assignment) {
+        taskMap.add(getAssignedDatastreamTask(instance, taskName));
+      }
+    }
+  }
+
+  /**
+   * Return a map from all instances to their currently assigned tasks.
+   * NOTE: this might include the tasks assigned to dead instances because
+   * in some strategies (eg. SIMPLE) tasks from dead instances need to
+   * be handed off to another live instance without creating a new task
+   * as the existing task still holds the checkpoints. If this method is
+   * called after task reassignment, the returned map will not include
+   * tasks hanging off of dead instances as nodes of dead instances have
+   * been cleaned up after each task reassignment.
+   *
+   * @return a map of all existing DatastreamTasks
+   */
+  public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
+    return _liveTaskMap;
   }
 
   /**
@@ -457,8 +512,8 @@ public class ZkAdapter {
     DatastreamTask task = getAssignedDatastreamTask(instance, name);
     String connectorPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), name);
 
-    _zkclient.removeTree(instancePath);
-    _zkclient.removeTree(connectorPath);
+    _zkclient.deleteRecursive(instancePath);
+    _zkclient.deleteRecursive(connectorPath);
   }
 
   /**
@@ -531,6 +586,8 @@ public class ZkAdapter {
         addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
       }
     }
+
+    _liveTaskMap.put(instance, new HashSet<>(assignments));
 
     return result;
   }
@@ -632,7 +689,7 @@ public class ZkAdapter {
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
         KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-            datastreamTask.getDatastreamTaskName(), key);
+                datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -648,6 +705,32 @@ public class ZkAdapter {
             datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
+  }
+
+  /**
+   * Remove instance assignment nodes whose instances are dead.
+   * NOTE: this should only be called after the valid tasks have been
+   * reassigned or safe to discard per strategy requirement.
+   */
+  public void cleanupDeadInstanceAssignments() {
+    List<String> liveInstances = getLiveInstances();
+    List<String> deadInstances = getAllInstances();
+    deadInstances.removeAll(liveInstances);
+    if (deadInstances.size() > 0) {
+      LOG.info("Cleaning up assignments for dead instances: " + deadInstances);
+
+      for (String instance : deadInstances) {
+        String path = KeyBuilder.instance(_cluster, instance);
+        if (!_zkclient.deleteRecursive(path)) {
+          // Ignore such failure for now
+          LOG.warn("Failed to remove assignment: " + path);
+        }
+
+        if (_liveTaskMap.containsKey(instance)) {
+          _liveTaskMap.remove(instance);
+        }
+      }
+    }
   }
 
   /**
@@ -748,15 +831,6 @@ public class ZkAdapter {
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
-      cleanUpDeadInstances();
-    }
-
-    private void cleanUpDeadInstances() {
-      List<String> deadInstances = _zkclient.getChildren(KeyBuilder.instances(_cluster));
-      deadInstances.removeAll(_liveInstances);
-      for (String dead : deadInstances) {
-        _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, dead));
-      }
     }
 
     // translate list of node names in the form of sequence number to list of instance names
@@ -782,16 +856,10 @@ public class ZkAdapter {
     @Override
     public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
       LOG.info(String.format("ZkBackedTaskListProvider::Received Child change notification on the instances list "
-          + "parentPath %s,children %s", parentPath, currentChildren));
-      List<String> liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
-      List<String> deadInstances = new ArrayList<>(_liveInstances);
-      deadInstances.removeAll(liveInstances);
-      for (String dead : deadInstances) {
-        _zkclient.deleteRecursive(KeyBuilder.instance(_cluster, dead));
-      }
+              + "parentPath %s,children %s", parentPath, currentChildren));
 
-      _liveInstances = liveInstances;
-
+      _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));;
+      
       if (_listener != null) {
         _listener.onLiveInstancesChange();
       }

@@ -55,14 +55,18 @@ public class EventProducerPool {
    * @param connectorType type of connector.
    * @param customCheckpointing  decides whether custom checkpointing needs to be used or datastream server provided
    *                             checkpointing.
+   * @param unusedProducers list to hold the producers that no tasks are referencing anymore. Coordinator should call
+   *                        shutdown on these producers once onAssignmentChange has been called on the owner connector.
+   *
    * @return map of task to event producer mapping for this connector type
    */
   public synchronized Map<DatastreamTask, DatastreamEventProducer> getEventProducers(List<DatastreamTask> tasks,
-      String connectorType, boolean customCheckpointing) {
+      String connectorType, boolean customCheckpointing, List<DatastreamEventProducer> unusedProducers) {
 
     Validate.notNull(tasks);
     Validate.notNull(connectorType);
     Validate.notEmpty(connectorType);
+    Validate.notNull(unusedProducers);
 
     if (tasks.isEmpty()) {
       LOG.info("Tasks is empty");
@@ -82,7 +86,7 @@ public class EventProducerPool {
     }
 
     // List of producers that don't have a corresponding task. These producers need to be shutdown
-    Map<String, DatastreamEventProducer> unusedProducers =
+    Map<String, DatastreamEventProducer> unusedProducerMap =
         new HashMap<String, DatastreamEventProducer>(producersForConnectorType);
 
     VerifiableProperties properties = new VerifiableProperties(_config);
@@ -93,7 +97,7 @@ public class EventProducerPool {
       if (producersForConnectorType.containsKey(destination)) {
         // TODO: Producer will implement a AddTask() and at that time we need to add the task to the producer
         // There is a producer for the specified destination.
-        unusedProducers.remove(destination);
+        unusedProducerMap.remove(destination);
       } else {
         LOG.info(String.format("Creating new message producer for destination %s and task %s", destination, task));
         ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<DatastreamTask>();
@@ -107,12 +111,12 @@ public class EventProducerPool {
     }
 
     // Remove the unused producers from the producer pool.
-    for (String destination : unusedProducers.keySet()) {
+    for (String destination : unusedProducerMap.keySet()) {
       producersForConnectorType.remove(destination);
     }
 
-    unusedProducers.values().forEach((producer) -> ((DatastreamEventProducerImpl) producer).shutdown());
-    unusedProducers.clear();
+    // Return unusedProducers for Coordinator to cleanup
+    unusedProducers.addAll(unusedProducerMap.values());
 
     return taskProducerMapping;
   }

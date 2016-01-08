@@ -28,12 +28,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.TimeoutException;
 
 
 /**
  * Helper class for writing unit tests with EmbeddedKafka.
  */
 public final class KafkaTestUtils {
+  private static final int DEFAULT_TIMEOUT_MS = 30000;
+
   public interface ReaderCallback {
     boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
@@ -67,6 +70,7 @@ public final class KafkaTestUtils {
     consumer.seekToBeginning(subscription);
 
     boolean keepGoing = true;
+    long now = System.currentTimeMillis();
     do {
       ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
       for (ConsumerRecord<byte[], byte[]> record : records.records(topic)) {
@@ -74,6 +78,11 @@ public final class KafkaTestUtils {
           keepGoing = false;
           break;
         }
+      }
+
+      // Guard against buggy test which can hang forever
+      if (System.currentTimeMillis() - now >= DEFAULT_TIMEOUT_MS) {
+        throw new TimeoutException("Timed out before reading all messages");
       }
     } while (keepGoing);
   }

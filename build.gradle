@@ -118,6 +118,10 @@ project(':datastream-file-connector') {
   dependencies {
     compile project(':datastream-server-api')
     compile project(':datastream-common')
+    compile project(':datastream-utils')
+    testCompile project(':datastream-server')
+    testCompile project(':datastream-testcommon')
+    testCompile 'org.mockito:mockito-core:1.+'
   }
 }
 

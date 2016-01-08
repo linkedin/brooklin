@@ -121,25 +121,6 @@ public class TestZkClient {
   }
 
   @Test
-  public void testRemoveTree() throws Exception {
-    String[] paths = { "/a/b/c/d/e", "/a/b/c/d/f", "/a/b/c/g/j", "/a/b/c/y/j", "/a/b/m/k", "/a/b/m/n/p" };
-
-    ZkClient client = new ZkClient(_zkConnectionString);
-
-    for (String path : paths) {
-      client.ensurePath(path);
-      Assert.assertTrue(client.exists(path));
-    }
-
-    client.removeTree("/a/b");
-    for (String path : paths) {
-      Assert.assertFalse(client.exists(path));
-    }
-
-    client.close();
-  }
-
-  @Test
   public void testZNodeDataChange() throws Exception {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     ZkClient zkClient2 = new ZkClient(_zkConnectionString);

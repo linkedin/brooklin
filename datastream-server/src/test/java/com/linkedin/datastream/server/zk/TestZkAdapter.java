@@ -195,54 +195,6 @@ public class TestZkAdapter {
     }
   }
 
-  // when an instance goes offline ungracefully, it will leave a znode
-  // under /{cluster}/instances/{instanceName}. The current leader
-  // is responsible for clean it up.
-  @Test
-  public void testZkInstanceNodeCleanup() throws Exception {
-    String testCluster = "testZkInstanceNodeCleanup";
-
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
-
-    //
-    // start 3 live instances
-    //
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
-    ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster);
-    adapter1.connect();
-    adapter2.connect();
-    adapter3.connect();
-    //
-    // verify 3 instances nodes
-    //
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.liveInstances(testCluster)), 3);
-    Assert.assertEquals(zkClient.countChildren(KeyBuilder.instances(testCluster)), 3);
-    //
-    // stop the adapter3, current leader will be elcted and do cleanup
-    //
-    adapter3.forceDisconnect();
-    //
-    // verify 2 instance nodes
-    //
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.liveInstances(testCluster)) == 2, 100,
-        2 * _zkWaitInMs));
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.instances(testCluster)) == 2, 100,
-        2 * _zkWaitInMs));
-
-    //
-    // stop current leader adapter1, new leader will do the cleanup
-    //
-    adapter1.forceDisconnect();
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.liveInstances(testCluster)) == 1, 100,
-        2 * _zkWaitInMs));
-    Assert.assertTrue(PollUtils.poll(() -> zkClient.countChildren(KeyBuilder.instances(testCluster)) == 1, 100,
-        2 * _zkWaitInMs));
-
-    adapter2.disconnect();
-    zkClient.close();
-  }
-
   @Test
   public void testZkBasedDatastreamList() throws Exception {
     String testCluster = "testZkBasedDatastreamList";

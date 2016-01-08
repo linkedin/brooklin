@@ -324,26 +324,6 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     }
   }
 
-  /**
-   * Remove a directory tree recursively. This is DFS given the hierarchy
-   * in zookeeper is expected to be shallow.
-   * @param path path to the directory tree to be removed
-   */
-  public void removeTree(String path) {
-    if (path == null || !this.exists(path)) {
-      return;
-    }
-
-    List<String> children = getChildren(path, false);
-    children.forEach((child) -> removeTree(path + "/" + child));
-
-    // return if the path does not exist
-    if (exists(path)) {
-      LOG.info("delete path in zookeeper: " + path);
-      delete(path);
-    }
-  }
-
   public byte[] serialize(Object data) {
     return _zkSerializer.serialize(data);
   }

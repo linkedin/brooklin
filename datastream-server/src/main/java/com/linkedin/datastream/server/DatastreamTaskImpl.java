@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import org.slf4j.Logger;
@@ -93,22 +94,36 @@ public class DatastreamTaskImpl implements DatastreamTask {
     if (partitions != null && partitions.size() > 0) {
       _partitions.addAll(partitions);
     } else {
-      // By default, there is at least one partition
-      _partitions.add(1);
+      // Add [0, N) if destination has N partitions
+      // Or add a default partition 0 otherwise
+      if (datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
+        int numPartitions = datastream.getDestination().getPartitions();
+        for (int i = 0; i < numPartitions; i++) {
+          _partitions.add(i);
+        }
+      } else {
+        _partitions.add(0);
+      }
     }
+    LOG.info("Created new DatastreamTask " + this);
   }
 
-  // construct DatastreamTask from json string
+  /**
+   * Construct DatastreamTask from json string
+   * @param  json JSON string of the task
+   */
   public static DatastreamTaskImpl fromJson(String json) {
-    ObjectMapper mapper = new ObjectMapper();
-    DatastreamTaskImpl task = null;
-    try {
-      task = mapper.readValue(json, DatastreamTaskImpl.class);
-    } catch (IOException ioe) {
-      ioe.printStackTrace();
-      LOG.error("Failed to construct DatastreamTask from json: " + json);
-    }
+    DatastreamTaskImpl task = JsonUtils.fromJson(json, DatastreamTaskImpl.class);
+    LOG.debug("Loaded existing DatastreamTask: " + task);
     return task;
+  }
+
+  /**
+   * @return DatastreamTask serialized as JSON
+   * @throws IOException
+   */
+  public String toJson() throws IOException {
+    return JsonUtils.toJson(this);
   }
 
   @JsonIgnore
@@ -150,7 +165,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl) _eventProducer;
     // Checkpoint map of the owning task must be present in the producer
     Validate.isTrue(impl.getSafeCheckpoints().containsKey(this), "null checkpoints for task: " + this);
-    return ((DatastreamEventProducerImpl) _eventProducer).getSafeCheckpoints().get(this);
+    return impl.getSafeCheckpoints().get(this);
   }
 
   @JsonIgnore
@@ -229,13 +244,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
   }
 
-  public String toJson() throws IOException {
-    ObjectMapper mapper = new ObjectMapper();
-    StringWriter out = new StringWriter(1024);
-    mapper.writeValue(out, this);
-    return out.toString();
-  }
-
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -247,18 +255,18 @@ public class DatastreamTaskImpl implements DatastreamTask {
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
     return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
         && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
-        && Objects.equals(_properties, task._properties);
+        && Objects.equals(_properties, task._properties) && Objects.equals(_partitions, task._partitions);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties);
+    return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties, _partitions);
   }
 
   @Override
   public String toString() {
     // toString() is mainly for loggign purpose, feel free to modify the content/format
-    return String.format("%s(%s)", this.getDatastreamTaskName(), this._connectorType);
+    return String.format("%s(%s), partitions=%s", getDatastreamTaskName(), _connectorType, _partitions);
   }
 
   public void setZkAdapter(ZkAdapter adapter) {

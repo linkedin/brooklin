@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -10,9 +11,9 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -27,12 +28,10 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.api.connector.Connector;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
@@ -355,19 +354,16 @@ public class TestCoordinator {
 
     // Stub for populateDatastreamDestination to set destination on datastream2
     LOG.info("Set destination only for datastream2, leave it unassigned for datastream1");
-    Mockito.doAnswer(new Answer() {
-      @Override
-      public Object answer(InvocationOnMock invocation) throws Throwable {
-        Object[] args = invocation.getArguments();
-        List<Datastream> streams = (List<Datastream>) args[0];
-        for (Datastream stream : streams) {
-          // Populate Destination only for datastream2
-          if (stream.getName().equals("datastream2")) {
-            setDatastreamDestination(stream);
-          }
+    Mockito.doAnswer(invocation -> {
+      Object[] args = invocation.getArguments();
+      List<Datastream> streams = (List<Datastream>) args[0];
+      for (Datastream stream : streams) {
+        // Populate Destination only for datastream2
+        if (stream.getName().equals("datastream2")) {
+          setDatastreamDestination(stream);
         }
-        return null;
       }
+      return null;
     }).when(destinationManager).populateDatastreamDestination(any());
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -383,16 +379,13 @@ public class TestCoordinator {
 
     LOG.info("enable destination for all datastreams including datastream1");
     // Stub for populateDatastreamDestination to set destination on all datastreams
-    Mockito.doAnswer(new Answer() {
-      @Override
-      public Object answer(InvocationOnMock invocation) throws Throwable {
-        Object[] args = invocation.getArguments();
-        List<Datastream> streams = (List<Datastream>) args[0];
-        for (Datastream stream : streams) {
-          setDatastreamDestination(stream);
-        }
-        return null;
+    Mockito.doAnswer(invocation -> {
+      Object[] args = invocation.getArguments();
+      List<Datastream> streams = (List<Datastream>) args[0];
+      for (Datastream stream : streams) {
+        setDatastreamDestination(stream);
       }
+      return null;
     }).when(destinationManager).populateDatastreamDestination(any());
 
     //
@@ -675,6 +668,10 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, waitDurationForZk * 2, "datastream0", "datastream2");
     assertConnectorAssignment(connector2, waitDurationForZk * 2, "datastream1", "datastream3");
 
+    List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
+    tasks1.addAll(connector2.getTasks());
+    Collections.sort(tasks1, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+
     //
     // take instance2 offline
     //
@@ -685,6 +682,14 @@ public class TestCoordinator {
     // verify all 4 datastreams are assigned to instance1
     //
     assertConnectorAssignment(connector1, waitTimeoutMS, "datastream0", "datastream1", "datastream2", "datastream3");
+
+    // Make sure strategy reused all tasks as opposed to creating new ones
+    List<DatastreamTask> tasks2 = new ArrayList<>(connector1.getTasks());
+    Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    Assert.assertEquals(tasks1, tasks2);
+
+    // Verify dead instance assignments have been removed
+    // Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName())));
 
     //
     // clean up
@@ -736,6 +741,11 @@ public class TestCoordinator {
     assertConnectorAssignment(connector2, waitDurationForZk * 2, "datastream1", "datastream4");
     assertConnectorAssignment(connector3, waitDurationForZk * 2, "datastream2", "datastream5");
 
+    List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
+    tasks1.addAll(connector2.getTasks());
+    tasks1.addAll(connector3.getTasks());
+    Collections.sort(tasks1, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+
     //
     // take current leader instance1 offline
     //
@@ -758,6 +768,15 @@ public class TestCoordinator {
     // verify all tasks assigned to instance3
     assertConnectorAssignment(connector3, waitTimeoutMS, "datastream0", "datastream2", "datastream4", "datastream1",
         "datastream3", "datastream5");
+
+    // Make sure strategy reused all tasks as opposed to creating new ones
+    List<DatastreamTask> tasks2 = new ArrayList<>(connector3.getTasks());
+    Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    Assert.assertEquals(tasks1, tasks2);
+
+    // Verify dead instance assignments have been removed
+    Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName())));
+    Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName())));
 
     //
     // clean up

@@ -12,7 +12,6 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -377,11 +376,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
 
     if (needed) {
+      List<DatastreamEventProducer> unusedProducers = new ArrayList<>();
 
       List<DatastreamTask> newAssignment = new ArrayList<>();
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap = _eventProducerPool
-          .getEventProducers(assignment, connectorType, _customCheckpointingConnectorTypes.contains(connectorType));
+      Map<DatastreamTask, DatastreamEventProducer> producerMap =
+          _eventProducerPool.getEventProducers(assignment, connectorType,
+              _customCheckpointingConnectorTypes.contains(connectorType),
+              unusedProducers);
       for (DatastreamTask task : assignment) {
         DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
         if (producerMap.containsKey(task)) {
@@ -397,6 +399,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       _assignmentChangeThreadPool.execute(() -> {
         try{
           connector.onAssignmentChange(newAssignment);
+
+          if (unusedProducers.size() > 0) {
+            LOG.info("Shutting down all unused event producers: " + unusedProducers);
+            unusedProducers.forEach((producer) -> ((DatastreamEventProducerImpl) producer).shutdown());
+          }
         } catch(Exception ex) {
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
         }
@@ -410,7 +417,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
-          assignDatastreamTasksToInstances();
+          handleLeaderDoAssignment();
           break;
 
         case HANDLE_ASSIGNMENT_CHANGE:
@@ -484,7 +491,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     }
   }
 
-  private void assignDatastreamTasksToInstances() {
+  private void handleLeaderDoAssignment() {
 
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
@@ -519,10 +526,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
       List<Datastream> datastreamsPerConnectorType =
           new ArrayList<>(streamsByConnectorType.get(connectorType).values());
+      Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
       // Get the list of tasks per instance for the given connectortype
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, null);
+          strategy.assign(datastreamsPerConnectorType, liveInstances, currentAssignment);
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
         if (!assigmentsByInstance.containsKey(instance)) {
@@ -540,6 +548,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     boolean succeeded = true;
     for (Map.Entry<String, List<DatastreamTask>> entry : assigmentsByInstance.entrySet()) {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
+    }
+
+    // clean up tasks under dead instances if everything went well
+    if (succeeded) {
+      _adapter.cleanupDeadInstanceAssignments();
     }
 
     // schedule retry if failure
