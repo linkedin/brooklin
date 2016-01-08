@@ -14,22 +14,18 @@ import com.linkedin.datastream.common.DatastreamEvent;
  * Envelope of a Datastream event to be sent via Kafka.
  */
 public class DatastreamEventRecord {
-  private final DatastreamTask _task;
   private final int _partition;
   private final String _checkpoint;
   private final List<DatastreamEvent> _events;
 
-  public DatastreamEventRecord(DatastreamEvent event, int partition, String checkpoint, DatastreamTask task) {
-    this(Arrays.asList(new DatastreamEvent[] { event }), partition, checkpoint, task);
+  public DatastreamEventRecord(DatastreamEvent event, int partition, String checkpoint) {
+    this(Arrays.asList(new DatastreamEvent[] { event }), partition, checkpoint);
   }
 
-  public DatastreamEventRecord(List<DatastreamEvent> events, int partition, String checkpoint, DatastreamTask task) {
+  public DatastreamEventRecord(List<DatastreamEvent> events, int partition, String checkpoint) {
     Validate.notEmpty(checkpoint, "empty checkpoint");
     Validate.notNull(events, "null event");
-    Validate.notNull(task, "null task");
 
-    // TODO: partition can be negative magic number for special meaning, eg. re-partitioning.
-    // For now, we requires partition to be non-negative.
     Validate.isTrue(partition >= 0, "invalid partition number: " + String.valueOf(partition));
 
     events.forEach((e) -> Validate.notNull(e, "null event"));
@@ -37,7 +33,6 @@ public class DatastreamEventRecord {
     _events = events;
     _partition = partition;
     _checkpoint = checkpoint;
-    _task = task;
   }
 
   /**
@@ -54,23 +49,10 @@ public class DatastreamEventRecord {
     return _partition;
   }
 
-  /**
-   * @return destination name.
-   */
-  public String getDestination() {
-    return _task.getDatastreamDestination().getConnectionString();
-  }
-
-  /**
-   * @return DatastreamTask this event is being produced for.
-   */
-  public DatastreamTask getDatastreamTask() {
-    return _task;
-  }
 
   @Override
   public String toString() {
-    return String.format("%s @ task=%s, partition=%d", _events, _task, _partition);
+    return String.format("%s @ partition=%d", _events, _partition);
   }
 
   @Override
@@ -80,13 +62,13 @@ public class DatastreamEventRecord {
     if (o == null || getClass() != o.getClass())
       return false;
     DatastreamEventRecord record = (DatastreamEventRecord) o;
-    return Objects.equals(_task, record._task) && Objects.equals(_partition, record._partition)
+    return Objects.equals(_partition, record._partition)
         && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_task, _partition, _events, _checkpoint);
+    return Objects.hash(_partition, _events, _checkpoint);
   }
 
   /**

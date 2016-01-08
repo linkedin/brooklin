@@ -28,8 +28,10 @@ public class TestEventProducerPool {
     CheckpointProvider checkpointProvider = mock(CheckpointProvider.class);
     TransportProvider transportProvider = mock(TransportProvider.class);
     Properties config = new Properties();
-    config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool = new EventProducerPool(checkpointProvider, transportProvider, null, config);
+    config.put(EventProducer.CHECKPOINT_PERIOD_MS, "50");
+    _eventProducerPool =
+        new EventProducerPool(checkpointProvider, transportProvider, null,
+            config);
   }
 
   @Test
@@ -133,7 +135,8 @@ public class TestEventProducerPool {
         _eventProducerPool.getEventProducers(tasks, connectorType, false, new ArrayList<>());
 
     // Check if producers are reused
-    Assert.assertTrue(taskProducerMap.get(tasks.get(0)) == taskProducerMap.get(tasks.get(2)));
+    Assert.assertTrue(((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(0))).getEventProducer()
+        == ((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(2))).getEventProducer());
   }
 
   @Test
@@ -147,7 +150,7 @@ public class TestEventProducerPool {
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
     String connectorType = "connectorType";
 
-    List<DatastreamEventProducer> unusedProducers = new ArrayList<>();
+    List<EventProducer> unusedProducers = new ArrayList<>();
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMap1 =
             _eventProducerPool.getEventProducers(tasks, connectorType, false, unusedProducers);
 

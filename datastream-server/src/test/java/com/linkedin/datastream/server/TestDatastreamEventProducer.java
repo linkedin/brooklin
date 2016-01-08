@@ -35,7 +35,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class TestDatastreamEventProducer {
   private ArrayList<DatastreamTask> _tasks;
-  private DatastreamEventProducerImpl _producer;
+  private EventProducer _producer;
   private Datastream _datastream;
   private TransportProvider _transport;
   private CheckpointProvider _cpProvider;
@@ -67,7 +67,7 @@ public class TestDatastreamEventProducer {
     event.payload = null;
     event.previous_payload = null;
     ++_eventSeed;
-    return new DatastreamEventRecord(event, partition, "new dummy checkpoint " + String.valueOf(_eventSeed), task);
+    return new DatastreamEventRecord(event, partition, "new dummy checkpoint " + String.valueOf(_eventSeed));
   }
 
   private void setup(boolean customCheckpointing) {
@@ -102,10 +102,10 @@ public class TestDatastreamEventProducer {
 
     // Checkpoint every 50ms
     _config = new Properties();
-    _config.put(DatastreamEventProducerImpl.CHECKPOINT_PERIOD_MS, "50");
+    _config.put(EventProducer.CHECKPOINT_PERIOD_MS, "50");
 
     _producer =
-        new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config,
+        new EventProducer(_tasks, _transport, _cpProvider, _config,
             customCheckpointing);
   }
 
@@ -120,11 +120,11 @@ public class TestDatastreamEventProducer {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
       record = createEventRecord(_datastream, task, partition);
-      _producer.send(record);
+      _producer.send(task, record);
     }
     final boolean[] isCommitCalled = { false };
 
-    verify(_transport, times(500)).send(any());
+    verify(_transport, times(500)).send(any(), any());
     doAnswer(invocation -> isCommitCalled[0] = true).when(_cpProvider).commit(anyMap());
 
     // Ensure that commit is not called even after 1 second.
@@ -165,14 +165,14 @@ public class TestDatastreamEventProducer {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
       record = createEventRecord(_datastream, task, partition);
-      _producer.send(record);
+      _producer.send(task, record);
 
       Map<Integer, String> cpMap = taskCpMap.getOrDefault(task, new HashMap<>());
       cpMap.put(partition, record.getCheckpoint());
       taskCpMap.put(task, cpMap);
     }
 
-    verify(_transport, times(500)).send(any());
+    verify(_transport, times(500)).send(any(), any());
 
     // Verify all safe checkpoints from producer match the last event
     Assert.assertTrue(PollUtils.poll(() -> validateCheckpoint(_cpProvider, _tasks, taskCpMap), 50, 200));
@@ -184,7 +184,7 @@ public class TestDatastreamEventProducer {
 
     // Create a new producer
     _producer =
-        new DatastreamEventProducerImpl(_tasks, _transport, _schemaRegistryProvider, _cpProvider, _config, false);
+        new EventProducer(_tasks, _transport, _cpProvider, _config, false);
 
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, Map<Integer, String>> checkpointsNew = _producer.getSafeCheckpoints();

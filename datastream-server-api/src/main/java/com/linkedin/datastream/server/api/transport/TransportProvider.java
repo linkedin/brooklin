@@ -33,7 +33,7 @@ public interface TransportProvider {
    * @param record DatastreamEvent that needs to be sent to the stream.
    * @throws TransportException if the send fails.
    */
-  void send(DatastreamEventRecord record) throws TransportException;
+  void send(String destination, DatastreamEventRecord record) throws TransportException;
 
   /**
    * Closes the transport provider and its corresponding producer.

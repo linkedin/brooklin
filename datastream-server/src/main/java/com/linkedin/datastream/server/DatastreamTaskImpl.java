@@ -162,10 +162,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public Map<Integer, String> getCheckpoints() {
     // There is only one implementation of EventProducer so it's safe to cast
-    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl) _eventProducer;
+    EventProducer impl = (EventProducer) _eventProducer;
     // Checkpoint map of the owning task must be present in the producer
     Validate.isTrue(impl.getSafeCheckpoints().containsKey(this), "null checkpoints for task: " + this);
-    return impl.getSafeCheckpoints().get(this);
+    return ((EventProducer) _eventProducer).getSafeCheckpoints().get(this);
   }
 
   @JsonIgnore

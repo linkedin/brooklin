@@ -22,7 +22,7 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       }
 
       @Override
-      public void send(DatastreamEventRecord record) {
+      public void send(String destination, DatastreamEventRecord record) {
 
       }
 

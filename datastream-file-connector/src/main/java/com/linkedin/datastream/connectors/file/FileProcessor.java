@@ -22,15 +22,16 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamEventRecord;
-import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
@@ -84,7 +85,7 @@ class FileProcessor implements Runnable {
   @Override
   public void run() {
     try {
-      int lineNo = _checkpointing ? loadCheckpoint() : 0;
+      Integer lineNo = _checkpointing ? loadCheckpoint() : 0;
       while (!_cancelRequested) {
         String text;
         try {
@@ -93,9 +94,13 @@ class FileProcessor implements Runnable {
           throw new RuntimeException("Reading file failed.", e);
         }
         if (text != null) {
-          DatastreamEvent event = DatastreamUtils.createEvent(text.getBytes());
+          DatastreamEvent event = new DatastreamEvent();
+          event.payload = ByteBuffer.wrap(text.getBytes());
+          event.key = ByteBuffer.allocate(0);
+          event.metadata = new HashMap<>();
+          event.previous_payload = ByteBuffer.allocate(0);
           LOG.info("sending event " + text);
-          _producer.send(new DatastreamEventRecord(event, PARTITION, String.valueOf(lineNo + 1), _task));
+          _producer.send(new DatastreamEventRecord(event, 0, lineNo.toString()));
           LOG.info("Sending event succeeded");
           ++lineNo;
         } else {

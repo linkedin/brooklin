@@ -82,7 +82,7 @@ public class KafkaTransportProvider implements TransportProvider {
     _producer = new KafkaProducer<>(props);
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(DatastreamEventRecord record, DatastreamEvent event)
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(String destinationUri, DatastreamEventRecord record, DatastreamEvent event)
       throws DatastreamException {
 
     Integer partition = record.getPartition();
@@ -94,7 +94,7 @@ public class KafkaTransportProvider implements TransportProvider {
       throw new DatastreamException("Failed to encode event in Avro, event=" + event, e);
     }
 
-    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(record.getDestination());
+    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
 
     if (partition >= 0) {
       return new ProducerRecord<>(destination.topicName(), partition, null, payload);
@@ -146,7 +146,7 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void send(DatastreamEventRecord record) {
+  public void send(String destinationUri, DatastreamEventRecord record) {
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
@@ -164,7 +164,7 @@ public class KafkaTransportProvider implements TransportProvider {
       for (DatastreamEvent event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          outgoing = convertToProducerRecord(record, event);
+          outgoing = convertToProducerRecord(destinationUri, record, event);
         } catch (Exception e) {
           LOG.error(String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event), e);
           // TODO: Error handling
@@ -175,7 +175,7 @@ public class KafkaTransportProvider implements TransportProvider {
     } catch (Exception e) {
       LOG.error(String.format(
           "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-          record.getEvents(), record.getDestination(), _brokers, e));
+          record.getEvents(), destinationUri, _brokers, e));
       throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
     }
 
