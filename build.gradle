@@ -131,6 +131,16 @@ project(':datastream-kafka') {
 
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
+
+    tasks.create(name: "copyDependantLibs", type: Copy) {
+      from (configurations.runtime) {
+      }
+      into "$buildDir/dependant-libs"
+    }
+
+    jar {
+      dependsOn 'copyDependantLibs'
+    }
   }
 }
 
@@ -185,6 +195,16 @@ project(':datastream-server') {
     testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:1.+"
+  }
+
+  tasks.create(name: "copyDependantLibs", type: Copy) {
+    from (configurations.runtime) {
+    }
+    into "$buildDir/dependant-libs"
+  }
+
+  jar {
+    dependsOn 'copyDependantLibs'
   }
 
   // For test or experiment purpose
