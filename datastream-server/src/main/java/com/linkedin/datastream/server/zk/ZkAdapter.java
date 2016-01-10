@@ -435,7 +435,7 @@ public class ZkAdapter {
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
     LOG.info("All live tasks: " + _liveTaskMap);
-    return _liveTaskMap;
+    return new HashMap<>(_liveTaskMap);
   }
 
   /**
@@ -519,9 +519,12 @@ public class ZkAdapter {
   private void removeTaskNodes(String instance, String name) {
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
     DatastreamTask task = getAssignedDatastreamTask(instance, name);
-    String connectorPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), name);
 
-    //_zkclient.deleteRecursive(connectorPath); FIXME: can't remove this node as it still has the checkpoint & lock
+    // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
+    // Instead, we'll keep the task node alive and remove in cleanupDeadInstanceAssignments()
+    // after the assignment strategy has decided to keep or leave the task.
+
+    // Remove the task node under instance assignment
     _zkclient.deleteRecursive(instancePath);
   }
 
@@ -557,13 +560,10 @@ public class ZkAdapter {
     });
 
     // get the old assignment from zookeeper
-    Set<String> oldAssignmentNames;
-    try {
-      oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instanceAssignments(_cluster, instance)));
-    } catch (ZkException zke) {
-      // in case the instance is already cleaned up at this moment. We should not proceed
-      // instead, get into retry to recalculate the assignment
-      return false;
+    Set<String> oldAssignmentNames = new HashSet<>();
+    String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
+    if (_zkclient.exists(instancePath)) {
+      oldAssignmentNames.addAll(_zkclient.getChildren(instancePath));
     }
 
     //
@@ -720,8 +720,14 @@ public class ZkAdapter {
    * Remove instance assignment nodes whose instances are dead.
    * NOTE: this should only be called after the valid tasks have been
    * reassigned or safe to discard per strategy requirement.
+   *
+   * Coordinator is expect to cache the "current" assignment before
+   * invoking the assignment strategy and pass the saved assignment
+   * to us to figure out the obsolete tasks.
+   *
+   * @param previousAssignment instance assignment before reassignment by the strategy
    */
-  public void cleanupDeadInstanceAssignments() {
+  public void cleanupDeadInstanceAssignments(Map<String, Set<DatastreamTask>> previousAssignment) {
     List<String> liveInstances = getLiveInstances();
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
@@ -737,6 +743,21 @@ public class ZkAdapter {
 
         if (_liveTaskMap.containsKey(instance)) {
           _liveTaskMap.remove(instance);
+        }
+      }
+    }
+
+    Set<DatastreamTask> deadTasks = new HashSet<>();
+    previousAssignment.values().forEach(assn -> deadTasks.addAll(assn));
+    _liveTaskMap.values().forEach(assn -> deadTasks.removeAll(assn));
+
+    if (deadTasks.size() > 0) {
+      LOG.info("Cleaning up deprecated connector tasks: " + deadTasks);
+      for (DatastreamTask task : deadTasks) {
+        String path = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+        if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
+          // Ignore such failure for now
+          LOG.warn("Failed to remove connector task: " + path);
         }
       }
     }

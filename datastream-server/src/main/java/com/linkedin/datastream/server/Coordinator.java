@@ -528,11 +528,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     // Map between Instance and the tasks
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
+    Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
+
+    LOG.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
+
     for (String connectorType : streamsByConnectorType.keySet()) {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
       List<Datastream> datastreamsPerConnectorType =
           new ArrayList<>(streamsByConnectorType.get(connectorType).values());
-      Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
       // Get the list of tasks per instance for the given connectortype
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
@@ -556,9 +559,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
+    LOG.info("handleLeaderDoAssignment: new assignment: " + assigmentsByInstance);
+
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
-      _adapter.cleanupDeadInstanceAssignments();
+      _adapter.cleanupDeadInstanceAssignments(currentAssignment);
     }
 
     // schedule retry if failure

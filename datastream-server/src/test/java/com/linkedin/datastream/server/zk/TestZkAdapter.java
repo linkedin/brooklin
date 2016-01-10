@@ -295,15 +295,6 @@ public class TestZkAdapter {
     validateConnectorTask(testCluster, connectorType, "task1", zkClient);
     validateConnectorTask(testCluster, connectorType, "task3", zkClient);
 
-    // Ensure task2 node under connector is gone
-    boolean exception = false;
-    try {
-      zkClient.getChildren(KeyBuilder.connectorTask(testCluster, connectorType, "task2"));
-    } catch (ZkNoNodeException e) {
-      exception = true;
-    }
-    Assert.assertTrue(exception);
-
     //
     // cleanup
     //

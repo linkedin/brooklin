@@ -698,6 +698,70 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  @Test
+  public void testBroadcastAssignmentReassignAfterDeath() throws Exception {
+    String testCluster = "testBroadcastAssignmentReassignAfterDeath";
+    String testConnectoryType = "testConnectoryType";
+    String datastreamName = "datastream";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    //
+    // setup a cluster with 2 live instances with simple assignment strategy
+    //
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector(testConnectoryType);
+    instance1.addConnector(testConnectoryType, connector1, new BroadcastStrategy(), false);
+    instance1.start();
+
+    // make sure the instance2 can be taken offline cleanly with session expiration
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector2 = new TestHookConnector(testConnectoryType);
+    instance2.addConnector(testConnectoryType, connector2, new BroadcastStrategy(), false);
+    instance2.start();
+
+    //
+    // create 2 datastreams, [datastream0, datastream1]
+    //
+    for (int i = 0; i < 2; i++) {
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, datastreamName + i);
+    }
+
+    //
+    // verify assignment, instance1: [datastream0, datastream1], instance2:[datastream0, datastream1]
+    //
+    assertConnectorAssignment(connector1, waitDurationForZk * 2, "datastream0", "datastream1");
+    assertConnectorAssignment(connector2, waitDurationForZk * 2, "datastream0", "datastream1");
+
+    List<DatastreamTask> tasks2 = new ArrayList<>(connector2.getTasks());
+
+    //
+    // take instance2 offline
+    //
+    instance2.stop();
+    deleteLiveInstanceNode(zkClient, testCluster, instance2);
+
+    // Verify dead instance assignments have been removed
+    String instancePath = KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName());
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(instancePath), 200, waitTimeoutMS));
+
+    //
+    // verify instance1 still has 2 datastreams
+    //
+    assertConnectorAssignment(connector1, waitTimeoutMS, "datastream0", "datastream1");
+
+    // Make sure Coordinator has remove deprecated connector tasks of instance2
+    for (DatastreamTask task : tasks2) {
+      String path = KeyBuilder.connectorTask(testCluster, task.getConnectorType(), task.getDatastreamTaskName());
+      Assert.assertFalse(zkClient.exists(path));
+    }
+
+    //
+    // clean up
+    //
+    instance1.stop();
+    zkClient.close();
+  }
+
   //
   // this case tests the scenario when the leader of the cluster dies, and make sure
   // the assignment will be taken over by the new leader.
