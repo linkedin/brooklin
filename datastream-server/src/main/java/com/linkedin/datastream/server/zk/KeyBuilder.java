@@ -13,6 +13,7 @@ public class KeyBuilder {
   private static final String _datastream = "/%s/dms/%s";
   private static final String _connectors = "/%s/connectors";
   private static final String _connector = "/%s/connectors/%s";
+
   /**
    * There are two ZK nodes for any given DatastreamTask, one under "instances"
    * and the other one under "connectors/connectorType". The former represents
@@ -46,6 +47,11 @@ public class KeyBuilder {
    * Task config node under connectorType/task
    */
   private static final String _datastreamTaskConfig = _connector + "/%s/config";
+
+  /**
+   * Task lock node under connectorType/task
+   */
+  private static final String _datastreamTaskLock = _connector + "/%s/lock";
 
   public static String cluster(String clusterName) {
     return String.format(_cluster, clusterName);
@@ -116,4 +122,8 @@ public class KeyBuilder {
     return String.format(_datastreamTaskStateKey, cluster, connectorType, name, key).replaceAll("//", "/");
   }
 
+  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
+  public static String datastreamTaskLock(String cluster, String connectorType, String name) {
+    return String.format(_datastreamTaskLock, cluster, connectorType, name).replaceAll("//", "/");
+  }
 }
