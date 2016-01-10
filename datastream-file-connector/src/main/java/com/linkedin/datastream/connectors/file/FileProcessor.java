@@ -45,16 +45,14 @@ class FileProcessor implements Runnable {
   private final String _fileName;
   private BufferedReader _fileReader;
   private final DatastreamEventProducer _producer;
-  private final boolean _checkpointing;
   private boolean _cancelRequested;
   private boolean _isStopped;
 
-  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer, boolean checkpointing) throws FileNotFoundException {
+  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
     _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
     _producer = producer;
-    _checkpointing = checkpointing;
     _isStopped = false;
     _cancelRequested = false;
     LOG.info("Created FileProcessor for " + datastreamTask);
@@ -79,13 +77,15 @@ class FileProcessor implements Runnable {
       LOG.info("Resumed from beginning");
     }
 
-    return lineNo;
+    return lineNo + 1;
   }
 
   @Override
   public void run() {
     try {
-      Integer lineNo = _checkpointing ? loadCheckpoint() : 0;
+      _task.acquire();
+
+      Integer lineNo = loadCheckpoint();
       while (!_cancelRequested) {
         String text;
         try {
@@ -113,7 +113,8 @@ class FileProcessor implements Runnable {
           }
         }
       }
-      
+
+      _task.release();
       _isStopped = true;
       LOG.info("Stopped at line " + lineNo);
     } catch (Throwable e) {

@@ -49,7 +49,6 @@ public class FileConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
   public static final String CONNECTOR_TYPE = "file";
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
-  public static final String CFG_CHECKPOINTING = "checkpointing";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
   private static final String DEFAULT_CHECKPOINTING = "false";
   private static final int SHUTDOWN_TIMEOUT_MS = 5000;
@@ -57,17 +56,10 @@ public class FileConnector implements Connector {
   private final ExecutorService _executorService;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
-  // Checkpointing of file-connector is not compatible with BROADCAST strategy.
-  // As such, we allow the test to turn off checkpointing if BROADCAST is the
-  // strategy being tested.
-  private final boolean _checkpointing;
-
   public FileConnector(Properties config) throws DatastreamException {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
     _fileProcessors = new ConcurrentHashMap<>();
-    _checkpointing = Boolean.parseBoolean(config.getProperty(CFG_CHECKPOINTING, DEFAULT_CHECKPOINTING));
-    LOG.info("Created file-connector, checkpointing = " + _checkpointing);
   }
 
   @Override
@@ -123,7 +115,7 @@ public class FileConnector implements Connector {
       if (!_fileProcessors.containsKey(task)) {
         try {
           LOG.info("Creating file processor for " + task);
-          FileProcessor processor = new FileProcessor(task, task.getEventProducer(), _checkpointing);
+          FileProcessor processor = new FileProcessor(task, task.getEventProducer());
           _fileProcessors.put(task, processor);
           _executorService.submit(processor);
         } catch (FileNotFoundException e) {
