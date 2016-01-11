@@ -40,6 +40,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
+  private static final String CONNECTOR_CONFIG_PREFIX = "datastream.server.connector.";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -128,7 +129,7 @@ public class DatastreamServer {
     LOG.info("Loading connectors.");
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
-      initializeConnector(connectorStr, verifiableProperties.getDomainProperties(connectorStr));
+      initializeConnector(connectorStr, verifiableProperties.getDomainProperties(CONNECTOR_CONFIG_PREFIX + connectorStr));
     }
 
     LOG.info("Setting up DMS endpoint server.");
