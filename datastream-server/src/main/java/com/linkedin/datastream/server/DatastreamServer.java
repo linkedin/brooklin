@@ -1,6 +1,8 @@
 package com.linkedin.datastream.server;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -19,8 +21,6 @@ import com.linkedin.datastream.server.assignment.SimpleStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
-import com.linkedin.restli.server.NettyStandaloneLauncher;
-
 
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
@@ -192,5 +192,46 @@ public class DatastreamServer {
       throw new DatastreamException("No bootstrap connector specified for connector: " + baseConnectorType);
     }
     return ret;
+  }
+
+  public static void main(String[] args) throws Exception {
+    Properties serverProperties = getServerProperties(args);
+    DatastreamServer server = new DatastreamServer(serverProperties);
+    Thread mainThread = Thread.currentThread();
+    // attach shutdown handler to catch control-c
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        server.shutdown();
+        mainThread.notifyAll();
+      }
+    });
+
+    server.startup();
+    mainThread.wait();
+  }
+
+  private static Properties getServerProperties(String[] args)
+      throws IOException {
+
+    if (args.length == 0) {
+      System.err.println(
+          "USAGE: java [options] %s server.properties ".format(DatastreamServer.class.getSimpleName()));
+    }
+
+    return loadProps(args[0]);
+  }
+
+  public static Properties loadProps(String filename) throws IOException {
+    Properties props = new Properties();
+    InputStream propStream = null;
+    try {
+      propStream = new FileInputStream(filename);
+      props.load(propStream);
+    } finally {
+      if (propStream != null)
+        propStream.close();
+    }
+    return props;
   }
 }
