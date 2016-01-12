@@ -38,10 +38,10 @@ public class TestDatastreamServer {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
 
-  private static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
-  private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
-  private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
-  private static final String TEST_CONNECTOR = FileConnector.CONNECTOR_TYPE;
+  public static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
+  public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
+  public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
+  public static final String TEST_CONNECTOR = FileConnector.CONNECTOR_TYPE;
   private EmbeddedDatastreamCluster _datastreamCluster;
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {

@@ -106,6 +106,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final CoordinatorEventProcessor _eventThread;
   private final EventProducerPool _eventProducerPool;
   private final ThreadPoolExecutor _assignmentChangeThreadPool;
+  private final String _clusterName;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
@@ -126,9 +127,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final TransportProvider _transportProvider;
   private final DestinationManager _destinationManager;
 
-  // all datastreams by connector type. This is also valid for the coordinator leader
+  // Currently assigned datastream tasks by connector type. This is also valid for the coordinator leader
   // and it is stored after the leader finishes the datastream assignment
-  private Map<String, List<DatastreamTask>> _allStreamsByConnectorType = new HashMap<>();
+  private Map<String, List<DatastreamTask>> _assignedDatastreamTasksByConnectorType = new HashMap<>();
 
   public Coordinator(Properties config)
       throws DatastreamException {
@@ -144,8 +145,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _assignmentChangeThreadPool = new ThreadPoolExecutor(
         config.getAssignmentChangeThreadPoolThreadCount(), config.getAssignmentChangeThreadPoolThreadCount(), 10,
         TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    _clusterName = _config.getCluster();
 
-    _adapter = new ZkAdapter(_config.getZkAddress(), _config.getCluster(), _config.getZkSessionTimeout(),
+    _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getZkSessionTimeout(),
         _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
@@ -240,6 +242,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     return _adapter.getInstanceName();
   }
 
+  public Map<String, List<DatastreamTask>> getTasksByConnectorType() {
+    return _assignedDatastreamTasksByConnectorType;
+  }
+
   /**
    * This method is called when the current datastream server instance becomes a leader.
    * There can only be only one leader in a datastream cluster.
@@ -317,19 +323,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     LOG.info(printAssignmentByType(currentAssignment));
 
     //
-    // diff the currentAssignment with last saved assignment _allStreamsByConnectorType and make sure
+    // diff the currentAssignment with last saved assignment _assignedDatastreamTasksByConnectorType and make sure
     // the affected connectors are notified through the callback. There are following cases:
     // (1) a connector is removed of all assignment. This means the connector type does not exist in
-    //     currentAssignment, but exist in the previous assignment in _allStreamsByConnectorType
+    //     currentAssignment, but exist in the previous assignment in _assignedDatastreamTasksByConnectorType
     // (2) there are any changes of assignment for an existing connector type, including datastreamtasks
     //     added or removed. We do not handle the case when datastreamtask is updated. This include the
     //     case a connector previously doesn't have assignment but now has. This means the connector type
-    //     is not contained in currentAssignment, but contained in _allStreamsByConnectorType
+    //     is not contained in currentAssignment, but contained in _assignedDatastreamTasksByConnectorType
     //
 
     // case (1), find connectors that now doesn't handle any tasks
     List<String> oldConnectorList = new ArrayList<>();
-    oldConnectorList.addAll(_allStreamsByConnectorType.keySet());
+    oldConnectorList.addAll(_assignedDatastreamTasksByConnectorType.keySet());
     List<String> newConnectorList = new ArrayList<>();
     newConnectorList.addAll(currentAssignment.keySet());
 
@@ -341,7 +347,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     newConnectorList.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)));
 
     // now save the current assignment
-    _allStreamsByConnectorType = currentAssignment;
+    _assignedDatastreamTasksByConnectorType = currentAssignment;
 
     long endAt = System.currentTimeMillis();
 
@@ -356,15 +362,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // only call Connector onAssignment if it is needed
     boolean needed = false;
 
-    if (!_allStreamsByConnectorType.containsKey(connectorType)) {
+    if (!_assignedDatastreamTasksByConnectorType.containsKey(connectorType)) {
       // if there were no assignment in last cached version
       needed = true;
-    } else if (_allStreamsByConnectorType.get(connectorType).size() != assignment.size()) {
+    } else if (_assignedDatastreamTasksByConnectorType.get(connectorType).size() != assignment.size()) {
       needed = true;
     } else {
       // if there are any difference in the list of assignment. Note that if there are no difference
       // between the two lists, then the connector onAssignmentChange() is not called.
-      Set<DatastreamTask> oldSet = new HashSet<>(_allStreamsByConnectorType.get(connectorType));
+      Set<DatastreamTask> oldSet = new HashSet<>(_assignedDatastreamTasksByConnectorType.get(connectorType));
       Set<DatastreamTask> newSet = new HashSet<>(assignment);
       Set<DatastreamTask> diffList1 = new HashSet<>(oldSet);
       Set<DatastreamTask> diffList2 = new HashSet<>(newSet);
@@ -612,6 +618,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (connector.hasError()) {
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
+  }
+
+  /**
+   * @return the datastream clusterName
+   */
+  public String getClusterName() {
+    return _clusterName;
   }
 
   private class CoordinatorEventProcessor extends Thread {

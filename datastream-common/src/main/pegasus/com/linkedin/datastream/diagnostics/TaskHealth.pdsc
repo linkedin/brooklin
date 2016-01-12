@@ -1,0 +1,43 @@
+{
+  "type": "record",
+  "name": "TaskHealth",
+  "namespace": "com.linkedin.datastream.diagnostics",
+  "doc": "Datastream task health",
+  "fields": [
+    {
+      "name": "name",
+      "doc": "name of the task.",
+      "type": "string"
+    },
+    {
+      "name": "datastreams",
+      "doc": "Name of the datastreams associated with the task.",
+      "type": "string"
+    },
+    {
+      "name": "partitions",
+      "doc": "Partitions associated with the task.",
+      "type": "string"
+    },
+    {
+      "name": "source",
+      "doc": "Source of the datastream.",
+      "type": "string"
+    },
+    {
+      "name": "destination",
+      "doc": "Destination of the datastream.",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "doc": "Status of the datastream task.",
+      "type": "string"
+    },
+    {
+      "name": "sourceCheckpoint",
+      "doc": "Source checkpoint.",
+      "type": "string"
+    }
+  ]
+}
