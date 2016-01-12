@@ -137,7 +137,8 @@ public class DatastreamServer {
             coordinatorConfig.getZkConnectionTimeout());
     _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this), "com.linkedin.datastream.server.dms");
+    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
+        "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
 
     verifiableProperties.verify();
     _isInitialized = true;

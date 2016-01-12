@@ -176,7 +176,7 @@ project(':datastream-client') {
 project(':datastream-server') {
   // ext.commonProject = project(':datastream-common')
   // ext.apiProject = project(':datastream-common')
-  // pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms'])
+  // pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
 
   dependencies {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"

@@ -2,7 +2,7 @@
   "type": "record",
   "name": "Datastream",
   "namespace": "com.linkedin.datastream.common",
-  "doc": "Extensible data model of Datastream",
+  "doc": "Data model of Datastream",
   "fields": [
     {
       "name": "name",
