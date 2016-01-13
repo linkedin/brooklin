@@ -71,12 +71,12 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
         DummyConnectorFactory.class.getTypeName());
-    properties.put(DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
         DummyBootstrapConnectorFactory.class.getTypeName());
-    properties.put(DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
-    properties.put(DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }

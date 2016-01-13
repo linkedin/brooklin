@@ -97,7 +97,8 @@ public class EmbeddedDatastreamCluster {
     for (String connectorType : connectorProperties.keySet()) {
       Properties props = connectorProperties.get(connectorType);
       for (String propertyEntry : props.stringPropertyNames()) {
-        domainConnectorProperties.put(connectorType + "." + propertyEntry, props.getProperty(propertyEntry));
+        domainConnectorProperties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + connectorType + "." + propertyEntry,
+            props.getProperty(propertyEntry));
       }
     }
 
