@@ -13,22 +13,23 @@ import com.linkedin.data.template.SetMode;
 
 
 /**
- * Datastream connector health
+ * Datastream task health
  * 
  */
-@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/spunuru/datastream/ds/datastream-common/src/main/pegasus/com/linkedin/datastream/diagnostics/TaskHealth.pdsc.", date = "Mon Jan 11 19:13:50 PST 2016")
+@Generated(value = "com.linkedin.pegasus.generator.PegasusDataTemplateGenerator", comments = "LinkedIn Data Template. Generated from /Users/pdu/datastream/Datastream-github-new/datastream-common/src/main/pegasus/com/linkedin/datastream/diagnostics/TaskHealth.pdsc.", date = "Wed Jan 13 10:40:34 PST 2016")
 public class TaskHealth
     extends RecordTemplate
 {
 
     private final static TaskHealth.Fields _fields = new TaskHealth.Fields();
-    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"TaskHealth\",\"namespace\":\"com.linkedin.datastream.diagnostics\",\"doc\":\"Datastream connector health\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"name of the task.\"},{\"name\":\"datastreams\",\"type\":\"string\",\"doc\":\"Name of the datastreams associated with the task.\"},{\"name\":\"partitions\",\"type\":\"string\",\"doc\":\"Partitions associated with the task.\"},{\"name\":\"source\",\"type\":\"string\",\"doc\":\"Source of the datastream.\"},{\"name\":\"destination\",\"type\":\"string\",\"doc\":\"Destination of the datastream.\"},{\"name\":\"status\",\"type\":\"string\",\"doc\":\"Status of the datastream task.\"},{\"name\":\"sourceCheckpoint\",\"type\":\"string\",\"doc\":\"Source checkpoint.\"}]}"));
+    private final static RecordDataSchema SCHEMA = ((RecordDataSchema) DataTemplateUtil.parseSchema("{\"type\":\"record\",\"name\":\"TaskHealth\",\"namespace\":\"com.linkedin.datastream.diagnostics\",\"doc\":\"Datastream task health\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"doc\":\"name of the task.\"},{\"name\":\"datastreams\",\"type\":\"string\",\"doc\":\"Name of the datastreams associated with the task.\"},{\"name\":\"partitions\",\"type\":\"string\",\"doc\":\"Partitions associated with the task.\"},{\"name\":\"source\",\"type\":\"string\",\"doc\":\"Source of the datastream.\"},{\"name\":\"destination\",\"type\":\"string\",\"doc\":\"Destination of the datastream.\"},{\"name\":\"statusCode\",\"type\":\"string\",\"doc\":\"Status code of the datastream task.\"},{\"name\":\"statusMessage\",\"type\":\"string\",\"doc\":\"Status message of the datastream task.\"},{\"name\":\"sourceCheckpoint\",\"type\":\"string\",\"doc\":\"Source checkpoint.\"}]}"));
     private final static RecordDataSchema.Field FIELD_Name = SCHEMA.getField("name");
     private final static RecordDataSchema.Field FIELD_Datastreams = SCHEMA.getField("datastreams");
     private final static RecordDataSchema.Field FIELD_Partitions = SCHEMA.getField("partitions");
     private final static RecordDataSchema.Field FIELD_Source = SCHEMA.getField("source");
     private final static RecordDataSchema.Field FIELD_Destination = SCHEMA.getField("destination");
-    private final static RecordDataSchema.Field FIELD_Status = SCHEMA.getField("status");
+    private final static RecordDataSchema.Field FIELD_StatusCode = SCHEMA.getField("statusCode");
+    private final static RecordDataSchema.Field FIELD_StatusMessage = SCHEMA.getField("statusMessage");
     private final static RecordDataSchema.Field FIELD_SourceCheckpoint = SCHEMA.getField("sourceCheckpoint");
 
     public TaskHealth() {
@@ -324,58 +325,114 @@ public class TaskHealth
     }
 
     /**
-     * Existence checker for status
+     * Existence checker for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public boolean hasStatus() {
-        return contains(FIELD_Status);
+    public boolean hasStatusCode() {
+        return contains(FIELD_StatusCode);
     }
 
     /**
-     * Remover for status
+     * Remover for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public void removeStatus() {
-        remove(FIELD_Status);
+    public void removeStatusCode() {
+        remove(FIELD_StatusCode);
     }
 
     /**
-     * Getter for status
+     * Getter for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public String getStatus(GetMode mode) {
-        return obtainDirect(FIELD_Status, String.class, mode);
+    public String getStatusCode(GetMode mode) {
+        return obtainDirect(FIELD_StatusCode, String.class, mode);
     }
 
     /**
-     * Getter for status
+     * Getter for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public String getStatus() {
-        return getStatus(GetMode.STRICT);
+    public String getStatusCode() {
+        return getStatusCode(GetMode.STRICT);
     }
 
     /**
-     * Setter for status
+     * Setter for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public TaskHealth setStatus(String value, SetMode mode) {
-        putDirect(FIELD_Status, String.class, String.class, value, mode);
+    public TaskHealth setStatusCode(String value, SetMode mode) {
+        putDirect(FIELD_StatusCode, String.class, String.class, value, mode);
         return this;
     }
 
     /**
-     * Setter for status
+     * Setter for statusCode
      * 
-     * @see Fields#status
+     * @see Fields#statusCode
      */
-    public TaskHealth setStatus(String value) {
-        putDirect(FIELD_Status, String.class, String.class, value, SetMode.DISALLOW_NULL);
+    public TaskHealth setStatusCode(String value) {
+        putDirect(FIELD_StatusCode, String.class, String.class, value, SetMode.DISALLOW_NULL);
+        return this;
+    }
+
+    /**
+     * Existence checker for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public boolean hasStatusMessage() {
+        return contains(FIELD_StatusMessage);
+    }
+
+    /**
+     * Remover for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public void removeStatusMessage() {
+        remove(FIELD_StatusMessage);
+    }
+
+    /**
+     * Getter for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public String getStatusMessage(GetMode mode) {
+        return obtainDirect(FIELD_StatusMessage, String.class, mode);
+    }
+
+    /**
+     * Getter for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public String getStatusMessage() {
+        return getStatusMessage(GetMode.STRICT);
+    }
+
+    /**
+     * Setter for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public TaskHealth setStatusMessage(String value, SetMode mode) {
+        putDirect(FIELD_StatusMessage, String.class, String.class, value, mode);
+        return this;
+    }
+
+    /**
+     * Setter for statusMessage
+     * 
+     * @see Fields#statusMessage
+     */
+    public TaskHealth setStatusMessage(String value) {
+        putDirect(FIELD_StatusMessage, String.class, String.class, value, SetMode.DISALLOW_NULL);
         return this;
     }
 
@@ -503,11 +560,19 @@ public class TaskHealth
         }
 
         /**
-         * Status of the datastream task.
+         * Status code of the datastream task.
          * 
          */
-        public PathSpec status() {
-            return new PathSpec(getPathComponents(), "status");
+        public PathSpec statusCode() {
+            return new PathSpec(getPathComponents(), "statusCode");
+        }
+
+        /**
+         * Status message of the datastream task.
+         * 
+         */
+        public PathSpec statusMessage() {
+            return new PathSpec(getPathComponents(), "statusMessage");
         }
 
         /**

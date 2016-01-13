@@ -256,7 +256,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public void setStatus(DatastreamTaskStatus status) {
-    saveState(STATUS, status.toString());
+    saveState(STATUS, JsonUtils.toJson(status));
   }
 
   @JsonIgnore
@@ -264,10 +264,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public DatastreamTaskStatus getStatus() {
     String statusStr = getState(STATUS);
     if (statusStr != null && !statusStr.isEmpty()) {
-      return DatastreamTaskStatus.valueOf(statusStr);
-    } else {
-      throw new RuntimeException("Datastream task status is either null or empty");
+      return JsonUtils.fromJson(statusStr, DatastreamTaskStatus.class);
     }
+    return null;
   }
 
   @Override

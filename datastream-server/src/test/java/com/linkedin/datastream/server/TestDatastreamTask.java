@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.JsonUtils;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -24,4 +25,9 @@ public class TestDatastreamTask {
     Assert.assertEquals(task2.getConnectorType(), stream.getConnectorType());
   }
 
+  @Test
+  public void testTaskStatus_JsonIO() {
+    String json = JsonUtils.toJson(new DatastreamTaskStatus(DatastreamTaskStatus.Code.ERROR, "test msg"));
+    JsonUtils.fromJson(json, DatastreamTaskStatus.class);
+  }
 }
