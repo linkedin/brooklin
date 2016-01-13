@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 
 
@@ -82,4 +83,19 @@ public interface DatastreamTask {
    * @return the list of datastream names for which this task is producing events for.
    */
   List<String> getDatastreams();
+
+  /**
+   * A connector must acquire a task before starting processing it. This ensures no
+   * two instances will work on the same task concurrently thus causing duplicate
+   * events. This can happen in task reassignment induced by new or dead instances.
+   * This is an no-op if the task is already aquired by the same instance.
+   */
+  void acquire() throws DatastreamException;
+
+  /**
+   * A connector should remember to release a task if the task is unassigned to it
+   * such that the next assigned instance can acquire the task for processing.
+   * This is an no-op if the task is not assigned to the current instance.
+   */
+  void release();
 }

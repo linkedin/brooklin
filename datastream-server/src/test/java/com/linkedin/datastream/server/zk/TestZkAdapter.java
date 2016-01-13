@@ -295,15 +295,6 @@ public class TestZkAdapter {
     validateConnectorTask(testCluster, connectorType, "task1", zkClient);
     validateConnectorTask(testCluster, connectorType, "task3", zkClient);
 
-    // Ensure task2 node under connector is gone
-    boolean exception = false;
-    try {
-      zkClient.getChildren(KeyBuilder.connectorTask(testCluster, connectorType, "task2"));
-    } catch (ZkNoNodeException e) {
-      exception = true;
-    }
-    Assert.assertTrue(exception);
-
     //
     // cleanup
     //
@@ -365,5 +356,71 @@ public class TestZkAdapter {
     // cleanup
     //
     zkClient.close();
+  }
+
+  interface TestFunction {
+    void execute() throws Throwable;
+  }
+
+  private boolean expectException(TestFunction func, boolean exception) {
+    boolean exceptionSeen = false;
+    try {
+      func.execute();
+    } catch (Throwable t) {
+      exceptionSeen = true;
+    }
+    return exception ? exceptionSeen : !exceptionSeen;
+  }
+
+  @Test
+  public void testTaskAquireRelease() throws Exception {
+    String testCluster = "testTaskAquireRelease";
+    String connectorType = "connectorType";
+
+    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter1.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setDatastreamName("task1");
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter1);
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(task);
+    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+
+    // First acquire should succeed
+    Assert.assertTrue(expectException(() -> task.acquire(), false));
+
+    // Acquire twice should succeed
+    Assert.assertTrue(expectException(() -> task.acquire(), false));
+
+    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter2.connect();
+
+    Thread mainThread = Thread.currentThread();
+    Thread stopper = new Thread(() -> {
+      try {
+        // interrupt the main wait after 100ms
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        // Ignore
+      }
+      mainThread.interrupt();
+    });
+    stopper.start();
+
+    // Acquire from instance2 should fail
+    task.setZkAdapter(adapter2);
+    Assert.assertTrue(expectException(() -> task.acquire(), true));
+
+    // Release the task from instance1
+    task.setZkAdapter(adapter1);
+    task.release();
+
+    // Now acquire from instance2 should succeed
+    task.setZkAdapter(adapter2);
+    Assert.assertTrue(expectException(() -> task.acquire(), false));
   }
 }

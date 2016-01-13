@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.zk;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -12,8 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -431,7 +434,8 @@ public class ZkAdapter {
    * @return a map of all existing DatastreamTasks
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
-    return _liveTaskMap;
+    LOG.info("All live tasks: " + _liveTaskMap);
+    return new HashMap<>(_liveTaskMap);
   }
 
   /**
@@ -472,6 +476,21 @@ public class ZkAdapter {
    */
   private void addTaskNodes(String instance, DatastreamTaskImpl task) {
     String name = task.getDatastreamTaskName();
+
+    // Must add task node under connector first because as soon as we update the
+    // instance assignment node, ZkBackTaskListProvider will be notified and the
+    // connector will receive onAssignmentChange() with the new task. If it tries
+    // to acquire the task before the connector task node is created, this will
+    // fail with NoNodeException since lock node hangs off of connector task node.
+    String taskConfigPath =
+        KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    _zkclient.ensurePath(taskConfigPath);
+
+    // Task state
+    String taskStatePath =
+        KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    _zkclient.ensurePath(taskStatePath);
+
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
     String json;
     try {
@@ -487,16 +506,6 @@ public class ZkAdapter {
       // FIXME: we should do some error handling
       throw new RuntimeException("failed to create zookeeper node: " + instancePath);
     }
-
-    // Task config
-    String taskConfigPath =
-        KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
-    _zkclient.ensurePath(taskConfigPath);
-
-    // Task state
-    String taskStatePath =
-        KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
-    _zkclient.ensurePath(taskStatePath);
   }
 
   /**
@@ -510,10 +519,13 @@ public class ZkAdapter {
   private void removeTaskNodes(String instance, String name) {
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
     DatastreamTask task = getAssignedDatastreamTask(instance, name);
-    String connectorPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), name);
 
+    // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
+    // Instead, we'll keep the task node alive and remove in cleanupDeadInstanceAssignments()
+    // after the assignment strategy has decided to keep or leave the task.
+
+    // Remove the task node under instance assignment
     _zkclient.deleteRecursive(instancePath);
-    _zkclient.deleteRecursive(connectorPath);
   }
 
   /**
@@ -548,13 +560,10 @@ public class ZkAdapter {
     });
 
     // get the old assignment from zookeeper
-    Set<String> oldAssignmentNames;
-    try {
-      oldAssignmentNames = new HashSet<>(_zkclient.getChildren(KeyBuilder.instanceAssignments(_cluster, instance)));
-    } catch (ZkException zke) {
-      // in case the instance is already cleaned up at this moment. We should not proceed
-      // instead, get into retry to recalculate the assignment
-      return false;
+    Set<String> oldAssignmentNames = new HashSet<>();
+    String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
+    if (_zkclient.exists(instancePath)) {
+      oldAssignmentNames.addAll(_zkclient.getChildren(instancePath));
     }
 
     //
@@ -702,7 +711,7 @@ public class ZkAdapter {
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path =
         KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-            datastreamTask.getDatastreamTaskName(), key);
+                datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
@@ -711,8 +720,14 @@ public class ZkAdapter {
    * Remove instance assignment nodes whose instances are dead.
    * NOTE: this should only be called after the valid tasks have been
    * reassigned or safe to discard per strategy requirement.
+   *
+   * Coordinator is expect to cache the "current" assignment before
+   * invoking the assignment strategy and pass the saved assignment
+   * to us to figure out the obsolete tasks.
+   *
+   * @param previousAssignment instance assignment before reassignment by the strategy
    */
-  public void cleanupDeadInstanceAssignments() {
+  public void cleanupDeadInstanceAssignments(Map<String, Set<DatastreamTask>> previousAssignment) {
     List<String> liveInstances = getLiveInstances();
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
@@ -731,6 +746,88 @@ public class ZkAdapter {
         }
       }
     }
+
+    Set<DatastreamTask> deadTasks = new HashSet<>();
+    previousAssignment.values().forEach(assn -> deadTasks.addAll(assn));
+    _liveTaskMap.values().forEach(assn -> deadTasks.removeAll(assn));
+
+    if (deadTasks.size() > 0) {
+      LOG.info("Cleaning up deprecated connector tasks: " + deadTasks);
+      for (DatastreamTask task : deadTasks) {
+        String path = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+        if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
+          // Ignore such failure for now
+          LOG.warn("Failed to remove connector task: " + path);
+        }
+      }
+    }
+  }
+
+  public void acquireTask(DatastreamTaskImpl task, long timeoutMs) throws DatastreamException {
+    String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    String owner = null;
+    if (_zkclient.exists(lockPath)) {
+      owner = _zkclient.ensureReadData(lockPath);
+      if (owner.equals(_instanceName)) {
+        LOG.info(String.format("%s already owns the lock on %s", _instanceName, task));
+        return;
+      }
+
+      Object lock = new Object();
+
+      File lockFile = new File(lockPath);
+      String fileName = lockFile.getName();
+
+      String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+      IZkChildListener listener = (parentPath, currentChilds) -> {
+        if (!currentChilds.contains(fileName)) {
+          synchronized (lock) {
+            lock.notify();
+          }
+        }
+      };
+
+      try {
+        _zkclient.subscribeChildChanges(taskPath, listener);
+
+        if (_zkclient.exists(lockPath)) {
+          synchronized (lock) {
+            try {
+              lock.wait(timeoutMs);
+            } catch (InterruptedException e) {
+              // Fall through if interrupted
+            }
+          }
+        }
+      } finally {
+        _zkclient.unsubscribeChildChanges(taskPath, listener);
+      }
+    }
+
+    if (!_zkclient.exists(lockPath)) {
+      _zkclient.createEphemeral(lockPath, _instanceName);
+      LOG.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
+    } else {
+      throw new DatastreamException(String.format("%s failed to acquire the lock after %dms on %s, current owner: %s",
+              _instanceName, timeoutMs, task, owner));
+    }
+  }
+
+  public void releaseTask(DatastreamTaskImpl task) {
+    String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    if (!_zkclient.exists(lockPath)) {
+      LOG.info(String.format("There is no lock on %s", task));
+      return;
+    }
+
+    String owner = _zkclient.ensureReadData(lockPath);
+    if (!owner.equals(_instanceName)) {
+      LOG.warn(String.format("%s does not have the lock on %s", _instanceName, task));
+      return;
+    }
+
+    _zkclient.delete(lockPath);
+    LOG.info(String.format("%s successfully released the lock on %s", _instanceName, task));
   }
 
   /**
@@ -855,7 +952,7 @@ public class ZkAdapter {
 
     @Override
     public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      LOG.info(String.format("ZkBackedTaskListProvider::Received Child change notification on the instances list "
+      LOG.info(String.format("ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
               + "parentPath %s,children %s", parentPath, currentChildren));
 
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));;

@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -9,11 +10,9 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.codehaus.jackson.annotate.JsonIgnore;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,6 +43,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
 
   private static final String STATUS = "STATUS";
+
+  // Wait at most 60 seconds for acquiring the task
+  private static final Integer ACQUIRE_TIMEOUT_MS = 60000;
 
   // connector type. Type of the connector to be used for reading the change capture events
   // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
@@ -162,16 +164,40 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public Map<Integer, String> getCheckpoints() {
     // There is only one implementation of EventProducer so it's safe to cast
-    EventProducer impl = (EventProducer) _eventProducer;
+    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl) _eventProducer;
+    Map<DatastreamTask, Map<Integer, String>> safeCheckpoints = impl.getEventProducer().getSafeCheckpoints();
     // Checkpoint map of the owning task must be present in the producer
-    Validate.isTrue(impl.getSafeCheckpoints().containsKey(this), "null checkpoints for task: " + this);
-    return ((EventProducer) _eventProducer).getSafeCheckpoints().get(this);
+    Validate.isTrue(safeCheckpoints.containsKey(this), "null checkpoints for task: " + this);
+    return safeCheckpoints.get(this);
   }
 
   @JsonIgnore
   @Override
   public List<String> getDatastreams() {
     return Arrays.asList(_datastreamName);
+  }
+
+  @Override
+  public void acquire() throws DatastreamException {
+    acquire(ACQUIRE_TIMEOUT_MS);
+  }
+
+  public void acquire(int timeout) throws DatastreamException {
+    Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
+    try {
+      _zkAdapter.acquireTask(this, timeout);
+    } catch (DatastreamException e) {
+      LOG.error("Failed to acquire task: " + this, e);
+      setStatus(new DatastreamTaskStatus(DatastreamTaskStatus.Code.ERROR, "Acquire failed, exception: " + e));
+      throw e;
+    }
+  }
+
+
+  @Override
+  public void release() {
+    Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
+    _zkAdapter.releaseTask(this);
   }
 
   public void setDatastream(Datastream datastream) {
@@ -230,18 +256,17 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public void setStatus(DatastreamTaskStatus status) {
-    saveState(STATUS, status.toString());
+    saveState(STATUS, JsonUtils.toJson(status));
   }
 
   @JsonIgnore
   @Override
   public DatastreamTaskStatus getStatus() {
-    String statusStr = this.getState(STATUS);
+    String statusStr = getState(STATUS);
     if (statusStr != null && !statusStr.isEmpty()) {
-      return DatastreamTaskStatus.valueOf(statusStr);
-    } else {
-      throw new RuntimeException("Datastream task status is either null or empty");
+      return JsonUtils.fromJson(statusStr, DatastreamTaskStatus.class);
     }
+    return null;
   }
 
   @Override

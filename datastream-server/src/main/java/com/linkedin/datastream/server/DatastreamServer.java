@@ -46,11 +46,16 @@ public class DatastreamServer {
   private DatastreamStore _datastreamStore;
   private DatastreamNettyStandaloneLauncher _nettyLauncher;
   private boolean _isInitialized = false;
+  private boolean _isStarted = false;
 
   private Map<String, String> _bootstrapConnectors;
 
   public synchronized boolean isInitialized() {
     return _isInitialized;
+  }
+
+  public boolean isStarted() {
+    return _isStarted;
   }
 
   public Coordinator getCoordinator() {
@@ -146,7 +151,6 @@ public class DatastreamServer {
 
     LOG.info("DatastreamServer initialized successfully.");
   }
-
   public synchronized void startup() throws DatastreamException {
     // Start the coordinator
     if (_coordinator != null) {
@@ -156,6 +160,7 @@ public class DatastreamServer {
     // Start the DMS rest endpoint.
     try {
       _nettyLauncher.start();
+      _isStarted = true;
     } catch (IOException ex) {
       throw new DatastreamException("Failed to start netty.", ex);
     }
@@ -176,6 +181,7 @@ public class DatastreamServer {
       _nettyLauncher = null;
     }
     _isInitialized = false;
+    _isStarted = false;
   }
 
   /**

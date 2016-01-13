@@ -42,7 +42,7 @@ public class TestServerHealth {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TestDatastreamServer.DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override, -1);
+        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override, -1, 1);
     return datastreamKafkaCluster;
   }
 
@@ -67,7 +67,7 @@ public class TestServerHealth {
     ServerHealth serverHealth = fetchServerHealth();
     Assert.assertEquals(serverHealth.getClusterName(), _datastreamCluster.getDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
     Assert.assertEquals(serverHealth.getInstanceName(),
-        _datastreamCluster.getDatastreamServer().getCoordinator().getInstanceName());
+        _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().getInstanceName());
   }
 
   public ServerHealth fetchServerHealth()

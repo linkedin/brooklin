@@ -56,7 +56,8 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
       taskHealth.setDatastreams(String.join(",", task.getDatastreams()));
       taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
       taskHealth.setSource(task.getDatastreamSource().getConnectionString());
-      taskHealth.setStatus(task.getStatus().toString());
+      taskHealth.setStatusCode(task.getStatus().getCode().toString());
+      taskHealth.setStatusMessage(task.getStatus().getMessage());
       taskHealth.setName(task.getDatastreamTaskName());
       taskHealth.setPartitions(task.getPartitions().toString());
       taskHealth.setSourceCheckpoint(task.getCheckpoints().toString());

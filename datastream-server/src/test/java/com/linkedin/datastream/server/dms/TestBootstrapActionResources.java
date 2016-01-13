@@ -1,7 +1,6 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
@@ -33,8 +32,8 @@ public class TestBootstrapActionResources {
 
   @Test
   public void testCreateBootstrapDatastream() throws Exception {
-    DatastreamResources datastreamResources = new DatastreamResources(_datastreamKafkaCluster.getDatastreamServer());
-    BootstrapActionResources bootstrapActionResource = new BootstrapActionResources(_datastreamKafkaCluster.getDatastreamServer());
+    DatastreamResources datastreamResources = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    BootstrapActionResources bootstrapActionResource = new BootstrapActionResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     boolean exceptionCaught = false;
     try {

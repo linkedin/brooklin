@@ -3,8 +3,7 @@ package com.linkedin.datastream.common;
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.codehaus.jackson.map.DeserializationConfig;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -16,8 +15,6 @@ import java.io.StringWriter;
  * for checking the
  */
 public final class JsonUtils {
-  private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class);
-
   /**
    * Deserialize a JSON string into an object with the specified type.
    * @param json JSON string
@@ -31,6 +28,7 @@ public final class JsonUtils {
     ObjectMapper mapper = new ObjectMapper();
     T object;
     try {
+      mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
       object = mapper.readValue(json, clazz);
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse json: " + json, e);
@@ -53,6 +51,7 @@ public final class JsonUtils {
     ObjectMapper mapper = new ObjectMapper();
     T object;
     try {
+      mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
       object = mapper.readValue(json, typeRef);
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse json: " + json, e);

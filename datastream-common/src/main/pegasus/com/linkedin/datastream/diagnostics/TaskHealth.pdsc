@@ -30,8 +30,13 @@
       "type": "string"
     },
     {
-      "name": "status",
-      "doc": "Status of the datastream task.",
+      "name": "statusCode",
+      "doc": "Status code of the datastream task.",
+      "type": "string"
+    },
+    {
+      "name": "statusMessage",
+      "doc": "Status message of the datastream task.",
       "type": "string"
     },
     {
