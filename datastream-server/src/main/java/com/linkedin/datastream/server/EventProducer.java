@@ -305,6 +305,10 @@ public class EventProducer {
    * It is the responsibility of the {@link EventProducerPool} to ensure this.
    */
   public void shutdown() {
+    if (_shutdownCompleted) {
+      return;
+    }
+
     LOG.info("Shutting down event producer for " + _tasks);
     try {
       _transportProvider.close();

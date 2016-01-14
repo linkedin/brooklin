@@ -97,7 +97,7 @@ public class EventProducerPool {
         unusedProducerMap.remove(destination);
       } else {
         LOG.info(String.format("Creating new message producer for destination %s and task %s", destination, task));
-        ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<DatastreamTask>();
+        ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<>();
         tasksPerProducer.add(task);
         EventProducer
             eventProducer = new EventProducer(tasksPerProducer, _transportProvider,
@@ -121,5 +121,21 @@ public class EventProducerPool {
     unusedProducers.addAll(unusedProducerMap.values());
 
     return taskProducerMapping;
+  }
+
+  /**
+   * Shutdown all outstanding event producers. This should only be called by Coordinator.shutdown()
+   */
+  public synchronized void shutdown() {
+    if (_producers.size() == 0) {
+      return;
+    }
+
+    LOG.info("Shutting down all producers in event producer pool");
+    for (Map<String, EventProducer> producerMap : _producers.values()) {
+      producerMap.values().forEach(producer -> producer.shutdown());
+    }
+
+    _producers.clear();
   }
 }
