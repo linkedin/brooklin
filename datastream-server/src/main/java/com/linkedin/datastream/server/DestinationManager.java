@@ -45,14 +45,16 @@ public class DestinationManager {
     Validate.notNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
-    datastreams.stream().filter(d -> d.hasDestination() && !d.getDestination().getConnectionString().isEmpty())
+    datastreams.stream().filter(d -> d.hasDestination() && d.getDestination().hasConnectionString() &&
+        !d.getDestination().getConnectionString().isEmpty())
         .forEach(d -> sourceDestinationMapping.put(d.getSource(), d.getDestination()));
 
     LOG.debug("Datastream Source -> Destination mapping before populating new datastream destinations",
         sourceDestinationMapping);
 
     for (Datastream datastream : datastreams) {
-      if (datastream.hasDestination() && !datastream.getDestination().getConnectionString().isEmpty()) {
+      if (datastream.hasDestination() && datastream.getDestination().hasConnectionString() &&
+          !datastream.getDestination().getConnectionString().isEmpty()) {
         continue;
       }
 
@@ -72,8 +74,12 @@ public class DestinationManager {
             .format(
                 "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
                 datastream.getName(), topicReuse, connectionString));
+
         DatastreamDestination destination = new DatastreamDestination();
         destination.setConnectionString(connectionString);
+        if(datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
+          destination.setPartitions(datastream.getDestination().getPartitions());
+        }
         datastream.setDestination(destination);
         sourceDestinationMapping.put(datastream.getSource(), destination);
       }
