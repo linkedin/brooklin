@@ -54,7 +54,7 @@
     },
     {
       "name": "metadata",
-      "doc": "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadatas are stored as user defined name/value pair.",
+      "doc": "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadata is stored as user defined name/value pair.",
       "type": {
         "type": "map",
         "values": "string"

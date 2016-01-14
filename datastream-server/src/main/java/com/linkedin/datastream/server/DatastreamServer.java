@@ -17,7 +17,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
-import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -100,7 +100,7 @@ public class DatastreamServer {
       }
 
       if (assignmentStrategyInstance == null) {
-        assignmentStrategyInstance = new SimpleStrategy();
+        assignmentStrategyInstance = new LoadbalancingStrategy();
       }
 
       boolean customCheckpointing =

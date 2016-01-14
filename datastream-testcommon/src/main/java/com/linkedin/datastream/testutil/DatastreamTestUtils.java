@@ -2,6 +2,7 @@ package com.linkedin.datastream.testutil;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -80,6 +81,10 @@ public class DatastreamTestUtils {
   public static Datastream[] createAndStoreDatastreams(ZkClient zkClient, String cluster, String connectorType,
       String... datastreamNames) {
     Datastream[] datasteams = createDatastreams(connectorType, datastreamNames);
+    for(Datastream d : datasteams) {
+      d.setDestination(new DatastreamDestination());
+      d.getDestination().setPartitions(1);
+    }
     storeDatastreams(zkClient, cluster, datasteams);
     return datasteams;
   }
