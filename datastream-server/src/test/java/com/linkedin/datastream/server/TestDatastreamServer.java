@@ -19,6 +19,7 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
@@ -30,7 +31,7 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
-import com.linkedin.datastream.server.assignment.SimpleStrategy;
+import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -41,7 +42,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 public class TestDatastreamServer {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
 
-  public static final String SIMPLE_STRATEGY = SimpleStrategy.class.getTypeName();
+  public static final String LOADBALANCED_STRATEGY = LoadbalancingStrategy.class.getTypeName();
   public static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
@@ -138,7 +139,7 @@ public class TestDatastreamServer {
 
   @Test
   public void testNodeDown_OneDatastream_SimpleStrategy() throws Exception {
-      _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, SIMPLE_STRATEGY);
+      _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCED_STRATEGY);
     _datastreamCluster.startup();
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -284,7 +285,7 @@ public class TestDatastreamServer {
 
   @Test
   public void testNodeUpRebalance_TwoDatastreams_SimpleStrategy() throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, SIMPLE_STRATEGY);
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCED_STRATEGY);
     _datastreamCluster.startupServer(0);
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -382,6 +383,9 @@ public class TestDatastreamServer {
     Datastream fileDatastream1 =
         DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
                 testFile.getAbsolutePath());
+    fileDatastream1.setDestination(new DatastreamDestination());
+    fileDatastream1.getDestination().setPartitions(1);
+//    fileDatastream1.getDestination().setConnectionString("");
     String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
     DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
     restClient.createDatastream(fileDatastream1);
@@ -396,7 +400,7 @@ public class TestDatastreamServer {
       } catch (DatastreamException e) {
         throw new RuntimeException("GetDatastream threw an exception", e);
       }
-      return ds.getDestination() != null;
+      return ds.getDestination().hasConnectionString();
     }, 500, 60000);
 
     if (pollResult) {
