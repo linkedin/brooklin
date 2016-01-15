@@ -188,7 +188,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
       _zkAdapter.acquireTask(this, timeout);
     } catch (DatastreamException e) {
       LOG.error("Failed to acquire task: " + this, e);
-      setStatus(new DatastreamTaskStatus(DatastreamTaskStatus.Code.ERROR, "Acquire failed, exception: " + e));
+      setStatus(DatastreamTaskStatus.ERROR("Acquire failed, exception: " + e));
       throw e;
     }
   }
