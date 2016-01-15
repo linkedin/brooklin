@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
@@ -109,6 +110,9 @@ public class ConnectorWrapper {
     logApiStart("initializeDatastream");
 
     try {
+      if(!stream.hasDestination()) {
+        stream.setDestination(new DatastreamDestination());
+      }
       _connector.initializeDatastream(stream);
     } catch (Exception ex) {
       logErrorAndException("initializeDatastream", ex);

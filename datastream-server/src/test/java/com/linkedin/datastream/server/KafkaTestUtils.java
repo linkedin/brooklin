@@ -21,6 +21,7 @@ import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
@@ -29,6 +30,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
+
+import kafka.admin.AdminUtils;
+import kafka.javaapi.TopicMetadata;
+import kafka.utils.ZkUtils;
 
 
 /**
@@ -44,6 +49,11 @@ public final class KafkaTestUtils {
   private KafkaTestUtils() {
   }
 
+  public static List<PartitionInfo> getPartitionInfo(String topic, String brokerList) {
+    KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
+    return consumer.partitionsFor(topic);
+  }
+
   public static void readTopic(String topic, Integer partition, String brokerList, ReaderCallback callback)
       throws Exception {
     Validate.notNull(topic);
@@ -51,21 +61,13 @@ public final class KafkaTestUtils {
     Validate.notNull(brokerList);
     Validate.notNull(callback);
 
-    Properties props = new Properties();
-    props.put("bootstrap.servers", brokerList);
-    props.put("group.id", "test");
-    props.put("auto.commit.interval.ms", "1000");
-    props.put("session.timeout.ms", "30000");
-    props.put("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-    props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-
-    KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(props);
     TopicPartition subscription = new TopicPartition(topic, partition);
     List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>() {
       {
         add(subscription);
       }
     };
+    KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
     consumer.assign(topicPartitions);
     consumer.seekToBeginning(subscription);
 
@@ -85,5 +87,19 @@ public final class KafkaTestUtils {
         throw new TimeoutException("Timed out before reading all messages");
       }
     } while (keepGoing);
+  }
+
+  private static KafkaConsumer<byte[], byte[]> createConsumer(String brokerList) {
+
+    Properties props = new Properties();
+    props.put("bootstrap.servers", brokerList);
+    props.put("group.id", "test");
+    props.put("auto.commit.interval.ms", "1000");
+    props.put("session.timeout.ms", "30000");
+    props.put("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+    props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+
+    KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(props);
+    return consumer;
   }
 }

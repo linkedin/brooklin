@@ -10,6 +10,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.TestDatastreamServer;
@@ -74,13 +75,15 @@ public class TestDatastreamResources {
     Datastream ds = resource1.get("name_0");
     Assert.assertNull(ds);
 
-    CreateResponse response = resource1.create(generateDatastream(0));
+    Datastream datastreamToCreate = generateDatastream(0);
+    CreateResponse response = resource1.create(datastreamToCreate);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     ds = resource2.get("name_0");
     Assert.assertNotNull(ds);
-    Assert.assertTrue(ds.equals(generateDatastream(0)));
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Assert.assertEquals(ds, datastreamToCreate);
   }
 
   @Test

@@ -19,10 +19,10 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
@@ -32,10 +32,9 @@ import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
-import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.zk.KeyBuilder;
 
 
 @Test(singleThreaded = true)
@@ -85,11 +84,18 @@ public class TestDatastreamServer {
   }
 
 
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers, String strategy)
+      throws IOException, DatastreamException {
+    return initializeTestDatastreamServerWithFileConnector(numServers, strategy, 1);
+  }
+
+
   private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers,
-                                                                                    String strategy)
+                                                                                    String strategy, int numDestinationPartitions)
       throws IOException, DatastreamException {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
+    connectorProperties.get(FILE_CONNECTOR).put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(), -1, numServers);
     return datastreamKafkaCluster;
@@ -104,13 +110,17 @@ public class TestDatastreamServer {
 
   @Test
   public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents() throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY);
+    int numberOfPartitions = 5;
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
     String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
     Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), numberOfPartitions);
+
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
 
     Collection<String> eventsReceived1 = readEvents(fileDatastream1, totalEvents);
 
@@ -383,8 +393,6 @@ public class TestDatastreamServer {
     Datastream fileDatastream1 =
         DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
                 testFile.getAbsolutePath());
-    fileDatastream1.setDestination(new DatastreamDestination());
-    fileDatastream1.getDestination().setPartitions(1);
     String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
     DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
     restClient.createDatastream(fileDatastream1);
@@ -399,7 +407,7 @@ public class TestDatastreamServer {
       } catch (DatastreamException e) {
         throw new RuntimeException("GetDatastream threw an exception", e);
       }
-      return ds.getDestination().hasConnectionString();
+      return ds.hasDestination() && ds.getDestination().hasConnectionString() && !ds.getDestination().getConnectionString().isEmpty();
     }, 500, 60000);
 
     if (pollResult) {

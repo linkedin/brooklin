@@ -70,18 +70,10 @@ public class DestinationManager {
         datastream.setDestination(destination);
       } else {
         String connectionString = createTopic(datastream);
-        LOG.info(String
-            .format(
-                "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
-                datastream.getName(), topicReuse, connectionString));
-
-        DatastreamDestination destination = new DatastreamDestination();
-        destination.setConnectionString(connectionString);
-        if(datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
-          destination.setPartitions(datastream.getDestination().getPartitions());
-        }
-        datastream.setDestination(destination);
-        sourceDestinationMapping.put(datastream.getSource(), destination);
+        LOG.info(String.format(
+            "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
+            datastream.getName(), topicReuse, connectionString));
+        sourceDestinationMapping.put(datastream.getSource(), datastream.getDestination());
       }
     }
 
@@ -93,7 +85,23 @@ public class DestinationManager {
     Properties datastreamProperties = new Properties();
     datastreamProperties.putAll(datastream.getMetadata());
     Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
-    return _transportProvider.createTopic(getTopicName(datastream), DEFAULT_NUMBER_PARTITIONS, topicProperties);
+    int numberOfPartitions = DEFAULT_NUMBER_PARTITIONS;
+
+    // if the number of partitions is already set on the destination then use that.
+    if(datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
+      numberOfPartitions = datastream.getDestination().getPartitions();
+    } else if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+      // If the number of partitions is not set in destination but set in source, use that.
+      numberOfPartitions = datastream.getSource().getPartitions();
+    }
+
+    String connectionString = _transportProvider.createTopic(getTopicName(datastream), numberOfPartitions, topicProperties);
+
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString(connectionString);
+    destination.setPartitions(numberOfPartitions);
+    datastream.setDestination(destination);
+    return connectionString;
   }
 
   private String getTopicName(Datastream datastream) {

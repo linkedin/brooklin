@@ -181,7 +181,6 @@ public class TestCoordinator {
 
       @Override
       public void initializeDatastream(Datastream stream) {
-
       }
     };
     coordinator.addConnector(testConectorType, testConnector, new BroadcastStrategy(), false);

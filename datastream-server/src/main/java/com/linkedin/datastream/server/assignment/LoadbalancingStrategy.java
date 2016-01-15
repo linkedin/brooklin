@@ -100,8 +100,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   private Set<DatastreamTask> createTasksForDatastream(Datastream datastream, int maxTasksPerDatastream) {
     int numberOfDatastreamPartitions = 1;
-    if(datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
-      numberOfDatastreamPartitions = datastream.getDestination().getPartitions();
+    if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+      numberOfDatastreamPartitions = datastream.getSource().getPartitions();
     }
     int tasksPerDatastream = maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();

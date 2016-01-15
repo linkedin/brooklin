@@ -3,6 +3,7 @@ package com.linkedin.datastream;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
@@ -89,6 +90,7 @@ public class TestDatastreamRestClient {
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.getDatastream(datastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
+    datastream.setDestination(new DatastreamDestination());
     Assert.assertEquals(createdDatastream, datastream);
   }
 
