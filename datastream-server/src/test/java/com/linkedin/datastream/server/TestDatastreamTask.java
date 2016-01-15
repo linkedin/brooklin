@@ -26,7 +26,7 @@ public class TestDatastreamTask {
 
   @Test
   public void testTaskStatus_JsonIO() {
-    String json = JsonUtils.toJson(new DatastreamTaskStatus(DatastreamTaskStatus.Code.ERROR, "test msg"));
+    String json = JsonUtils.toJson(DatastreamTaskStatus.ERROR("test msg"));
     JsonUtils.fromJson(json, DatastreamTaskStatus.class);
   }
 }

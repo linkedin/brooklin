@@ -399,7 +399,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           taskImpl.setEventProducer(producerMap.get(task));
           newAssignment.add(task);
         } else {
-          taskImpl.setStatus(new DatastreamTaskStatus(DatastreamTaskStatus.Code.ERROR, "Producer is missing"));
+          taskImpl.setStatus(DatastreamTaskStatus.ERROR("Producer is missing"));
           LOG.error("Event producer not created for datastream task: " + task);
         }
       }

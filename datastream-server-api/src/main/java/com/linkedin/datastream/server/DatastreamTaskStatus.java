@@ -24,6 +24,32 @@ public class DatastreamTaskStatus {
   }
 
   /**
+   * Helper method to create an OK status.
+   * @return OK task status
+   */
+  public static DatastreamTaskStatus OK() {
+    return new DatastreamTaskStatus(Code.OK, "OK");
+  }
+
+  /**
+   * Helper method to create an OK status.
+   * @param message message to return
+   * @return OK task status
+   */
+  public static DatastreamTaskStatus OK(String message) {
+    return new DatastreamTaskStatus(Code.OK, message);
+  }
+
+  /**
+   * Helper method to create an ERROR status
+   * @param message
+   * @return ERROR task status
+   */
+  public static DatastreamTaskStatus ERROR(String message) {
+    return new DatastreamTaskStatus(Code.ERROR, message);
+  }
+
+  /**
    * @return kind of the status
    */
   public Code getCode() {
