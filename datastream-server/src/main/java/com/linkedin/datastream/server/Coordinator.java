@@ -258,7 +258,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     LOG.info("Coordinator::onBecomeLeader is called");
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
-    _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
+    _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     LOG.info("Coordinator::onBecomeLeader completed successfully");
   }
@@ -280,7 +280,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   public void onDatastreamChange() {
     LOG.info("Coordinator::onDatastreamChange is called");
     // if there are new datastreams created, we need to trigger the topic creation logic
-    _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent());
+    _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     LOG.info("Coordinator::onDatastreamChange completed successfully");
   }
@@ -433,8 +433,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           handleAssignmentChange();
           break;
 
-        case HANDLE_NEW_DATASTREAM:
-          handleNewDatastream();
+        case HANDLE_ADD_OR_DELETE_DATASTREAM:
+          handleDatastreamAddOrDelete();
           break;
 
         case HANDLE_INSTANCE_ERROR:
@@ -460,7 +460,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   // connector, and write back the target to dsm tree in zookeeper. The assumption is that we only
   // detect the target of a datastream when it is first added. We do not handle the case at this point
   // when the datastream definition can be updated in DSM.
-  private void handleNewDatastream() {
+  private void handleDatastreamAddOrDelete() {
     // Allow further retry scheduling
     leaderDoAssignmentScheduled.set(false);
 
@@ -494,7 +494,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       // there is no pending retry scheduled already.
       if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
         LOG.warn("Schedule retry for handling new datastream");
-        _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleNewDatastreamEvent()),
+        _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
             _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
       }
     }

@@ -5,7 +5,7 @@ public class CoordinatorEvent<T> {
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
-    HANDLE_NEW_DATASTREAM,
+    HANDLE_ADD_OR_DELETE_DATASTREAM,
     HANDLE_INSTANCE_ERROR
   }
 
@@ -30,8 +30,8 @@ public class CoordinatorEvent<T> {
     return new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
   }
 
-  public static CoordinatorEvent createHandleNewDatastreamEvent() {
-    return new CoordinatorEvent(EventType.HANDLE_NEW_DATASTREAM);
+  public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
+    return new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
   }
 
   public static CoordinatorEvent<String> createHandleInstanceErrorEvent(String errorMessage) {

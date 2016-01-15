@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.assignment;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,26 +30,19 @@ public class BroadcastStrategy implements AssignmentStrategy {
       Set<DatastreamTask> newAssignmentForInstance = new HashSet<>();
       assignment.put(instance, newAssignmentForInstance);
 
-      if (currentAssignment != null && currentAssignment.containsKey(instance)) {
-        Map<String, DatastreamTask> datastreamToTaskMap = new HashMap<>();
-        Collection<DatastreamTask> currentAssignmentForInstance = currentAssignment.get(instance);
-        for (DatastreamTask datastreamTask : currentAssignmentForInstance) {
-          datastreamTask.getDatastreams().stream().forEach(d -> datastreamToTaskMap.put(d, datastreamTask));
-        }
-        for (Datastream datastream : datastreams) {
-          DatastreamTask foundDatastreamTask = datastreamToTaskMap.get(datastream.getName());
 
-          if (foundDatastreamTask == null) {
-            newAssignmentForInstance.add(new DatastreamTaskImpl(datastream));
-          } else {
-            newAssignmentForInstance.add(foundDatastreamTask);
-          }
-        }
-      } else {
-        // When there is no existing assignment for the instance. Create new datastream tasks.
-        for (Datastream datastream : datastreams) {
-          newAssignmentForInstance.add(new DatastreamTaskImpl(datastream));
-        }
+      Map<String, DatastreamTask> datastreamToTaskMap = new HashMap<>();
+      Set<DatastreamTask> currentAssignmentForInstance = currentAssignment.containsKey(instance) ?
+          currentAssignment.get(instance) :  new HashSet<>();
+
+      for (DatastreamTask datastreamTask : currentAssignmentForInstance) {
+        datastreamTask.getDatastreams().stream().forEach(d -> datastreamToTaskMap.put(d, datastreamTask));
+      }
+
+      for (Datastream datastream : datastreams) {
+        DatastreamTask foundDatastreamTask = datastreamToTaskMap.containsKey(datastream.getName()) ?
+            datastreamToTaskMap.get(datastream.getName()) : new DatastreamTaskImpl(datastream);
+        newAssignmentForInstance.add(foundDatastreamTask);
       }
     }
 
