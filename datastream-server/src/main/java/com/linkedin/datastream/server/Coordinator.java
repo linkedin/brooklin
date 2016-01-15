@@ -235,6 +235,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         LOG.warn("Exception caught while stopping coordinator", e);
       }
     }
+
+    _eventProducerPool.shutdown();
+
     _adapter.disconnect();
   }
 
