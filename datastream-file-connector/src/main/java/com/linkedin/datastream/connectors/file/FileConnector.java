@@ -33,9 +33,9 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.server.api.connector.Connector;
-import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
@@ -49,16 +49,19 @@ public class FileConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
   public static final String CONNECTOR_TYPE = "file";
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
+  public static final String CFG_NUM_PARTITIONS = "numPartitions";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
-  private static final String DEFAULT_CHECKPOINTING = "false";
   private static final int SHUTDOWN_TIMEOUT_MS = 5000;
 
   private final ExecutorService _executorService;
+  private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
   public FileConnector(Properties config) throws DatastreamException {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
+
+    _numPartitions = Integer.parseInt(config.getProperty(CFG_NUM_PARTITIONS, "1"));
     _fileProcessors = new ConcurrentHashMap<>();
   }
 
@@ -132,6 +135,10 @@ public class FileConnector implements Connector {
     File streamFile = new File(stream.getSource().getConnectionString());
     if (!streamFile.exists() || !streamFile.isFile()) {
       throw new DatastreamValidationException(String.format("File %s doesn't exists", streamFile.getAbsolutePath()));
+    }
+
+    if(_numPartitions != 1) {
+      stream.getSource().setPartitions(_numPartitions);
     }
   }
 }

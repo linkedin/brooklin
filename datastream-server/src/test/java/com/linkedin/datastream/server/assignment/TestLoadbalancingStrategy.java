@@ -17,17 +17,13 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-
 public class TestLoadbalancingStrategy {
 
   @Test
   public void testLoadbalancingStrategy_DistributesTasks_AcrossInstancesEqually() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -41,10 +37,7 @@ public class TestLoadbalancingStrategy {
   public void testLoadbalancingStrategy_CreatesTasks_OnlyForPartitionsInDestination() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(2);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(2));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -61,10 +54,7 @@ public class TestLoadbalancingStrategy {
   public void testLoadbalancingStrategy_RedistributesTasks_WhenNodeGoesDown() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -85,10 +75,7 @@ public class TestLoadbalancingStrategy {
   public void testLoadbalancingStrategy_RedistributesTasks_WhenNodeIsAdded() {
     String[] instances = new String[] { "instance1", "instance2" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -110,10 +97,7 @@ public class TestLoadbalancingStrategy {
   public void testLoadbalancingStrategy_CreatesNewDatastreamTasks_WhenNewDatastreamIsAdded() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -125,8 +109,7 @@ public class TestLoadbalancingStrategy {
     datastreams = new ArrayList<>(datastreams);
     datastreams.add(DatastreamTestUtils.createDatastream(DummyConnector.CONNECTOR_TYPE, "ds2", "source"));
     datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
+      x.getSource().setPartitions(12);
     });
 
     Map<String, Set<DatastreamTask>> newAssignment =
@@ -141,10 +124,7 @@ public class TestLoadbalancingStrategy {
   public void testLoadbalancingStrategy_RemovesTasks_WhenDatastreamIsDeleted() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2"));
-    datastreams.forEach(x -> {
-      x.setDestination(new DatastreamDestination());
-      x.getDestination().setPartitions(12);
-    });
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());

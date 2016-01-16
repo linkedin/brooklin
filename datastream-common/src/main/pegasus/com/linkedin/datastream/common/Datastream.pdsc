@@ -26,6 +26,11 @@
             "name": "connectionString",
             "doc": "Source connection string to consume the data from.",
             "type": "string"
+          },
+          {
+            "name": "partitions",
+            "doc": "Number of partitions in the source.",
+            "type": "int"
           }
         ]
       }
@@ -45,7 +50,7 @@
           },
           {
             "name": "partitions",
-            "doc": "Number of partitions of the kafka topic.",
+            "doc": "Number of partitions in the destination.",
             "type": "int"
           }
         ]
