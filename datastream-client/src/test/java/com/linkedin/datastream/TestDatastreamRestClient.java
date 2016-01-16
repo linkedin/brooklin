@@ -94,6 +94,17 @@ public class TestDatastreamRestClient {
     Assert.assertEquals(createdDatastream, datastream);
   }
 
+  @Test(expectedExceptions = DatastreamNotFoundException.class)
+  public void testDeleteDatastream()
+      throws DatastreamException {
+    Datastream datastream = generateDatastream(1);
+    LOG.info("Datastream : " + datastream);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+    restClient.createDatastream(datastream);
+    restClient.deleteDatastream(datastream.getName());
+    restClient.getDatastream(datastream.getName());
+  }
+
   @Test
   public void testGetBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
     Datastream datastream = generateDatastream(2);

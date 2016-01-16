@@ -2,6 +2,7 @@ package com.linkedin.datastream;
 
 import java.util.Collections;
 
+
 import com.linkedin.datastream.common.BootstrapBuilders;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamBuilders;
@@ -13,6 +14,7 @@ import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
 import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.ActionRequest;
 import com.linkedin.restli.client.CreateRequest;
+import com.linkedin.restli.client.DeleteRequest;
 import com.linkedin.restli.client.GetRequest;
 import com.linkedin.restli.client.Response;
 import com.linkedin.restli.client.ResponseFuture;
@@ -116,6 +118,25 @@ public class DatastreamRestClient {
         throw new DatastreamException(String.format("Create Bootstrap Datastream {%s} failed with error.",
             datastreamName), e);
       }
+    }
+  }
+
+  /**
+   * Delete the datastream with the name. This method makes a DELETE rest call to the Datastream management service
+   * on the DatastreamResource which in turn deletes the entity from the zookeeper. All the connectors that
+   * are serving the datastream will get notified to stop producing events for the datastream.
+   * @param datastreamName
+   *   Name of the datastream that should be deleted.
+   * @throws DatastreamException
+   *   When the datastream is not found or any other error happens on the server.
+   */
+  public void deleteDatastream(String datastreamName) throws DatastreamException {
+    DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
+    ResponseFuture response = _restClient.sendRequest(request);
+    try {
+      response.getResponse();
+    } catch (RemoteInvocationException e) {
+        throw new DatastreamException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
     }
   }
 }

@@ -40,8 +40,13 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public UpdateResponse delete(String key) {
-    // TODO: behavior of deleting a datastream is not fully defined yet; block this method for now
-    return new UpdateResponse(HttpStatus.S_405_METHOD_NOT_ALLOWED);
+    boolean result = _store.deleteDatastream(key);
+
+    if(result) {
+      return new UpdateResponse(HttpStatus.S_200_OK);
+    } else {
+      return new UpdateResponse(HttpStatus.S_400_BAD_REQUEST);
+    }
   }
 
   // Returning null will automatically trigger a 404 Not Found response

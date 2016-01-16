@@ -64,6 +64,25 @@ public class TestBroadcastStrategy {
   }
 
   @Test
+  public void testBroadcastStrategy_removesDatastreamTasks_WhenDatastreamIsDeleted() {
+    List<String> instances = Arrays.asList(new String[] { "instance1", "instance2", "instance3" });
+    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    BroadcastStrategy strategy = new BroadcastStrategy();
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+
+    datastreams.remove(0);
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+
+    // Ensure that the datastream tasks for the existing instances didn't change.
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() - 1, newAssignmentTasks.size());
+    }
+  }
+
+  @Test
   public void testBroadcastStrategy_createsNewTasksOnlyForNewDatastream_WhenDatastreamIsCreated() {
     List<String> instances = Arrays.asList(new String[] { "instance1", "instance2", "instance3" });
     List<Datastream> datastreams = generateDatastreams("ds", 5);
