@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.kafka;
 
 /*
  * Copyright 2015 LinkedIn Corp. All rights reserved
@@ -24,7 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-import com.linkedin.datastream.testutil.TestUtils;
+import com.linkedin.datastream.common.FileUtils;
+import com.linkedin.datastream.common.NetworkUtils;
 
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
@@ -73,7 +74,7 @@ public class EmbeddedKafkaCluster {
 
   private int resolvePort(int port) {
     if (port == -1) {
-      return TestUtils.getAvailablePort();
+      return NetworkUtils.getAvailablePort();
     }
     return port;
   }
@@ -92,7 +93,7 @@ public class EmbeddedKafkaCluster {
   public void startup() {
     for (int i = 0; i < _ports.size(); i++) {
       Integer port = _ports.get(i);
-      File logDir = TestUtils.constructTempDir("kafka-local-" + port);
+      File logDir = FileUtils.constructRandomDirectoryInTempDir("kafka-local-" + port);
 
       Properties properties = new Properties();
       properties.putAll(_baseProperties);
@@ -164,7 +165,7 @@ public class EmbeddedKafkaCluster {
     }
     for (File logDir : _logDirs) {
       try {
-        TestUtils.deleteFile(logDir);
+        FileUtils.deleteFile(logDir);
       } catch (FileNotFoundException e) {
         e.printStackTrace();
       }

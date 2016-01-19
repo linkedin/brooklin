@@ -15,7 +15,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.TestDestinationManager;
 import com.linkedin.datastream.server.zk.ZkAdapter;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.kafka.EmbeddedZookeeper;
 
 
 public class TestZookeeperCheckpointProvider {
