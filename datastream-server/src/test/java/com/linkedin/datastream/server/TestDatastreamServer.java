@@ -29,6 +29,7 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
+import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
@@ -53,7 +54,8 @@ public class TestDatastreamServer {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
-    return EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties());
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
+        new Properties());
   }
 
   private static Properties getBootstrapConnectorProperties() {
@@ -68,7 +70,8 @@ public class TestDatastreamServer {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, override);
+        EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
+            override);
     return datastreamKafkaCluster;
   }
 
@@ -97,7 +100,8 @@ public class TestDatastreamServer {
     connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
     connectorProperties.get(FILE_CONNECTOR).put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamKafkaCluster(connectorProperties, new Properties(), -1, numServers);
+        EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
+            new Properties(), numServers);
     return datastreamKafkaCluster;
   }
 

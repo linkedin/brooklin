@@ -1,4 +1,4 @@
-package com.linkedin.datastream.testutil;
+package com.linkedin.datastream.kafka;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -8,6 +8,9 @@ import java.net.InetSocketAddress;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
+
+import com.linkedin.datastream.common.FileUtils;
+import com.linkedin.datastream.common.NetworkUtils;
 
 
 public class EmbeddedZookeeper {
@@ -35,18 +38,18 @@ public class EmbeddedZookeeper {
 
   private int resolvePort(int port) {
     if (port == -1) {
-      return TestUtils.getAvailablePort();
+      return NetworkUtils.getAvailablePort();
     }
     return port;
   }
 
   public void startup() throws IOException {
     if (this.port == -1) {
-      this.port = TestUtils.getAvailablePort();
+      this.port = NetworkUtils.getAvailablePort();
     }
     this.factory = NIOServerCnxnFactory.createFactory(new InetSocketAddress("localhost", port), 1024);
-    this.snapshotDir = TestUtils.constructTempDir("embedded-zk/snapshot-" + this.port);
-    this.logDir = TestUtils.constructTempDir("embedded-zk/log-" + this.port);
+    this.snapshotDir = FileUtils.constructRandomDirectoryInTempDir("embedded-zk/snapshot-" + this.port);
+    this.logDir = FileUtils.constructRandomDirectoryInTempDir("embedded-zk/log-" + this.port);
 
     try {
       factory.startup(new ZooKeeperServer(snapshotDir, logDir, tickTime));
@@ -63,12 +66,12 @@ public class EmbeddedZookeeper {
 
     factory.shutdown();
     try {
-      TestUtils.deleteFile(snapshotDir);
+      FileUtils.deleteFile(snapshotDir);
     } catch (FileNotFoundException e) {
       // ignore
     }
     try {
-      TestUtils.deleteFile(logDir);
+      FileUtils.deleteFile(logDir);
     } catch (FileNotFoundException e) {
       // ignore
     }

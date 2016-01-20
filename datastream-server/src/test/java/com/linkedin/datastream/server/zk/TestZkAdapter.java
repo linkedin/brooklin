@@ -6,9 +6,8 @@ import java.util.Collections;
 import java.util.List;
 
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
-import org.I0Itec.zkclient.exception.ZkNoNodeException;
+
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,11 +16,10 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.kafka.EmbeddedZookeeper;
 
 
 public class TestZkAdapter {

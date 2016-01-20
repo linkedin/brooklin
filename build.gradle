@@ -110,6 +110,7 @@ project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
     compile "com.101tec:zkclient:$zkclientVersion"
+    testCompile project(':datastream-kafka')
     testCompile project(':datastream-testcommon')
   }
 }
@@ -169,6 +170,7 @@ project(':datastream-client') {
     compile project(':datastream-utils')
 
     testCompile project(':datastream-testcommon')
+    testCompile project(':datastream-kafka')
     testCompile project(':datastream-server')
   }
 }
