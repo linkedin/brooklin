@@ -2,6 +2,8 @@ package com.linkedin.datastream.common;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
 
 import junit.framework.Assert;
 import org.testng.annotations.Test;
@@ -79,7 +81,7 @@ public class TestReflectionUtils {
     Assert.assertEquals("hello", ReflectionUtils.getField(data, "_publicField"));
   }
 
-  private void privateVoidMethod(Integer foo, String bar) {
+  private void privateVoidMethod(float foo, String bar) {
     System.out.println("privateVoidMethod: " + String.valueOf(foo) + " " + bar);
   }
 
@@ -93,10 +95,27 @@ public class TestReflectionUtils {
     return 10;
   }
 
+  private int privateSetArgMethod(Set<Integer> mySet) {
+    System.out.println("privateSetArgMethod");
+    return 10;
+  }
+
+  class A {
+  }
+
+  class B extends A {
+  }
+
+  private void privateSubtype_Unhappy(B b) {
+  }
+
+  private void privateSubtype_happy(A a) {
+  }
+
   @Test
   public void testCallMethod() throws Exception {
     TestReflectionUtils tester = new TestReflectionUtils();
-    ReflectionUtils.callMethod(tester, "privateVoidMethod", 10, "Hello");
+    ReflectionUtils.callMethod(tester, "privateVoidMethod", 10.5f, "Hello");
     int retVal = ReflectionUtils.callMethod(tester, "privateIntMethod", 10);
     Assert.assertEquals(retVal, 15);
 
@@ -106,5 +125,17 @@ public class TestReflectionUtils {
 
     retVal = ReflectionUtils.callMethod(tester, "publicNoArgsMethod");
     Assert.assertEquals(retVal, 10);
+
+    Set<Integer> dummySet = new HashSet<>();
+    retVal = ReflectionUtils.callMethod(tester, "privateSetArgMethod", dummySet);
+    Assert.assertEquals(retVal, 10);
+
+    try {
+      ReflectionUtils.callMethod(tester, "privateSubtype_Unhappy", new A());
+      Assert.fail();
+    } catch(NoSuchMethodException e) {
+    }
+
+    ReflectionUtils.callMethod(tester, "privateSubtype_happy", new B());
   }
 }
