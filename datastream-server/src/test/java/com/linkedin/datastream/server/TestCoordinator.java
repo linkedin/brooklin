@@ -697,7 +697,7 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  @Test
+  @Test(enabled = false)
   public void testBroadcastAssignmentReassignAfterDeath() throws Exception {
     String testCluster = "testBroadcastAssignmentReassignAfterDeath";
     String testConnectoryType = "testConnectoryType";
