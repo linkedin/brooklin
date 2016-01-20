@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+
 
 public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private EmbeddedZookeeper _embeddedZookeeper = null;

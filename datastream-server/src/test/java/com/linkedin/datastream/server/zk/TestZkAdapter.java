@@ -19,7 +19,7 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.kafka.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class TestZkAdapter {

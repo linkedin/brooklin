@@ -32,7 +32,7 @@ import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.kafka.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 

@@ -14,7 +14,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.kafka.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.datastream.common.PollUtils;
 
 

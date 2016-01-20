@@ -1,4 +1,4 @@
-package com.linkedin.datastream.kafka;
+package com.linkedin.datastream.testutil;
 
 import java.io.File;
 import java.io.FileNotFoundException;

@@ -132,6 +132,7 @@ project(':datastream-kafka') {
 
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
+    compile project(':datastream-testcommon')
 
     tasks.create(name: "copyDependantLibs", type: Copy) {
       from (configurations.runtime) {

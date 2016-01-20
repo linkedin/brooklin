@@ -10,7 +10,7 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
-import com.linkedin.datastream.kafka.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
