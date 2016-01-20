@@ -2,6 +2,7 @@ package com.linkedin.datastream.common;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.stream.IntStream;
 import java.lang.reflect.Constructor;
 
@@ -48,7 +49,7 @@ public class ReflectionUtils {
    * @param <T> type of the field
    * @return the new value just set or null if failed
    */
-  public static <T> T setField(Object object, String field, T value) {
+  public static <T> T setField(Object object, String field, T value) throws Exception {
     Validate.notNull(object, "null target object");
     Validate.notNull(field, "null field name");
 
@@ -70,7 +71,7 @@ public class ReflectionUtils {
    * @param <T> type of the field
    * @return the value of the field or null if failed
    */
-  public static <T> T getField(Object object, String field) {
+  public static <T> T getField(Object object, String field) throws Exception {
     Validate.notNull(object, "null target object");
     Validate.notNull(field, "null field name");
 
@@ -84,4 +85,35 @@ public class ReflectionUtils {
     }
   }
 
+  /**
+   * Call a method with its name regardless of accessibility.
+   * Note this won't work if there are primitive args because
+   * Java auto-box those with the Object... varargs.
+   *
+   * @param object target object to whom a method is to be invoked
+   * @param methodName name of the method
+   * @param args arguments for the method
+   * @param <T> return type
+   * @return return value of the method, null for void methods
+   */
+  public static <T> T callMethod(Object object, String methodName, Object... args) throws Exception {
+    Validate.notNull(object, "null class name");
+    Method method = null;
+    boolean isAccessible = true;
+    try {
+      Class[] argTypes = new Class[args.length];
+      IntStream.range(0, args.length).forEach(i -> argTypes[i] = args[i].getClass());
+      method = object.getClass().getDeclaredMethod(methodName, argTypes);
+      isAccessible = method.isAccessible();
+      method.setAccessible(true);
+      return (T)method.invoke(object, args);
+    } catch (Exception e) {
+      LOG.warn("Failed to invoke method: " + methodName, e);
+      throw e;
+    } finally {
+      if (method != null) {
+        method.setAccessible(isAccessible);
+      }
+    }
+  }
 }

@@ -1,6 +1,7 @@
 package com.linkedin.datastream.common;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 import junit.framework.Assert;
 import org.testng.annotations.Test;
@@ -76,5 +77,34 @@ public class TestReflectionUtils {
 
     Assert.assertEquals(ReflectionUtils.setField(data, "_publicField", "hello"), "hello");
     Assert.assertEquals("hello", ReflectionUtils.getField(data, "_publicField"));
+  }
+
+  private void privateVoidMethod(Integer foo, String bar) {
+    System.out.println("privateVoidMethod: " + String.valueOf(foo) + " " + bar);
+  }
+
+  private int privateIntMethod(Integer foo) {
+    System.out.println("privateIntMethod: " + String.valueOf(foo));
+    return foo + 5;
+  }
+
+  public int publicNoArgsMethod() {
+    System.out.println("publicPlainMethod");
+    return 10;
+  }
+
+  @Test
+  public void testCallMethod() throws Exception {
+    TestReflectionUtils tester = new TestReflectionUtils();
+    ReflectionUtils.callMethod(tester, "privateVoidMethod", 10, "Hello");
+    int retVal = ReflectionUtils.callMethod(tester, "privateIntMethod", 10);
+    Assert.assertEquals(retVal, 15);
+
+    // private method should stay private
+    Method method = getClass().getDeclaredMethod("privateIntMethod", Integer.class);
+    Assert.assertEquals(method.isAccessible(), false);
+
+    retVal = ReflectionUtils.callMethod(tester, "publicNoArgsMethod");
+    Assert.assertEquals(retVal, 10);
   }
 }
