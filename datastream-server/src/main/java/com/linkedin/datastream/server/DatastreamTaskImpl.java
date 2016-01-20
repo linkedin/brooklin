@@ -78,11 +78,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   public DatastreamTaskImpl(Datastream datastream) {
-    this(datastream, UUID.randomUUID().toString());
-  }
-
-  public DatastreamTaskImpl(Datastream datastream, String id) {
-    this(datastream, id, null);
+    this(datastream, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
   public DatastreamTaskImpl(Datastream datastream, String id, List<Integer> partitions) {
@@ -94,12 +90,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _id = id;
     _partitions = new ArrayList<>();
     if (partitions != null && partitions.size() > 0) {
-      _partitions.addAll(partitions);
+        _partitions.addAll(partitions);
     } else {
-      // Add [0, N) if destination has N partitions
+      // Add [0, N) if source has N partitions
       // Or add a default partition 0 otherwise
-      if (datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
-        int numPartitions = datastream.getDestination().getPartitions();
+      if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
+        int numPartitions = datastream.getSource().getPartitions();
         for (int i = 0; i < numPartitions; i++) {
           _partitions.add(i);
         }
@@ -107,6 +103,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
         _partitions.add(0);
       }
     }
+
     LOG.info("Created new DatastreamTask " + this);
   }
 

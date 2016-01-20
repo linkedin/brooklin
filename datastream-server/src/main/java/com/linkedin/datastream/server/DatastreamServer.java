@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -205,18 +207,23 @@ public class DatastreamServer {
   public static void main(String[] args) throws Exception {
     Properties serverProperties = getServerProperties(args);
     DatastreamServer server = new DatastreamServer(serverProperties);
-    Thread mainThread = Thread.currentThread();
+    ReentrantLock lock = new ReentrantLock();
+    Condition shutdownCondition = lock.newCondition();
     // attach shutdown handler to catch control-c
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override
       public void run() {
+        lock.lock();
+        LOG.info("Starting the shutdown process..");
         server.shutdown();
-        mainThread.notifyAll();
+        shutdownCondition.signalAll();
       }
     });
 
+    lock.lock();
     server.startup();
-    mainThread.wait();
+    shutdownCondition.await();
+    LOG.info("Main thread is exiting...");
   }
 
   private static Properties getServerProperties(String[] args)
