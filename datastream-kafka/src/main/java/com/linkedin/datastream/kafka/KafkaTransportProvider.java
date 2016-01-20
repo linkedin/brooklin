@@ -60,7 +60,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private final ZkUtils _zkUtils;
 
   public KafkaTransportProvider(Properties props) {
-
+    LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       throw new RuntimeException("Bootstrap servers are not set");
     }

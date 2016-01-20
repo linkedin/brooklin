@@ -106,9 +106,24 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     int tasksPerDatastream = maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();
     for(int index = 0; index < tasksPerDatastream; index++) {
-      tasks.add(new DatastreamTaskImpl(datastream));
+      tasks.add(new DatastreamTaskImpl(datastream, Integer.toString(index),
+          assignPartitionsToTask(datastream, index, tasksPerDatastream)));
     }
 
     return tasks;
+  }
+
+  // Finds the list of partitions that the current datastream task should own.
+  // Based on the task index, total number of tasks in the datastream and the total partitions in the datastream source
+  private List<Integer> assignPartitionsToTask(Datastream datastream, int taskIndex, int totalTasks) {
+    List<Integer> partitions = new ArrayList<>();
+    if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+      int numPartitions = datastream.getSource().getPartitions();
+      for(int index = 0; index + taskIndex < numPartitions; index += totalTasks) {
+        partitions.add(index + taskIndex);
+      }
+    }
+
+    return partitions;
   }
 }

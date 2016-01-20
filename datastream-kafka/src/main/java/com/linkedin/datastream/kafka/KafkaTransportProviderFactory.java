@@ -20,7 +20,6 @@ public class KafkaTransportProviderFactory implements TransportProviderFactory {
   public TransportProvider createTransportProvider(Properties config) {
     Validate.notNull(config, "null config");
     VerifiableProperties kafkaProps = new VerifiableProperties(config);
-    kafkaProps.getDomainProperties(KAFKA_CONFIG_PREFIX);
-    return new KafkaTransportProvider(config);
+    return new KafkaTransportProvider(kafkaProps.getDomainProperties(KAFKA_CONFIG_PREFIX));
   }
 }
