@@ -85,10 +85,66 @@ public class ReflectionUtils {
     }
   }
 
+  private static final Class[][] COMPATIBLE_TYPES = {
+    { Character.TYPE, Character.class },
+    { Byte.TYPE, Byte.class },
+    { Boolean.TYPE, Boolean.class },
+    { Short.TYPE, Short.class },
+    { Integer.TYPE, Integer.class },
+    { Long.TYPE, Long.class },
+    { Float.TYPE, Float.class },
+    { Double.TYPE, Double.class },
+  };
+
+  private static boolean isCompatiblePrimitive(Class type1, Class type2) {
+    for (int i = 0; i < COMPATIBLE_TYPES.length; i++) {
+      if ((type1.equals(COMPATIBLE_TYPES[i][0]) && type2.equals(COMPATIBLE_TYPES[i][1])) ||
+          (type1.equals(COMPATIBLE_TYPES[i][1]) && type2.equals(COMPATIBLE_TYPES[i][0]))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Find method with more intelligence to support below two scenarios:
+   *
+   * 1) argument type is subtype of the corresponding parameter type.
+   * 2) either argument or paramter type is primitive and the other is the boxed type
+   *
+   * @param clazz class which the method belongs
+   * @param methodName name of the method
+   * @param argTypes array of argument types
+   * @return the method
+   */
+  public static Method findMatchingMethod(Class clazz, String methodName, Class... argTypes) {
+    Method[] methods = clazz.getDeclaredMethods();
+    Method foundMethod = null;
+    for (Method method : methods) {
+      if (method.getName().equals(methodName)) {
+        Class<?> paramTypes[] = method.getParameterTypes();
+        if (paramTypes.length == argTypes.length) {
+          boolean matched = true;
+          for (int i = 0; i < paramTypes.length; i++) {
+            if (!paramTypes[i].isAssignableFrom(argTypes[i]) &&
+                !isCompatiblePrimitive(paramTypes[i], argTypes[i])) {
+              matched = false;
+              break;
+            }
+          }
+
+          if (matched) {
+            foundMethod = method;
+            break;
+          }
+        }
+      }
+    }
+    return foundMethod;
+  }
+
   /**
    * Call a method with its name regardless of accessibility.
-   * Note this won't work if there are primitive args because
-   * Java auto-box those with the Object... varargs.
    *
    * @param object target object to whom a method is to be invoked
    * @param methodName name of the method
@@ -103,7 +159,10 @@ public class ReflectionUtils {
     try {
       Class[] argTypes = new Class[args.length];
       IntStream.range(0, args.length).forEach(i -> argTypes[i] = args[i].getClass());
-      method = object.getClass().getDeclaredMethod(methodName, argTypes);
+      method = findMatchingMethod(object.getClass(), methodName, argTypes);
+      if (method == null) {
+        throw new NoSuchMethodException(methodName);
+      }
       isAccessible = method.isAccessible();
       method.setAccessible(true);
       return (T)method.invoke(object, args);
