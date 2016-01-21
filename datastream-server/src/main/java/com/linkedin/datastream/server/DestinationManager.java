@@ -58,9 +58,11 @@ public class DestinationManager {
         continue;
       }
 
-      boolean topicReuse =
-          Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
-              CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
+      boolean topicReuse = _reuseExistingTopic;
+      if(datastream.hasMetadata()) {
+        topicReuse = Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
+            CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
+      }
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
       if (topicReuse && sourceDestinationMapping.containsKey(datastream.getSource())) {
@@ -83,7 +85,9 @@ public class DestinationManager {
 
   private String createTopic(Datastream datastream) throws TransportException {
     Properties datastreamProperties = new Properties();
-    datastreamProperties.putAll(datastream.getMetadata());
+    if(datastream.hasMetadata()) {
+      datastreamProperties.putAll(datastream.getMetadata());
+    }
     Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
     int numberOfPartitions = DEFAULT_NUMBER_PARTITIONS;
 

@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,7 @@ public class HeartbeatConnector implements Connector {
   /**
    * Default timeperiod at which the heartbeat connector sends events.
    */
-  private static final String DEFAULT_HEARTBEAT_PERIOD_MS = "60000";
+  private static final String DEFAULT_HEARTBEAT_PERIOD_MS = "5000";
   private static final String CFG_HEARTBEAT_PERIOD = "heartbeatPeriodMs";
 
   private static final String BROADCAST_CONNECTOR_TYPE = "hearbeatbc";
@@ -44,6 +45,7 @@ public class HeartbeatConnector implements Connector {
 
   public HeartbeatConnector(Properties config) {
     LOG.info(String.format("Creating Heartbeat connector with config: %s", config));
+    _tasks = new ArrayList<>();
     _hearbeatPeriodMs = Integer.parseInt(config.getProperty(CFG_HEARTBEAT_PERIOD, DEFAULT_HEARTBEAT_PERIOD_MS));
   }
 
@@ -51,13 +53,14 @@ public class HeartbeatConnector implements Connector {
   public void start() {
     _executor = new ScheduledThreadPoolExecutor(1);
     _executor.scheduleAtFixedRate(this::sendHeartBeatEvents, 0, _hearbeatPeriodMs, TimeUnit.MILLISECONDS);
+
   }
 
   private void sendHeartBeatEvents() {
-    DatastreamTask[] tasks = new DatastreamTask[_tasks.size()];
-    _tasks.toArray(tasks);
     LOG.info(String.format("Sending heartbeat event for tasks: %s", _tasks));
     try {
+      DatastreamTask[] tasks = new DatastreamTask[_tasks.size()];
+      _tasks.toArray(tasks);
       for(DatastreamTask task : tasks) {
         if(task.getConnectorType().equalsIgnoreCase(BROADCAST_CONNECTOR_TYPE)) {
           Integer eventIndex = _checkpoint.get(task).get(0);
@@ -97,7 +100,11 @@ public class HeartbeatConnector implements Connector {
         Map<Integer, String> taskCheckpoint = task.getCheckpoints();
         LOG.info(String.format("Assigned a new Datastream task %s with checkpoint %s", task, taskCheckpoint));
         for(Integer partition : taskCheckpoint.keySet()) {
-          _checkpoint.get(task).put(partition, Integer.parseInt(taskCheckpoint.get(partition)));
+          int eventIndex = 0;
+          if(!taskCheckpoint.get(partition).isEmpty()) {
+             eventIndex = Integer.parseInt(taskCheckpoint.get(partition));
+          }
+          _checkpoint.get(task).put(partition, eventIndex + 1);
         }
       }
     }
