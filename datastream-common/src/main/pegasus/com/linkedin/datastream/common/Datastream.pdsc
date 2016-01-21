@@ -45,7 +45,7 @@
         "fields": [
           {
             "name": "connectionString",
-            "doc": "Source connection string to consume the data from.",
+            "doc": "Destination connection string to write the data to.",
             "type": "string"
           },
           {
