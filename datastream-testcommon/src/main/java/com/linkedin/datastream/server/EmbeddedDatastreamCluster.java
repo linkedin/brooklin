@@ -77,11 +77,11 @@ public class EmbeddedDatastreamCluster {
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, connectorTypes);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
     properties.put(
-        String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
+        String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
         kafkaCluster.getBrokers());
 
     properties.put(
-        String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
+        String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
         kafkaCluster.getZkConnection());
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
