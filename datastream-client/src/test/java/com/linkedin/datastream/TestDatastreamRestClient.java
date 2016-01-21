@@ -107,7 +107,7 @@ public class TestDatastreamRestClient {
 
   @Test
   public void testGetBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
-    Datastream datastream = generateDatastream(2);
+    Datastream datastream = generateDatastream(3);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(datastream);

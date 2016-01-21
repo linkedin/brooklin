@@ -202,7 +202,7 @@ public class TestDatastreamServer {
 
     // Append the lines to test checkpoint functionality where 2nd instance should resume from
     // the previous saved checkpoint by the 1st instance before it died.
-    TestUtils.appendLines(new File(fileName1), eventsWritten2);
+    FileUtils.writeLines(new File(fileName1), eventsWritten2, true /* append */);
 
     // Read twice as many events (eventsWritten1 + eventsWritten2) because
     // KafkaTestUtils.readTopic always seeks to the beginning of the topic.
@@ -249,7 +249,7 @@ public class TestDatastreamServer {
 
     // Ensure both instances were assigned the task
     String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
-            DatastreamServer.CONFIG_CLUSTER_NAME);
+        DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -277,7 +277,7 @@ public class TestDatastreamServer {
     // see the newly written lines. This might be due to writeLines overwrites
     // the file. Checking the file creation time does not work because the
     // creation timestamp does not change after writeLines().
-    TestUtils.appendLines(new File(fileName1), eventsWritten2);
+    FileUtils.writeLines(new File(fileName1), eventsWritten2, true /* append */);
 
     // Read three times as many events (eventsWritten1 * 2 + eventsWritten2) because
     // KafkaTestUtils.readTopic always seeks to the beginning of the topic.
@@ -357,8 +357,8 @@ public class TestDatastreamServer {
     eventsWritten1 = TestUtils.generateStrings(totalEvents);
     eventsWritten2 = TestUtils.generateStrings(totalEvents);
 
-    TestUtils.appendLines(new File(fileName1), eventsWritten1);
-    TestUtils.appendLines(new File(fileName2), eventsWritten2);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1, true /* append */);
+    FileUtils.writeLines(new File(fileName2), eventsWritten2, true /* append */);
 
     // Read twice as many events because KafkaTestUtils.readTopic always seeks
     // to the beginning of the topic such that previous events are included
