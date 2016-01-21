@@ -8,6 +8,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamBuilders;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
@@ -68,6 +69,34 @@ public class DatastreamRestClient {
         throw new DatastreamException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
       }
     }
+  }
+
+  /**
+   * After creating the datastream, initialization of the datastream is an async process.
+   * Initialization typically involves creating the destination topic, creating the datastream tasks and
+   * assigning them to the datastream instances for producing.
+   * @param datastreamName
+   *   Name of the datastream
+   * @param timeoutMs
+   *   wait timeout in milliseconds
+   * @return
+   *   Returns the initialized datastream object.
+   * @throws DatastreamException
+   */
+  public Datastream waitTillDatastreamIsInitialized(String datastreamName, int timeoutMs)
+      throws DatastreamException, InterruptedException {
+    final int pollIntervalMs = 500;
+    final long startTimeMs = System.currentTimeMillis();
+    while(System.currentTimeMillis() - startTimeMs < timeoutMs) {
+      Datastream ds = getDatastream(datastreamName);
+      if(ds.hasDestination() && ds.getDestination().hasConnectionString() &&
+          !ds.getDestination().getConnectionString().isEmpty()){
+        return ds;
+      }
+      Thread.sleep(pollIntervalMs);
+    }
+
+    throw new DatastreamException(String.format("Datastream was not initialized before the timeout %s", timeoutMs));
   }
 
   /**

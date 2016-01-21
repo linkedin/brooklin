@@ -94,6 +94,19 @@ public class TestDatastreamRestClient {
     Assert.assertEquals(createdDatastream, datastream);
   }
 
+  @Test
+  public void testWaitTillDatastreamIsInitialized_returnsInitializedDatastream()
+      throws DatastreamException, InterruptedException {
+    Datastream datastream = generateDatastream(1);
+    LOG.info("Datastream : " + datastream);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+    restClient.createDatastream(datastream);
+    Datastream initializedDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), 60000);
+    LOG.info("Initialized Datastream : " + initializedDatastream);
+    Assert.assertNotEquals(initializedDatastream.getDestination().getConnectionString(), "");
+    Assert.assertEquals(initializedDatastream.getDestination().getPartitions().intValue(), 1);
+  }
+
   @Test(expectedExceptions = DatastreamNotFoundException.class)
   public void testDeleteDatastream()
       throws DatastreamException {
