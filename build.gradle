@@ -74,6 +74,10 @@ subprojects {
     logging.captureStandardError(LogLevel.ERROR)
     //all standard output messages from tests will get routed to 'INFO' level messages.
     logging.captureStandardOutput(LogLevel.INFO)
+    
+    testLogging {
+      exceptionFormat = 'full'
+    }
 
     maxParallelForks = 10
   }
