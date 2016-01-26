@@ -13,8 +13,8 @@ public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;
   private boolean _isStarted;
 
-  public EmbeddedZookeeperKafkaCluster() {
-    _embeddedZookeeper = new EmbeddedZookeeper(-1);
+  public EmbeddedZookeeperKafkaCluster() throws IOException {
+    _embeddedZookeeper = new EmbeddedZookeeper();
     List<Integer> kafkaPorts = new ArrayList<>();
     // -1 for any available port
     kafkaPorts.add(-1);
@@ -51,8 +51,12 @@ public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
 
   @Override
   public void shutdown() {
-    _embeddedKafkaCluster.shutdown();
-    _embeddedZookeeper.shutdown();
+    if (_embeddedKafkaCluster != null) {
+      _embeddedKafkaCluster.shutdown();
+    }
+    if (_embeddedZookeeper != null) {
+      _embeddedZookeeper.shutdown();
+    }
     _isStarted = false;
   }
 }

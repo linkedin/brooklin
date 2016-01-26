@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
+import org.apache.commons.lang.Validate;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
@@ -23,31 +24,22 @@ public class EmbeddedZookeeper {
 
   private boolean _started;
 
-  public EmbeddedZookeeper() {
-    this(-1);
+  public EmbeddedZookeeper() throws IOException {
+    this(0);
   }
 
-  public EmbeddedZookeeper(int port) {
+  public EmbeddedZookeeper(int port) throws IOException {
     this(port, 500);
   }
 
-  public EmbeddedZookeeper(int port, int tickTime) {
-    this.port = resolvePort(port);
+  public EmbeddedZookeeper(int port, int tickTime) throws IOException {
+    this.factory = NIOServerCnxnFactory.createFactory(port, 1024);
+    this.port = factory.getLocalPort();
     this.tickTime = tickTime;
   }
 
-  private int resolvePort(int port) {
-    if (port == -1) {
-      return NetworkUtils.getAvailablePort();
-    }
-    return port;
-  }
-
   public void startup() throws IOException {
-    if (this.port == -1) {
-      this.port = NetworkUtils.getAvailablePort();
-    }
-    this.factory = NIOServerCnxnFactory.createFactory(new InetSocketAddress("localhost", port), 1024);
+    Validate.isTrue(this.port > 0, "Failed to reserve port for zookeeper server.");
     this.snapshotDir = FileUtils.constructRandomDirectoryInTempDir("embedded-zk/snapshot-" + this.port);
     this.logDir = FileUtils.constructRandomDirectoryInTempDir("embedded-zk/log-" + this.port);
 
