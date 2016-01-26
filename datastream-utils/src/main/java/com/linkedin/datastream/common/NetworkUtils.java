@@ -17,6 +17,7 @@ public class NetworkUtils {
     try {
       ServerSocket socket = new ServerSocket(0);
       try {
+        socket.setReuseAddress(true);
         return socket.getLocalPort();
       } finally {
         socket.close();

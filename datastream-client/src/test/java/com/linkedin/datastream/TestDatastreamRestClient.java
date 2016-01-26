@@ -37,6 +37,7 @@ public class TestDatastreamRestClient {
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
   private DatastreamServer _datastreamServer;
+  private EmbeddedZookeeper _embeddedZookeeper;
 
   @BeforeTest
   public void setUp() throws Exception {
@@ -47,6 +48,7 @@ public class TestDatastreamRestClient {
   @AfterTest
   public void tearDown() throws Exception {
     _datastreamServer.shutdown();
+    _embeddedZookeeper.shutdown();
   }
 
   public static Datastream generateDatastream(int seed) {
@@ -62,9 +64,9 @@ public class TestDatastreamRestClient {
   }
 
   private void setupServer() throws Exception {
-    EmbeddedZookeeper embeddedZookeeper = new EmbeddedZookeeper();
-    String zkConnectionString = embeddedZookeeper.getConnection();
-    embeddedZookeeper.startup();
+    _embeddedZookeeper = new EmbeddedZookeeper();
+    String zkConnectionString = _embeddedZookeeper.getConnection();
+    _embeddedZookeeper.startup();
 
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
@@ -73,9 +75,9 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-        DummyConnectorFactory.class.getTypeName());
+            DummyConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-        DummyBootstrapConnectorFactory.class.getTypeName());
+            DummyBootstrapConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     _datastreamServer = new DatastreamServer(properties);
@@ -97,7 +99,7 @@ public class TestDatastreamRestClient {
   @Test
   public void testWaitTillDatastreamIsInitialized_returnsInitializedDatastream()
       throws DatastreamException, InterruptedException {
-    Datastream datastream = generateDatastream(1);
+    Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(datastream);
