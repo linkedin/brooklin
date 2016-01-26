@@ -1,5 +1,21 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
+import com.linkedin.datastream.server.dms.DatastreamResources;
+import com.linkedin.datastream.server.zk.KeyBuilder;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.CreateResponse;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,9 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,21 +33,6 @@ import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.server.api.connector.Connector;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
-import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
-import com.linkedin.datastream.server.dms.DatastreamResources;
-import com.linkedin.datastream.server.zk.KeyBuilder;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.CreateResponse;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -1101,10 +1099,44 @@ public class TestCoordinator {
 
   }
 
+  private class TestSetup {
+    public final EmbeddedDatastreamCluster _datastreamKafkaCluster;
+    public final Coordinator _coordinator;
+    public final DatastreamResources _resource;
+    public final TestHookConnector _connector;
+
+    public TestSetup(EmbeddedDatastreamCluster datastreamKafkaCluster, Coordinator coordinator, DatastreamResources resource, TestHookConnector connector) {
+      _datastreamKafkaCluster = datastreamKafkaCluster;
+      _coordinator = coordinator;
+      _resource = resource;
+      _connector = connector;
+    }
+  }
+
+  private TestSetup createTestCoordinator() throws Exception {
+    EmbeddedDatastreamCluster datastreamKafkaCluster =
+        TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
+    datastreamKafkaCluster.startup();
+    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
+    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    Coordinator coordinator =
+        createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
+            properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+
+    TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
+
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy(), false);
+
+    coordinator.start();
+
+    return new TestSetup(datastreamKafkaCluster, coordinator, resource, connector);
+  }
+
   /**
-   * Test create datastream sceanrio with the actual DSM.
+   * Test create datastream scenario with the actual DSM.
    *
-   * The expected outcome include:
+   * The expected outcome includes:
    *
    * 1) a new datastream is created by DSM and can be queried by name afterwards
    * 2) the datastream has valid destination (populated by DestinationManager)
@@ -1114,66 +1146,40 @@ public class TestCoordinator {
    */
   @Test
   public void testCreateDatastreamHappyPath() throws Exception {
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
-    datastreamKafkaCluster.startup();
-    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
-
-    Coordinator coordinator =
-        createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
-            properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
-
-    TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
-
-    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy(), false);
-    coordinator.start();
+    TestSetup setup = createTestCoordinator();
 
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    CreateResponse response = resource.create(stream);
+    CreateResponse response = setup._resource.create(stream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
-    assertConnectorAssignment(connector, 30000, datastreamName);
+    assertConnectorAssignment(setup._connector, 30000, datastreamName);
 
-    Datastream queryStream = resource.get(stream.getName());
+    Datastream queryStream = setup._resource.get(stream.getName());
     Assert.assertNotNull(queryStream.getDestination());
-    datastreamKafkaCluster.shutdown();
+    setup._datastreamKafkaCluster.shutdown();
   }
 
   @Test
   public void testEndToEndHappyPath() throws Exception {
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
-    datastreamKafkaCluster.startup();
-    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
-    DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
-
-    Coordinator coordinator =
-        createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
-            properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
-
-    TestHookConnector connector = new TestHookConnector(DummyConnector.CONNECTOR_TYPE);
-
-    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy(), false);
-    coordinator.start();
+    TestSetup setup = createTestCoordinator();
 
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    CreateResponse response = resource.create(stream);
+    CreateResponse response = setup._resource.create(stream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
-    assertConnectorAssignment(connector, 30000, datastreamName);
+    assertConnectorAssignment(setup._connector, 30000, datastreamName);
 
-    Datastream queryStream = resource.get(stream.getName());
+    Datastream queryStream = setup._resource.get(stream.getName());
     Assert.assertNotNull(queryStream.getDestination());
-    datastreamKafkaCluster.shutdown();
+    setup._datastreamKafkaCluster.shutdown();
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

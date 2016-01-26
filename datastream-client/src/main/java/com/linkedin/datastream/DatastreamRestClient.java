@@ -1,14 +1,10 @@
 package com.linkedin.datastream;
 
-import java.util.Collections;
-
-
-import com.linkedin.datastream.common.BootstrapBuilders;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamBuilders;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
-import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.server.dms.BootstrapBuilders;
+import com.linkedin.datastream.server.dms.DatastreamBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
@@ -16,12 +12,15 @@ import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.ActionRequest;
 import com.linkedin.restli.client.CreateRequest;
 import com.linkedin.restli.client.DeleteRequest;
+import com.linkedin.restli.client.GetAllRequest;
 import com.linkedin.restli.client.GetRequest;
-import com.linkedin.restli.client.Response;
 import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 import com.linkedin.restli.client.RestLiResponseException;
+import com.linkedin.restli.common.CollectionResponse;
 import com.linkedin.restli.common.HttpStatus;
+import java.util.Collections;
+import java.util.List;
 
 
 /**
@@ -37,13 +36,13 @@ public class DatastreamRestClient {
     _builders = new DatastreamBuilders();
     _bootstrapBuilders = new BootstrapBuilders();
     final HttpClientFactory http = new HttpClientFactory();
-    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String> emptyMap()));
+    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
   /**
    * Get the complete datastream object corresponding to the datastream name. This method makes a GET rest call
-   * to the Datastream management service which inturn fetches this Datastream object from the store (zookeeper).
+   * to the Datastream management service which in turn fetches this Datastream object from the store (zookeeper).
    * @param datastreamName
    *    Name of the datastream that should be retrieved.
    * @return
@@ -55,12 +54,10 @@ public class DatastreamRestClient {
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    */
   public Datastream getDatastream(String datastreamName) throws DatastreamException {
-    GetRequest request = _builders.get().id(datastreamName).build();
+    GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
-    Response<Datastream> response;
     try {
-      response = datastreamResponseFuture.getResponse();
-      return response.getEntity();
+      return datastreamResponseFuture.getResponse().getEntity();
     } catch (RemoteInvocationException e) {
       if (e instanceof RestLiResponseException
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
@@ -99,6 +96,41 @@ public class DatastreamRestClient {
     throw new DatastreamException(String.format("Datastream was not initialized before the timeout %s", timeoutMs));
   }
 
+  private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) throws DatastreamException {
+    ResponseFuture<CollectionResponse<Datastream>> datastreamResponseFuture = _restClient.sendRequest(request);
+    try {
+      return datastreamResponseFuture.getResponse().getEntity().getElements();
+    } catch (RemoteInvocationException e) {
+      throw new DatastreamException("Get All Datastreams failed with error.", e);
+    }
+  }
+
+  /**
+   * Get all the datastream objects available on the sever. This method makes a GET rest call
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
+   * Entries will be return in lexicographical based on their getName() property.
+   *
+   * @return all the Datastream objects
+   * @throws DatastreamException for any errors encountered while fetching the datastream.
+   */
+  public List<Datastream> getAllDatastreams() throws DatastreamException {
+    return getAllDatastreams(_builders.getAll().build());
+  }
+
+  /**
+   * Get all the datastream objects available on the sever. This method makes a GET rest call
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
+   * Entries will be return in lexicographical based on their getName() property.
+   *
+   * @param start index of the first datastream to produce
+   * @param count maximum number of entries to be produced
+   * @return
+   * @throws DatastreamException
+   */
+  public List<Datastream> getAllDatastreams(int start, int count) throws DatastreamException {
+    return getAllDatastreams(_builders.getAll().paginate(start, count).build());
+  }
+
   /**
    * Creates a new datastream. Name of the datastream must be unique. This method makes a POST rest call to the
    * Datastream management service which validates the datastream object and writes it to the store (zookeeper).
@@ -135,17 +167,15 @@ public class DatastreamRestClient {
   public Datastream createBootstrapDatastream(String datastreamName) throws DatastreamException {
     ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().paramBaseDatastream(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
-    Response<Datastream> response;
     try {
-      response = datastreamResponseFuture.getResponse();
-      return response.getEntity();
+      return datastreamResponseFuture.getResponse().getEntity();
     } catch (RemoteInvocationException e) {
       if (e instanceof RestLiResponseException
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamException(String.format("Create Bootstrap Datastream {%s} failed with error.",
-            datastreamName), e);
+        throw new DatastreamException(
+            String.format("Create Bootstrap Datastream {%s} failed with error.", datastreamName), e);
       }
     }
   }
@@ -165,7 +195,7 @@ public class DatastreamRestClient {
     try {
       response.getResponse();
     } catch (RemoteInvocationException e) {
-        throw new DatastreamException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
+      throw new DatastreamException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
     }
   }
 }

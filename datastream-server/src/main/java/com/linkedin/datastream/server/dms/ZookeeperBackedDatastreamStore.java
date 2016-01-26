@@ -5,11 +5,19 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
   private final ZkClient _zkClient;
   private final String _rootPath;
+  // Cache of the datastream key list
+  private volatile List<String> _datastreamList = Collections.emptyList();
 
   public ZookeeperBackedDatastreamStore(ZkClient zkClient, String cluster) {
     assert zkClient != null;
@@ -17,6 +25,11 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
     _zkClient = zkClient;
     _rootPath = KeyBuilder.datastreams(cluster);
+
+    // Be notified of changes to the children list in order to cache it. The listener creates a copy of the list
+    // because other listeners could potentially get access to it and modify its contents.
+    _zkClient.subscribeChildChanges(_rootPath, (parentPath, currentChildren) ->
+        _datastreamList = currentChildren.stream().collect(Collectors.toCollection(() -> new ArrayList<>(currentChildren.size()))));
   }
 
   private String getZnodePath(String key) {
@@ -34,6 +47,22 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       return null;
     }
     return DatastreamUtils.fromJSON(json);
+  }
+
+  /**
+   * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
+   * to return a Stream and enable further filtering and transformation rather that just a List.
+   *
+   * The datastream key-set used to make this call is cached, it is possible to get a slightly outdated
+   * list of datastreams and not have a stream that was just added. It depends on how long it takes for
+   * ZooKeeper to notify the change.
+   *
+   * The contents of each individual Datastream will be fetched on every request.
+   * @return
+   */
+  @Override
+  public Stream<Datastream> getAllDatastreams() {
+    return _datastreamList.stream().sorted().map(this::getDatastream).filter(stream -> stream != null);
   }
 
   @Override

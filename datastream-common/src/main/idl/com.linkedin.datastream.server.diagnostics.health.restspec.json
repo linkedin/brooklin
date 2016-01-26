@@ -1,0 +1,16 @@
+{
+  "name" : "health",
+  "namespace" : "com.linkedin.datastream.server.diagnostics",
+  "path" : "/health",
+  "schema" : "com.linkedin.datastream.diagnostics.ServerHealth",
+  "doc" : "generated from: com.linkedin.datastream.server.diagnostics.ServerHealthResources",
+  "simple" : {
+    "supports" : [ "get" ],
+    "methods" : [ {
+      "method" : "get"
+    } ],
+    "entity" : {
+      "path" : "/health"
+    }
+  }
+}

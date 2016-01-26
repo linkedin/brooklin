@@ -2,9 +2,12 @@ gradlew.bat
 build/
 *classes
 .gradle/
+.idea/
 *.iml
 *.ipr
 *.iws
 datastream.ipr
 datastream.iws
 out/
+mainGeneratedRest/
+mainGeneratedDataTemplate/

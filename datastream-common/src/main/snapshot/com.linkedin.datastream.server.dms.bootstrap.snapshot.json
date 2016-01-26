@@ -1,0 +1,79 @@
+{
+  "models" : [ {
+    "type" : "record",
+    "name" : "DatastreamSource",
+    "namespace" : "com.linkedin.datastream.common",
+    "doc" : "Datastream source that connector will use to consume events",
+    "fields" : [ {
+      "name" : "connectionString",
+      "type" : "string",
+      "doc" : "Source connection string to consume the data from."
+    }, {
+      "name" : "partitions",
+      "type" : "int",
+      "doc" : "Number of partitions in the source."
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "DatastreamDestination",
+    "namespace" : "com.linkedin.datastream.common",
+    "doc" : "Datastream destination details that the transport provider will use to send events",
+    "fields" : [ {
+      "name" : "connectionString",
+      "type" : "string",
+      "doc" : "Source connection string to consume the data from."
+    }, {
+      "name" : "partitions",
+      "type" : "int",
+      "doc" : "Number of partitions in the destination."
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "Datastream",
+    "namespace" : "com.linkedin.datastream.common",
+    "doc" : "Data model of Datastream",
+    "fields" : [ {
+      "name" : "name",
+      "type" : "string",
+      "doc" : "Name of the Datastream."
+    }, {
+      "name" : "connectorType",
+      "type" : "string",
+      "doc" : "Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc.."
+    }, {
+      "name" : "source",
+      "type" : "DatastreamSource",
+      "doc" : "Source that connector can use to connect to the data store and consume the data."
+    }, {
+      "name" : "destination",
+      "type" : "DatastreamDestination",
+      "doc" : "Datastream destination string that the transport provider will use to send the events",
+      "optional" : true
+    }, {
+      "name" : "metadata",
+      "type" : {
+        "type" : "map",
+        "values" : "string"
+      },
+      "doc" : "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadata is stored as user defined name/value pair.",
+      "optional" : true
+    } ]
+  } ],
+  "schema" : {
+    "path" : "/bootstrap",
+    "name" : "bootstrap",
+    "namespace" : "com.linkedin.datastream.server.dms",
+    "doc" : "BootstrapActionResources is the rest end point to process bootstrap datastream request\n\ngenerated from: com.linkedin.datastream.server.dms.BootstrapActionResources",
+    "actionsSet" : {
+      "actions" : [ {
+        "name" : "create",
+        "doc" : "Process the request of creating bootstrap datastream. The request provides the name of\n base datastream, and the server will create and return a corresponding bootstrap\n datastream.",
+        "returns" : "com.linkedin.datastream.common.Datastream",
+        "parameters" : [ {
+          "name" : "baseDatastream",
+          "type" : "string"
+        } ]
+      } ]
+    }
+  }
+}

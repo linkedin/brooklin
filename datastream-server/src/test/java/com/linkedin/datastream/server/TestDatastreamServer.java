@@ -243,8 +243,8 @@ public class TestDatastreamServer {
 
     // Expect two copies of eventsWritten1 given the two instances and BROADCAST strategy
     Map<String, Integer> countMap = new HashMap<>();
-    eventsWritten1.forEach((ev) -> countMap.put(ev, 2));
-    eventsReceived1.forEach((ev) -> countMap.put(ev, countMap.getOrDefault(ev, 0) - 1));
+    eventsWritten1.forEach(ev -> countMap.put(ev, 2));
+    eventsReceived1.forEach(ev -> countMap.put(ev, countMap.getOrDefault(ev, 0) - 1));
     countMap.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
 
     // Ensure both instances were assigned the task

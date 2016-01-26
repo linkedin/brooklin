@@ -1,22 +1,27 @@
 package com.linkedin.datastream.server.dms;
 
-import java.util.HashSet;
-import java.util.Set;
-
-import org.testng.Assert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
+import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PagingContext;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 
 /**
@@ -24,6 +29,8 @@ import com.linkedin.restli.server.CreateResponse;
  */
 @Test(singleThreaded = true)
 public class TestDatastreamResources {
+
+  private static final PagingContext NO_PAGING = new PagingContext(0, 0, false, false);
 
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
@@ -147,5 +154,75 @@ public class TestDatastreamResources {
     CreateResponse response2 = resource.create(datastream1);
     Assert.assertNotNull(response2.getError());
     Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+  }
+
+  private Datastream createDatastream(DatastreamResources resource, String name, int seed) {
+    Datastream stream = generateDatastream(seed, new HashSet<>(Arrays.asList("name")));
+    stream.setName(name + seed);
+    CreateResponse response = resource.create(stream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    return stream;
+  }
+
+  private List<Datastream> createDataStreams(DatastreamResources resource, String preffix, int count)
+      throws Exception {
+    return IntStream.range(0, count).mapToObj(n -> createDatastream(resource, preffix, n)).collect(Collectors.toList());
+  }
+
+  @Test
+  public void testCreateGetAllDatastreams() throws Exception {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    Assert.assertEquals(resource.getAll(NO_PAGING).size(), 0);
+
+    String datastreamName = "TestDatastream-";
+    List<Datastream> datastreams = createDataStreams(resource, datastreamName, 10);
+
+    // Get All
+    Optional<List<Datastream>> result =
+        PollUtils.poll(() -> resource.getAll(NO_PAGING), streams -> streams.size() == datastreams.size(), 100, 1000);
+
+    Assert.assertTrue(result.isPresent());
+
+    List<Datastream> queryStreams = result.get();
+
+    queryStreams.forEach(queryStream -> Assert.assertNotNull(queryStream.getDestination()));
+
+    // Compare datastreams set only by name since destination is empty upon creation and later populated
+    Assert.assertEquals(datastreams.stream().map(Datastream::getName).collect(Collectors.toSet()),
+        queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
+
+    // Delete one entry
+    Datastream removed = queryStreams.remove(0);
+    Assert.assertTrue(resource.delete(removed.getName()).getStatus() == HttpStatus.S_200_OK);
+
+    // Get All
+    List<Datastream> remainingQueryStreams = resource.getAll(NO_PAGING);
+
+    // Compare datastreams set only by name since destination is empty upon creation and later populated
+    Assert.assertEquals(queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()),
+        remainingQueryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
+  }
+
+  @Test
+  public void testCreateGetAllDatastreamsPaging() throws Exception {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    Assert.assertEquals(resource.getAll(NO_PAGING).size(), 0);
+
+    List<Datastream> datastreams = createDataStreams(resource, "TestDatastream-", 10);
+
+    int skip = 2;
+    int limit = 5;
+
+    // Get All
+    List<Datastream> queryStreams = resource.getAll(new PagingContext(skip, limit));
+    queryStreams.forEach(queryStream -> Assert.assertNotNull(queryStream.getDestination()));
+
+    // Compare datastreams set only by name since destination is empty upon creation and later populated
+    Assert.assertEquals(
+        datastreams.stream().map(Datastream::getName).skip(skip).limit(limit).collect(Collectors.toSet()),
+        queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
   }
 }

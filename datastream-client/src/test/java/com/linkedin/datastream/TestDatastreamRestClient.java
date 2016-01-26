@@ -1,35 +1,40 @@
 package com.linkedin.datastream;
 
-import java.io.IOException;
-import java.util.Properties;
-
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
+import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.r2.RemoteInvocationException;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-import org.testng.Assert;
-
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamNotFoundException;
-import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.r2.RemoteInvocationException;
 
 
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient {
-  // "com.linkedin.datastream.server.DummyDatastreamEventCollector"
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
 
   Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
@@ -75,10 +80,11 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-            DummyConnectorFactory.class.getTypeName());
+        DummyConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-            DummyBootstrapConnectorFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
+        DummyBootstrapConnectorFactory.class.getTypeName());
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
+        DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
@@ -99,7 +105,7 @@ public class TestDatastreamRestClient {
   @Test
   public void testWaitTillDatastreamIsInitialized_returnsInitializedDatastream()
       throws DatastreamException, InterruptedException {
-    Datastream datastream = generateDatastream(2);
+    Datastream datastream = generateDatastream(11);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(datastream);
@@ -109,9 +115,60 @@ public class TestDatastreamRestClient {
     Assert.assertEquals(initializedDatastream.getDestination().getPartitions().intValue(), 1);
   }
 
+  private void clearDatastreamDestination(Collection<Datastream> datastreams) {
+    for (Datastream datastream : datastreams) {
+      datastream.setDestination(new DatastreamDestination());
+    }
+  }
+
+  @Test
+  public void testGetAllDatastreams() throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+    List<Datastream> datastreams =
+        IntStream.range(100, 110).mapToObj(i -> generateDatastream(i)).collect(Collectors.toList());
+    LOG.info("Datastreams : " + datastreams);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+
+    int initialSize = restClient.getAllDatastreams().size();
+    int createdCount = datastreams.size();
+
+    for (Datastream datastream : datastreams) {
+      restClient.createDatastream(datastream);
+    }
+
+    Optional<List<Datastream>> result = PollUtils.poll(() -> {
+      try {
+        return restClient.getAllDatastreams();
+      } catch (DatastreamException e) {
+        e.printStackTrace();
+        return null;
+      }
+    }, streams -> streams.size() - initialSize == createdCount, 100, 1000);
+
+    Assert.assertTrue(result.isPresent());
+
+    List<Datastream> createdDatastreams = result.get();
+    LOG.info("Created Datastreams : " + createdDatastreams);
+
+    clearDatastreamDestination(datastreams);
+    clearDatastreamDestination(createdDatastreams);
+
+    Assert.assertTrue(new HashSet<>(createdDatastreams).containsAll(datastreams), "Original datastreams " +
+        datastreams + " not present in last getAll " + createdDatastreams);
+
+    int skip = 2;
+    int count = 5;
+    List<Datastream> paginatedCreatedDatastreams = restClient.getAllDatastreams(2, 5);
+    LOG.info("Paginated Datastreams : " + paginatedCreatedDatastreams);
+
+    Assert.assertEquals(paginatedCreatedDatastreams.size(), count);
+
+    clearDatastreamDestination(paginatedCreatedDatastreams);
+
+    Assert.assertEquals(createdDatastreams.stream().skip(skip).limit(count).collect(Collectors.toList()), paginatedCreatedDatastreams);
+  }
+
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testDeleteDatastream()
-      throws DatastreamException {
+  public void testDeleteDatastream() throws DatastreamException {
     Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -134,8 +191,8 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetBootstrapDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testGetBootstrapDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound() throws
+      IOException, DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createBootstrapDatastream("Datastream_doesntexist");
   }
