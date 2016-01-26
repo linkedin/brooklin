@@ -179,7 +179,7 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
     // Ensure 1st instance was assigned the task
-    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
             DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
@@ -248,7 +248,7 @@ public class TestDatastreamServer {
     countMap.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
 
     // Ensure both instances were assigned the task
-    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
         DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
@@ -332,7 +332,7 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
 
     // Ensure 1st instance was assigned both tasks
-    String cluster = _datastreamCluster.getDatastreamServerProperties().getProperty(
+    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
             DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance1 = server1.getCoordinator().getInstanceName();
@@ -396,9 +396,8 @@ public class TestDatastreamServer {
     testFile.deleteOnExit();
     Datastream fileDatastream1 =
         DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
-                testFile.getAbsolutePath());
-    String restUrl = String.format("http://localhost:%d/", _datastreamCluster.getDatastreamPort());
-    DatastreamRestClient restClient = new DatastreamRestClient(restUrl);
+            testFile.getAbsolutePath());
+    DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.createDatastream(fileDatastream1);
     return getPopulatedDatastream(restClient, fileDatastream1);
   }
