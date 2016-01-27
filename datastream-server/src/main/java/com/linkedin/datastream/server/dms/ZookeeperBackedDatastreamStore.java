@@ -57,12 +57,11 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
    * list of datastreams and not have a stream that was just added. It depends on how long it takes for
    * ZooKeeper to notify the change.
    *
-   * The contents of each individual Datastream will be fetched on every request.
    * @return
    */
   @Override
-  public Stream<Datastream> getAllDatastreams() {
-    return _datastreamList.stream().sorted().map(this::getDatastream).filter(stream -> stream != null);
+  public Stream<String> getAllDatastreams() {
+    return _datastreamList.stream().sorted();
   }
 
   @Override

@@ -56,7 +56,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
-    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).collect(Collectors.toList());
+    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
+        .filter(stream -> stream != null).collect(Collectors.toList());
   }
 
   @Override

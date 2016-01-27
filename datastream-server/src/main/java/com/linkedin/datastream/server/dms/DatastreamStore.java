@@ -19,9 +19,10 @@ public interface DatastreamStore {
   /**
    * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
    * to return a Stream and enable further filtering and transformation rather that just a List.
+   * The result should be sorted so that consumers can implement paging correctly.
    * @return
    */
-  Stream<Datastream> getAllDatastreams();
+  Stream<String> getAllDatastreams();
 
   /**
    * Updates the datastream associated with the given key with the provided one.
