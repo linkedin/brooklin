@@ -1,12 +1,12 @@
 package com.linkedin.datastream.common;
 
-import org.apache.commons.lang.Validate;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
-import org.codehaus.jackson.map.DeserializationConfig;
-
 import java.io.IOException;
 import java.io.StringWriter;
+import org.apache.commons.lang.Validate;
+import org.codehaus.jackson.annotate.JsonIgnore;
+import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 
 
 /**
@@ -15,6 +15,26 @@ import java.io.StringWriter;
  * for checking the
  */
 public final class JsonUtils {
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  static {
+    MAPPER.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    final DeserializationConfig config = MAPPER.getDeserializationConfig();
+    config.addMixInAnnotations(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
+    config.addMixInAnnotations(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
+  }
+
+  private static abstract class IgnoreDatastreamSourceSetPartitionsMixIn {
+    @JsonIgnore
+    public abstract DatastreamSource setPartitions(int value);
+  }
+
+  private static abstract class IgnoreDatastreamDestinationSetPartitionsMixIn {
+    @JsonIgnore
+    public abstract DatastreamDestination setPartitions(int value);
+  }
+
   /**
    * Deserialize a JSON string into an object with the specified type.
    * @param json JSON string
@@ -25,11 +45,9 @@ public final class JsonUtils {
   public static <T> T fromJson(String json, Class<T> clazz) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(clazz, "null class object");
-    ObjectMapper mapper = new ObjectMapper();
     T object;
     try {
-      mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-      object = mapper.readValue(json, clazz);
+      object = MAPPER.readValue(json, clazz);
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse json: " + json, e);
     }
@@ -48,11 +66,9 @@ public final class JsonUtils {
   public static <T> T fromJson(String json, TypeReference typeRef) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(typeRef, "null type reference");
-    ObjectMapper mapper = new ObjectMapper();
     T object;
     try {
-      mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-      object = mapper.readValue(json, typeRef);
+      object = MAPPER.readValue(json, typeRef);
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse json: " + json, e);
     }
@@ -67,10 +83,9 @@ public final class JsonUtils {
    */
   public static <T> String toJson(T object) {
     Validate.notNull(object, "null input object");
-    ObjectMapper mapper = new ObjectMapper();
     StringWriter out = new StringWriter();
     try {
-      mapper.writeValue(out, object);
+      MAPPER.writeValue(out, object);
     } catch (IOException e) {
       throw new RuntimeException("Failed to deserialize object: " + object, e);
     }

@@ -15,6 +15,12 @@ allprojects {
   apply plugin: 'eclipse'
   apply plugin: 'idea'
   apply plugin: 'project-report'
+  apply plugin: 'checkstyle'
+
+  checkstyle {
+    configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = true
+  }
 
   idea {
     project {
@@ -31,32 +37,25 @@ allprojects {
 
 subprojects {
   apply plugin: 'java'
-  // apply plugin: 'pegasus'
+  apply plugin: 'pegasus'
 
-    // spec = [
-    //   'product' : [
-    //     'pegasus' : [
-    //       'data' : 'com.linkedin.pegasus:data:' + pegasusVersion,
-    //       'restliCommon' : 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
-    //       'restliClient' : 'com.linkedin.pegasus:restli-client:' + pegasusVersion,
-    //     ]
-    //   ]
-    // ]
+  spec = ['product': ['pegasus': ['data'        : 'com.linkedin.pegasus:data:' + pegasusVersion,
+                                  'restliCommon': 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
+                                  'restliClient': 'com.linkedin.pegasus:restli-client:' + pegasusVersion,]]]
 
+  // comment this out so the java files don't get auto-generated every time
+  afterEvaluate {
+    if (project.plugins.hasPlugin('pegasus')) {
+      // add the standard pegasus dependencies wherever the plugin is used
+      dependencies {
+        dataTemplateCompile spec.product.pegasus.data
+        restClientCompile spec.product.pegasus.restliClient
 
-  // // comment this out so the java files don't get auto-generated every time
-  // afterEvaluate {
-  //   if (project.plugins.hasPlugin('pegasus')) {
-  //     // add the standard pegasus dependencies wherever the plugin is used
-  //     dependencies {
-  //       dataTemplateCompile spec.product.pegasus.data
-  //       restClientCompile spec.product.pegasus.restliClient
-
-  //       // needed for Gradle 1.9+
-  //       restClientCompile spec.product.pegasus.restliCommon
-  //     }
-  //   }
-  // }
+        // needed for Gradle 1.9+
+        restClientCompile spec.product.pegasus.restliCommon
+      }
+    }
+  }
 
   test {
 
@@ -166,7 +165,8 @@ project(':datastream-testcommon') {
 project(':datastream-client') {
 
   dependencies {
-    // compile project(path: ':datastream-common', configuration: 'restClient')
+    compile project(path: ':datastream-common', configuration: 'restClient')
+
     compile "com.linkedin.pegasus:restli-client:$pegasusVersion"
     compile "com.linkedin.pegasus:r2-netty:$pegasusVersion"
     compile "org.apache.avro:avro:$avroVersion"
@@ -182,8 +182,8 @@ project(':datastream-client') {
 
 project(':datastream-server') {
   // ext.commonProject = project(':datastream-common')
-  // ext.apiProject = project(':datastream-common')
-  // pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
+   ext.apiProject = project(':datastream-common')
+   pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
 
   dependencies {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"

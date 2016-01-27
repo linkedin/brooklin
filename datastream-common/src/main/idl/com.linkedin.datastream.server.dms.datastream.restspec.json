@@ -1,0 +1,28 @@
+{
+  "name" : "datastream",
+  "namespace" : "com.linkedin.datastream.server.dms",
+  "path" : "/datastream",
+  "schema" : "com.linkedin.datastream.common.Datastream",
+  "doc" : "generated from: com.linkedin.datastream.server.dms.DatastreamResources",
+  "collection" : {
+    "identifier" : {
+      "name" : "datastreamId",
+      "type" : "string"
+    },
+    "supports" : [ "create", "delete", "get", "get_all", "update" ],
+    "methods" : [ {
+      "method" : "create"
+    }, {
+      "method" : "get"
+    }, {
+      "method" : "update"
+    }, {
+      "method" : "delete"
+    }, {
+      "method" : "get_all"
+    } ],
+    "entity" : {
+      "path" : "/datastream/{datastreamId}"
+    }
+  }
+}

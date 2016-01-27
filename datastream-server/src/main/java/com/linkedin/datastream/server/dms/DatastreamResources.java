@@ -1,18 +1,22 @@
 package com.linkedin.datastream.server.dms;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
+import com.linkedin.restli.server.annotations.Context;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /*
@@ -41,12 +45,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public UpdateResponse delete(String key) {
     boolean result = _store.deleteDatastream(key);
-
-    if(result) {
-      return new UpdateResponse(HttpStatus.S_200_OK);
-    } else {
-      return new UpdateResponse(HttpStatus.S_400_BAD_REQUEST);
-    }
+    return new UpdateResponse(result ? HttpStatus.S_200_OK : HttpStatus.S_400_BAD_REQUEST);
   }
 
   // Returning null will automatically trigger a 404 Not Found response
@@ -56,27 +55,32 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   @Override
+  public List<Datastream> getAll(@Context PagingContext pagingContext) {
+    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
+        .filter(stream -> stream != null).collect(Collectors.toList());
+  }
+
+  @Override
   public CreateResponse create(Datastream datastream) {
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Must specify name of Datastream!"));
+      return new CreateResponse(
+          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!"));
     }
     if (!datastream.hasConnectorType()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Must specify connectorType!"));
+      return new CreateResponse(
+          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!"));
     }
     if (!datastream.hasSource()) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Must specify source of Datastream!"));
+      return new CreateResponse(
+          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!"));
     }
 
     try {
       _coordinator.initializeDatastream(datastream);
     } catch (DatastreamValidationException e) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          e.getMessage()));
+      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e.getMessage()));
     }
 
     if (_store.createDatastream(datastream.getName(), datastream)) {

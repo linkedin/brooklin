@@ -2,16 +2,48 @@ package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
 
+import java.util.stream.Stream;
+
 
 /**
  * A key value store interface for Datastream that supports CREATE, READ, UPDATE, and DELETE
  */
 public interface DatastreamStore {
-  public Datastream getDatastream(String key);
+  /**
+   * Retrieves the datastream associated with the given key.
+   * @param key
+   * @return
+   */
+  Datastream getDatastream(String key);
 
-  public boolean updateDatastream(String key, Datastream datastream);
+  /**
+   * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
+   * to return a Stream and enable further filtering and transformation rather that just a List.
+   * The result should be sorted so that consumers can implement paging correctly.
+   * @return
+   */
+  Stream<String> getAllDatastreams();
 
-  public boolean createDatastream(String key, Datastream datastream);
+  /**
+   * Updates the datastream associated with the given key with the provided one.
+   * @param key
+   * @param datastream
+   * @return
+   */
+  boolean updateDatastream(String key, Datastream datastream);
 
-  public boolean deleteDatastream(String key);
+  /**
+   * Creates a new datastream and associates it with the provided key.
+   * @param key
+   * @param datastream
+   * @return
+   */
+  boolean createDatastream(String key, Datastream datastream);
+
+  /**
+   * Deletes the datastream associated with the provided key.
+   * @param key
+   * @return
+   */
+  boolean deleteDatastream(String key);
 }
