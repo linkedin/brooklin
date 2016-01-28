@@ -1,6 +1,6 @@
 approve_by_comment: true
-approve_regex: ^Ship it
-reject_regex: ^Rejected
+approve_regex: ^(Ship it|ship it|LGTM)
+reject_regex: ^(Rejected|rejected)
 reset_on_push: false
 reviewers:
   members:
