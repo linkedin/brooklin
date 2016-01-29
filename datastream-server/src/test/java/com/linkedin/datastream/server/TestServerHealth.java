@@ -67,14 +67,14 @@ public class TestServerHealth {
   public void testServerHealth_HasRightClusterNameAndInstanceName()
       throws RemoteInvocationException {
     ServerHealth serverHealth = fetchServerHealth();
-    Assert.assertEquals(serverHealth.getClusterName(), _datastreamCluster.getDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+    Assert.assertEquals(serverHealth.getClusterName(), _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
     Assert.assertEquals(serverHealth.getInstanceName(),
         _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().getInstanceName());
   }
 
   public ServerHealth fetchServerHealth()
       throws RemoteInvocationException {
-    String healthUri = "http://localhost:" + _datastreamCluster.getDatastreamPort() + "/";
+    String healthUri = "http://localhost:" + _datastreamCluster.getPrimaryDatastreamPort() + "/";
     _builders = new HealthBuilders();
     final HttpClientFactory http = new HttpClientFactory();
     final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String> emptyMap()));

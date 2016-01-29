@@ -1117,7 +1117,7 @@ public class TestCoordinator {
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     datastreamKafkaCluster.startup();
-    Properties properties = datastreamKafkaCluster.getDatastreamServerProperties();
+    Properties properties = datastreamKafkaCluster.getPrimaryDatastreamServerProperties();
     DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     Coordinator coordinator =
