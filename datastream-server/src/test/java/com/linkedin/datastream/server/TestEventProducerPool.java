@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -8,7 +9,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -23,7 +24,7 @@ public class TestEventProducerPool {
 
   private EventProducerPool _eventProducerPool;
 
-  @BeforeTest
+  @BeforeMethod
   public void setUp() throws Exception {
     CheckpointProvider checkpointProvider = mock(CheckpointProvider.class);
     TransportProvider transportProvider = mock(TransportProvider.class);
@@ -110,8 +111,8 @@ public class TestEventProducerPool {
         _eventProducerPool.getEventProducers(tasks, connectorType, false, new ArrayList<>());
 
     // Check if producers are reused
-    Assert.assertTrue(taskProducerMap1.get(tasks.get(0)) == taskProducerMap2.get(tasks.get(0)));
-    Assert.assertTrue(taskProducerMap1.get(tasks.get(1)) == taskProducerMap2.get(tasks.get(1)));
+    Assert.assertEquals(taskProducerMap1.get(tasks.get(0)), taskProducerMap2.get(tasks.get(0)));
+    Assert.assertEquals(taskProducerMap1.get(tasks.get(1)), taskProducerMap2.get(tasks.get(1)));
 
     // Check if new producers are generated for the new tasks.
     Set<DatastreamEventProducer> uniqueProducers = new HashSet<>();
@@ -125,18 +126,18 @@ public class TestEventProducerPool {
    */
   public void testProducerSharedForTasksWithSameDestination() {
 
-    List<DatastreamTask> tasks = new ArrayList<DatastreamTask>();
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1), "1a", Collections.singletonList(1)));
     tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1), "1b", Collections.singletonList(2)));
     String connectorType = "connectorType";
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMap =
         _eventProducerPool.getEventProducers(tasks, connectorType, false, new ArrayList<>());
 
     // Check if producers are reused
-    Assert.assertTrue(((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(0))).getEventProducer()
-        == ((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(2))).getEventProducer());
+    Assert.assertEquals(((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(0))).getEventProducer(),
+            ((DatastreamEventProducerImpl) taskProducerMap.get(tasks.get(2))).getEventProducer());
   }
 
   @Test
@@ -163,7 +164,7 @@ public class TestEventProducerPool {
             _eventProducerPool.getEventProducers(tasks, connectorType, false, unusedProducers);
 
     // Check if producer for tasks[0] is reused
-    Assert.assertTrue(taskProducerMap1.get(tasks.get(0)) == taskProducerMap2.get(tasks.get(0)));
+    Assert.assertEquals(taskProducerMap1.get(tasks.get(0)), taskProducerMap2.get(tasks.get(0)));
 
     // Make sure there is exactly one unused producer
     Assert.assertEquals(unusedProducers.size(), 1);

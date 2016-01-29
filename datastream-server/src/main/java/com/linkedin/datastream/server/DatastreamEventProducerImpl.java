@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 
+import java.util.Objects;
+
 /**
  * Implementation of the DatastremaEventProducer that connector will use to produce events. There is an unique
  * DatastreamEventProducerImpl object created per DatastreamTask that is assigned to the connector.
@@ -56,5 +58,24 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   @Override
   public void flush() {
     _eventProducer.flush();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    DatastreamEventProducerImpl producer = (DatastreamEventProducerImpl) o;
+    return Objects.equals(_schemaRegistryProvider, producer._schemaRegistryProvider) &&
+            Objects.equals(_eventProducer, producer._eventProducer) &&
+            Objects.equals(_task, producer._task);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(_schemaRegistryProvider, _eventProducer, _task);
   }
 }

@@ -5,6 +5,7 @@ import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
+import java.util.HashSet;
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 
 /**
@@ -25,7 +28,6 @@ public class EventProducerPool {
 
   // Map between Connector type and <Destination URI, Producer>
   private final Map<String, Map<String, EventProducer>> _producers = new HashMap<>();
-  private final Map<DatastreamTask, DatastreamEventProducer> _taskEventProducerMap = new HashMap<>();
   private final SchemaRegistryProvider _schemaRegistryProvider;
   private final TransportProvider _transportProvider;
 
@@ -68,7 +70,7 @@ public class EventProducerPool {
     Validate.notNull(unusedProducers);
 
     if (tasks.isEmpty()) {
-      LOG.info("Tasks is empty");
+      LOG.info("Task list is empty");
       return new HashMap<>();
     }
 
@@ -76,49 +78,58 @@ public class EventProducerPool {
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMapping = new HashMap<>();
 
     // List of already created producers for the specified connector type
-    Map<String, EventProducer> producersForConnectorType = _producers.get(connectorType);
+    Map<String, EventProducer> producerMap = _producers.get(connectorType);
 
-    if (producersForConnectorType == null) {
-      producersForConnectorType = new HashMap<>();
-      _producers.put(connectorType, producersForConnectorType);
+    if (producerMap == null) {
+      producerMap = new HashMap<>();
+      _producers.put(connectorType, producerMap);
     }
 
-    // List of producers that don't have a corresponding task. These producers need to be shutdown
-    Map<String, EventProducer> unusedProducerMap = new HashMap<>(producersForConnectorType);
+    Map<String, List<DatastreamTask>> taskMap = new HashMap<>();
 
     VerifiableProperties properties = new VerifiableProperties(_config);
 
-    // Check if we can reuse existing EventProducers
     for (DatastreamTask task : tasks) {
       String destination = task.getDatastreamDestination().getConnectionString();
-      if (producersForConnectorType.containsKey(destination)) {
-        // TODO: Producer will implement a AddTask() and at that time we need to add the task to the producer
-        // There is a producer for the specified destination.
-        unusedProducerMap.remove(destination);
+      if (!taskMap.containsKey(destination)) {
+        taskMap.put(destination, new ArrayList<>());
+      }
+      taskMap.get(destination).add(task);
+    }
+
+    Set<String> usedDestinations = new HashSet<>();
+    for (String destination : taskMap.keySet()) {
+      EventProducer eventProducer;
+      if (producerMap.containsKey(destination)) {
+        LOG.info("Reusing event producer for destination" + destination);
+        eventProducer = producerMap.get(destination);
+        eventProducer.updateTasks(taskMap.get(destination));
+
       } else {
-        LOG.info(String.format("Creating new message producer for destination %s and task %s", destination, task));
-        ArrayList<DatastreamTask> tasksPerProducer = new ArrayList<>();
-        tasksPerProducer.add(task);
-        EventProducer
-            eventProducer = new EventProducer(tasksPerProducer, _transportProvider,
-            _checkpointProvider, properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing);
-        producersForConnectorType.put(destination, eventProducer);
+        List<DatastreamTask> taskList = taskMap.get(destination);
+        LOG.info(String.format("Creating event producer for destination %s and task %s", destination, taskList));
+        eventProducer = new EventProducer(taskList, _transportProvider, _checkpointProvider,
+                properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing);
+        producerMap.put(destination, eventProducer);
       }
 
-      if(!_taskEventProducerMap.containsKey(task)) {
-        _taskEventProducerMap.put(task, new DatastreamEventProducerImpl(task, _schemaRegistryProvider,
-            producersForConnectorType.get(destination)));
-      }
+      // No need to reuse DatastreamEventProducer which is just a thin wrapper of EventProducer
+      taskMap.get(destination).forEach(t ->
+        taskProducerMapping.put(t, new DatastreamEventProducerImpl(t, _schemaRegistryProvider, eventProducer))
+      );
 
-      taskProducerMapping.put(task, _taskEventProducerMap.get(task));
+      usedDestinations.add(destination);
     }
 
-    // Remove the unused producers from the producer pool.
-    for (String destination : unusedProducerMap.keySet()) {
-      producersForConnectorType.remove(destination);
-    }
+    // Collect deprecated event producers and remove their destinations
+    Set<String> unusedDestinations = producerMap.keySet().stream().filter(
+            d -> !usedDestinations.contains(d)).collect(Collectors.toSet());
 
-    unusedProducers.addAll(unusedProducerMap.values());
+    unusedProducers.clear();
+    for (String destination : unusedDestinations) {
+      unusedProducers.add(producerMap.get(destination));
+      producerMap.remove(destination);
+    }
 
     return taskProducerMapping;
   }
