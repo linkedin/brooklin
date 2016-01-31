@@ -41,8 +41,8 @@ import static org.mockito.Mockito.mock;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final String TRANSPORT_FCTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
-  private static final int waitDurationForZk = 1000;
-  private static final int waitTimeoutMS = 30000;
+  private static final int waitDurationForZk = 5000;
+  private static final int waitTimeoutMS = 60000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
