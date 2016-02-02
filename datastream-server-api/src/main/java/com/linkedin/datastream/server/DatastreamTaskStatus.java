@@ -6,7 +6,7 @@ import org.apache.commons.lang.Validate;
  * Represent the status of a DatastreamTask with a code and message.
  */
 public class DatastreamTaskStatus {
-  public enum Code { OK, ERROR }
+  public enum Code { OK, ERROR, COMPLETE }
 
   private Code _code;
   private String _message;
@@ -50,6 +50,14 @@ public class DatastreamTaskStatus {
   }
 
   /**
+   * Helper method to create a COMPLETE status
+   * @return COMPLETE task status
+   */
+  public static DatastreamTaskStatus complete() {
+    return new DatastreamTaskStatus(Code.COMPLETE, "Completed.");
+  }
+
+  /**
    * @return kind of the status
    */
   public Code getCode() {
@@ -61,6 +69,22 @@ public class DatastreamTaskStatus {
    */
   public String getMessage() {
     return _message;
+  }
+
+  /**
+   * Set Code of the status. Needed for JsonUtils.
+   * @param code status code
+   */
+  public void setCode(Code code) {
+    _code = code;
+  }
+
+  /**
+   * Set message of the status. Needed for JsonUtils.
+   * @param message status message
+   */
+  public void setMessage(String message) {
+    _message = message;
   }
 
   @Override
