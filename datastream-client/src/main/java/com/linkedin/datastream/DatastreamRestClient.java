@@ -1,5 +1,6 @@
 package com.linkedin.datastream;
 
+import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
@@ -31,12 +32,13 @@ public class DatastreamRestClient {
   private final DatastreamBuilders _builders;
   private final RestClient _restClient;
   private final BootstrapBuilders _bootstrapBuilders;
+  private final HttpClientFactory _httpClient;
 
   public DatastreamRestClient(String dsmUri) {
     _builders = new DatastreamBuilders();
     _bootstrapBuilders = new BootstrapBuilders();
-    final HttpClientFactory http = new HttpClientFactory();
-    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String>emptyMap()));
+    _httpClient = new HttpClientFactory();
+    final Client r2Client = new TransportClientAdapter(_httpClient.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
@@ -197,5 +199,13 @@ public class DatastreamRestClient {
     } catch (RemoteInvocationException e) {
       throw new DatastreamException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
     }
+  }
+
+  /**
+   * Shutdown the DatastreamRestClient
+   */
+  public void shutdown() {
+    _restClient.shutdown(new FutureCallback<>());
+    _httpClient.shutdown(new FutureCallback<>());
   }
 }
