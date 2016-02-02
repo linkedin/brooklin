@@ -2,7 +2,6 @@ package com.linkedin.datastream.testutil;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;

@@ -11,6 +11,7 @@ import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.RestLiActions;
 
+
 /**
  * BootstrapActionResources is the rest end point to process bootstrap datastream request
  */
@@ -32,12 +33,12 @@ public class BootstrapActionResources {
    * base datastream, and the server will create and return a corresponding bootstrap
    * datastream.
    */
-  @Action(name="create")
-  public Datastream create(@ActionParam("baseDatastream") String baseDatastreamName)
-  {
+  @Action(name = "create")
+  public Datastream create(@ActionParam("baseDatastream") String baseDatastreamName) {
     Datastream baseDatastream = _store.getDatastream(baseDatastreamName);
     if (baseDatastream == null) {
-      throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND, "Can't create bootstrap datastream. Base datastream does not exists.");
+      throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Can't create bootstrap datastream. Base datastream does not exists.");
     }
     Datastream bootstrapDatastream = new Datastream();
     bootstrapDatastream.setName(baseDatastream.getName() + "-" + System.currentTimeMillis());
@@ -51,8 +52,7 @@ public class BootstrapActionResources {
     try {
       _coordinator.initializeDatastream(bootstrapDatastream);
     } catch (DatastreamValidationException e) {
-      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          e.getMessage());
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e.getMessage());
     }
 
     if (!_store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream)) {

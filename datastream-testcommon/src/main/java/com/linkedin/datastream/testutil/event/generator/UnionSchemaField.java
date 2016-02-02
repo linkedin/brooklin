@@ -1,6 +1,6 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-import java.util.List;
+import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericRecord;
@@ -23,15 +23,10 @@ public class UnionSchemaField extends SchemaField {
   }
 
   public SchemaField getUnionFieldField() throws UnknownTypeException {
-    List<Schema> schemas = _field.schema().getTypes();
-    Schema schema = null;
-    for (Schema s : schemas) {
-      schema = s;
-      if (schema.getType() != Schema.Type.NULL)
-        break;
-    }
-    Field tempField = new Field(_field.name(), schema, null, null);
-    return SchemaField.createField(tempField);
+    Optional<Schema> schema =
+        _field.schema().getTypes().stream().filter(s -> s.getType() != Schema.Type.NULL).findFirst();
+
+    return SchemaField.createField(new Field(_field.name(), schema.orElse(null), null, null));
   }
 
 }

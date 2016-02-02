@@ -110,7 +110,7 @@ public class ConnectorWrapper {
     logApiStart("initializeDatastream");
 
     try {
-      if(!stream.hasDestination()) {
+      if (!stream.hasDestination()) {
         stream.setDestination(new DatastreamDestination());
       }
       _connector.initializeDatastream(stream);

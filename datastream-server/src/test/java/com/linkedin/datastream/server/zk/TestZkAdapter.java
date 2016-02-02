@@ -23,11 +23,11 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class TestZkAdapter {
-  private static final Logger logger = LoggerFactory.getLogger(TestZkAdapter.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class.getName());
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
-  private static final int _zkWaitInMs = 500;
+  private static final int ZK_WAIT_IN_MS = 500;
 
   @BeforeMethod
   public void setup() throws IOException {
@@ -124,7 +124,7 @@ public class TestZkAdapter {
     // wait for leadership election to happen
     // adapter2 should now be the new leader
     //
-    Assert.assertTrue(PollUtils.poll(() -> adapter2.isLeader(), 100, _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
 
     //
     // adapter2 goes offline, but new instance adapter2 goes online
@@ -137,7 +137,7 @@ public class TestZkAdapter {
     //
     // verify that the adapter3 is the current leader
     //
-    Assert.assertTrue(PollUtils.poll(() -> adapter3.isLeader(), 100, _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(adapter3::isLeader, 100, ZK_WAIT_IN_MS));
   }
 
   @Test
@@ -182,7 +182,7 @@ public class TestZkAdapter {
     //
     // new leader should be the next inline, adapters[concurrencyLevel/2]
     //
-    Assert.assertTrue(PollUtils.poll(() -> adapters[concurrencyLevel / 2].isLeader(), 100, _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> adapters[concurrencyLevel / 2].isLeader(), 100, ZK_WAIT_IN_MS));
 
     //
     // clean up
@@ -205,11 +205,11 @@ public class TestZkAdapter {
     // create new datastreams in zookeeper
     zkClient.create(KeyBuilder.datastream(testCluster, "stream1"), "stream1", CreateMode.PERSISTENT);
 
-    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 1, 100, _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 1, 100, ZK_WAIT_IN_MS));
 
     // create new datastreams in zookeeper
     zkClient.create(KeyBuilder.datastream(testCluster, "stream2"), "stream1", CreateMode.PERSISTENT);
-    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 2, 100, _zkWaitInMs));
+    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 2, 100, ZK_WAIT_IN_MS));
 
     adapter1.disconnect();
     zkClient.close();
@@ -300,6 +300,7 @@ public class TestZkAdapter {
   }
 
   @Test
+  // CHECKSTYLE:OFF
   public void testInstanceAssignmentWithPartitions() throws Exception {
     String testCluster = "testUpdateInstanceAssignment";
     String connectorType = "connectorType";
@@ -355,6 +356,7 @@ public class TestZkAdapter {
     //
     zkClient.close();
   }
+  // CHECKSTYLE:ON
 
   interface TestFunction {
     void execute() throws Throwable;
@@ -389,10 +391,10 @@ public class TestZkAdapter {
     adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
 
     // First acquire should succeed
-    Assert.assertTrue(expectException(() -> task.acquire(), false));
+    Assert.assertTrue(expectException(task::acquire, false));
 
     // Acquire twice should succeed
-    Assert.assertTrue(expectException(() -> task.acquire(), false));
+    Assert.assertTrue(expectException(task::acquire, false));
 
     ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
     adapter2.connect();
@@ -411,7 +413,7 @@ public class TestZkAdapter {
 
     // Acquire from instance2 should fail
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(() -> task.acquire(), true));
+    Assert.assertTrue(expectException(task::acquire, true));
 
     // Release the task from instance1
     task.setZkAdapter(adapter1);
@@ -419,6 +421,6 @@ public class TestZkAdapter {
 
     // Now acquire from instance2 should succeed
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(() -> task.acquire(), false));
+    Assert.assertTrue(expectException(task::acquire, false));
   }
 }

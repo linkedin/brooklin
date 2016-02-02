@@ -28,7 +28,8 @@ import org.slf4j.LoggerFactory;
  */
 
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
-  private static Logger LOG = LoggerFactory.getLogger(ZkClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
+
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   private ZkSerializer _zkSerializer = new ZKStringSerializer();

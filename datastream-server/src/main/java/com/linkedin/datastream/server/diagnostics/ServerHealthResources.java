@@ -38,7 +38,7 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
   private ConnectorHealthArray buildConnectorHealth() {
     ConnectorHealthArray allConnectorsHealth = new ConnectorHealthArray();
 
-    for(String connectorType : _coordinator.getTasksByConnectorType().keySet()) {
+    for (String connectorType : _coordinator.getTasksByConnectorType().keySet()) {
       ConnectorHealth connectorHealth = new ConnectorHealth();
       connectorHealth.setConnectorType(connectorType);
       connectorHealth.setTasks(buildTasksHealthForConnectorType(connectorType));
@@ -51,7 +51,7 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
   private TaskHealthArray buildTasksHealthForConnectorType(String connectorType) {
     TaskHealthArray allTasksHealth = new TaskHealthArray();
 
-    for(DatastreamTask task : _coordinator.getTasksByConnectorType().get(connectorType)) {
+    for (DatastreamTask task : _coordinator.getTasksByConnectorType().get(connectorType)) {
       TaskHealth taskHealth = new TaskHealth();
       taskHealth.setDatastreams(String.join(",", task.getDatastreams()));
       taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());

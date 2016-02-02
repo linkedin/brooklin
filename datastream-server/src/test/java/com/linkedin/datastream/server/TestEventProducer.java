@@ -286,7 +286,7 @@ public class TestEventProducer {
     setup(false, true);
 
     // Mimic a connector constantly calls send/flush
-    final boolean stopHandler[] = { false };
+    final boolean[] stopHandler = { false };
     Thread sender = new Thread(() -> {
       DatastreamTask task = _tasks.get(0);
       while (!stopHandler[0]) {

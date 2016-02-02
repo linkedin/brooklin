@@ -231,7 +231,7 @@ public class DatastreamServer {
 
     if (args.length == 0) {
       System.err.println(
-          "USAGE: java [options] %s server.properties ".format(DatastreamServer.class.getSimpleName()));
+          String.format("USAGE: java [options] %s server.properties ", DatastreamServer.class.getSimpleName()));
     }
 
     return loadProps(args[0]);
@@ -239,14 +239,11 @@ public class DatastreamServer {
 
   public static Properties loadProps(String filename) throws IOException {
     Properties props = new Properties();
-    InputStream propStream = null;
-    try {
-      propStream = new FileInputStream(filename);
+
+    try (InputStream propStream = new FileInputStream(filename)) {
       props.load(propStream);
-    } finally {
-      if (propStream != null)
-        propStream.close();
     }
+
     return props;
   }
 }

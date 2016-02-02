@@ -41,7 +41,7 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testPopulateDatastreamDestination_UsesExistingTarget_WhenSourceIsSame() throws TransportException {
+  public void testPopulateDatastreamDestinationUsesExistingTargetWhenSourceIsSame() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
@@ -57,7 +57,7 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testPopulateDatastreamDestination_CallsCreateTopicTopic_WhenSourceIsSameButTopicReuseIsSetFalse()
+  public void testPopulateDatastreamDestinationCallsCreateTopicTopicWhenSourceIsSameButTopicReuseIsSetFalse()
       throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
@@ -81,7 +81,7 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testPopulateDatastreamDestination_CallsCreateTopic_OnlyWhenDatastreamWithNewSource()
+  public void testPopulateDatastreamDestinationCallsCreateTopicOnlyWhenDatastreamWithNewSource()
       throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
@@ -103,7 +103,7 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldCallDropTopic_WhenThereAreNoReferences() throws TransportException {
+  public void testDeleteDatastreamDestinationShouldCallDropTopicWhenThereAreNoReferences() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));
@@ -117,7 +117,7 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testDeleteDatastreamDestination_ShouldNotCallDropTopic_WhenThereAreReferences() throws TransportException {
+  public void testDeleteDatastreamDestinationShouldNotCallDropTopicWhenThereAreReferences() throws TransportException {
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
       datastreams.add(generateDatastream(index));

@@ -69,8 +69,7 @@ public class DatastreamNettyStandaloneLauncher {
    *
    * @throws java.io.IOException server startup fails
    */
-  public void start() throws IOException
-  {
+  public void start() throws IOException {
     _server.start();
   }
 
@@ -79,8 +78,7 @@ public class DatastreamNettyStandaloneLauncher {
    *
    * @throws IOException server shutdown fails
    */
-  public void stop() throws IOException
-  {
+  public void stop() throws IOException {
     _server.stop();
   }
 }

@@ -45,21 +45,20 @@ public class DatastreamEventGeneratorCmdline {
       Runtime.getRuntime().addShutdownHook(new Thread() {
         @Override
         public void run() {
-          stop();
+          DatastreamEventGeneratorCmdline.this.stop();
         }
       });
     }
     try {
       waitForProducersToFinish();
     } catch (InterruptedException e) {
-      LOG.error("Interrupted with exception " + e.getStackTrace());
+      LOG.error("Interrupted with exception ", e);
       isMainThreadDone = true;
       return false;
     }
     Date endTime = new Date();
     long elapsedSeconds = (endTime.getTime() - startTime.getTime()) / 1000;
-    LOG.info(String.format("Finished: " + elapsedSeconds + " seconds with " + globalSettings.getErrorCount()
-        + " Errors"));
+    LOG.info("Finished: " + elapsedSeconds + " seconds with " + globalSettings.getErrorCount() + " Errors");
     if (globalSettings.getErrorCount() > 0) {
       isMainThreadDone = true;
       return false;
@@ -81,7 +80,7 @@ public class DatastreamEventGeneratorCmdline {
     try {
       waitForProducersToFinish();
     } catch (InterruptedException e) {
-      LOG.error("Interrupted with exception " + e.getStackTrace());
+      LOG.error("Interrupted with exception ", e);
     }
   }
 
@@ -97,17 +96,14 @@ public class DatastreamEventGeneratorCmdline {
 
   private void writeGeneratedIndexToFile() {
     String fileName = "dataGeneratorIndexRange.txt";
-    String indexString =
-        String.format("%s - %s", String.valueOf(globalSettings._startResourceKey), globalSettings._startResourceKey
-            + globalSettings._numEvents);
-    try {
-      BufferedWriter indexWriter = new BufferedWriter(new FileWriter(fileName));
+    String indexString = String.format("%s - %s", String.valueOf(globalSettings._startResourceKey),
+        globalSettings._startResourceKey + globalSettings._numEvents);
+
+    try (BufferedWriter indexWriter = new BufferedWriter(new FileWriter(fileName))) {
       indexWriter.write(indexString);
       indexWriter.flush();
-      indexWriter.close();
     } catch (IOException e) {
-      LOG.error(String.format("Unable to write generated index range to file. Range: %s\n%s", indexString,
-          e.getStackTrace()));
+      LOG.error(String.format("Unable to write generated index range to file. Range: %s", indexString), e);
     }
   }
 

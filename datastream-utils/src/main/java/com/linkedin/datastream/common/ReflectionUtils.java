@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
  * Utility class to simplify usage of Java reflection.
  */
 public class ReflectionUtils {
-  private static Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
 
   /**
    * Create an instance of the specified class with constuctor
@@ -122,7 +122,7 @@ public class ReflectionUtils {
     Method foundMethod = null;
     for (Method method : methods) {
       if (method.getName().equals(methodName)) {
-        Class<?> paramTypes[] = method.getParameterTypes();
+        Class<?>[] paramTypes = method.getParameterTypes();
         if (paramTypes.length == argTypes.length) {
           boolean matched = true;
           for (int i = 0; i < paramTypes.length; i++) {
@@ -165,7 +165,7 @@ public class ReflectionUtils {
       }
       isAccessible = method.isAccessible();
       method.setAccessible(true);
-      return (T)method.invoke(object, args);
+      return (T) method.invoke(object, args);
     } catch (Exception e) {
       LOG.warn("Failed to invoke method: " + methodName, e);
       throw e;

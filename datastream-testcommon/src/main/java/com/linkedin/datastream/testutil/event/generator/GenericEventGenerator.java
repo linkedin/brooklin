@@ -4,19 +4,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 
-// import org.apache.log4j.Logger;
-import java.lang.String;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import org.apache.avro.Schema;
-// import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 
-import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.Encoder;
 
@@ -25,9 +20,6 @@ import org.apache.avro.io.Encoder;
  * The class is a factory which returns an instance based on which random data can be written to the record
  */
 public class GenericEventGenerator {
-
-  // public final static String MODULE = GenericEventGenerator.class.getName();
-  // public final static Logger LOG = Logger.getLogger(MODULE);
 
   protected enum EventType {
     INSERT,

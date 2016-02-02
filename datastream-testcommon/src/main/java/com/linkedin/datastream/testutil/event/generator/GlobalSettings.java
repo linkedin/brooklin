@@ -71,61 +71,45 @@ public class GlobalSettings {
   public boolean parseCommandLineParameters(String[] args) {
     // Create command-line options
     Options options = new Options();
-    Option datastreamName =
-        OptionBuilder.withArgName("datastreamName").withLongOpt("datastreamName").hasArg()
-            .withDescription("Name of datastream to generate events for.").isRequired(false).create("ds");
-    Option dbName =
-        OptionBuilder.withArgName("dbName").withLongOpt("dbName").hasArg()
-            .withDescription("Name of database to generate events for.").isRequired(false).create("db");
-    Option tableName =
-        OptionBuilder.withArgName("tableName").withLongOpt("tableName").hasArg()
-            .withDescription("Name of the table to generate events for.").isRequired(false).create("tb");
-    Option kafkaTopicName =
-        OptionBuilder.withArgName("kafkaTopicName").withLongOpt("kafkaTopicName").hasArg()
-            .withDescription("Name of the topic to produce the events for.").isRequired(false).create("kt");
-    Option schemataPath =
-        OptionBuilder.withArgName("schemataPath").withLongOpt("schemataPath").hasArg()
-            .withDescription("Directory where schema files are stored. Default: current directory").isRequired(false)
-            .create("sp");
-    Option schemaFileName =
-        OptionBuilder.withArgName("schemaFileName").withLongOpt("schemaFileName").hasArg()
-            .withDescription("Schema file name to read schema from. Default: none").isRequired().create("sf");
-    Option numPartitions =
-        OptionBuilder.withArgName("numPartitions").withLongOpt("numPartitions").hasArg()
-            .withDescription("Number of partitions to generate. (optional - default: 1)").isRequired(false)
-            .create("np");
+    Option datastreamName = OptionBuilder.withArgName("datastreamName").withLongOpt("datastreamName").hasArg()
+        .withDescription("Name of datastream to generate events for.").isRequired(false).create("ds");
+    Option dbName = OptionBuilder.withArgName("dbName").withLongOpt("dbName").hasArg()
+        .withDescription("Name of database to generate events for.").isRequired(false).create("db");
+    Option tableName = OptionBuilder.withArgName("tableName").withLongOpt("tableName").hasArg()
+        .withDescription("Name of the table to generate events for.").isRequired(false).create("tb");
+    Option kafkaTopicName = OptionBuilder.withArgName("kafkaTopicName").withLongOpt("kafkaTopicName").hasArg()
+        .withDescription("Name of the topic to produce the events for.").isRequired(false).create("kt");
+    Option schemataPath = OptionBuilder.withArgName("schemataPath").withLongOpt("schemataPath").hasArg()
+        .withDescription("Directory where schema files are stored. Default: current directory").isRequired(false)
+        .create("sp");
+    Option schemaFileName = OptionBuilder.withArgName("schemaFileName").withLongOpt("schemaFileName").hasArg()
+        .withDescription("Schema file name to read schema from. Default: none").isRequired().create("sf");
+    Option numPartitions = OptionBuilder.withArgName("numPartitions").withLongOpt("numPartitions").hasArg()
+        .withDescription("Number of partitions to generate. (optional - default: 1)").isRequired(false).create("np");
     Option maxTransactionSize =
         OptionBuilder.withArgName("maxTransactionSize").withLongOpt("maxTransactionSize").hasArg()
             .withDescription("Maximum number of events in a transaction. (optional - default: 1)").isRequired(false)
             .create("xs");
-    Option numEvents =
-        OptionBuilder.withArgName("numEvents").withLongOpt("numEvents").hasArg()
-            .withDescription("Number of events to generate. (optional - default: 100)").isRequired(false).create("ne");
-    Option percentData =
-        OptionBuilder
-            .withArgName("percentData")
-            .withLongOpt("percentData")
-            .hasArg()
-            .withDescription(
-                "percentage of data going to be of type inserts, updates, deletes, controls in the list adding up to 100,eg 50,30,20 if omitted only inserts are generated 100%")
-            .isRequired(false).create("pd");
+    Option numEvents = OptionBuilder.withArgName("numEvents").withLongOpt("numEvents").hasArg()
+        .withDescription("Number of events to generate. (optional - default: 100)").isRequired(false).create("ne");
+    Option percentData = OptionBuilder.withArgName("percentData").withLongOpt("percentData").hasArg().withDescription(
+        "percentage of data going to be of type inserts, updates, deletes, controls in the list adding up to 100,"
+            + "eg 50,30,20 if omitted only inserts are generated 100%")
+        .isRequired(false).create("pd");
 
-    Option startResourceKey =
-        OptionBuilder.withArgName("startResourceKey").withLongOpt("startResourceKey").hasArg()
-            .withDescription("Resource Key to start generating/validating. (optional - default: 1)").isRequired(false)
-            .create("sr");
-    Option dataFileName =
-        OptionBuilder.withArgName("dataFileName").withLongOpt("dataFileName").hasArg()
-            .withDescription("Data file name for tracing. Default: EventGeneratorTrace").isRequired(false).create("fn");
+    Option startResourceKey = OptionBuilder.withArgName("startResourceKey").withLongOpt("startResourceKey").hasArg()
+        .withDescription("Resource Key to start generating/validating. (optional - default: 1)").isRequired(false)
+        .create("sr");
+    Option dataFileName = OptionBuilder.withArgName("dataFileName").withLongOpt("dataFileName").hasArg()
+        .withDescription("Data file name for tracing. Default: EventGeneratorTrace").isRequired(false).create("fn");
     Option generateDataFile =
         OptionBuilder.withArgName("generateDataFile").withLongOpt("generateDataFile").hasArg(false)
             .withDescription("Whether data file is generated in the working directory.").isRequired(false).create("df");
     Option generateDataFileOnly =
         OptionBuilder.withArgName("generateDataFileOnly").withLongOpt("generateDataFileOnly").hasArg(false)
             .withDescription("Only generate data. Do not execute. Default = False").isRequired(false).create("fo");
-    Option seed =
-        OptionBuilder.withArgName("seed").withLongOpt("seed").hasArg(false)
-            .withDescription("Seed to use for generating data. Default = current time").isRequired(false).create("sd");
+    Option seed = OptionBuilder.withArgName("seed").withLongOpt("seed").hasArg(false)
+        .withDescription("Seed to use for generating data. Default = current time").isRequired(false).create("sd");
 
     // Add possible command-line options
     options.addOption(datastreamName);

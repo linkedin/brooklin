@@ -16,13 +16,13 @@ public class TestReflectionUtils {
   public TestReflectionUtils() {
   }
 
-  public TestReflectionUtils(String arg1) {
-    Assert.assertEquals(arg1, STR_ARG1);
+  public TestReflectionUtils(String first) {
+    Assert.assertEquals(first, STR_ARG1);
   }
 
-  public TestReflectionUtils(String arg1, Integer arg2) {
-    Assert.assertEquals(arg1, STR_ARG1);
-    Assert.assertEquals(arg2, INT_ARG2);
+  public TestReflectionUtils(String first, Integer second) {
+    Assert.assertEquals(first, STR_ARG1);
+    Assert.assertEquals(second, INT_ARG2);
   }
 
   @Test
@@ -106,10 +106,10 @@ public class TestReflectionUtils {
   class B extends A {
   }
 
-  private void privateSubtype_Unhappy(B b) {
+  private void privateSubtypeUnhappy(B b) {
   }
 
-  private void privateSubtype_happy(A a) {
+  private void privateSubtypeHappy(A a) {
   }
 
   @Test
@@ -131,11 +131,11 @@ public class TestReflectionUtils {
     Assert.assertEquals(retVal, 10);
 
     try {
-      ReflectionUtils.callMethod(tester, "privateSubtype_Unhappy", new A());
+      ReflectionUtils.callMethod(tester, "privateSubtypeUnhappy", new A());
       Assert.fail();
-    } catch(NoSuchMethodException e) {
+    } catch (NoSuchMethodException e) {
     }
 
-    ReflectionUtils.callMethod(tester, "privateSubtype_happy", new B());
+    ReflectionUtils.callMethod(tester, "privateSubtypeHappy", new B());
   }
 }

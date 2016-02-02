@@ -3,7 +3,6 @@ package com.linkedin.datastream.testutil;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 import org.apache.commons.lang.Validate;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
@@ -11,7 +10,6 @@ import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 import com.linkedin.datastream.common.FileUtils;
-import com.linkedin.datastream.common.NetworkUtils;
 
 
 public class EmbeddedZookeeper {

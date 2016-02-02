@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
@@ -148,7 +147,7 @@ public class ZkAdapter {
   }
 
   public boolean isLeader() {
-    return _isLeader == true;
+    return _isLeader;
   }
 
   public String getInstanceName() {
@@ -294,7 +293,7 @@ public class ZkAdapter {
 
     // if this instance is first in line to become leader. Check if it is already a leader.
     if (index == 0) {
-      if (_isLeader != true) {
+      if (!_isLeader) {
         _isLeader = true;
         onBecomeLeader();
       }
@@ -303,7 +302,7 @@ public class ZkAdapter {
 
     // if this instance is not the first candidate to become leader, make sure to reset
     // the _isLeader status
-    if (_isLeader == true) {
+    if (_isLeader) {
       _isLeader = false;
       onBecomeFollower();
     }
@@ -326,7 +325,7 @@ public class ZkAdapter {
     boolean exists = _zkclient.exists(KeyBuilder.liveInstance(_cluster, prevCandidate), true);
 
     if (exists) {
-      if (_isLeader == true) {
+      if (_isLeader) {
         _isLeader = false;
         onBecomeFollower();
       }

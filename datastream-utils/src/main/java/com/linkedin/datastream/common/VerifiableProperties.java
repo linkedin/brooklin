@@ -15,9 +15,10 @@ import java.util.Enumeration;
  */
 public class VerifiableProperties {
 
-  private final HashSet<String> _referenceSet = new HashSet<String>();
+  protected static final Logger LOG = LoggerFactory.getLogger(VerifiableProperties.class);
+
+  private final HashSet<String> _referenceSet = new HashSet<>();
   private final Properties _props;
-  protected Logger LOG = LoggerFactory.getLogger(getClass());
 
   public VerifiableProperties(Properties props) {
     this._props = props;
@@ -197,7 +198,7 @@ public class VerifiableProperties {
    * Get a required argument as a double
    * @param name The property name
    * @return the value
-   * @throw IllegalArgumentException If the given property is not present
+   * @throws IllegalArgumentException If the given property is not present
    */
   public double getDouble(String name) {
     return Double.parseDouble(getString(name));
@@ -206,7 +207,8 @@ public class VerifiableProperties {
   /**
    * Get an optional argument as a double
    * @param name The property name
-   * @default The default value for the property if not present
+   * @param defaultVal The default value for the property if not present
+   * @return
    */
   public double getDouble(String name, double defaultVal) {
     if (containsKey(name)) {

@@ -14,7 +14,7 @@ import org.testng.annotations.Test;
 
 
 public class TestEventGenerator {
-  private static Logger LOG = LoggerFactory.getLogger(TestEventGenerator.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestEventGenerator.class);
 
   @BeforeMethod
   public void setup()

@@ -1,7 +1,5 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-import java.lang.IncompatibleClassChangeError;
-import java.lang.Integer;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericRecord;
@@ -52,7 +50,7 @@ public abstract class SchemaField {
     _maxValue = maxValue;
   }
 
-  public static void set_maxNumElements(int maxNumElements) {
+  public static void setMaxNumElements(int maxNumElements) {
     _maxNumElements = maxNumElements;
   }
 

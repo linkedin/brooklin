@@ -26,10 +26,7 @@ public class TestPollUtils {
 
       @Override
       public boolean getAsBoolean() {
-        long now = System.currentTimeMillis();
-        if (now - _timeThen >= _timeWaitMs)
-          return true;
-        return false;
+        return System.currentTimeMillis() - _timeThen >= _timeWaitMs;
       }
     }
 

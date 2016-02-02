@@ -1,14 +1,11 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-// import org.slf4j.Logger;
-// import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.avro.generic.GenericRecord;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 
@@ -20,8 +17,6 @@ import com.linkedin.datastream.common.DatastreamEvent;
 
 public class DatastreamEventGenerator extends GenericEventGenerator {
 
-  // public final static String MODULE = DatastreamEventGenerator.class.getName();
-  // public final static Logger LOG = Logger.getLogger(MODULE);
   private boolean _needPreviousPayload;
   private String _datastreamName;
   private DatastreamEvent _lastInsertedEvent = null;

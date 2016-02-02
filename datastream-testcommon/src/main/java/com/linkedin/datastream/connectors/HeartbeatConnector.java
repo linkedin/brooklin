@@ -61,20 +61,20 @@ public class HeartbeatConnector implements Connector {
     try {
       DatastreamTask[] tasks = new DatastreamTask[_tasks.size()];
       _tasks.toArray(tasks);
-      for(DatastreamTask task : tasks) {
-        if(task.getConnectorType().equalsIgnoreCase(BROADCAST_CONNECTOR_TYPE)) {
+      for (DatastreamTask task : tasks) {
+        if (task.getConnectorType().equalsIgnoreCase(BROADCAST_CONNECTOR_TYPE)) {
           Integer eventIndex = _checkpoint.get(task).get(0);
           task.getEventProducer().send(createHeartbeatEvent(0, eventIndex));
           _checkpoint.get(task).put(0, eventIndex + 1);
         } else {
-          for(int partition : task.getPartitions()) {
+          for (int partition : task.getPartitions()) {
             Integer eventIndex = _checkpoint.get(task).get(partition);
             task.getEventProducer().send(createHeartbeatEvent(partition, eventIndex));
             _checkpoint.get(task).put(partition, eventIndex + 1);
           }
         }
       }
-    } catch(Exception e) {
+    } catch (Exception e) {
       LOG.error("Exception while sending the event", e);
     }
   }
@@ -94,14 +94,14 @@ public class HeartbeatConnector implements Connector {
   @Override
   public void onAssignmentChange(List<DatastreamTask> tasks) {
     _tasks = tasks;
-    for(DatastreamTask task : tasks) {
-      if(!_checkpoint.containsKey(task)) {
+    for (DatastreamTask task : tasks) {
+      if (!_checkpoint.containsKey(task)) {
         _checkpoint.put(task, new HashMap<>());
         Map<Integer, String> taskCheckpoint = task.getCheckpoints();
         LOG.info(String.format("Assigned a new Datastream task %s with checkpoint %s", task, taskCheckpoint));
-        for(Integer partition : taskCheckpoint.keySet()) {
+        for (Integer partition : taskCheckpoint.keySet()) {
           int eventIndex = 0;
-          if(!taskCheckpoint.get(partition).isEmpty()) {
+          if (!taskCheckpoint.get(partition).isEmpty()) {
              eventIndex = Integer.parseInt(taskCheckpoint.get(partition));
           }
           _checkpoint.get(task).put(partition, eventIndex + 1);

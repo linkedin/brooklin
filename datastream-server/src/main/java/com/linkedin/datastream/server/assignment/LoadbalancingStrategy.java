@@ -84,11 +84,11 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     List<DatastreamTask> currentlyAssignedDatastreamTasks = new ArrayList<>();
     currentAssignment.values().forEach(currentlyAssignedDatastreamTasks::addAll);
 
-    for(Datastream datastream : datastreams) {
+    for (Datastream datastream : datastreams) {
       Set<DatastreamTask> tasksForDatastream = new HashSet<>();
       currentlyAssignedDatastreamTasks.stream().filter(x -> x.getDatastreams().contains(datastream.getName())).forEach(tasksForDatastream::add);
       // If there are no datastream tasks that are currently assigned for this datastream.
-      if(tasksForDatastream.isEmpty()) {
+      if (tasksForDatastream.isEmpty()) {
         tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);
       }
 
@@ -100,12 +100,12 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   private Set<DatastreamTask> createTasksForDatastream(Datastream datastream, int maxTasksPerDatastream) {
     int numberOfDatastreamPartitions = 1;
-    if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+    if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
       numberOfDatastreamPartitions = datastream.getSource().getPartitions();
     }
     int tasksPerDatastream = maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();
-    for(int index = 0; index < tasksPerDatastream; index++) {
+    for (int index = 0; index < tasksPerDatastream; index++) {
       tasks.add(new DatastreamTaskImpl(datastream, Integer.toString(index),
           assignPartitionsToTask(datastream, index, tasksPerDatastream)));
     }
@@ -117,9 +117,9 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   // Based on the task index, total number of tasks in the datastream and the total partitions in the datastream source
   private List<Integer> assignPartitionsToTask(Datastream datastream, int taskIndex, int totalTasks) {
     List<Integer> partitions = new ArrayList<>();
-    if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+    if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
       int numPartitions = datastream.getSource().getPartitions();
-      for(int index = 0; index + taskIndex < numPartitions; index += totalTasks) {
+      for (int index = 0; index + taskIndex < numPartitions; index += totalTasks) {
         partitions.add(index + taskIndex);
       }
     }

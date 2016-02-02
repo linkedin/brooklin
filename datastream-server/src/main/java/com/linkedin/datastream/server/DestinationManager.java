@@ -24,9 +24,9 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
  */
 public class DestinationManager {
   private static final Logger LOG = LoggerFactory.getLogger(DestinationManager.class.getName());
+  private static final int DEFAULT_NUMBER_PARTITIONS = 1;
 
   private final TransportProvider _transportProvider;
-  private final int DEFAULT_NUMBER_PARTITIONS = 1;
   private final boolean _reuseExistingTopic;
 
   public DestinationManager(boolean reuseExistingTopic, TransportProvider transportProvider) {
@@ -59,7 +59,7 @@ public class DestinationManager {
       }
 
       boolean topicReuse = _reuseExistingTopic;
-      if(datastream.hasMetadata()) {
+      if (datastream.hasMetadata()) {
         topicReuse = Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
             CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
       }
@@ -85,16 +85,16 @@ public class DestinationManager {
 
   private String createTopic(Datastream datastream) throws TransportException {
     Properties datastreamProperties = new Properties();
-    if(datastream.hasMetadata()) {
+    if (datastream.hasMetadata()) {
       datastreamProperties.putAll(datastream.getMetadata());
     }
     Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
     int numberOfPartitions = DEFAULT_NUMBER_PARTITIONS;
 
     // if the number of partitions is already set on the destination then use that.
-    if(datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
+    if (datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
       numberOfPartitions = datastream.getDestination().getPartitions();
-    } else if(datastream.hasSource() && datastream.getSource().hasPartitions()) {
+    } else if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
       // If the number of partitions is not set in destination but set in source, use that.
       numberOfPartitions = datastream.getSource().getPartitions();
     }
