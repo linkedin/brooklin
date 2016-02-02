@@ -40,10 +40,15 @@ subprojects {
   apply plugin: 'java'
   apply plugin: 'pegasus'
 
-  spec = ['product': ['pegasus': ['data'        : 'com.linkedin.pegasus:data:' + pegasusVersion,
-                                  'restliCommon': 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
-                                  'restliClient': 'com.linkedin.pegasus:restli-client:' + pegasusVersion,]]]
+  if(!ext.has('spec')) {
+    ext.spec = [:]
+  }
 
+  spec['product'] = ['pegasus':
+                         ['data'        : 'com.linkedin.pegasus:data:' + pegasusVersion,
+                          'restliCommon': 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
+                          'restliClient': 'com.linkedin.pegasus:restli-client:' + pegasusVersion,]
+  ]
   // comment this out so the java files don't get auto-generated every time
   afterEvaluate {
     if (project.plugins.hasPlugin('pegasus')) {
