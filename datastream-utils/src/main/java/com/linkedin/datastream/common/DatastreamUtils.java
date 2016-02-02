@@ -58,8 +58,9 @@ public final class DatastreamUtils {
    * @param event an Avro serialized DatastreamEvent
    */
   public static void processEventMetadata(DatastreamEvent event) {
-    if (event == null)
+    if (event == null) {
       return;
+    }
     Map<CharSequence, CharSequence> out = new HashMap<>();
     event.metadata.forEach((k, v) -> {
       out.put(new String(k.toString()), new String(v.toString()));

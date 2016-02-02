@@ -64,22 +64,21 @@ public class TestServerHealth {
     _datastreamCluster.shutdown();
   }
 
-  public void testServerHealth_HasRightClusterNameAndInstanceName()
-      throws RemoteInvocationException {
+  public void testServerHealthHasRightClusterNameAndInstanceName() throws RemoteInvocationException {
     ServerHealth serverHealth = fetchServerHealth();
-    Assert.assertEquals(serverHealth.getClusterName(), _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+    Assert.assertEquals(serverHealth.getClusterName(),
+        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
     Assert.assertEquals(serverHealth.getInstanceName(),
         _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().getInstanceName());
   }
 
-  public ServerHealth fetchServerHealth()
-      throws RemoteInvocationException {
+  public ServerHealth fetchServerHealth() throws RemoteInvocationException {
     String healthUri = "http://localhost:" + _datastreamCluster.getPrimaryDatastreamPort() + "/";
     _builders = new HealthBuilders();
     final HttpClientFactory http = new HttpClientFactory();
-    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String> emptyMap()));
+    final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, healthUri);
-    GetRequest<ServerHealth>  request = _builders.get().build();
+    GetRequest<ServerHealth> request = _builders.get().build();
     ResponseFuture<ServerHealth> healthResponse = _restClient.sendRequest(request);
 
     Response<ServerHealth> response;

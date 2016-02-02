@@ -19,8 +19,8 @@ public class GenericEventValidator {
 
   private static final Logger LOG = LoggerFactory.getLogger(GenericEventValidator.class.getName());
 
-  static final String[] payloadStrs = {"payload"};
-  static final String[] keyStrs = {"key"};
+  static final String[] PAYLOAD_STRS = {"payload"};
+  static final String[] KEY_STRS = {"key"};
 
   public GenericEventValidator() {
   }
@@ -28,7 +28,7 @@ public class GenericEventValidator {
   private static Object getPayload(Object obj) {
     SpecificRecordBase record = (SpecificRecordBase) obj;
     Schema schema = record.getSchema();
-    for (String name : payloadStrs) {
+    for (String name : PAYLOAD_STRS) {
       Schema.Field payload = schema.getField(name);
       if (payload != null) {
         // found it
@@ -41,7 +41,7 @@ public class GenericEventValidator {
   private static Object getKey(Object obj) {
     SpecificRecordBase record = (SpecificRecordBase) obj;
     Schema schema = record.getSchema();
-    for (String name : keyStrs) {
+    for (String name : KEY_STRS) {
       Object key = schema.getField(name);
       if (key != null) {
         // found it

@@ -84,10 +84,10 @@ public class DatastreamRestClient {
       throws DatastreamException, InterruptedException {
     final int pollIntervalMs = 500;
     final long startTimeMs = System.currentTimeMillis();
-    while(System.currentTimeMillis() - startTimeMs < timeoutMs) {
+    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
       Datastream ds = getDatastream(datastreamName);
-      if(ds.hasDestination() && ds.getDestination().hasConnectionString() &&
-          !ds.getDestination().getConnectionString().isEmpty()){
+      if (ds.hasDestination() && ds.getDestination().hasConnectionString() &&
+          !ds.getDestination().getConnectionString().isEmpty()) {
         return ds;
       }
       Thread.sleep(pollIntervalMs);

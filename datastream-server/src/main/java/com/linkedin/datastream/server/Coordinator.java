@@ -198,7 +198,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _eventThread.start();
     _adapter.connect();
 
-    for(String connectorType : _connectors.keySet()) {
+    for (String connectorType : _connectors.keySet()) {
       ConnectorWrapper connector = _connectors.get(connectorType);
 
       // populate the instanceName. We only know the instance name after _adapter.connect()
@@ -218,7 +218,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   public void stop() {
-    for(String connectorType : _connectors.keySet()) {
+    for (String connectorType : _connectors.keySet()) {
       try {
         _connectors.get(connectorType).stop();
       } catch (Exception ex) {
@@ -399,21 +399,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           taskImpl.setEventProducer(producerMap.get(task));
           newAssignment.add(task);
         } else {
-          taskImpl.setStatus(DatastreamTaskStatus.ERROR("Producer is missing"));
+          taskImpl.setStatus(DatastreamTaskStatus.error("Producer is missing"));
           LOG.error("Event producer not created for datastream task: " + task);
         }
       }
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       _assignmentChangeThreadPool.execute(() -> {
-        try{
+        try {
           connector.onAssignmentChange(newAssignment);
 
           if (unusedProducers.size() > 0) {
             LOG.info("Shutting down all unused event producers: " + unusedProducers);
             unusedProducers.forEach((producer) -> producer.shutdown());
           }
-        } catch(Exception ex) {
+        } catch (Exception ex) {
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
         }
       });
@@ -439,6 +439,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
         case HANDLE_INSTANCE_ERROR:
           handleInstanceError(event);
+          break;
+        default:
+          throw new Exception(String.format("Unknown event type %s.", event.getType()));
       }
     } catch (Throwable e) {
       LOG.error("ERROR: event + " + event + " failed.", e);

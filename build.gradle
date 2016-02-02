@@ -17,19 +17,6 @@ allprojects {
   apply plugin: 'project-report'
   apply plugin: 'checkstyle'
 
-  checkstyle {
-    configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
-    ignoreFailures = true
-    toolVersion = "6.7"
-  }
-
-  idea {
-    project {
-      jdkName = '1.8'
-      languageLevel = '1.8'
-    }
-  }
-
   repositories {
     mavenCentral()
     mavenLocal()
@@ -40,8 +27,18 @@ subprojects {
   apply plugin: 'java'
   apply plugin: 'pegasus'
 
-  if(!ext.has('spec')) {
+  // Avoid failure in internal LinkedIn build validation
+  if (!ext.has('spec')) {
     ext.spec = [:]
+  }
+
+  sourceCompatibility = '1.8'
+  targetCompatibility = '1.8'
+
+  checkstyle {
+    configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
+    sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
+    toolVersion = "6.7"
   }
 
   spec['product'] = ['pegasus':
@@ -49,6 +46,7 @@ subprojects {
                           'restliCommon': 'com.linkedin.pegasus:restli-common:' + pegasusVersion,
                           'restliClient': 'com.linkedin.pegasus:restli-client:' + pegasusVersion,]
   ]
+
   // comment this out so the java files don't get auto-generated every time
   afterEvaluate {
     if (project.plugins.hasPlugin('pegasus')) {

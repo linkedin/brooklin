@@ -14,10 +14,9 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
+  private static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
 
   private final ZkAdapter _zkAdapter;
-
-  private static String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
 
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;

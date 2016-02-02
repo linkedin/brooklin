@@ -12,7 +12,6 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
@@ -20,7 +19,7 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 public class TestLoadbalancingStrategy {
 
   @Test
-  public void testLoadbalancingStrategy_DistributesTasks_AcrossInstancesEqually() {
+  public void testLoadbalancingStrategyDistributesTasksAcrossInstancesEqually() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));
@@ -34,7 +33,7 @@ public class TestLoadbalancingStrategy {
 
 
   @Test
-  public void testLoadbalancingStrategy_CreatesTasks_OnlyForPartitionsInDestination() {
+  public void testLoadbalancingStrategyCreatesTasksOnlyForPartitionsInDestination() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
     datastreams.forEach(x -> x.getSource().setPartitions(2));
@@ -51,7 +50,7 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
-  public void testLoadbalancingStrategy_RedistributesTasks_WhenNodeGoesDown() {
+  public void testLoadbalancingStrategyRedistributesTasksWhenNodeGoesDown() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));
@@ -72,7 +71,7 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
-  public void testLoadbalancingStrategy_RedistributesTasks_WhenNodeIsAdded() {
+  public void testLoadbalancingStrategyRedistributesTasksWhenNodeIsAdded() {
     String[] instances = new String[] { "instance1", "instance2" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));
@@ -94,7 +93,7 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
-  public void testLoadbalancingStrategy_CreatesNewDatastreamTasks_WhenNewDatastreamIsAdded() {
+  public void testLoadbalancingStrategyCreatesNewDatastreamTasksWhenNewDatastreamIsAdded() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));
@@ -121,7 +120,7 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
-  public void testLoadbalancingStrategy_RemovesTasks_WhenDatastreamIsDeleted() {
+  public void testLoadbalancingStrategyRemovesTasksWhenDatastreamIsDeleted() {
     String[] instances = new String[] { "instance1", "instance2", "instance3" };
     List<Datastream> datastreams =  Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));

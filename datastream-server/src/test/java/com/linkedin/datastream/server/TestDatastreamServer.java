@@ -113,7 +113,7 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testCreateTwoDatastreamOfFileConnector_ProduceEvents_ReceiveEvents() throws Exception {
+  public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents() throws Exception {
     int numberOfPartitions = 5;
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
     int totalEvents = 10;
@@ -152,7 +152,7 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDown_OneDatastream_SimpleStrategy() throws Exception {
+  public void testNodeDownOneDatastreamSimpleStrategy() throws Exception {
       _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
     _datastreamCluster.startup();
 
@@ -217,7 +217,7 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDown_OneDatastream_BroadcastStrategy() throws Exception {
+  public void testNodeDownOneDatastreamBroadcastStrategy() throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
     _datastreamCluster.startup();
 
@@ -298,7 +298,7 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeUpRebalance_TwoDatastreams_SimpleStrategy() throws Exception {
+  public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy() throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
     _datastreamCluster.startupServer(0);
 

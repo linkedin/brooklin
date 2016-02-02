@@ -34,7 +34,7 @@ public class TestZookeeperCheckpointProvider {
   }
 
   @Test
-  public void testCommit_AndReadCheckpoints() {
+  public void testCommitAndReadCheckpoints() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster");
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
@@ -57,7 +57,7 @@ public class TestZookeeperCheckpointProvider {
   }
 
   @Test
-  public void testReadCommited_ShouldIncludeDatastreamTasks_WhoseCheckpointsAreNotCommitted() {
+  public void testReadCommitedShouldIncludeDatastreamTasksWhoseCheckpointsAreNotCommitted() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster");
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);

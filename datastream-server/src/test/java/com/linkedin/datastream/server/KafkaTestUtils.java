@@ -27,13 +27,8 @@ import org.apache.kafka.common.TopicPartition;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
-
-import kafka.admin.AdminUtils;
-import kafka.javaapi.TopicMetadata;
-import kafka.utils.ZkUtils;
 
 
 /**

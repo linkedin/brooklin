@@ -31,7 +31,7 @@ public class TestJsonUtils {
   }
 
   @Test
-  public void testDeserialization_NewFieldsNoErrors() {
+  public void testDeserializationNewFieldsNoErrors() {
     String json = "{\"foo\":100,\"bar\":\"hello\"}";
     JsonUtils.fromJson(json, TestClass.class);
   }

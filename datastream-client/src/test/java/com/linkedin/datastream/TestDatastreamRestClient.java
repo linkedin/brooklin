@@ -36,7 +36,7 @@ import org.testng.annotations.Test;
 public class TestDatastreamRestClient {
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
 
-  Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
@@ -78,13 +78,14 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-        DummyConnectorFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME,
-        DummyBootstrapConnectorFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE,
-        DUMMY_BOOTSTRAP_CONNECTOR);
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue"); // DummyConnector will verify this value being correctly set
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
+        + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "."
+        + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
+        + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty",
+        "dummyValue"); // DummyConnector will verify this value being correctly set
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }
@@ -102,7 +103,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testWaitTillDatastreamIsInitialized_returnsInitializedDatastream()
+  public void testWaitTillDatastreamIsInitializedReturnsInitializedDatastream()
       throws DatastreamException, InterruptedException {
     Datastream datastream = generateDatastream(11);
     LOG.info("Datastream : " + datastream);
@@ -190,21 +191,21 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetBootstrapDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound() throws
+  public void testGetBootstrapDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws
       IOException, DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createBootstrapDatastream("Datastream_doesntexist");
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetDatastream_throwsDatastreamNotFoundException_whenDatastreamIsNotfound() throws IOException,
+  public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws IOException,
       DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.getDatastream("Datastream_doesntexist");
   }
 
   @Test(expectedExceptions = DatastreamException.class)
-  public void testCreateDatastream_throwsDatastreamException_onBadDatastream() throws IOException, DatastreamException,
+  public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream() throws IOException, DatastreamException,
       RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(new Datastream());

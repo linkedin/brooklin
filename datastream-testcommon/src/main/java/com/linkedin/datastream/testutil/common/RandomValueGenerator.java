@@ -19,8 +19,9 @@ public class RandomValueGenerator {
 
   // to make it inclusive of min and max for the range, add 1 to the difference
   public int getNextInt(int min, int max) {
-    if (max == min)
+    if (max == min) {
       return min;
+    }
     // assert(max > min);
 
     return (rand.nextInt(max - min + 1) + min);

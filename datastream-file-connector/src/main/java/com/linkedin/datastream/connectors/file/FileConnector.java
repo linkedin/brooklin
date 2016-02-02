@@ -137,7 +137,7 @@ public class FileConnector implements Connector {
       throw new DatastreamValidationException(String.format("File %s doesn't exists", streamFile.getAbsolutePath()));
     }
 
-    if(_numPartitions != 1) {
+    if (_numPartitions != 1) {
       stream.getSource().setPartitions(_numPartitions);
     }
   }

@@ -32,8 +32,9 @@ public final class PollUtils {
    */
   public static <T> boolean poll(Predicate<T> cond, long periodMs, long timeoutMs, T arg) {
     long elapsedMs = 0;
-    if (periodMs > timeoutMs)
+    if (periodMs > timeoutMs) {
       return false;
+    }
     while (true) {
       if (cond.test(arg)) {
         return true;
@@ -44,8 +45,9 @@ public final class PollUtils {
         break;
       }
       elapsedMs += periodMs;
-      if (elapsedMs >= timeoutMs)
+      if (elapsedMs >= timeoutMs) {
         break;
+      }
     }
     return false;
   }
@@ -60,8 +62,9 @@ public final class PollUtils {
    */
   public static <T> Optional<T> poll(Supplier<T> supplier, Predicate<T> cond, long periodMs, long timeoutMs) {
     long elapsedMs = 0;
-    if (periodMs > timeoutMs)
+    if (periodMs > timeoutMs) {
       return Optional.empty();
+    }
     while (true) {
       T ret = supplier.get();
       if (cond.test(ret)) {
@@ -73,8 +76,9 @@ public final class PollUtils {
         break;
       }
       elapsedMs += periodMs;
-      if (elapsedMs >= timeoutMs)
+      if (elapsedMs >= timeoutMs) {
         break;
+      }
     }
     return Optional.empty();
   }

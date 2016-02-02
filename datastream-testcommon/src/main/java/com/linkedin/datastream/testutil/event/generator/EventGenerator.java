@@ -1,7 +1,7 @@
 package com.linkedin.datastream.testutil.event.generator;
 
 public interface EventGenerator {
-  public enum EVENT_TYPE {
+  enum EventType {
     INSERT,
     UPDATE,
     DELETE,
@@ -10,8 +10,8 @@ public interface EventGenerator {
 
   void generateInsertsOnly(int numEvents);
 
-  void generateUpdatesOnly(int numEvents, long startScn, long EndScn);
+  void generateUpdatesOnly(int numEvents, long startScn, long endScn);
 
-  void generateDeletesOnly(int numEvents, long startScn, long EndScn);
+  void generateDeletesOnly(int numEvents, long startScn, long endScn);
 
 }
