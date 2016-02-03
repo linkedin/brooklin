@@ -178,10 +178,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           InvocationTargetException e) {
         LOG.error(
             "Creating Schema registry provider factory failed with exception " + ExceptionUtils.getFullStackTrace(e));
-        throw new DatastreamException("Invalid Schema registry provider factory: " + transportFactory, e);
+        throw new DatastreamException("Invalid Schema registry provider factory: " + schemaRegistryFactoryType, e);
       }
 
-      schemaRegistryFactory
+      schemaRegistry = schemaRegistryFactory
           .createSchemaRegistryProvider(coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
     } else {
       LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
