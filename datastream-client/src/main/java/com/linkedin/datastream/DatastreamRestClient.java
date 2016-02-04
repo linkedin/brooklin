@@ -148,7 +148,7 @@ public class DatastreamRestClient {
     try {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamException(String.format("Create Datastream {%s} failed with error %s", datastream, e));
+      throw new DatastreamException(String.format("Create Datastream {%s} failed with error.", datastream), e);
     }
   }
 
