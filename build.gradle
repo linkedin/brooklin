@@ -90,8 +90,6 @@ subprojects {
     onOutput { test, output ->
       testOutputs[test.name] = testOutputs[test.name] + output.message
     }
-
-    maxParallelForks = 10
   }
 
   dependencies {
