@@ -11,6 +11,7 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
+import com.linkedin.datastream.server.CoordinatorConfig;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -86,6 +87,8 @@ public class TestDatastreamRestClient {
         + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty",
         "dummyValue"); // DummyConnector will verify this value being correctly set
+    properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
+            "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }
@@ -99,6 +102,8 @@ public class TestDatastreamRestClient {
     Datastream createdDatastream = restClient.getDatastream(datastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
     datastream.setDestination(new DatastreamDestination());
+    // server might have already set the destination so we need to unset it for comparison
+    createdDatastream.setDestination(new DatastreamDestination());
     Assert.assertEquals(createdDatastream, datastream);
   }
 

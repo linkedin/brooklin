@@ -211,7 +211,7 @@ public class TestEventProducer {
     verify(_transport, times(500)).send(any(), any());
 
     // Verify all safe checkpoints from producer match the last event
-    Assert.assertTrue(PollUtils.poll(() -> validateCheckpoint(_cpProvider, _tasks, taskCpMap), 50, 200));
+    Assert.assertTrue(PollUtils.poll(() -> validateCheckpoint(_cpProvider, _tasks, taskCpMap), 100, 5000));
 
     // Verify safeCheckpoints match the ones in the checkpointProvider
     Assert.assertEquals(_producer.getSafeCheckpoints(), taskCpMap);
@@ -219,8 +219,7 @@ public class TestEventProducer {
     _producer.shutdown();
 
     // Create a new producer
-    _producer =
-        new EventProducer(_tasks, _transport, _cpProvider, _config, false);
+    _producer = new EventProducer(_tasks, _transport, _cpProvider, _config, false);
 
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, Map<Integer, String>> checkpointsNew = _producer.getSafeCheckpoints();

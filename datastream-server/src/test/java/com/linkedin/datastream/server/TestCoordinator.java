@@ -54,6 +54,8 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FCTORY_CLASS);
+    props.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
+            "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
 
     return new Coordinator(props);
   }
@@ -1192,7 +1194,7 @@ public class TestCoordinator {
     boolean result =
         PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
 
-    LOG.info("assertConnectorAssignment. Connector: " + connector.getName() + ", ASSERT: " + result);
+    LOG.debug("assertConnectorAssignment. Connector: " + connector.getName() + ", ASSERT: " + result);
 
     Assert.assertTrue(result);
   }

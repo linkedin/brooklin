@@ -78,9 +78,10 @@ public class EmbeddedDatastreamCluster {
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
     properties.put(String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
         kafkaCluster.getBrokers());
-
     properties.put(String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
         kafkaCluster.getZkConnection());
+    properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
+            "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
     if (override != null) {

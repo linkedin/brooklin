@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 import java.util.HashSet;
@@ -24,29 +25,34 @@ import java.util.stream.Collectors;
  * The coordinator uses this to create producers before passing it on to the connectors
  */
 public class EventProducerPool {
-  private static final String CONFIG_PRODUCER = "datastream.eventProducer";
+  private static final Logger LOG = LoggerFactory.getLogger(EventProducerPool.class);
 
   // Map between Connector type and <Destination URI, Producer>
   private final Map<String, Map<String, EventProducer>> _producers = new HashMap<>();
+
+  private final CheckpointProvider _checkpointProvider;
   private final SchemaRegistryProvider _schemaRegistryProvider;
-  private final TransportProvider _transportProvider;
+  private final TransportProviderFactory _transportProviderFactory;
+  private final Properties _transportProviderConfig;
+  private final Properties _eventProducerConfig;
 
-  private CheckpointProvider _checkpointProvider;
-  private Properties _config;
-
-  private static final Logger LOG = LoggerFactory.getLogger(EventProducerPool.class.getName());
-
-  public EventProducerPool(CheckpointProvider checkpointProvider, TransportProvider transportProvider,
-      SchemaRegistryProvider schemaRegistryProvider, Properties config) {
+  public EventProducerPool(CheckpointProvider checkpointProvider,
+                           SchemaRegistryProvider schemaRegistryProvider,
+                           TransportProviderFactory transportProviderFactory,
+                           Properties transportProviderConfig,
+                           Properties eventProducerConfig) {
 
     Validate.notNull(checkpointProvider, "null checkpoint provider");
-    Validate.notNull(transportProvider, "null transport provider");
-    Validate.notNull(config, "null config");
+    Validate.notNull(schemaRegistryProvider, "null schema registry provider");
+    Validate.notNull(transportProviderFactory, "null transport provider factory");
+    Validate.notNull(transportProviderConfig, "null transport provider config");
+    Validate.notNull(eventProducerConfig, "null event producer config");
 
     _checkpointProvider = checkpointProvider;
-    _transportProvider = transportProvider;
     _schemaRegistryProvider = schemaRegistryProvider;
-    _config = config;
+    _transportProviderFactory = transportProviderFactory;
+    _transportProviderConfig = transportProviderConfig;
+    _eventProducerConfig = eventProducerConfig;
   }
 
   /**
@@ -87,8 +93,6 @@ public class EventProducerPool {
 
     Map<String, List<DatastreamTask>> taskMap = new HashMap<>();
 
-    VerifiableProperties properties = new VerifiableProperties(_config);
-
     for (DatastreamTask task : tasks) {
       String destination = task.getDatastreamDestination().getConnectionString();
       if (!taskMap.containsKey(destination)) {
@@ -108,8 +112,10 @@ public class EventProducerPool {
       } else {
         List<DatastreamTask> taskList = taskMap.get(destination);
         LOG.info(String.format("Creating event producer for destination %s and task %s", destination, taskList));
-        eventProducer = new EventProducer(taskList, _transportProvider, _checkpointProvider,
-                properties.getDomainProperties(CONFIG_PRODUCER), customCheckpointing);
+        // Each distinct destination has its own transport provider
+        TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
+        eventProducer = new EventProducer(taskList, transport, _checkpointProvider, _eventProducerConfig,
+                customCheckpointing);
         producerMap.put(destination, eventProducer);
       }
 

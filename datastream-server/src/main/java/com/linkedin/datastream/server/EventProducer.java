@@ -385,4 +385,9 @@ public class EventProducer {
 
     _shutdownCompleted = true;
   }
+
+  @Override
+  public String toString() {
+    return "EventProducer tasks=" + _tasks;
+  }
 }
