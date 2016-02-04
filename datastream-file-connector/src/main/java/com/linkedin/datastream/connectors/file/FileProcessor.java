@@ -110,17 +110,17 @@ class FileProcessor implements Runnable {
             // Wait for new data
             Thread.sleep(POLL_WAIT_MS);
           } catch (InterruptedException e) {
-            _isStopped = true;
-            LOG.info("Stopped at line " + lineNo);
+            LOG.info("Interrupted");
+            break;
           }
         }
       }
 
       _task.release();
       _isStopped = true;
-      LOG.info("Stopped at line " + lineNo);
+      LOG.info("Stopped at line " + lineNo + " task=" + _task);
     } catch (Throwable e) {
-      LOG.error("File processor is quitting with exception ", e);
+      LOG.error("File processor is quitting with exception, task=" + _task, e);
     }
   }
 

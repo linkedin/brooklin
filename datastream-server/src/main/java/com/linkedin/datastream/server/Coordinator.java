@@ -190,8 +190,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    _eventProducerPool = new EventProducerPool(cpProvider, _transportProvider, schemaRegistry,
-        coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
+    _eventProducerPool = new EventProducerPool(cpProvider, schemaRegistry, factory,
+            coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
+            coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
   }
 
   public void start() {
@@ -552,7 +553,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           assigmentsByInstance.put(instance, new ArrayList<>());
         }
         // Add the tasks for this connector type to the instance
-        assigmentsByInstance.get(instance).addAll(tasksByConnectorAndInstance.get(instance));
+        tasksByConnectorAndInstance.get(instance).forEach(task -> {
+          // Each task must have a valid zkAdapter
+          ((DatastreamTaskImpl)task).setZkAdapter(_adapter);
+          assigmentsByInstance.get(instance).add(task);
+        });
       }
     }
 

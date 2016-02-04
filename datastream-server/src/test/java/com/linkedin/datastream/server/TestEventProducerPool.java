@@ -13,7 +13,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.server.providers.CheckpointProvider;
-import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 
 import static org.mockito.Mockito.mock;
 
@@ -27,12 +28,12 @@ public class TestEventProducerPool {
   @BeforeMethod
   public void setUp() throws Exception {
     CheckpointProvider checkpointProvider = mock(CheckpointProvider.class);
-    TransportProvider transportProvider = mock(TransportProvider.class);
-    Properties config = new Properties();
-    config.put(EventProducer.CHECKPOINT_PERIOD_MS, "50");
-    _eventProducerPool =
-        new EventProducerPool(checkpointProvider, transportProvider, null,
-            config);
+    TransportProviderFactory factory = new DummyTransportProviderFactory();
+    SchemaRegistryProvider schemaReg = mock(SchemaRegistryProvider.class);
+    Properties transportConfig = new Properties();
+    Properties producerConfig = new Properties();
+    _eventProducerPool = new EventProducerPool(checkpointProvider, schemaReg,
+            factory, transportConfig, producerConfig);
   }
 
   @Test

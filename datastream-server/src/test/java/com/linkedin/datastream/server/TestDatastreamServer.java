@@ -206,6 +206,10 @@ public class TestDatastreamServer {
     assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
     Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
 
+    // Wait 3 seconds to allow the connectors to stop the handler and flush the checkpoints
+    // Automatic flush period is 1 second by default.
+    Thread.sleep(3000);
+
     // Ensure 2nd instance can read all
     List<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
 
@@ -278,6 +282,10 @@ public class TestDatastreamServer {
     instance = server2.getCoordinator().getInstanceName();
     assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
     Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+
+    // Wait 3 seconds to allow the connectors to stop the handler and flush the checkpoints
+    // Automatic flush period is 1 second by default.
+    Thread.sleep(3000);
 
     // Ensure 2nd instance can still produce events
     List<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
@@ -359,9 +367,16 @@ public class TestDatastreamServer {
     // Ensure each instance gets one task
     assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
     Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+    LOG.info("Instance1 got task: " + zkclient.getChildren(assignmentPath));
+
     String instance2 = server2.getCoordinator().getInstanceName();
     assignmentPath = KeyBuilder.instanceAssignments(cluster, instance2);
     Assert.assertTrue(PollUtils.poll((path) -> zkclient.getChildren(path).size() == 1, 100, 10000, assignmentPath));
+    LOG.info("Instance2 got task: " + zkclient.getChildren(assignmentPath));
+
+    // Wait 3 seconds to allow the connectors to stop the handler and flush the checkpoints
+    // Automatic flush period is 1 second by default.
+    Thread.sleep(3000);
 
     eventsWritten1 = TestUtils.generateStrings(totalEvents);
     eventsWritten2 = TestUtils.generateStrings(totalEvents);
@@ -383,9 +398,9 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
   }
 
-  private List<String> readFileDatastreamEvents(Datastream fileDatastream1, int totalEvents) throws Exception {
+  private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {
     KafkaDestination kafkaDestination =
-        KafkaDestination.parseKafkaDestinationUri(fileDatastream1.getDestination().getConnectionString());
+        KafkaDestination.parseKafkaDestinationUri(datastream.getDestination().getConnectionString());
     final int[] numberOfMessages = { 0 };
     List<String> eventsReceived = new ArrayList<>();
     KafkaTestUtils.readTopic(kafkaDestination.topicName(), 0, _datastreamCluster.getBrokerList(), (key, value) -> {
@@ -393,7 +408,7 @@ public class TestDatastreamServer {
       String eventValue = new String(datastreamEvent.payload.array());
       DatastreamUtils.processEventMetadata(datastreamEvent);
       String schemaId = datastreamEvent.metadata.get("PayloadSchemaId").toString();
-      LOG.info("Schema Id: " + schemaId);
+      LOG.info(String.format("Datastream: %s, Schema Id: %s", datastream, schemaId));
       Assert.assertEquals(schemaId, MockSchemaRegistryProvider.MOCK_SCHEMA_ID);
       eventsReceived.add(eventValue);
       numberOfMessages[0]++;
