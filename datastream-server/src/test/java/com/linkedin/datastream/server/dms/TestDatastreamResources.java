@@ -205,7 +205,9 @@ public class TestDatastreamResources {
         remainingQueryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
   }
 
-  @Test
+  // This test is flaky, Need to deflake this before enabling the test.
+  // This doesn't fail often, So need to run several times before you can catch the flakiness.
+  @Test(enabled = false)
   public void testCreateGetAllDatastreamsPaging() throws Exception {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 

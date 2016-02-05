@@ -314,7 +314,9 @@ public class TestDatastreamServer {
     countMap2.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
   }
 
-  @Test
+  // Test is flaky, Need to deflake before enabling it.
+  // This test doesn't fail often, Need to run this quite a few times before enabling it
+  @Test(enabled = false)
   public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy() throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
     _datastreamCluster.startupServer(0);
