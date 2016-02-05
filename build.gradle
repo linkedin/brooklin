@@ -65,12 +65,16 @@ subprojects {
 
     useTestNG()
 
-    beforeTest { descriptor ->
-      logger.lifecycle("Running test: " + descriptor)
+    testOutputs = [:]
+
+    beforeTest { test ->
+      testOutputs[test.name] = ""
     }
 
     afterTest { test, result ->
-      logger.lifecycle("testFinished: $test, result: $result.resultType")
+      if (result.resultType == TestResult.ResultType.FAILURE) {
+        logger.error("Test output: " + test.name + "\n" + testOutputs[test.name])
+      }
     }
 
     //all standard error messages from tests will get routed to 'ERROR' level messages.
@@ -80,6 +84,11 @@ subprojects {
     
     testLogging {
       exceptionFormat = 'full'
+      events "started", "passed", "skipped", "failed"
+    }
+
+    onOutput { test, output ->
+      testOutputs[test.name] = testOutputs[test.name] + output.message
     }
 
     maxParallelForks = 10
