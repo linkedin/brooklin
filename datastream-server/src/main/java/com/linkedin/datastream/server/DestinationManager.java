@@ -25,6 +25,7 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 public class DestinationManager {
   private static final Logger LOG = LoggerFactory.getLogger(DestinationManager.class.getName());
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
+  private static final String REGEX_NON_ALPHA = "[^\\w]";
 
   private final TransportProvider _transportProvider;
   private final boolean _reuseExistingTopic;
@@ -108,9 +109,23 @@ public class DestinationManager {
     return connectionString;
   }
 
+  /**
+   * Example 1:
+   *  [source] connector://cluster/db/table/partition
+   *  [destination] cluster_db_table_partition
+   *
+   * Example 2:
+   *  [source] connector://cluster/db/table/*
+   *  [destination] cluster_db_table_
+   */
   private String getTopicName(Datastream datastream) {
     URI sourceUri = URI.create(datastream.getSource().getConnectionString());
-    return String.format("%s_%s", sourceUri.getPath().replace("/", "_"), UUID.randomUUID());
+    // Keep all parts after the protocol (authority + path)
+    String path = sourceUri.getAuthority() + sourceUri.getPath();
+    // Replace / with _ and strip out all non-alphanumeric chars
+    path = path.replace("/", "_").replaceAll(REGEX_NON_ALPHA, "");
+    // Append a UUID
+    return String.format("%s_%s", path, UUID.randomUUID());
   }
 
   /**

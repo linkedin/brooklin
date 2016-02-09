@@ -43,8 +43,8 @@ public class TestEventProducerPool {
   public void testEmptyPool() {
     List<DatastreamTask> connectorTasks = new ArrayList<>();
     String connectorType = "connectortype";
-    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
-    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
+    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMapConnectorType =
         _eventProducerPool.getEventProducers(connectorTasks, connectorType, false, new ArrayList<>());
@@ -70,12 +70,12 @@ public class TestEventProducerPool {
     List<DatastreamTask> connector1tasks = new ArrayList<>();
     List<DatastreamTask> connector2tasks = new ArrayList<>();
 
-    connector1tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
-    connector1tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
+    connector1tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    connector1tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
     String connectorType1 = "connectortype1";
 
-    connector2tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
-    connector2tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
+    connector2tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    connector2tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
     String connectorType2 = "connectortype2";
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMapConnectorType1 =
@@ -98,15 +98,15 @@ public class TestEventProducerPool {
   public void testProducerCreationMultipleTimes() {
 
     List<DatastreamTask> tasks = new ArrayList<>();
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
     String connectorType = "connectorType";
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMap1 =
         _eventProducerPool.getEventProducers(tasks, connectorType, false, new ArrayList<>());
 
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(3)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(4)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(3, true)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(4, true)));
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMap2 =
         _eventProducerPool.getEventProducers(tasks, connectorType, false, new ArrayList<>());
@@ -128,9 +128,9 @@ public class TestEventProducerPool {
   public void testProducerSharedForTasksWithSameDestination() {
 
     List<DatastreamTask> tasks = new ArrayList<>();
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1), "1a", Collections.singletonList(1)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1), "1b", Collections.singletonList(2)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true), "1a", Collections.singletonList(1)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true), "1b", Collections.singletonList(2)));
     String connectorType = "connectorType";
 
     Map<DatastreamTask, DatastreamEventProducer> taskProducerMap =
@@ -148,8 +148,8 @@ public class TestEventProducerPool {
   public void testUnusedProducers() {
 
     List<DatastreamTask> tasks = new ArrayList<>();
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1)));
-    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    tasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
     String connectorType = "connectorType";
 
     List<EventProducer> unusedProducers = new ArrayList<>();

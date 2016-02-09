@@ -24,8 +24,8 @@ public final class CoordinatorConfig {
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMS";
   public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = PREFIX + "transportProviderFactory";
-  public static final String CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY = "schemaRegistryProviderFactory";
-  public static final String CONFIG_REUSE_EXISTING_DESTINATION = "reuseExistingDestination";
+  public static final String CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY = PREFIX + "schemaRegistryProviderFactory";
+  public static final String CONFIG_REUSE_EXISTING_DESTINATION = PREFIX + "reuseExistingDestination";
   private final String _schemaRegistryProviderFactory;
   private int _assignmentChangeThreadPoolThreadCount = 1;
 
