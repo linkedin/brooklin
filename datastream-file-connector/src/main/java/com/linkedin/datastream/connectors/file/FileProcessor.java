@@ -99,7 +99,7 @@ class FileProcessor implements Runnable {
           event.key = ByteBuffer.allocate(0);
           event.metadata = new HashMap<>();
           //Registering a null schema just for testing using the MockSchemaRegistryProvider
-          event.metadata.put("PayloadSchemaId", _producer.registerSchema(null));
+          event.metadata.put("PayloadSchemaId", _producer.registerSchema(null, null));
           event.previous_payload = ByteBuffer.allocate(0);
           LOG.info("sending event " + text);
           _producer.send(new DatastreamEventRecord(event, 0, lineNo.toString()));

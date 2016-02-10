@@ -26,11 +26,12 @@ public interface DatastreamEventProducer {
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
    * Just return the schema Id of the existing
+   * @param schemaName Name of the schema. Schema within the same name needs to be backward compatible.
    * @param schema Schema that needs to be registered.
    * @return
    *   SchemaId of the registered schema.
    */
-  String registerSchema(Schema schema) throws SchemaRegistryException;
+  String registerSchema(String schemaName, Schema schema) throws SchemaRegistryException;
 
   /**
    * Flush the transport for the pending events. This can be a slow and heavy operation.

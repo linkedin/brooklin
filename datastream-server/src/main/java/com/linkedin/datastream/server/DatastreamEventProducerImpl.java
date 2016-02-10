@@ -41,14 +41,15 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
    * Just return the schema Id of the existing
+   * @param schemaName Name of the schema. Schema within the same name needs to be backward compatible.
    * @param schema Schema that needs to be registered.
    * @return
    *   SchemaId of the registered schema.
    */
   @Override
-  public String registerSchema(Schema schema) throws SchemaRegistryException {
+  public String registerSchema(String schemaName, Schema schema) throws SchemaRegistryException {
     if (_schemaRegistryProvider != null) {
-      return _schemaRegistryProvider.registerSchema(schema);
+      return _schemaRegistryProvider.registerSchema(schemaName, schema);
     } else {
       LOG.info("SchemaRegistryProvider is not configured, so registerSchema is not supported");
       throw new RuntimeException("SchemaRegistryProvider is not configured, So registerSchema is not supported");
