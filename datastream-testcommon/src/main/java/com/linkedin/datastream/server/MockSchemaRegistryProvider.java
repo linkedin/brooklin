@@ -11,7 +11,7 @@ public class MockSchemaRegistryProvider implements SchemaRegistryProvider {
   public static String MOCK_SCHEMA_ID = "mockSchemaId";
 
   @Override
-  public String registerSchema(Schema schema)
+  public String registerSchema(String schemaName, Schema schema)
       throws SchemaRegistryException {
     return MOCK_SCHEMA_ID;
   }
