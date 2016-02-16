@@ -58,11 +58,12 @@ public class TestDestinationManager {
   @Test
   public void testDestinationURI() throws Exception {
     Datastream datastream = generateDatastream(0);
-    datastream.getSource().setConnectionString("connector://cluster/db/table/partition");
+    datastream.getSource().setConnectionString("connector:/no-authority/cluster/db/table/partition");
     TransportProvider transport = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transport);
     targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
     String destination = datastream.getDestination().getConnectionString();
+    Assert.assertTrue(destination.contains("noauthority"));
     Assert.assertTrue(destination.contains("cluster"));
     Assert.assertTrue(destination.contains("db"));
     Assert.assertTrue(destination.contains("table"));
@@ -73,11 +74,12 @@ public class TestDestinationManager {
   @Test
   public void testSourceWithNonAlphaChars() throws Exception {
     Datastream datastream = generateDatastream(0);
-    datastream.getSource().setConnectionString("connector://cluster/@/table/*");
+    datastream.getSource().setConnectionString("connector://authority/cluster/@/table/*");
     TransportProvider transport = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transport);
     targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
     String destination = datastream.getDestination().getConnectionString();
+    Assert.assertTrue(destination.contains("authority"));
     Assert.assertTrue(destination.contains("cluster"));
     Assert.assertTrue(destination.contains("table"));
     Assert.assertTrue(!destination.contains("*"));
