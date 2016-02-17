@@ -61,34 +61,22 @@ subprojects {
     }
   }
 
+  def results = [:].withDefault { [] }
   test {
-
     useTestNG()
-
-    testOutputs = [:]
-
-    beforeTest { test ->
-      testOutputs[test.name] = ""
-    }
-
-    afterTest { test, result ->
-      if (result.resultType == TestResult.ResultType.FAILURE) {
-        logger.error("Test output: " + test.name + "\n" + testOutputs[test.name])
-      }
-    }
-
-    //all standard error messages from tests will get routed to 'ERROR' level messages.
-    logging.captureStandardError(LogLevel.ERROR)
-    //all standard output messages from tests will get routed to 'INFO' level messages.
-    logging.captureStandardOutput(LogLevel.INFO)
-    
     testLogging {
       exceptionFormat = 'full'
       events "started", "passed", "skipped", "failed"
     }
+    onOutput { descriptor, event ->
+      results[descriptor.toString()] << event.message
+    }
 
-    onOutput { test, output ->
-      testOutputs[test.name] = testOutputs[test.name] + output.message
+    afterTest { descriptor, result ->
+      if(result.getResultType() == TestResult.ResultType.FAILURE) {
+        logger.lifecycle("${descriptor.toString()} failed with output: ${results[descriptor.toString()].join('')}")
+      }
+      results[descriptor.toString()] = []
     }
   }
 
