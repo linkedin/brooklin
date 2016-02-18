@@ -1,10 +1,28 @@
 package com.linkedin.datastream;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import org.apache.log4j.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testng.Assert;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
@@ -16,21 +34,6 @@ import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.r2.RemoteInvocationException;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import org.apache.log4j.Level;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
 
 
 @Test(singleThreaded = true)
@@ -140,14 +143,8 @@ public class TestDatastreamRestClient {
       restClient.createDatastream(datastream);
     }
 
-    Optional<List<Datastream>> result = PollUtils.poll(() -> {
-      try {
-        return restClient.getAllDatastreams();
-      } catch (DatastreamException e) {
-        e.printStackTrace();
-        return null;
-      }
-    }, streams -> streams.size() - initialSize == createdCount, 100, 1000);
+    Optional<List<Datastream>> result = PollUtils.poll(restClient::getAllDatastreams,
+        streams -> streams.size() - initialSize == createdCount, 100, 1000);
 
     Assert.assertTrue(result.isPresent());
 
@@ -209,7 +206,7 @@ public class TestDatastreamRestClient {
     restClient.getDatastream("Datastream_doesntexist");
   }
 
-  @Test(expectedExceptions = DatastreamException.class)
+  @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream() throws IOException, DatastreamException,
       RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
