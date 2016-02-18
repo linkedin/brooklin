@@ -435,20 +435,12 @@ public class TestDatastreamServer {
   private Datastream getPopulatedDatastream(DatastreamRestClient restClient, Datastream fileDatastream1) {
     Boolean pollResult = PollUtils.poll(() -> {
       Datastream ds = null;
-      try {
-        ds = restClient.getDatastream(fileDatastream1.getName());
-      } catch (DatastreamException e) {
-        throw new RuntimeException("GetDatastream threw an exception", e);
-      }
+      ds = restClient.getDatastream(fileDatastream1.getName());
       return ds.hasDestination() && ds.getDestination().hasConnectionString() && !ds.getDestination().getConnectionString().isEmpty();
     }, 500, 60000);
 
     if (pollResult) {
-      try {
-        return restClient.getDatastream(fileDatastream1.getName());
-      } catch (DatastreamException e) {
-        throw new RuntimeException("GetDatastream threw an exception", e);
-      }
+      return restClient.getDatastream(fileDatastream1.getName());
     } else {
       throw new RuntimeException("Destination was not populated before the timeout");
     }
