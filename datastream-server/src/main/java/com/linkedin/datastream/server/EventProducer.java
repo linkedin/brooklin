@@ -312,11 +312,15 @@ public class EventProducer {
       // Write lock is needed for flush
       _sendFlushLock.writeLock().lock();
 
-      LOG.info(String.format("Staring transport flush, tasks = [%s].", _tasks));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(String.format("Staring transport flush, tasks = [%s].", _tasks));
+      }
 
       _transportProvider.flush();
 
-      LOG.info("Transport has been successfully flushed.");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Transport has been successfully flushed.");
+      }
 
       if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
         try {

@@ -51,7 +51,7 @@ public class DestinationManager {
         .forEach(d -> sourceDestinationMapping.put(d.getSource(), d.getDestination()));
 
     LOG.debug("Datastream Source -> Destination mapping before populating new datastream destinations",
-        sourceDestinationMapping);
+            sourceDestinationMapping);
 
     for (Datastream datastream : datastreams) {
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString() &&
@@ -81,7 +81,7 @@ public class DestinationManager {
     }
 
     LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations",
-        sourceDestinationMapping);
+            sourceDestinationMapping);
   }
 
   private String createTopic(Datastream datastream) throws TransportException {
@@ -120,8 +120,12 @@ public class DestinationManager {
    */
   private String getTopicName(Datastream datastream) {
     URI sourceUri = URI.create(datastream.getSource().getConnectionString());
-    // Keep all parts after the protocol (authority + path)
-    String path = sourceUri.getAuthority() + sourceUri.getPath();
+    String path;
+    if (sourceUri.getAuthority() != null) {
+      path = sourceUri.getAuthority() + sourceUri.getPath();
+    } else {
+      path = sourceUri.getPath().substring(1); // strip leading slash
+    }
     // Replace / with _ and strip out all non-alphanumeric chars
     path = path.replace("/", "_").replaceAll(REGEX_NON_ALPHA, "");
     // Append a UUID
