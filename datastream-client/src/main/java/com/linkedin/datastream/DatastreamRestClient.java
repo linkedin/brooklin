@@ -4,6 +4,7 @@ import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.dms.BootstrapBuilders;
 import com.linkedin.datastream.server.dms.DatastreamBuilders;
 import com.linkedin.r2.RemoteInvocationException;
@@ -49,13 +50,12 @@ public class DatastreamRestClient {
    *    Name of the datastream that should be retrieved.
    * @return
    *    Datastream object corresponding to the datastream. This method will not return null.
-   * @throws DatastreamException
+   * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    *    Throws DatastreamNotFoundException if the datastream doesn't exist,
-   *    Throws DatastreamException for any other errors encountered while fetching the datastream.
-   * @throws com.linkedin.r2.RemoteInvocationException
+   *    Throws DatastreamRuntimeException for any other errors encountered while fetching the datastream.
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    */
-  public Datastream getDatastream(String datastreamName) throws DatastreamException {
+  public Datastream getDatastream(String datastreamName) {
     GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
@@ -65,7 +65,7 @@ public class DatastreamRestClient {
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
+        throw new DatastreamRuntimeException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
       }
     }
   }
@@ -80,10 +80,10 @@ public class DatastreamRestClient {
    *   wait timeout in milliseconds
    * @return
    *   Returns the initialized datastream object.
-   * @throws DatastreamException
+   * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    */
   public Datastream waitTillDatastreamIsInitialized(String datastreamName, int timeoutMs)
-      throws DatastreamException, InterruptedException {
+      throws InterruptedException {
     final int pollIntervalMs = 500;
     final long startTimeMs = System.currentTimeMillis();
     while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
@@ -95,15 +95,15 @@ public class DatastreamRestClient {
       Thread.sleep(pollIntervalMs);
     }
 
-    throw new DatastreamException(String.format("Datastream was not initialized before the timeout %s", timeoutMs));
+    throw new DatastreamRuntimeException(String.format("Datastream was not initialized before the timeout %s", timeoutMs));
   }
 
-  private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) throws DatastreamException {
+  private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) {
     ResponseFuture<CollectionResponse<Datastream>> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       return datastreamResponseFuture.getResponse().getEntity().getElements();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamException("Get All Datastreams failed with error.", e);
+      throw new DatastreamRuntimeException("Get All Datastreams failed with error.", e);
     }
   }
 
@@ -113,9 +113,9 @@ public class DatastreamRestClient {
    * Entries will be return in lexicographical based on their getName() property.
    *
    * @return all the Datastream objects
-   * @throws DatastreamException for any errors encountered while fetching the datastream.
+   * @for any errors encountered while fetching the datastream.
    */
-  public List<Datastream> getAllDatastreams() throws DatastreamException {
+  public List<Datastream> getAllDatastreams() {
     return getAllDatastreams(_builders.getAll().build());
   }
 
@@ -129,7 +129,7 @@ public class DatastreamRestClient {
    * @return
    * @throws DatastreamException
    */
-  public List<Datastream> getAllDatastreams(int start, int count) throws DatastreamException {
+  public List<Datastream> getAllDatastreams(int start, int count) {
     return getAllDatastreams(_builders.getAll().paginate(start, count).build());
   }
 
@@ -138,17 +138,17 @@ public class DatastreamRestClient {
    * Datastream management service which validates the datastream object and writes it to the store (zookeeper).
    * @param datastream
    *   Datastream that needs to be created.
-   * @throws DatastreamException for any errors encountered while creating the datastream.
+   * @for any errors encountered while creating the datastream.
    * @throws com.linkedin.r2.RemoteInvocationException for any network/system level errors encountered
    *   while sending the request or receiving the response.
    */
-  public void createDatastream(Datastream datastream) throws DatastreamException {
+  public void createDatastream(Datastream datastream) {
     CreateRequest request = _builders.create().input(datastream).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamException(String.format("Create Datastream {%s} failed with error.", datastream), e);
+      throw new DatastreamRuntimeException(String.format("Create Datastream {%s} failed with error.", datastream), e);
     }
   }
 
@@ -163,10 +163,10 @@ public class DatastreamRestClient {
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    * @throws DatastreamException
    *    Throws DatastreamNotFoundException if the datastream doesn't exist,
-   *    Throws DatastreamException for any other errors encountered while creating the datastream.
+   *    for any other errors encountered while creating the datastream.
    *
    */
-  public Datastream createBootstrapDatastream(String datastreamName) throws DatastreamException {
+  public Datastream createBootstrapDatastream(String datastreamName) {
     ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().paramBaseDatastream(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
@@ -176,7 +176,7 @@ public class DatastreamRestClient {
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamException(
+        throw new DatastreamRuntimeException(
             String.format("Create Bootstrap Datastream {%s} failed with error.", datastreamName), e);
       }
     }
@@ -191,13 +191,13 @@ public class DatastreamRestClient {
    * @throws DatastreamException
    *   When the datastream is not found or any other error happens on the server.
    */
-  public void deleteDatastream(String datastreamName) throws DatastreamException {
+  public void deleteDatastream(String datastreamName) {
     DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
     ResponseFuture response = _restClient.sendRequest(request);
     try {
       response.getResponse();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
+      throw new DatastreamRuntimeException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
     }
   }
 
