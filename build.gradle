@@ -39,6 +39,7 @@ subprojects {
     configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
     sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
     toolVersion = "6.7"
+    ignoreFailures = false
   }
 
   spec['product'] = ['pegasus':
@@ -91,6 +92,12 @@ subprojects {
     manifest {
       attributes 'Implementation-Title': 'Datastream'
     }
+  }
+
+  tasks.withType(JavaCompile) {
+    // Skipping 'deprecation' since pegasus generates problematic files and 'fallthrough' since it can't be suppressed
+    // Xlint:all - [deprecation, fallthrough]
+    options.compilerArgs = ["-Xlint:cast,classfile,dep-ann,divzero,empty,finally,options,overrides,path,processing,rawtypes,serial,static,try,unchecked,varargs", "-Werror"]
   }
 }
 

@@ -17,6 +17,7 @@ package com.linkedin.datastream.server;
  * under the License.
  */
 
+import java.util.Collections;
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -25,7 +26,6 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
@@ -57,11 +57,7 @@ public final class KafkaTestUtils {
     Validate.notNull(callback);
 
     TopicPartition subscription = new TopicPartition(topic, partition);
-    List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>() {
-      {
-        add(subscription);
-      }
-    };
+    List<TopicPartition> topicPartitions = Collections.singletonList(subscription);
     KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
     consumer.assign(topicPartitions);
     consumer.seekToBeginning(subscription);

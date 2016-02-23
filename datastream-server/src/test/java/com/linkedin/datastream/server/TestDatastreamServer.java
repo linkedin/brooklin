@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import org.apache.avro.Schema;
-import org.apache.avro.util.Utf8;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +32,6 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProviderFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.zk.KeyBuilder;

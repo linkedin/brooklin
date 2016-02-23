@@ -2,17 +2,16 @@ package com.linkedin.datastream;
 
 import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.server.dms.BootstrapBuilders;
-import com.linkedin.datastream.server.dms.DatastreamBuilders;
+import com.linkedin.datastream.server.dms.BootstrapRequestBuilders;
+import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
 import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.ActionRequest;
-import com.linkedin.restli.client.CreateRequest;
+import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.DeleteRequest;
 import com.linkedin.restli.client.GetAllRequest;
 import com.linkedin.restli.client.GetRequest;
@@ -20,7 +19,9 @@ import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 import com.linkedin.restli.client.RestLiResponseException;
 import com.linkedin.restli.common.CollectionResponse;
+import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.common.IdResponse;
 import java.util.Collections;
 import java.util.List;
 
@@ -30,14 +31,14 @@ import java.util.List;
  */
 public class DatastreamRestClient {
 
-  private final DatastreamBuilders _builders;
+  private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
-  private final BootstrapBuilders _bootstrapBuilders;
+  private final BootstrapRequestBuilders _bootstrapBuilders;
   private final HttpClientFactory _httpClient;
 
   public DatastreamRestClient(String dsmUri) {
-    _builders = new DatastreamBuilders();
-    _bootstrapBuilders = new BootstrapBuilders();
+    _builders = new DatastreamRequestBuilders();
+    _bootstrapBuilders = new BootstrapRequestBuilders();
     _httpClient = new HttpClientFactory();
     final Client r2Client = new TransportClientAdapter(_httpClient.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
@@ -143,8 +144,8 @@ public class DatastreamRestClient {
    *   while sending the request or receiving the response.
    */
   public void createDatastream(Datastream datastream) {
-    CreateRequest request = _builders.create().input(datastream).build();
-    ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
+    CreateIdRequest<String, Datastream> request = _builders.create().input(datastream).build();
+    ResponseFuture<IdResponse<String>> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
@@ -167,7 +168,7 @@ public class DatastreamRestClient {
    *
    */
   public Datastream createBootstrapDatastream(String datastreamName) {
-    ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().paramBaseDatastream(datastreamName).build();
+    ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().baseDatastreamParam(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       return datastreamResponseFuture.getResponse().getEntity();
@@ -193,7 +194,7 @@ public class DatastreamRestClient {
    */
   public void deleteDatastream(String datastreamName) {
     DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
-    ResponseFuture response = _restClient.sendRequest(request);
+    ResponseFuture<EmptyRecord> response = _restClient.sendRequest(request);
     try {
       response.getResponse();
     } catch (RemoteInvocationException e) {

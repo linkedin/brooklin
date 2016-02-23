@@ -68,6 +68,7 @@ public class GlobalSettings {
     return _numberOfErrors;
   }
 
+  @SuppressWarnings("static")
   public boolean parseCommandLineParameters(String[] args) {
     // Create command-line options
     Options options = new Options();

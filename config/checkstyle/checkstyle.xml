@@ -7,7 +7,7 @@
 LinkedIn Java style.
 -->
 <module name="Checker">
-  <property name="severity" value="${checkstyle.severity}" default="warning"/>
+  <property name="severity" value="${checkstyle.severity}" default="error"/>
 
   <module name="TreeWalker">
     <module name="FileContentsHolder"/>

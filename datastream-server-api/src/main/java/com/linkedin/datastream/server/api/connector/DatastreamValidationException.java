@@ -4,6 +4,8 @@ import com.linkedin.datastream.common.DatastreamException;
 
 
 public class DatastreamValidationException extends DatastreamException {
+  private static final long serialVersionUID = 1;
+
   public DatastreamValidationException() {
     super();
   }

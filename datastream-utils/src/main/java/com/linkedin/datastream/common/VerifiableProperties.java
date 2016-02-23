@@ -266,7 +266,7 @@ public class VerifiableProperties {
 
   public void verify() {
     LOG.info("Verifying properties");
-    Enumeration keys = _props.propertyNames();
+    Enumeration<?> keys = _props.propertyNames();
     while (keys.hasMoreElements()) {
       Object key = keys.nextElement();
       if (!_referenceSet.contains(key)) {

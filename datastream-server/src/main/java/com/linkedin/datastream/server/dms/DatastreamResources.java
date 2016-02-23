@@ -54,6 +54,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return _store.getDatastream(name);
   }
 
+  @SuppressWarnings("deprecated")
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
     return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)

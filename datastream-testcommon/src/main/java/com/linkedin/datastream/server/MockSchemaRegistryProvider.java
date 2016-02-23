@@ -8,7 +8,7 @@ import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 
 public class MockSchemaRegistryProvider implements SchemaRegistryProvider {
 
-  public static String MOCK_SCHEMA_ID = "mockSchemaId";
+  public static final String MOCK_SCHEMA_ID = "mockSchemaId";
 
   @Override
   public String registerSchema(String schemaName, Schema schema)
