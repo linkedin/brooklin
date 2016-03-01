@@ -555,7 +555,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         // Add the tasks for this connector type to the instance
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
-          ((DatastreamTaskImpl)task).setZkAdapter(_adapter);
+          ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
           assigmentsByInstance.get(instance).add(task);
         });
       }

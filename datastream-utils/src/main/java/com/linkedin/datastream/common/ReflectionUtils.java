@@ -25,6 +25,7 @@ public class ReflectionUtils {
    * @param <T> type fo the class
    * @return instance of the class, or null if anything went wrong
    */
+  @SuppressWarnings("unchecked")
   public static <T> T createInstance(String clazz, Object... args)
       throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException,
              IllegalAccessException {
@@ -71,6 +72,7 @@ public class ReflectionUtils {
    * @param <T> type of the field
    * @return the value of the field or null if failed
    */
+  @SuppressWarnings("unchecked")
   public static <T> T getField(Object object, String field) throws Exception {
     Validate.notNull(object, "null target object");
     Validate.notNull(field, "null field name");
@@ -152,6 +154,7 @@ public class ReflectionUtils {
    * @param <T> return type
    * @return return value of the method, null for void methods
    */
+  @SuppressWarnings("unchecked")
   public static <T> T callMethod(Object object, String methodName, Object... args) throws Exception {
     Validate.notNull(object, "null class name");
     Method method = null;

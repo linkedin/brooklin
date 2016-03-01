@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;

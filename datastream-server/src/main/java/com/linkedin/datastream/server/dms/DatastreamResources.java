@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
@@ -8,7 +9,6 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
-import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.Context;
 import com.linkedin.restli.server.annotations.RestLiCollection;
@@ -26,14 +26,16 @@ import org.slf4j.LoggerFactory;
  */
 @RestLiCollection(name = "datastream", namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
-  private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
 
   private final DatastreamStore _store;
   private final Coordinator _coordinator;
+  private final ErrorLogger _errorLogger;
 
   public DatastreamResources(DatastreamServer datastreamServer) {
     _store = datastreamServer.getDatastreamStore();
     _coordinator = datastreamServer.getCoordinator();
+    _errorLogger = new ErrorLogger(LOG);
   }
 
   @Override
@@ -44,8 +46,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public UpdateResponse delete(String key) {
-    boolean result = _store.deleteDatastream(key);
-    return new UpdateResponse(result ? HttpStatus.S_200_OK : HttpStatus.S_400_BAD_REQUEST);
+    _store.deleteDatastream(key);
+    return new UpdateResponse(HttpStatus.S_200_OK);
   }
 
   // Returning null will automatically trigger a 404 Not Found response
@@ -65,28 +67,28 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
-      return new CreateResponse(
-          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!"));
+      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
     }
     if (!datastream.hasConnectorType()) {
-      return new CreateResponse(
-          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!"));
+      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
     if (!datastream.hasSource()) {
-      return new CreateResponse(
-          new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!"));
+      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
     try {
       _coordinator.initializeDatastream(datastream);
     } catch (DatastreamValidationException e) {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e.getMessage()));
+      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST,
+              "Failed to initialize Datastream: ", e);
     }
 
-    if (_store.createDatastream(datastream.getName(), datastream)) {
-      return new CreateResponse("Datastream created", HttpStatus.S_201_CREATED);
-    } else {
-      return new CreateResponse(new RestLiServiceException(HttpStatus.S_409_CONFLICT));
+    try {
+      _store.createDatastream(datastream.getName(), datastream);
+      return new CreateResponse("Datastream created: " + datastream, HttpStatus.S_201_CREATED);
+    } catch (DatastreamException e) {
+      return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT,
+              "Failed to create datastream: " + datastream, e);
     }
   }
 }
