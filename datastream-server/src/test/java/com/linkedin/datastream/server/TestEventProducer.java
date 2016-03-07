@@ -145,6 +145,7 @@ public class TestEventProducer {
     _producer = new EventProducer(_tasks, _transport, _cpProvider, _config, customCheckpointing);
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testSendWithCustomCheckpoint() throws DatastreamException, TransportException, InterruptedException {
     setup(true);
@@ -176,7 +177,7 @@ public class TestEventProducer {
       if (cpString == null) { // not ready
         return false;
       }
-      TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {
+      TypeReference<HashMap<Integer, String>> typeRef = new TypeReference<HashMap<Integer, String>>() {
       };
       Map<Integer, String> cpMap = JsonUtils.fromJson(cpString, typeRef);
       if (!cpMap.equals(taskCpMap.get(task))) {

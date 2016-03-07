@@ -63,7 +63,7 @@ public final class JsonUtils {
    * @param <T> type of the target object
    * @return deserialized Java object
    */
-  public static <T> T fromJson(String json, TypeReference typeRef) {
+  public static <T> T fromJson(String json, TypeReference<T> typeRef) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(typeRef, "null type reference");
     T object;

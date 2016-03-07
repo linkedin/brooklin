@@ -439,7 +439,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           break;
 
         case HANDLE_INSTANCE_ERROR:
-          handleInstanceError(event);
+          handleInstanceError((CoordinatorEvent.HandleInstanceError) event);
           break;
         default:
           throw new Exception(String.format("Unknown event type %s.", event.getType()));
@@ -451,11 +451,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     LOG.info("END: Handle event " + event);
   }
 
-  // when we encouter an error, we need to persist the error message in zookeeper. We only persist the
+  // when we encounter an error, we need to persist the error message in zookeeper. We only persist the
   // first 10 messages. Why we put this logic in event loop instead of synchronously handle it? This
   // is because the same reason that can result in error can also result in the failure of persisting
   // the error message.
-  private void handleInstanceError(CoordinatorEvent<String> event) {
+  private void handleInstanceError(CoordinatorEvent.HandleInstanceError event) {
     String msg = event.getEventData();
     _adapter.zkSaveInstanceError(msg);
   }
@@ -472,7 +472,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     List<Datastream> newDatastreams = _adapter.getAllDatastreams();
 
     // do nothing if there is zero datastreams
-    if (newDatastreams.size() == 0) {
+    if (newDatastreams.isEmpty()) {
       LOG.warn("Received a new datastream event, but there were no datastreams");
       return;
     }
@@ -555,7 +555,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         // Add the tasks for this connector type to the instance
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
-          ((DatastreamTaskImpl)task).setZkAdapter(_adapter);
+          ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
           assigmentsByInstance.get(instance).add(task);
         });
       }

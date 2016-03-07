@@ -29,9 +29,9 @@ public class TestLoadbalancingStrategy {
     ZkAdapter adapter = mock(ZkAdapter.class);
     Map<DatastreamTask, Map<String, String>> stateMap = new HashMap<>();
     doAnswer((invocation) -> {
-      DatastreamTask task = (DatastreamTask)invocation.getArguments()[0];
-      String key = (String)invocation.getArguments()[1];
-      String val = (String)invocation.getArguments()[2];
+      DatastreamTask task = (DatastreamTask) invocation.getArguments()[0];
+      String key = (String) invocation.getArguments()[1];
+      String val = (String) invocation.getArguments()[2];
       if (!stateMap.containsKey(task)) {
         stateMap.put(task, new HashMap<>());
       }
@@ -39,8 +39,8 @@ public class TestLoadbalancingStrategy {
       return null;
     }).when(adapter).setDatastreamTaskStateForKey(anyObject(), anyString(), anyString());
     doAnswer((invocation) -> {
-      DatastreamTask task = (DatastreamTask)invocation.getArguments()[0];
-      String key = (String)invocation.getArguments()[1];
+      DatastreamTask task = (DatastreamTask) invocation.getArguments()[0];
+      String key = (String) invocation.getArguments()[1];
       if (!stateMap.containsKey(task)) {
         return null;
       }
@@ -91,7 +91,7 @@ public class TestLoadbalancingStrategy {
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
-      assignment.get(instance).forEach(t -> ((DatastreamTaskImpl)t).setZkAdapter(adapter));
+      assignment.get(instance).forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
     }
 
     String[] newInstances = new String[] { "instance1", "instance2" };
@@ -195,13 +195,13 @@ public class TestLoadbalancingStrategy {
     assignment.values().forEach(tasks::addAll);
 
     ZkAdapter adapter = createMockAdapter();
-    tasks.stream().forEach(t -> ((DatastreamTaskImpl)t).setZkAdapter(adapter));
+    tasks.stream().forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
 
     // At least two tasks should be created
     Assert.assertTrue(tasks.size() >= 2);
 
     int numPending = tasks.size();
-    for (int i = 0; i < tasks.size(); i+=2, --numPending) {
+    for (int i = 0; i < tasks.size(); i += 2, numPending--) {
       tasks.get(i).setStatus(DatastreamTaskStatus.complete());
     }
 

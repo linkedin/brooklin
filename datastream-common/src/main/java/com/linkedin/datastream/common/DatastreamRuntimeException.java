@@ -4,6 +4,7 @@ package com.linkedin.datastream.common;
  * Common Datastream exception for all unchecked exceptions
  */
 public class DatastreamRuntimeException extends RuntimeException {
+  private static final long serialVersionUID = 1;
 
   public DatastreamRuntimeException() {
     super();

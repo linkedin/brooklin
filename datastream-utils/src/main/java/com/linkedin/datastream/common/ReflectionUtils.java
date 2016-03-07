@@ -25,13 +25,14 @@ public class ReflectionUtils {
    * @param <T> type fo the class
    * @return instance of the class, or null if anything went wrong
    */
+  @SuppressWarnings("unchecked")
   public static <T> T createInstance(String clazz, Object... args)
       throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException,
              IllegalAccessException {
     Validate.notNull(clazz, "null class name");
     try {
-      Class classObj = Class.forName(clazz);
-      Class[] argTypes = new Class[args.length];
+      Class<T> classObj = (Class<T>) Class.forName(clazz);
+      Class<?>[] argTypes = new Class<?>[args.length];
       IntStream.range(0, args.length).forEach(i -> argTypes[i] = args[i].getClass());
       Constructor<T> ctor = classObj.getDeclaredConstructor(argTypes);
       return ctor.newInstance(args);
@@ -71,6 +72,7 @@ public class ReflectionUtils {
    * @param <T> type of the field
    * @return the value of the field or null if failed
    */
+  @SuppressWarnings("unchecked")
   public static <T> T getField(Object object, String field) throws Exception {
     Validate.notNull(object, "null target object");
     Validate.notNull(field, "null field name");
@@ -85,7 +87,7 @@ public class ReflectionUtils {
     }
   }
 
-  private static final Class[][] COMPATIBLE_TYPES = {
+  private static final Class<?>[][] COMPATIBLE_TYPES = {
     { Character.TYPE, Character.class },
     { Byte.TYPE, Byte.class },
     { Boolean.TYPE, Boolean.class },
@@ -96,7 +98,7 @@ public class ReflectionUtils {
     { Double.TYPE, Double.class },
   };
 
-  private static boolean isCompatiblePrimitive(Class type1, Class type2) {
+  private static <S, T> boolean isCompatiblePrimitive(Class<S> type1, Class<T> type2) {
     for (int i = 0; i < COMPATIBLE_TYPES.length; i++) {
       if ((type1.equals(COMPATIBLE_TYPES[i][0]) && type2.equals(COMPATIBLE_TYPES[i][1])) ||
           (type1.equals(COMPATIBLE_TYPES[i][1]) && type2.equals(COMPATIBLE_TYPES[i][0]))) {
@@ -117,7 +119,7 @@ public class ReflectionUtils {
    * @param argTypes array of argument types
    * @return the method
    */
-  public static Method findMatchingMethod(Class clazz, String methodName, Class... argTypes) {
+  public static Method findMatchingMethod(Class<?> clazz, String methodName, Class<?>... argTypes) {
     Method[] methods = clazz.getDeclaredMethods();
     Method foundMethod = null;
     for (Method method : methods) {
@@ -152,12 +154,13 @@ public class ReflectionUtils {
    * @param <T> return type
    * @return return value of the method, null for void methods
    */
+  @SuppressWarnings("unchecked")
   public static <T> T callMethod(Object object, String methodName, Object... args) throws Exception {
     Validate.notNull(object, "null class name");
     Method method = null;
     boolean isAccessible = true;
     try {
-      Class[] argTypes = new Class[args.length];
+      Class<?>[] argTypes = new Class<?>[args.length];
       IntStream.range(0, args.length).forEach(i -> argTypes[i] = args[i].getClass());
       method = findMatchingMethod(object.getClass(), methodName, argTypes);
       if (method == null) {

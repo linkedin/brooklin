@@ -356,6 +356,7 @@ public class TestCoordinator {
     LOG.info("Set destination only for datastream2, leave it unassigned for datastream1");
     Mockito.doAnswer(invocation -> {
       Object[] args = invocation.getArguments();
+      @SuppressWarnings("unchecked")
       List<Datastream> streams = (List<Datastream>) args[0];
       for (Datastream stream : streams) {
         // Populate Destination only for datastream2
@@ -381,6 +382,7 @@ public class TestCoordinator {
     // Stub for populateDatastreamDestination to set destination on all datastreams
     Mockito.doAnswer(invocation -> {
       Object[] args = invocation.getArguments();
+      @SuppressWarnings("unchecked")
       List<Datastream> streams = (List<Datastream>) args[0];
       for (Datastream stream : streams) {
         setDatastreamDestination(stream);

@@ -173,7 +173,7 @@ public class EventProducer {
     Map<DatastreamTask, String> committed = _checkpointProvider.getCommitted(tasks);
 
     // Instruct jackson to convert string keys to integer
-    TypeReference typeRef = new TypeReference<HashMap<Integer, String>>() {
+    TypeReference<HashMap<Integer, String>> typeRef = new TypeReference<HashMap<Integer, String>>() {
     };
 
     // Load checkpoints only for specified task list

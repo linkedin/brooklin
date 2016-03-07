@@ -1,6 +1,6 @@
 package com.linkedin.datastream.server;
 
-public class CoordinatorEvent<T> {
+public class CoordinatorEvent {
 
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
@@ -9,55 +9,57 @@ public class CoordinatorEvent<T> {
     HANDLE_INSTANCE_ERROR
   }
 
-  private final EventType _eventType;
-  private T _eventData;
+  public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT = new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
+  public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT = new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
+  public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT = new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
 
-  private CoordinatorEvent(EventType eventName) {
-    _eventType = eventName;
-    _eventData = null;
-  }
+  protected final EventType _eventType;
 
-  private CoordinatorEvent(EventType eventName, T eventData) {
-    _eventType = eventName;
-    _eventData = eventData;
-  }
-
-  public static CoordinatorEvent createLeaderDoAssignmentEvent() {
-    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
-  }
-
-  public static CoordinatorEvent createHandleAssignmentChangeEvent() {
-    return new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
-  }
-
-  public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
-    return new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
-  }
-
-  public static CoordinatorEvent<String> createHandleInstanceErrorEvent(String errorMessage) {
-    CoordinatorEvent event = new CoordinatorEvent(EventType.HANDLE_INSTANCE_ERROR, errorMessage);
-    return event;
+  private CoordinatorEvent(EventType eventType) {
+    _eventType = eventType;
   }
 
   public EventType getType() {
     return _eventType;
   }
 
-  public T getEventData() {
-    return _eventData;
-  }
-
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("type:" + _eventType.toString());
+    return "type:" + _eventType;
+  }
 
-    if (_eventData != null) {
-      sb.append("\n");
-      sb.append(_eventData);
+  public static CoordinatorEvent createLeaderDoAssignmentEvent() {
+    return LEADER_DO_ASSIGNMENT_EVENT;
+  }
+
+  public static CoordinatorEvent createHandleAssignmentChangeEvent() {
+    return HANDLE_ASSIGNMENT_CHANGE_EVENT;
+  }
+
+  public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
+    return HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT;
+  }
+
+  public static HandleInstanceError createHandleInstanceErrorEvent(String errorMessage) {
+    return new HandleInstanceError(errorMessage);
+  }
+
+  public static final class HandleInstanceError extends CoordinatorEvent {
+    private final String _errorMessage;
+
+    private HandleInstanceError(String errorMessage) {
+      super(EventType.HANDLE_INSTANCE_ERROR);
+      _errorMessage = errorMessage;
     }
 
-    return sb.toString();
+    public String getEventData() {
+      return _errorMessage;
+    }
+
+    @Override
+    public String toString() {
+      return "type:" + _eventType + "\n" + _errorMessage;
+    }
   }
 
 }
