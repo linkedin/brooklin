@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
 
 import java.util.stream.Stream;
 
@@ -28,22 +29,21 @@ public interface DatastreamStore {
    * Updates the datastream associated with the given key with the provided one.
    * @param key
    * @param datastream
-   * @return
+   * @throws DatastreamException
    */
-  boolean updateDatastream(String key, Datastream datastream);
+  void updateDatastream(String key, Datastream datastream) throws DatastreamException;
 
   /**
    * Creates a new datastream and associates it with the provided key.
    * @param key
    * @param datastream
-   * @return
+   * @throws DatastreamException
    */
-  boolean createDatastream(String key, Datastream datastream);
+  void createDatastream(String key, Datastream datastream) throws DatastreamException;
 
   /**
    * Deletes the datastream associated with the provided key.
    * @param key
-   * @return
    */
-  boolean deleteDatastream(String key);
+  void deleteDatastream(String key);
 }

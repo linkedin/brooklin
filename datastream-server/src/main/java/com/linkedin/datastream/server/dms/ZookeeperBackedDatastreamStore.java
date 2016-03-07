@@ -1,9 +1,11 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.zk.KeyBuilder;
+import org.apache.commons.lang.Validate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,39 +67,33 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   }
 
   @Override
-  public boolean updateDatastream(String key, Datastream datastream) {
+  public void updateDatastream(String key, Datastream datastream) throws DatastreamException {
     // Updating a Datastream is still tricky for now. Changing either the
     // the source or target may result in failure on connector.
     // We could possibly only allow updates on metadata field
-    return false;
   }
 
   @Override
-  public boolean createDatastream(String key, Datastream datastream) {
-    if (key == null || datastream == null) {
-      return false;
-    }
+  public void createDatastream(String key, Datastream datastream) throws DatastreamException {
+    Validate.notNull(datastream, "null datastream");
+    Validate.notNull(key, "null key for datastream" + datastream);
+
     String path = getZnodePath(key);
     if (_zkClient.exists(path)) {
-      return false;
+      String content = _zkClient.ensureReadData(path);
+      throw new DatastreamException(String.format("Datastream already exists: path=%s, content=%s", key, content));
     }
     _zkClient.ensurePath(path);
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(path, json);
-    return true;
   }
 
   @Override
-  public boolean deleteDatastream(String key) {
-    if (key == null) {
-      return false;
-    }
+  public void deleteDatastream(String key) {
+    Validate.notNull(key, "null key");
     String path = getZnodePath(key);
-    if (!_zkClient.exists(path)) {
-      // delete operation is idempotent
-      return true;
+    if (_zkClient.exists(path)) {
+      _zkClient.delete(getZnodePath(key));
     }
-    _zkClient.delete(getZnodePath(key));
-    return true;
   }
 }

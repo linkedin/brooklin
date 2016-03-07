@@ -75,7 +75,7 @@ subprojects {
 
     afterTest { descriptor, result ->
       if(result.getResultType() == TestResult.ResultType.FAILURE) {
-        logger.lifecycle("${descriptor.toString()} failed with output: ${results[descriptor.toString()].join('')}")
+        logger.lifecycle("${descriptor.toString()} failed with output:\n${results[descriptor.toString()].join('')}")
       }
       results[descriptor.toString()] = []
     }
