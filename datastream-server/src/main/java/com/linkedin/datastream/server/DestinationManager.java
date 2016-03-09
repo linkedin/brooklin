@@ -112,11 +112,11 @@ public class DestinationManager {
   /**
    * Example 1:
    *  [source] connector://cluster/db/table/partition
-   *  [destination] cluster_db_table_partition
+   *  [destination] connector_cluster_db_table_partition
    *
    * Example 2:
    *  [source] connector://cluster/db/table/*
-   *  [destination] cluster_db_table_
+   *  [destination] connector_cluster_db_table_
    */
   private String getTopicName(Datastream datastream) {
     URI sourceUri = URI.create(datastream.getSource().getConnectionString());
@@ -128,8 +128,8 @@ public class DestinationManager {
     }
     // Replace / with _ and strip out all non-alphanumeric chars
     path = path.replace("/", "_").replaceAll(REGEX_NON_ALPHA, "");
-    // Append a UUID
-    return String.format("%s_%s", path, UUID.randomUUID());
+    // Include the connector type and random UUID
+    return String.join("_", datastream.getConnectorType(), path, UUID.randomUUID().toString());
   }
 
   /**
