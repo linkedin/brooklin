@@ -517,7 +517,6 @@ public class ZkAdapter {
    */
   private void removeTaskNodes(String instance, String name) {
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
-    DatastreamTask task = getAssignedDatastreamTask(instance, name);
 
     // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
     // Instead, we'll keep the task node alive and remove in cleanupDeadInstanceAssignments()

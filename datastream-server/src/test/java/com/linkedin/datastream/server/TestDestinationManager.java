@@ -63,6 +63,7 @@ public class TestDestinationManager {
     DestinationManager targetManager = new DestinationManager(true, transport);
     targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
     String destination = datastream.getDestination().getConnectionString();
+    Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
     Assert.assertTrue(destination.contains("noauthority"));
     Assert.assertTrue(destination.contains("cluster"));
     Assert.assertTrue(destination.contains("db"));
@@ -79,6 +80,7 @@ public class TestDestinationManager {
     DestinationManager targetManager = new DestinationManager(true, transport);
     targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
     String destination = datastream.getDestination().getConnectionString();
+    Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
     Assert.assertTrue(destination.contains("authority"));
     Assert.assertTrue(destination.contains("cluster"));
     Assert.assertTrue(destination.contains("table"));
