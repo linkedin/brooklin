@@ -62,11 +62,15 @@ public class KafkaTransportProvider implements TransportProvider {
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
-      throw new RuntimeException("Bootstrap servers are not set");
+      String errorMessage = "Bootstrap servers are not set";
+      LOG.error(errorMessage);
+      throw new RuntimeException(errorMessage);
     }
 
     if (!props.containsKey(CONFIG_ZK_CONNECT)) {
-      throw new RuntimeException("Zk connection string config is not set");
+      String errorMessage = "Zk connection string config is not set";
+      LOG.error(errorMessage);
+      throw new RuntimeException(errorMessage);
     }
 
     _brokers = props.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
@@ -91,7 +95,9 @@ public class KafkaTransportProvider implements TransportProvider {
     try {
       payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event);
     } catch (IOException e) {
-      throw new DatastreamException("Failed to encode event in Avro, event=" + event, e);
+      String errorMessage = String.format("Failed to encode event in Avro, event= {%s}", event);
+      LOG.error(errorMessage, e);
+      throw new DatastreamException(errorMessage, e);
     }
 
     KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
@@ -173,10 +179,10 @@ public class KafkaTransportProvider implements TransportProvider {
         _producer.send(outgoing);
       }
     } catch (Exception e) {
-      LOG.error(String.format(
-          "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s failed with exception %s ",
-          record.getEvents(), destinationUri, _brokers, e));
-      throw new RuntimeException(String.format("Send of the datastream record %s failed", record.toString()), e);
+      String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
+          + "failed with exception", record.getEvents(), destinationUri, _brokers);
+      LOG.error(errorMessage, e);
+      throw new RuntimeException(errorMessage, e);
     }
 
     LOG.debug("Done sending Datastream event record: " + record);

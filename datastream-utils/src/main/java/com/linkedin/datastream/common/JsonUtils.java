@@ -2,11 +2,14 @@ package com.linkedin.datastream.common;
 
 import java.io.IOException;
 import java.io.StringWriter;
+
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.annotate.JsonIgnore;
 import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -16,6 +19,8 @@ import org.codehaus.jackson.type.TypeReference;
  */
 public final class JsonUtils {
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class.getName());
 
   static {
     MAPPER.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -49,7 +54,9 @@ public final class JsonUtils {
     try {
       object = MAPPER.readValue(json, clazz);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to parse json: " + json, e);
+      String errorMessage = "Failed to parse json: " + json;
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
     return object;
   }
@@ -70,7 +77,9 @@ public final class JsonUtils {
     try {
       object = MAPPER.readValue(json, typeRef);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to parse json: " + json, e);
+      String errorMessage = "Failed to parse json: " + json;
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
     return object;
   }
@@ -87,7 +96,9 @@ public final class JsonUtils {
     try {
       MAPPER.writeValue(out, object);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to deserialize object: " + object, e);
+      String errorMessage = "Failed to deserialize object: " + object;
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
     return out.toString();
   }

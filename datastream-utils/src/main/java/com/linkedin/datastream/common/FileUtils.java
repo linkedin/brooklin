@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 /**
  * Class that contains the helper utility methods for File system operations.
@@ -11,6 +14,8 @@ import java.util.Random;
 public class FileUtils {
 
   private static final Random RANDOM = new Random();
+
+  private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class.getName());
 
   /**
    * Constructs a random directory with the prefix in the temp folder
@@ -23,8 +28,11 @@ public class FileUtils {
   public static File constructRandomDirectoryInTempDir(String dirPrefix) {
     File file = new File(System.getProperty("java.io.tmpdir"), dirPrefix + RANDOM.nextInt(10000000));
     if (!file.mkdirs()) {
-      throw new RuntimeException("could not create temp directory: " + file.getAbsolutePath());
+      String errorMessage = "could not create temp directory: " + file.getAbsolutePath();
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
     }
+
     file.deleteOnExit();
     return file;
   }

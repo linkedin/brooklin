@@ -16,6 +16,7 @@ import java.util.Set;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -455,7 +456,9 @@ public class ZkAdapter {
     String dsPath = KeyBuilder.datastream(_cluster, dsName);
     if (!_zkclient.exists(dsPath)) {
       // FIXME: we should do some error handling
-      throw new RuntimeException("Missing Datastream in ZooKeeper for task=" + task + " instance=" + instance);
+      String errorMessage = String.format("Missing Datastream in ZooKeeper for task={%s} instance=%s", task, instance);
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
     }
     String dsContent = _zkclient.ensureReadData(dsPath);
     Datastream stream = DatastreamUtils.fromJSON(dsContent);
@@ -496,14 +499,18 @@ public class ZkAdapter {
       json = task.toJson();
     } catch (IOException e) {
       // This should never happen
-      throw new RuntimeException("Failed to serialize task into JSON.", e);
+      String errorMessage = "Failed to serialize task into JSON.";
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
     String created = _zkclient.create(instancePath, json, CreateMode.PERSISTENT);
     if (created != null && !created.isEmpty()) {
       LOG.info("create zookeeper node: " + instancePath);
     } else {
       // FIXME: we should do some error handling
-      throw new RuntimeException("failed to create zookeeper node: " + instancePath);
+      String errorMessage = "failed to create zookeeper node: " + instancePath;
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
     }
   }
 
@@ -806,8 +813,10 @@ public class ZkAdapter {
       _zkclient.createEphemeral(lockPath, _instanceName);
       LOG.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
-      throw new DatastreamException(String.format("%s failed to acquire the lock after %dms on %s, current owner: %s",
-              _instanceName, timeoutMs, task, owner));
+      String errorMessage = String.format("%s failed to acquire the lock on datastream task after %dms on %s, current owner: %s",
+          _instanceName, timeoutMs, task, owner);
+      LOG.error(errorMessage);
+      throw new DatastreamException(errorMessage);
     }
   }
 
@@ -954,7 +963,7 @@ public class ZkAdapter {
               + "parentPath %s,children %s", parentPath, currentChildren));
 
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));;
-      
+
       if (_listener != null) {
         _listener.onLiveInstancesChange();
       }

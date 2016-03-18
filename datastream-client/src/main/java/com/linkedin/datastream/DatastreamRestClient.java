@@ -1,5 +1,10 @@
 package com.linkedin.datastream;
 
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.log4j.Logger;
+
 import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
@@ -22,8 +27,6 @@ import com.linkedin.restli.common.CollectionResponse;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.common.IdResponse;
-import java.util.Collections;
-import java.util.List;
 
 
 /**
@@ -31,6 +34,7 @@ import java.util.List;
  */
 public class DatastreamRestClient {
 
+  private static final Logger LOG = Logger.getLogger(DatastreamRestClient.class);
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
   private final BootstrapRequestBuilders _bootstrapBuilders;
@@ -64,9 +68,13 @@ public class DatastreamRestClient {
     } catch (RemoteInvocationException e) {
       if (e instanceof RestLiResponseException
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
+        LOG.error(String.format("Datastream {%s} is not found", datastreamName), e);
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-        throw new DatastreamRuntimeException(String.format("Get Datastream {%s} failed with error.", datastreamName), e);
+
+        String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
+        LOG.error(errorMessage, e);
+        throw new DatastreamRuntimeException(errorMessage, e);
       }
     }
   }
@@ -96,7 +104,9 @@ public class DatastreamRestClient {
       Thread.sleep(pollIntervalMs);
     }
 
-    throw new DatastreamRuntimeException(String.format("Datastream was not initialized before the timeout %s", timeoutMs));
+    String errorMessage = String.format("Datastream was not initialized before the timeout %s", timeoutMs);
+    LOG.error(errorMessage);
+    throw new DatastreamRuntimeException(errorMessage);
   }
 
   private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) {
@@ -104,6 +114,8 @@ public class DatastreamRestClient {
     try {
       return datastreamResponseFuture.getResponse().getEntity().getElements();
     } catch (RemoteInvocationException e) {
+      String errorMessage = "Get All Datastreams failed with error.";
+      LOG.error(errorMessage, e);
       throw new DatastreamRuntimeException("Get All Datastreams failed with error.", e);
     }
   }
@@ -128,7 +140,7 @@ public class DatastreamRestClient {
    * @param start index of the first datastream to produce
    * @param count maximum number of entries to be produced
    * @return
-   * @throws DatastreamException
+   * @throws DatastreamRuntimeException
    */
   public List<Datastream> getAllDatastreams(int start, int count) {
     return getAllDatastreams(_builders.getAll().paginate(start, count).build());
@@ -149,7 +161,9 @@ public class DatastreamRestClient {
     try {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamRuntimeException(String.format("Create Datastream {%s} failed with error.", datastream), e);
+      String errorMessage = String.format("Create Datastream {%s} failed with error.", datastream);
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
   }
 
@@ -157,29 +171,25 @@ public class DatastreamRestClient {
    * Create the bootstrap datastream corresponding to the change capture datastream. This makes a REST call to the
    * Datastream management service. The datastream management service checks if there is an existing bootstrap datastream
    * that can be used, if so it returns the existing bootstrap datastream or it will create a new one and returns that
-   * @param datastreamName
-   *    Name of the change capture datastream to which the corresponding bootstrap datastream needs to be obtained.
+   * @param bootstrapDatastream
+   *    BootstrapDatastream that needs to be created.
    * @return
    * @throws RemoteInvocationException
    *    If there are any other network/ system level errors while sending the request or receiving the response.
-   * @throws DatastreamException
-   *    Throws DatastreamNotFoundException if the datastream doesn't exist,
-   *    for any other errors encountered while creating the datastream.
+   * @throws DatastreamRuntimeException
+   *    for any errors encountered while creating the bootstrap datastream.
    *
    */
-  public Datastream createBootstrapDatastream(String datastreamName) {
-    ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate().baseDatastreamParam(datastreamName).build();
+  public Datastream createBootstrapDatastream(Datastream bootstrapDatastream) {
+    ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate()
+        .boostrapDatastreamParam(bootstrapDatastream).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       return datastreamResponseFuture.getResponse().getEntity();
     } catch (RemoteInvocationException e) {
-      if (e instanceof RestLiResponseException
-          && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        throw new DatastreamRuntimeException(
-            String.format("Create Bootstrap Datastream {%s} failed with error.", datastreamName), e);
-      }
+      String errorMessage = String.format("Create Bootstrap Datastream {%s} failed with error.", bootstrapDatastream);
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
   }
 
@@ -189,7 +199,7 @@ public class DatastreamRestClient {
    * are serving the datastream will get notified to stop producing events for the datastream.
    * @param datastreamName
    *   Name of the datastream that should be deleted.
-   * @throws DatastreamException
+   * @throws DatastreamRuntimeException
    *   When the datastream is not found or any other error happens on the server.
    */
   public void deleteDatastream(String datastreamName) {
@@ -198,7 +208,9 @@ public class DatastreamRestClient {
     try {
       response.getResponse();
     } catch (RemoteInvocationException e) {
-      throw new DatastreamRuntimeException(String.format("Delete Datastream {%s} failed with error.", datastreamName), e);
+      String errorMessage = String.format("Delete Datastream {%s} failed with error.", datastreamName);
+      LOG.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
   }
 

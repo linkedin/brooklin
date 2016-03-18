@@ -34,26 +34,23 @@ public class BootstrapActionResources {
   }
 
   /**
-   * Process the request of creating bootstrap datastream. The request provides the name of
-   * base datastream, and the server will create and return a corresponding bootstrap
-   * datastream.
+   * Process the request of creating bootstrap datastream. The request provides the bootstrap datastream
+   * that needs to be created. Server will either return an existing datastream or create a new bootstrap datastream
+   * based on the request.
    */
   @Action(name = "create")
-  public Datastream create(@ActionParam("baseDatastream") String baseDatastreamName) {
-    Datastream baseDatastream = _store.getDatastream(baseDatastreamName);
-    if (baseDatastream == null) {
-      _errorLogger.logAndThrow(HttpStatus.S_404_NOT_FOUND, "Base datastream does not exists.");
+  public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
+
+    if (!bootstrapDatastream.hasName()) {
+      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
     }
-    Datastream bootstrapDatastream = new Datastream();
-    bootstrapDatastream.setName(String.format("%s-Bootstrap-%d", baseDatastream.getName(), System.currentTimeMillis()));
-    try {
-      String bootstrapConnectorType = _datastreamServer.getBootstrapConnector(baseDatastream.getConnectorType());
-      bootstrapDatastream.setConnectorType(bootstrapConnectorType);
-    } catch (DatastreamException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST,
-          "Missing bootstrap connector for " + baseDatastream.getConnectorType());
+
+    if (!bootstrapDatastream.hasConnectorType()) {
+      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
-    bootstrapDatastream.setSource(baseDatastream.getSource());
+    if (!bootstrapDatastream.hasSource()) {
+      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
+    }
 
     Datastream initializedDatastream = null;
     try {

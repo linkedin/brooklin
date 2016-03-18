@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.dms;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 
 import com.linkedin.datastream.common.ReflectionUtils;
@@ -22,15 +21,10 @@ public class DatastreamResourceFactory implements ResourceFactory {
 
   @Override
   public void setRootResources(Map<String, ResourceModel> rootResources) {
-
   }
 
   @Override
   public <R> R create(Class<R> resourceClass) {
-    try {
-      return ReflectionUtils.createInstance(resourceClass.getCanonicalName(), _datastreamServer);
-    } catch (ClassNotFoundException | NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
-      throw new RuntimeException(e);
-    }
+    return ReflectionUtils.createInstance(resourceClass.getCanonicalName(), _datastreamServer);
   }
 }
