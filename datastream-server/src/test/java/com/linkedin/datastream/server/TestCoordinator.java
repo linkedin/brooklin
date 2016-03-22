@@ -123,7 +123,8 @@ public class TestCoordinator {
     }
 
     @Override
-    public void initializeDatastream(Datastream stream) {
+    public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
+      return stream;
     }
 
     @Override
@@ -180,7 +181,8 @@ public class TestCoordinator {
       }
 
       @Override
-      public void initializeDatastream(Datastream stream) {
+      public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
+        return stream;
       }
     };
     coordinator.addConnector(testConectorType, testConnector, new BroadcastStrategy(), false);
@@ -1048,8 +1050,9 @@ public class TestCoordinator {
     }
 
     @Override
-    public void initializeDatastream(Datastream stream) throws DatastreamValidationException {
-
+    public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+      return stream;
     }
   }
 

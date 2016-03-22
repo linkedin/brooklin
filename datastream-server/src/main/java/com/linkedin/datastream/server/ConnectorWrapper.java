@@ -105,20 +105,24 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
-  public synchronized void initializeDatastream(Datastream stream)
+  public synchronized Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     logApiStart("initializeDatastream");
+
+    Datastream initializedDatastream;
 
     try {
       if (!stream.hasDestination()) {
         stream.setDestination(new DatastreamDestination());
       }
-      _connector.initializeDatastream(stream);
+      initializedDatastream = _connector.initializeDatastream(stream, allDatastreams);
     } catch (Exception ex) {
       logErrorAndException("initializeDatastream", ex);
       throw ex;
     }
 
     logApiEnd("initializeDatastream");
+
+    return initializedDatastream;
   }
 }
