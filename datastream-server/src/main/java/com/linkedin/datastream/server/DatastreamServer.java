@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -75,15 +76,13 @@ public class DatastreamServer {
     String className = connectorProperties.getProperty(CONFIG_CONNECTOR_FACTORY_CLASS_NAME, "");
     if (StringUtils.isBlank(className)) {
       String errorMessage = "Factory className is empty for connector " + connectorStr;
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     ConnectorFactory connectorFactoryInstance = ReflectionUtils.createInstance(className);
     if (connectorFactoryInstance == null) {
       String msg = "Invalid class name or no parameter-less constructor, class=" + className;
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
 
     Connector connectorInstance = connectorFactoryInstance.createConnector(connectorProperties);
@@ -101,8 +100,7 @@ public class DatastreamServer {
       assignmentStrategyInstance = ReflectionUtils.createInstance(strategy);
       if (assignmentStrategyInstance == null) {
         String errorMessage = "Invalid strategy class: " + strategy;
-        LOG.error(errorMessage);
-        throw new DatastreamRuntimeException(errorMessage);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
       }
     }
 
@@ -125,8 +123,7 @@ public class DatastreamServer {
     String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES).split(",");
     if (connectorTypes.length == 0) {
       String errorMessage = "No connectors specified in connectorTypes";
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
@@ -164,8 +161,7 @@ public class DatastreamServer {
       _isStarted = true;
     } catch (IOException ex) {
       String errorMessage = "Failed to start netty.";
-      LOG.error(errorMessage, ex);
-      throw new DatastreamException(errorMessage, ex);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, ex);
     }
   }
 
@@ -197,14 +193,12 @@ public class DatastreamServer {
   public String getBootstrapConnector(String baseConnectorType) {
     if (!_isInitialized) {
       String errorMessage = "DatastreamServer is not initialized.";
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
     String ret = _bootstrapConnectors.get(baseConnectorType);
     if (ret == null) {
       String errorMessage = "No bootstrap connector specified for connector: " + baseConnectorType;
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
     return ret;
   }

@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -338,8 +339,7 @@ public class EventProducer {
           LOG.info("Checkpoints have been successfully committed: " + _safeCheckpoints);
         } catch (Throwable t) {
           String errorMessage = String.format("Checkpoint commit failed, tasks = [%s].", _tasks);
-          LOG.error(errorMessage, t);
-          throw new DatastreamRuntimeException(errorMessage, t);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, t);
         }
       }
 
@@ -347,8 +347,7 @@ public class EventProducer {
       _pendingCheckpoint = false;
     } catch (Throwable t) {
       String errorMessage = String.format("Failed to flush transport, tasks = [%s].", _tasks);
-      LOG.error(errorMessage, t);
-      throw new DatastreamRuntimeException(errorMessage, t);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, t);
     } finally {
       _sendFlushLock.writeLock().unlock();
     }

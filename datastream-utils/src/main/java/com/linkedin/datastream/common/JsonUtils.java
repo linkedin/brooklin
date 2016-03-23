@@ -50,13 +50,12 @@ public final class JsonUtils {
   public static <T> T fromJson(String json, Class<T> clazz) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(clazz, "null class object");
-    T object;
+    T object = null;
     try {
       object = MAPPER.readValue(json, clazz);
     } catch (IOException e) {
       String errorMessage = "Failed to parse json: " + json;
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
     return object;
   }
@@ -73,13 +72,12 @@ public final class JsonUtils {
   public static <T> T fromJson(String json, TypeReference<T> typeRef) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(typeRef, "null type reference");
-    T object;
+    T object = null;
     try {
       object = MAPPER.readValue(json, typeRef);
     } catch (IOException e) {
       String errorMessage = "Failed to parse json: " + json;
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
     return object;
   }
@@ -97,8 +95,7 @@ public final class JsonUtils {
       MAPPER.writeValue(out, object);
     } catch (IOException e) {
       String errorMessage = "Failed to deserialize object: " + object;
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
     return out.toString();
   }

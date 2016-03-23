@@ -3,12 +3,14 @@ package com.linkedin.datastream;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.dms.BootstrapRequestBuilders;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
@@ -34,7 +36,7 @@ import com.linkedin.restli.common.IdResponse;
  */
 public class DatastreamRestClient {
 
-  private static final Logger LOG = Logger.getLogger(DatastreamRestClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
   private final BootstrapRequestBuilders _bootstrapBuilders;
@@ -115,9 +117,10 @@ public class DatastreamRestClient {
       return datastreamResponseFuture.getResponse().getEntity().getElements();
     } catch (RemoteInvocationException e) {
       String errorMessage = "Get All Datastreams failed with error.";
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException("Get All Datastreams failed with error.", e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
+
+    return null;
   }
 
   /**
@@ -162,8 +165,7 @@ public class DatastreamRestClient {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
       String errorMessage = String.format("Create Datastream {%s} failed with error.", datastream);
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
   }
 
@@ -188,9 +190,10 @@ public class DatastreamRestClient {
       return datastreamResponseFuture.getResponse().getEntity();
     } catch (RemoteInvocationException e) {
       String errorMessage = String.format("Create Bootstrap Datastream {%s} failed with error.", bootstrapDatastream);
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
+
+    return null;
   }
 
   /**
@@ -209,8 +212,7 @@ public class DatastreamRestClient {
       response.getResponse();
     } catch (RemoteInvocationException e) {
       String errorMessage = String.format("Delete Datastream {%s} failed with error.", datastreamName);
-      LOG.error(errorMessage, e);
-      throw new DatastreamRuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
   }
 

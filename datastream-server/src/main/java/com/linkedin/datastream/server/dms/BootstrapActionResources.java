@@ -42,25 +42,25 @@ public class BootstrapActionResources {
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
 
     if (!bootstrapDatastream.hasName()) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
     }
 
     if (!bootstrapDatastream.hasConnectorType()) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
     if (!bootstrapDatastream.hasSource()) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
     Datastream initializedDatastream = null;
     try {
       initializedDatastream = _coordinator.initializeDatastream(bootstrapDatastream);
     } catch (DatastreamValidationException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
     }
 
     if (initializedDatastream == null) {
-       _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream, initializeDatastream returned null");
+       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream, initializeDatastream returned null");
     }
 
     if (!initializedDatastream.getName().equals(bootstrapDatastream.getName())) {
@@ -70,7 +70,7 @@ public class BootstrapActionResources {
     try {
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
     } catch (DatastreamException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to initialize " + bootstrapDatastream,
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to initialize " + bootstrapDatastream,
           e);
     }
 

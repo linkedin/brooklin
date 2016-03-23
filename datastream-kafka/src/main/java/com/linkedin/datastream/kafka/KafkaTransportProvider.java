@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.DatastreamEventRecord;
@@ -63,14 +64,12 @@ public class KafkaTransportProvider implements TransportProvider {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       String errorMessage = "Bootstrap servers are not set";
-      LOG.error(errorMessage);
-      throw new RuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     if (!props.containsKey(CONFIG_ZK_CONNECT)) {
       String errorMessage = "Zk connection string config is not set";
-      LOG.error(errorMessage);
-      throw new RuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     _brokers = props.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
@@ -91,13 +90,12 @@ public class KafkaTransportProvider implements TransportProvider {
 
     Integer partition = record.getPartition();
 
-    byte[] payload;
+    byte[] payload = null;
     try {
       payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event);
     } catch (IOException e) {
       String errorMessage = String.format("Failed to encode event in Avro, event= {%s}", event);
-      LOG.error(errorMessage, e);
-      throw new DatastreamException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
     KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
@@ -181,8 +179,7 @@ public class KafkaTransportProvider implements TransportProvider {
     } catch (Exception e) {
       String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
           + "failed with exception", record.getEvents(), destinationUri, _brokers);
-      LOG.error(errorMessage, e);
-      throw new RuntimeException(errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
     LOG.debug("Done sending Datastream event record: " + record);

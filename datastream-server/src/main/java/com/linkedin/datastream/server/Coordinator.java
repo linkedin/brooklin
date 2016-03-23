@@ -23,6 +23,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -156,16 +157,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     if (factory == null) {
       String errorMessage = "failed to create transport provider factory: " + transportFactory;
-      LOG.error(errorMessage);
-      throw new DatastreamException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     _transportProvider =
         factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
       String errorMessage = "failed to create transport provider, factory: " + transportFactory;
-      LOG.error(errorMessage);
-      throw new DatastreamException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
@@ -175,8 +174,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
       if (schemaRegistryFactory == null) {
         String errorMessage = "failed to create schema registry factory: " + schemaRegistryFactoryType;
-        LOG.error(errorMessage);
-        throw new DatastreamException(errorMessage);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
       }
 
       schemaRegistry = schemaRegistryFactory.createSchemaRegistryProvider(
@@ -441,8 +439,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           break;
         default:
           String errorMessage = String.format("Unknown event type %s.", event.getType());
-          LOG.error(errorMessage);
-          throw new DatastreamRuntimeException(errorMessage);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
       }
     } catch (Throwable e) {
       LOG.error("ERROR: event + " + event + " failed.", e);

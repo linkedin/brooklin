@@ -1,13 +1,13 @@
 package com.linkedin.datastream.server.dms;
 
-import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.CreateResponse;
-import com.linkedin.restli.server.RestLiServiceException;
+import java.util.UUID;
 
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 
-import java.util.UUID;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.RestLiServiceException;
 
 /**
  * Simple utility class for logging and throwing/returning a restli exception.
@@ -28,8 +28,8 @@ final class ErrorLogger {
    * @param status HTTP status
    * @param msg error message
    */
-  public void logAndThrow(HttpStatus status, String msg) {
-    logAndThrow(status, msg, null);
+  public void logAndThrowRestLiServiceException(HttpStatus status, String msg) {
+    logAndThrowRestLiServiceException(status, msg, null);
   }
 
   /**
@@ -38,7 +38,7 @@ final class ErrorLogger {
    * @param msg error message
    * @param e inner exception
    */
-  public void logAndThrow(HttpStatus status, String msg, Exception e) {
+  public void logAndThrowRestLiServiceException(HttpStatus status, String msg, Exception e) {
     if (e != null) {
       _logger.error(String.format("[%s] %s", _id, msg), e);
       throw new RestLiServiceException(status, msg + " cause=" + e.getMessage());

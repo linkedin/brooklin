@@ -29,8 +29,7 @@ public class FileUtils {
     File file = new File(System.getProperty("java.io.tmpdir"), dirPrefix + RANDOM.nextInt(10000000));
     if (!file.mkdirs()) {
       String errorMessage = "could not create temp directory: " + file.getAbsolutePath();
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
     file.deleteOnExit();
