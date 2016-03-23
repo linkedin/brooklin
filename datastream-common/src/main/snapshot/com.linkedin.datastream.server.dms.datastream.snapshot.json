@@ -21,7 +21,7 @@
     "fields" : [ {
       "name" : "connectionString",
       "type" : "string",
-      "doc" : "Source connection string to consume the data from."
+      "doc" : "Destination connection string to write the data to."
     }, {
       "name" : "partitions",
       "type" : "int",
@@ -60,16 +60,17 @@
     } ]
   } ],
   "schema" : {
-    "schema" : "com.linkedin.datastream.common.Datastream",
-    "path" : "/datastream",
     "name" : "datastream",
     "namespace" : "com.linkedin.datastream.server.dms",
+    "path" : "/datastream",
+    "schema" : "com.linkedin.datastream.common.Datastream",
     "doc" : "generated from: com.linkedin.datastream.server.dms.DatastreamResources",
     "collection" : {
       "identifier" : {
         "name" : "datastreamId",
         "type" : "string"
       },
+      "supports" : [ "create", "delete", "get", "get_all", "update" ],
       "methods" : [ {
         "method" : "create"
       }, {
@@ -81,7 +82,6 @@
       }, {
         "method" : "get_all"
       } ],
-      "supports" : [ "create", "delete", "get", "get_all", "update" ],
       "entity" : {
         "path" : "/datastream/{datastreamId}"
       }

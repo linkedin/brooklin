@@ -39,23 +39,14 @@ public class TestReflectionUtils {
     utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, INT_ARG2);
     Assert.assertNotNull(utils);
 
-    try {
-      utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, STR_ARG1);
-      Assert.assertTrue(true);
-    } catch (NoSuchMethodException e) {
-    }
+    utils = ReflectionUtils.createInstance(TestReflectionUtils.class.getCanonicalName(), STR_ARG1, STR_ARG1);
+    Assert.assertNull(utils);
 
-    try {
-      utils = ReflectionUtils.createInstance("Foobar");
-      Assert.assertTrue(true);
-    } catch (ClassNotFoundException e) {
-    }
+    utils = ReflectionUtils.createInstance("Foobar");
+    Assert.assertNull(utils);
 
-    try {
-      utils = ReflectionUtils.createInstance("Foobar", 200);
-      Assert.assertTrue(true);
-    } catch (ClassNotFoundException e) {
-    }
+    utils = ReflectionUtils.createInstance("Foobar", 200);
+    Assert.assertNull(utils);
 
     boolean exception = false;
     try {

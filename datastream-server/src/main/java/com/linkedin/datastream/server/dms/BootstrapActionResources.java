@@ -34,36 +34,33 @@ public class BootstrapActionResources {
   }
 
   /**
-   * Process the request of creating bootstrap datastream. The request provides the name of
-   * base datastream, and the server will create and return a corresponding bootstrap
-   * datastream.
+   * Process the request of creating bootstrap datastream. The request provides the bootstrap datastream
+   * that needs to be created. Server will either return an existing datastream or create a new bootstrap datastream
+   * based on the request.
    */
   @Action(name = "create")
-  public Datastream create(@ActionParam("baseDatastream") String baseDatastreamName) {
-    Datastream baseDatastream = _store.getDatastream(baseDatastreamName);
-    if (baseDatastream == null) {
-      _errorLogger.logAndThrow(HttpStatus.S_404_NOT_FOUND, "Base datastream does not exists.");
+  public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
+
+    if (!bootstrapDatastream.hasName()) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
     }
-    Datastream bootstrapDatastream = new Datastream();
-    bootstrapDatastream.setName(String.format("%s-Bootstrap-%d", baseDatastream.getName(), System.currentTimeMillis()));
-    try {
-      String bootstrapConnectorType = _datastreamServer.getBootstrapConnector(baseDatastream.getConnectorType());
-      bootstrapDatastream.setConnectorType(bootstrapConnectorType);
-    } catch (DatastreamException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST,
-          "Missing bootstrap connector for " + baseDatastream.getConnectorType());
+
+    if (!bootstrapDatastream.hasConnectorType()) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
-    bootstrapDatastream.setSource(baseDatastream.getSource());
+    if (!bootstrapDatastream.hasSource()) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
+    }
 
     Datastream initializedDatastream = null;
     try {
       initializedDatastream = _coordinator.initializeDatastream(bootstrapDatastream);
     } catch (DatastreamValidationException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
     }
 
     if (initializedDatastream == null) {
-       _errorLogger.logAndThrow(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream, initializeDatastream returned null");
+       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream, initializeDatastream returned null");
     }
 
     if (!initializedDatastream.getName().equals(bootstrapDatastream.getName())) {
@@ -73,7 +70,7 @@ public class BootstrapActionResources {
     try {
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
     } catch (DatastreamException e) {
-      _errorLogger.logAndThrow(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to initialize " + bootstrapDatastream,
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to initialize " + bootstrapDatastream,
           e);
     }
 

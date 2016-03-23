@@ -1,14 +1,13 @@
 package com.linkedin.datastream.server.dms;
 
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.datastream.connectors.DummyBootstrapConnector;
-import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
-import com.linkedin.restli.server.RestLiServiceException;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
+import com.linkedin.datastream.server.TestDatastreamServer;
 
 
 /**
@@ -32,22 +31,9 @@ public class TestBootstrapActionResources {
 
   @Test
   public void testCreateBootstrapDatastream() throws Exception {
-    DatastreamResources datastreamResources = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
-    BootstrapActionResources bootstrapActionResource = new BootstrapActionResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
-
-    boolean exceptionCaught = false;
-    try {
-      bootstrapActionResource.create("name_1");
-    } catch (RestLiServiceException e) {
-      exceptionCaught = true;
-    }
-    Assert.assertTrue(exceptionCaught);
-
-    Datastream onlineDatastream = TestDatastreamResources.generateDatastream(1);
-    datastreamResources.create(onlineDatastream);
-    Datastream bootstrapDatastream = bootstrapActionResource.create(onlineDatastream.getName());
+    BootstrapActionResources bootstrapActionResource = new BootstrapActionResources(
+        _datastreamKafkaCluster.getPrimaryDatastreamServer());
+    Datastream bootstrapDatastream = bootstrapActionResource.create(TestDatastreamResources.generateDatastream(1));
     Assert.assertNotNull(bootstrapDatastream);
-    Assert.assertEquals(bootstrapDatastream.getSource(), onlineDatastream.getSource());
-    Assert.assertEquals(bootstrapDatastream.getConnectorType(), DummyBootstrapConnector.CONNECTOR_TYPE);
   }
 }

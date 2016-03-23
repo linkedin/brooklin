@@ -250,7 +250,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   @Override
   public String create(final String path, Object data, final CreateMode mode) throws RuntimeException {
     if (path == null) {
-      throw new NullPointerException("path must not be null.");
+      throw new IllegalArgumentException("path must not be null.");
     }
 
     long startT = System.nanoTime();

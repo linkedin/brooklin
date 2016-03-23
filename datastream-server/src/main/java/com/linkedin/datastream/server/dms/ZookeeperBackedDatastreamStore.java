@@ -6,6 +6,8 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +17,8 @@ import java.util.stream.Stream;
 
 
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ZookeeperBackedDatastreamStore.class.getName());
 
   private final ZkClient _zkClient;
   private final String _rootPath;
@@ -81,7 +85,9 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     String path = getZnodePath(key);
     if (_zkClient.exists(path)) {
       String content = _zkClient.ensureReadData(path);
-      throw new DatastreamException(String.format("Datastream already exists: path=%s, content=%s", key, content));
+      String errorMessage = String.format("Datastream already exists: path=%s, content=%s", key, content);
+      LOG.warn(errorMessage);
+      throw new DatastreamException(errorMessage);
     }
     _zkClient.ensurePath(path);
     String json = DatastreamUtils.toJSON(datastream);

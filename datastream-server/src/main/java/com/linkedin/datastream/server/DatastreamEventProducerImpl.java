@@ -4,6 +4,8 @@ import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 
@@ -51,9 +53,11 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     if (_schemaRegistryProvider != null) {
       return _schemaRegistryProvider.registerSchema(schemaName, schema);
     } else {
-      LOG.info("SchemaRegistryProvider is not configured, so registerSchema is not supported");
-      throw new RuntimeException("SchemaRegistryProvider is not configured, So registerSchema is not supported");
+      String errorMessage = "SchemaRegistryProvider is not configured, So registerSchema is not supported";
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
+
+    return null;
   }
 
   @Override

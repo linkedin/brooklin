@@ -180,23 +180,15 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testGetBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
-    Datastream datastream = generateDatastream(3);
-    LOG.info("Datastream : " + datastream);
+  public void testCreateBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
+    Datastream bootstrapDatastream = generateDatastream(3);
+    LOG.info("Bootstrap datastream : " + bootstrapDatastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
-    restClient.createDatastream(datastream);
-    Datastream createdDatastream = restClient.getDatastream(datastream.getName());
+    restClient.createBootstrapDatastream(bootstrapDatastream);
+    Datastream createdDatastream = restClient.getDatastream(bootstrapDatastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
-    Datastream bootstrapDatastream = restClient.createBootstrapDatastream(datastream.getName());
-    Assert.assertEquals(bootstrapDatastream.getConnectorType(), DUMMY_BOOTSTRAP_CONNECTOR);
-    Assert.assertTrue(bootstrapDatastream.getName().startsWith(datastream.getName()));
-  }
-
-  @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetBootstrapDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws
-      IOException, DatastreamException, RemoteInvocationException {
-    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
-    restClient.createBootstrapDatastream("Datastream_doesntexist");
+    Assert.assertEquals(bootstrapDatastream.getName(), createdDatastream.getName());
+    Assert.assertEquals(bootstrapDatastream.getConnectorType(), createdDatastream.getConnectorType());
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)

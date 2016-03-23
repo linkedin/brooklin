@@ -21,7 +21,7 @@
     "fields" : [ {
       "name" : "connectionString",
       "type" : "string",
-      "doc" : "Source connection string to consume the data from."
+      "doc" : "Destination connection string to write the data to."
     }, {
       "name" : "partitions",
       "type" : "int",
@@ -60,19 +60,19 @@
     } ]
   } ],
   "schema" : {
-    "path" : "/bootstrap",
     "name" : "bootstrap",
     "namespace" : "com.linkedin.datastream.server.dms",
+    "path" : "/bootstrap",
     "doc" : "BootstrapActionResources is the rest end point to process bootstrap datastream request\n\ngenerated from: com.linkedin.datastream.server.dms.BootstrapActionResources",
     "actionsSet" : {
       "actions" : [ {
         "name" : "create",
-        "doc" : "Process the request of creating bootstrap datastream. The request provides the name of\n base datastream, and the server will create and return a corresponding bootstrap\n datastream.",
-        "returns" : "com.linkedin.datastream.common.Datastream",
+        "doc" : "Process the request of creating bootstrap datastream. The request provides the bootstrap datastream\n that needs to be created. Server will either return an existing datastream or create a new bootstrap datastream\n based on the request.",
         "parameters" : [ {
-          "name" : "baseDatastream",
-          "type" : "string"
-        } ]
+          "name" : "boostrapDatastream",
+          "type" : "com.linkedin.datastream.common.Datastream"
+        } ],
+        "returns" : "com.linkedin.datastream.common.Datastream"
       } ]
     }
   }
