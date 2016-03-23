@@ -1,5 +1,11 @@
 package com.linkedin.datastream.server.dms;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.RestliUtils;
@@ -13,10 +19,6 @@ import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.Context;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
-import java.util.List;
-import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /*
@@ -59,8 +61,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @SuppressWarnings("deprecated")
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
-    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
-        .filter(stream -> stream != null).collect(Collectors.toList());
+    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
+        .map(_store::getDatastream)
+        .filter(stream -> stream != null)
+        .collect(Collectors.toList());
   }
 
   @Override
@@ -77,19 +81,28 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
+    Datastream initializedDatastream;
+
     try {
-      _coordinator.initializeDatastream(datastream);
+      initializedDatastream = _coordinator.initializeDatastream(datastream);
     } catch (DatastreamValidationException e) {
+      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
+    }
+
+    if (initializedDatastream == null) {
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST,
-              "Failed to initialize Datastream: ", e);
+          "Failed to initialize Datastream, initializeDatastream returned null");
+    }
+
+    if (!initializedDatastream.getName().equals(datastream.getName())) {
+      return new CreateResponse(initializedDatastream.getName());
     }
 
     try {
       _store.createDatastream(datastream.getName(), datastream);
-      return new CreateResponse("Datastream created: " + datastream, HttpStatus.S_201_CREATED);
+      return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (DatastreamException e) {
-      return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT,
-              "Failed to create datastream: " + datastream, e);
+      return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream, e);
     }
   }
 }

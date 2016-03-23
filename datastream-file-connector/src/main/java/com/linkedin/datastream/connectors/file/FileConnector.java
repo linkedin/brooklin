@@ -130,7 +130,8 @@ public class FileConnector implements Connector {
   }
 
   @Override
-  public void initializeDatastream(Datastream stream) throws DatastreamValidationException {
+  public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
     LOG.info("validating datastream " + stream.toString());
     File streamFile = new File(stream.getSource().getConnectionString());
     if (!streamFile.exists() || !streamFile.isFile()) {
@@ -140,5 +141,7 @@ public class FileConnector implements Connector {
     if (_numPartitions != 1) {
       stream.getSource().setPartitions(_numPartitions);
     }
+
+    return stream;
   }
 }

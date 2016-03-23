@@ -622,18 +622,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public void initializeDatastream(Datastream datastream)
+  public Datastream initializeDatastream(Datastream datastream)
       throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
+    List<Datastream> allDatastreams = _adapter.getAllDatastreams().stream()
+        .filter(d -> d.getConnectorType().equals(connectorType))
+        .collect(Collectors.toList());
+
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {
       throw new DatastreamValidationException("Invalid connector type: " + connectorType);
     }
 
-    connector.initializeDatastream(datastream);
+    Datastream initializedDatastream = connector.initializeDatastream(datastream, allDatastreams);
     if (connector.hasError()) {
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
+
+    return initializedDatastream;
   }
 
   /**

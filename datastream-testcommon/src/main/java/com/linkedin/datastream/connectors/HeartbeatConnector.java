@@ -111,8 +111,8 @@ public class HeartbeatConnector implements Connector {
   }
 
   @Override
-  public void initializeDatastream(Datastream stream)
+  public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-
+    return stream;
   }
 }
