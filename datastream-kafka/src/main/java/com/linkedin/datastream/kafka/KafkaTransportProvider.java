@@ -17,28 +17,27 @@ package com.linkedin.datastream.kafka;
  * under the License.
  */
 
-import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkConnection;
+import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.AvroUtils;
-import com.linkedin.datastream.common.DatastreamEvent;
+import javafx.util.Pair;
+import kafka.admin.AdminUtils;
+import kafka.utils.ZkUtils;
+
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
-import com.linkedin.datastream.server.DatastreamEventRecord;
-
-import kafka.admin.AdminUtils;
-import kafka.utils.ZkUtils;
 
 
 /**
@@ -85,25 +84,17 @@ public class KafkaTransportProvider implements TransportProvider {
     _producer = new KafkaProducer<>(props);
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(String destinationUri, DatastreamEventRecord record, DatastreamEvent event)
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(String destinationUri, DatastreamProducerRecord record,
+      byte[] key, byte[] payload)
       throws DatastreamException {
 
-    Integer partition = record.getPartition();
-
-    byte[] payload = null;
-    try {
-      payload = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event);
-    } catch (IOException e) {
-      String errorMessage = String.format("Failed to encode event in Avro, event= {%s}", event);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-    }
-
+    Optional<Integer> partition = record.getPartition();
     KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
 
-    if (partition >= 0) {
-      return new ProducerRecord<>(destination.topicName(), partition, null, payload);
+    if (partition.isPresent() && partition.get() >= 0) {
+      return new ProducerRecord<>(destination.topicName(), partition.get(), key, payload);
     } else {
-      return new ProducerRecord<>(destination.topicName(), null, payload);
+      return new ProducerRecord<>(destination.topicName(), key, payload);
     }
   }
 
@@ -150,25 +141,18 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void send(String destinationUri, DatastreamEventRecord record) {
+  public void send(String destinationUri, DatastreamProducerRecord record) {
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
 
-      // Validate all events before sending
-      for (DatastreamEvent event : record.getEvents()) {
-        Validate.notNull(event.metadata, "Metadata cannot be null");
-        Validate.notNull(event.key, "Key cannot be null");
-        Validate.notNull(event.payload, "Payload cannot be null");
-        Validate.notNull(event.previous_payload, "Payload cannot be null");
-      }
 
       LOG.debug("Sending Datastream event record: " + record);
 
-      for (DatastreamEvent event : record.getEvents()) {
+      for (Pair<byte[], byte[]> event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          outgoing = convertToProducerRecord(destinationUri, record, event);
+          outgoing = convertToProducerRecord(destinationUri, record, event.getKey(), event.getValue());
         } catch (Exception e) {
           LOG.error(String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event), e);
           // TODO: Error handling

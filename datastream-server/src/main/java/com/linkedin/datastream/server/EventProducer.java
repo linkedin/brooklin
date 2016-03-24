@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -21,7 +20,8 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamEvent;
+import javafx.util.Pair;
+
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -196,19 +196,15 @@ public class EventProducer {
     }
   }
 
-  private void validateAndNormalizeEventRecord(DatastreamEventRecord record) {
+  private void validateAndNormalizeEventRecord(DatastreamProducerRecord record) {
     Validate.notNull(record, "null event record.");
     Validate.notNull(record.getEvents(), "null event payload.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
 
-    for (DatastreamEvent event : record.getEvents()) {
-      if (event.metadata == null) {
-        event.metadata = new HashMap<>();
-      }
-
-      event.key = event.key == null ? ByteBuffer.allocate(0) : event.key;
-      event.payload = event.payload == null ? ByteBuffer.allocate(0) : event.payload;
-      event.previous_payload = event.previous_payload == null ? ByteBuffer.allocate(0) : event.previous_payload;
+    for (Pair<byte[], byte[]> event : record.getEvents()) {
+      Validate.notNull(event, "null event");
+      Validate.notNull(event.getKey(), "null key");
+      Validate.notNull(event.getValue(), "null value");
     }
   }
 
@@ -276,7 +272,7 @@ public class EventProducer {
    *
    * @param record DatastreamEvent envelope
    */
-  public void send(DatastreamTask task, DatastreamEventRecord record) {
+  public void send(DatastreamTask task, DatastreamProducerRecord record) {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
       throw new IllegalStateException("send() is not allowed on a shutdown producer");
@@ -292,7 +288,7 @@ public class EventProducer {
       _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record);
 
       // Update the checkpoint for the task/partition
-      _latestCheckpoints.get(task).put(record.getPartition(), record.getCheckpoint());
+      _latestCheckpoints.get(task).put(record.getPartition().get(), record.getCheckpoint());
 
       // Dirty the flag
       _pendingCheckpoint = true;

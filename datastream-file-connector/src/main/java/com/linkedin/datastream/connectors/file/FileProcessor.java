@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamEventProducer;
-import com.linkedin.datastream.server.DatastreamEventRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
@@ -102,7 +102,11 @@ class FileProcessor implements Runnable {
           event.metadata.put("PayloadSchemaId", _producer.registerSchema(null, null));
           event.previous_payload = ByteBuffer.allocate(0);
           LOG.info("sending event " + text);
-          _producer.send(new DatastreamEventRecord(event, 0, lineNo.toString()));
+          DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+          builder.addEvent(event);
+          builder.setPartition(0);
+          builder.setSourceCheckpoint(lineNo.toString());
+          _producer.send(builder.build());
           LOG.info("Sending event succeeded");
           ++lineNo;
         } else {

@@ -11,6 +11,7 @@ import org.testng.annotations.Test;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -117,7 +118,7 @@ public class TestDestinationManager {
     // Make 10 and 11 share the same source
     Datastream newDatastream = generateDatastream(11);
     // Disable destination reuse
-    newDatastream.getMetadata().put(CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, "false");
+    newDatastream.getMetadata().put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, "false");
     datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
 

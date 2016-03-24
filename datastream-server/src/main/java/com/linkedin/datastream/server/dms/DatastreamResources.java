@@ -6,8 +6,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
@@ -79,6 +81,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
     if (!datastream.hasSource()) {
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
+    }
+
+    if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
+      if (!datastream.hasMetadata()) {
+        datastream.setMetadata(new StringMap());
+      }
+
+      datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
     }
 
     Datastream initializedDatastream;

@@ -14,7 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.server.DatastreamEventRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -79,11 +80,15 @@ public class HeartbeatConnector implements Connector {
     }
   }
 
-  private DatastreamEventRecord createHeartbeatEvent(int partition, int eventIndex) {
+  private DatastreamProducerRecord createHeartbeatEvent(int partition, int eventIndex) {
     DatastreamEvent event = new DatastreamEvent();
     event.key = ByteBuffer.wrap(Integer.toString(eventIndex).getBytes());
     event.payload = ByteBuffer.wrap("Heartbeat".getBytes());
-    return new DatastreamEventRecord(event, partition, Integer.toString(eventIndex));
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(event);
+    builder.setPartition(partition);
+    builder.setSourceCheckpoint(Integer.toString(eventIndex));
+    return builder.build();
   }
 
   @Override

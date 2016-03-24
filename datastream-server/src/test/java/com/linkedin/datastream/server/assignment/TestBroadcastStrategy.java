@@ -13,6 +13,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
@@ -39,7 +40,7 @@ public class TestBroadcastStrategy {
     String type = DummyConnector.CONNECTOR_TYPE;
     for (int index = 0; index < numberOfDatastreams; index++) {
       Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
-      ds.getMetadata().put("owner", "person_" + index);
+      ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
       datastreams.add(ds);
     }
     return datastreams;

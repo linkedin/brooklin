@@ -21,7 +21,7 @@ public interface DatastreamEventProducer {
    * Send event onto the transport
    * @param event
    */
-  void send(DatastreamEventRecord event);
+  void send(DatastreamProducerRecord event);
 
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
