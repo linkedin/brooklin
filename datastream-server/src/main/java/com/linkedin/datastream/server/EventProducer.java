@@ -1,14 +1,19 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.api.transport.TransportException;
-import com.linkedin.datastream.server.api.transport.TransportProvider;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -16,20 +21,14 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**

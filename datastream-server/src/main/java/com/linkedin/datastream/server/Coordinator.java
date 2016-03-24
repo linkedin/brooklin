@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -440,6 +439,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         default:
           String errorMessage = String.format("Unknown event type %s.", event.getType());
           ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+          break;
       }
     } catch (Throwable e) {
       LOG.error("ERROR: event + " + event + " failed.", e);

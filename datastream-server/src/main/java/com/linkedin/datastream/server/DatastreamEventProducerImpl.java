@@ -1,15 +1,14 @@
 package com.linkedin.datastream.server;
 
+import java.util.Objects;
+
 import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
-
-import java.util.Objects;
 
 /**
  * Implementation of the DatastremaEventProducer that connector will use to produce events. There is an unique
