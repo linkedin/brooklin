@@ -66,6 +66,15 @@ public class GenericEventGenerator {
     }
   }
 
+  /**
+   * Set the maximum number of elements when generating arrays, maps, bytes as well as string.
+   * In the case of a string this would be the maximum size of the string.
+   * @param maxNumElements maximum number of elements to be set
+   */
+  public void setMaxNumElements(int maxNumElements) {
+    SchemaField.setMaxNumElements(maxNumElements);
+  }
+
   public void setDbName(String dbName) {
     _dbName = dbName;
   }
