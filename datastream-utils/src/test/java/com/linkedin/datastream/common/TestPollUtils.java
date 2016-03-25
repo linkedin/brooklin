@@ -1,9 +1,9 @@
 package com.linkedin.datastream.common;
 
+import java.util.function.BooleanSupplier;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
-
-import java.util.function.BooleanSupplier;
 
 
 public class TestPollUtils {
@@ -14,7 +14,7 @@ public class TestPollUtils {
   }
 
   @Test
-  public void testpollReal() {
+  public void testpollValidatePollCompletionTime() {
     class MyCond implements BooleanSupplier {
       private final int _timeWaitMs;
       private final long _timeThen;
@@ -31,21 +31,20 @@ public class TestPollUtils {
     }
 
     long now1 = System.currentTimeMillis();
-    MyCond mycond = new MyCond(500);
-    PollUtils.poll(mycond, 100, 500);
+    MyCond mycond = new MyCond(400);
+    Assert.assertTrue(PollUtils.poll(mycond, 100, 500));
     long now2 = System.currentTimeMillis();
-    Assert.assertTrue(now2 - now1 >= 350 && now2 - now1 <= 650);
+
+    Assert.assertTrue(now2 - now1 >= 300);
   }
 
   @Test
   public void testpollWithPredicate() {
-    Integer counter = 0;
     long now1 = System.currentTimeMillis();
-    PollUtils.poll((c) -> {
-      c++;
-      return c == 5;
-    }, 100, 500, counter);
+    boolean returnValue = PollUtils.poll((c) -> System.currentTimeMillis() >= now1 + c, 100, 600, 400);
+
+    Assert.assertTrue(returnValue);
     long now2 = System.currentTimeMillis();
-    Assert.assertTrue(now2 - now1 >= 350 && now2 - now1 <= 650);
+    Assert.assertTrue(now2 - now1 >= 350);
   }
 }
