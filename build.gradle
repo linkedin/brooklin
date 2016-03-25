@@ -1,7 +1,7 @@
 apply from: file('gradle/license.gradle')
 apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
-
+  
 buildscript {
   repositories {
     mavenCentral()
@@ -26,6 +26,8 @@ allprojects {
 subprojects {
   apply plugin: 'java'
   apply plugin: 'pegasus'
+
+  testReportDirName = "${project.rootDir}/out/${project.name}/"
 
   // Avoid failure in internal LinkedIn build validation
   if (!ext.has('spec')) {
