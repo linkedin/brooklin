@@ -35,7 +35,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   }
 
   @Override
-  public void send(DatastreamEventRecord event) {
+  public void send(DatastreamProducerRecord event) {
     _eventProducer.send(_task, event);
   }
 

@@ -65,13 +65,17 @@ public class TestEventProducer {
 
   private int _eventSeed;
 
-  private DatastreamEventRecord createEventRecord(Integer partition) {
+  private DatastreamProducerRecord createEventRecord(Integer partition) {
     DatastreamEvent event = new DatastreamEvent();
     event.key = null;
     event.payload = null;
     event.previous_payload = null;
     ++_eventSeed;
-    return new DatastreamEventRecord(event, partition, "new dummy checkpoint " + String.valueOf(_eventSeed));
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(event);
+    builder.setPartition(partition);
+    builder.setSourceCheckpoint("new dummy checkpoint " + String.valueOf(_eventSeed));
+    return builder.build();
   }
 
   private void setup(boolean customCheckpointing) {
@@ -152,7 +156,7 @@ public class TestEventProducer {
     DatastreamTask task;
     Integer partition;
     Random rand = new Random();
-    DatastreamEventRecord record;
+    DatastreamProducerRecord record;
     for (int i = 0; i < 500; i++) {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
@@ -197,7 +201,7 @@ public class TestEventProducer {
     DatastreamTask task;
     Integer partition;
     Random rand = new Random();
-    DatastreamEventRecord record;
+    DatastreamProducerRecord record;
     for (int i = 0; i < 500; i++) {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);

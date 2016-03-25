@@ -13,6 +13,7 @@ import org.apache.commons.lang.Validate;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -62,7 +63,7 @@ public class DestinationManager {
       boolean topicReuse = _reuseExistingTopic;
       if (datastream.hasMetadata()) {
         topicReuse = Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
-            CoordinatorConfig.CONFIG_REUSE_EXISTING_DESTINATION, String.valueOf(_reuseExistingTopic)));
+            DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, String.valueOf(_reuseExistingTopic)));
       }
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.

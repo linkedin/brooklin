@@ -112,6 +112,7 @@ project(':datastream-common') {
 project(':datastream-server-api') {
   dependencies {
     compile project(':datastream-common')
+    compile project(':datastream-utils')
   }
 }
 

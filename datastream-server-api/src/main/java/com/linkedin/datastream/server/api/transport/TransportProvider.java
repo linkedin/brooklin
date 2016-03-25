@@ -2,7 +2,7 @@ package com.linkedin.datastream.server.api.transport;
 
 import java.util.Properties;
 
-import com.linkedin.datastream.server.DatastreamEventRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 
 /**
@@ -33,7 +33,7 @@ public interface TransportProvider {
    * @param record DatastreamEvent that needs to be sent to the stream.
    * @throws TransportException if the send fails.
    */
-  void send(String destination, DatastreamEventRecord record) throws TransportException;
+  void send(String destination, DatastreamProducerRecord record) throws TransportException;
 
   /**
    * Closes the transport provider and its corresponding producer.
