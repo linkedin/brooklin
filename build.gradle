@@ -1,7 +1,7 @@
 apply from: file('gradle/license.gradle')
 apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
-  
+
 buildscript {
   repositories {
     mavenCentral()
@@ -66,7 +66,9 @@ subprojects {
 
   def results = [:].withDefault { [] }
   test {
-    useTestNG()
+    useTestNG {
+      useDefaultListeners = true
+    }
     testLogging {
       exceptionFormat = 'full'
       events "started", "passed", "skipped", "failed"
