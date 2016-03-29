@@ -620,7 +620,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public Datastream initializeDatastream(Datastream datastream)
+  public void initializeDatastream(Datastream datastream)
       throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
     List<Datastream> allDatastreams = _adapter.getAllDatastreams()
@@ -635,12 +635,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       throw new DatastreamValidationException(errorMessage);
     }
 
-    Datastream initializedDatastream = connector.initializeDatastream(datastream, allDatastreams);
+    connector.initializeDatastream(datastream, allDatastreams);
     if (connector.hasError()) {
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
-
-    return initializedDatastream;
   }
 
   /**

@@ -128,8 +128,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
-      return stream;
+    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
     }
 
     @Override
@@ -186,8 +185,7 @@ public class TestCoordinator {
       }
 
       @Override
-      public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
-        return stream;
+      public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
       }
     };
 
@@ -1158,9 +1156,8 @@ public class TestCoordinator {
     }
 
     @Override
-    public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
         throws DatastreamValidationException {
-      return stream;
     }
   }
 

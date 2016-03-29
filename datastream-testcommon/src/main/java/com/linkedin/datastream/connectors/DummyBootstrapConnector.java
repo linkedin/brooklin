@@ -36,12 +36,10 @@ public class DummyBootstrapConnector implements Connector {
   }
 
   @Override
-  public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+  public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     if (stream == null || stream.getSource() == null) {
       throw new DatastreamValidationException("Failed to get source from datastream.");
     }
-
-    return stream;
   }
 }
