@@ -71,6 +71,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public CreateResponse create(Datastream datastream) {
+
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
     if (!datastream.hasName()) {
@@ -91,23 +92,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
     }
 
-    Datastream initializedDatastream;
-
     try {
-      initializedDatastream = _coordinator.initializeDatastream(datastream);
+      _coordinator.initializeDatastream(datastream);
     } catch (DatastreamValidationException e) {
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
     }
-
-    if (initializedDatastream == null) {
-      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST,
-          "Failed to initialize Datastream, initializeDatastream returned null");
-    }
-
-    if (!initializedDatastream.getName().equals(datastream.getName())) {
-      return new CreateResponse(initializedDatastream.getName());
-    }
-
+    
     try {
       _store.createDatastream(datastream.getName(), datastream);
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);

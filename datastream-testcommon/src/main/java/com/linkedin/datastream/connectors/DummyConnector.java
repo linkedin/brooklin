@@ -41,7 +41,7 @@ public class DummyConnector implements Connector {
   }
 
   @Override
-  public Datastream initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+  public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     if (stream == null || stream.getSource() == null) {
       throw new DatastreamValidationException("Failed to get source from datastream.");
@@ -49,7 +49,5 @@ public class DummyConnector implements Connector {
     if (!stream.getSource().getConnectionString().equals(VALID_DUMMY_SOURCE)) {
       throw new DatastreamValidationException("Invalid source (" + stream.getSource() + ") in datastream.");
     }
-
-    return stream;
   }
 }

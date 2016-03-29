@@ -52,19 +52,10 @@ public class BootstrapActionResources {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
-    Datastream initializedDatastream = null;
     try {
-      initializedDatastream = _coordinator.initializeDatastream(bootstrapDatastream);
+      _coordinator.initializeDatastream(bootstrapDatastream);
     } catch (DatastreamValidationException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
-    }
-
-    if (initializedDatastream == null) {
-       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream, initializeDatastream returned null");
-    }
-
-    if (!initializedDatastream.getName().equals(bootstrapDatastream.getName())) {
-      return initializedDatastream;
     }
 
     try {
