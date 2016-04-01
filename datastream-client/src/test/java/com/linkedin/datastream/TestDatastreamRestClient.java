@@ -2,6 +2,7 @@ package com.linkedin.datastream;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -88,10 +90,10 @@ public class TestDatastreamRestClient {
         + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
         + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty",
-        "dummyValue"); // DummyConnector will verify this value being correctly set
+    // DummyConnector will verify this value being correctly set
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue");
     properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-            "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
+        "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }
@@ -106,7 +108,8 @@ public class TestDatastreamRestClient {
     LOG.info("Created Datastream : " + createdDatastream);
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
-    createdDatastream.setDestination(new DatastreamDestination());
+    clearDatastreamDestination(Collections.singletonList(createdDatastream));
+    clearDynamicMetadata(Collections.singletonList(createdDatastream));
     Assert.assertEquals(createdDatastream, datastream);
   }
 
@@ -126,6 +129,17 @@ public class TestDatastreamRestClient {
   private void clearDatastreamDestination(Collection<Datastream> datastreams) {
     for (Datastream datastream : datastreams) {
       datastream.setDestination(new DatastreamDestination());
+    }
+  }
+
+  /**
+   * Metadata are added dynamically by the server so we need to
+   * remove them for the equality check with source datastreams.
+   */
+  private void clearDynamicMetadata(Collection<Datastream> datastreams) {
+    for (Datastream stream : datastreams) {
+      stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_CREATION_MS);
+      stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
     }
   }
 
@@ -153,6 +167,7 @@ public class TestDatastreamRestClient {
 
     clearDatastreamDestination(datastreams);
     clearDatastreamDestination(createdDatastreams);
+    clearDynamicMetadata(createdDatastreams);
 
     Assert.assertTrue(new HashSet<>(createdDatastreams).containsAll(datastreams), "Original datastreams " +
         datastreams + " not present in last getAll " + createdDatastreams);
@@ -165,6 +180,7 @@ public class TestDatastreamRestClient {
     Assert.assertEquals(paginatedCreatedDatastreams.size(), count);
 
     clearDatastreamDestination(paginatedCreatedDatastreams);
+    clearDynamicMetadata(paginatedCreatedDatastreams);
 
     Assert.assertEquals(createdDatastreams.stream().skip(skip).limit(count).collect(Collectors.toList()), paginatedCreatedDatastreams);
   }

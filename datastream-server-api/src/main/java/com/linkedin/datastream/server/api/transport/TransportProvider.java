@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.api.transport;
 
+import java.time.Duration;
 import java.util.Properties;
 
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -46,4 +47,11 @@ public interface TransportProvider {
    * @throws TransportException if the flush fails.
    */
   void flush() throws TransportException;
+
+  /**
+   * Query the retention duration of a specific destination.
+   * @param destination Destination uri.
+   * @return retention duration
+   */
+  Duration getRetention(String destination);
 }
