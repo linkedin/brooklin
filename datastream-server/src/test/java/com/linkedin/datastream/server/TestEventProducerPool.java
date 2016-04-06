@@ -9,6 +9,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -34,6 +35,13 @@ public class TestEventProducerPool {
     Properties producerConfig = new Properties();
     _eventProducerPool = new EventProducerPool(checkpointProvider, schemaReg,
             factory, transportConfig, producerConfig);
+  }
+
+  @AfterMethod
+    public void cleanup() {
+    if (_eventProducerPool != null) {
+      _eventProducerPool.shutdown();
+    }
   }
 
   @Test

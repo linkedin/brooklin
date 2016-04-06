@@ -1,5 +1,8 @@
 package com.linkedin.datastream.server.diagnostics;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.diagnostics.ConnectorHealth;
 import com.linkedin.datastream.diagnostics.ConnectorHealthArray;
 import com.linkedin.datastream.diagnostics.ServerHealth;
@@ -11,8 +14,11 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.restli.server.annotations.RestLiSimpleResource;
 import com.linkedin.restli.server.resources.SimpleResourceTemplate;
 
+
 @RestLiSimpleResource(name = "health", namespace = "com.linkedin.datastream.server.diagnostics")
 public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ServerHealthResources.class);
 
   private final DatastreamServer _server;
   private final Coordinator _coordinator;
@@ -24,7 +30,10 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
 
   @Override
   public ServerHealth get() {
-    return buildServerHealth();
+    LOG.info("Get request for serverHealth");
+    ServerHealth health = buildServerHealth();
+    LOG.info("Server Health: " + health.toString());
+    return health;
   }
 
   private ServerHealth buildServerHealth() {
@@ -54,10 +63,20 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
     for (DatastreamTask task : _coordinator.getTasksByConnectorType().get(connectorType)) {
       TaskHealth taskHealth = new TaskHealth();
       taskHealth.setDatastreams(String.join(",", task.getDatastreams()));
-      taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
-      taskHealth.setSource(task.getDatastreamSource().getConnectionString());
-      taskHealth.setStatusCode(task.getStatus().getCode().toString());
-      taskHealth.setStatusMessage(task.getStatus().getMessage());
+
+      if (task.getDatastreamDestination() != null) {
+        taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
+      }
+
+      if (task.getDatastreamSource() != null) {
+        taskHealth.setSource(task.getDatastreamSource().getConnectionString());
+      }
+
+      if (task.getStatus() != null) {
+        taskHealth.setStatusCode(task.getStatus().getCode().toString());
+        taskHealth.setStatusMessage(task.getStatus().getMessage());
+      }
+
       taskHealth.setName(task.getDatastreamTaskName());
       taskHealth.setPartitions(task.getPartitions().toString());
       taskHealth.setSourceCheckpoint(task.getCheckpoints().toString());

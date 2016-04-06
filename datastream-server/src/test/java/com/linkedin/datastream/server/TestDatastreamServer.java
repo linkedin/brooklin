@@ -14,6 +14,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.DatastreamRestClient;
@@ -60,6 +61,13 @@ public class TestDatastreamServer {
         new Properties());
   }
 
+  @AfterMethod
+    public void cleanup() {
+    if (_datastreamCluster != null) {
+      _datastreamCluster.shutdown();
+    }
+  }
+
   private static Properties getBootstrapConnectorProperties() {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
@@ -95,8 +103,8 @@ public class TestDatastreamServer {
   }
 
 
-  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers,
-                                                                                    String strategy, int numDestinationPartitions)
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(
+      int numServers, String strategy, int numDestinationPartitions)
       throws IOException, DatastreamException {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
@@ -152,6 +160,63 @@ public class TestDatastreamServer {
 
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
 
+    _datastreamCluster.shutdown();
+  }
+
+  @Test
+  public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
+    int numberOfPartitions = 5;
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    int totalEvents = 10;
+    _datastreamCluster.startup();
+
+    // There is a bug where when we delete the only remaining datastream
+    // We are not notifying the connectors about the delete. This is an inherent problem with the existing API
+    // because we notify only when there any assignments to the connector.
+    String dummyFileName = "/tmp/testFile2_" + UUID.randomUUID().toString();
+    Datastream dummyDatastream = createFileDatastream(dummyFileName);
+
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    LOG.info("Creating the file datastream " + fileName1);
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+
+    LOG.info("Writing events to the file");
+    Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    LOG.info("Reading events from file datastream " + fileDatastream1.getName());
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, totalEvents);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+
+    LOG.info("Deleting the datastream " + fileDatastream1.getName());
+    DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
+    restClient.deleteDatastream(fileDatastream1.getName());
+    FileUtils.forceDelete(new File(fileName1));
+
+    LOG.info("Creating the datastream after deletion");
+    Datastream fileDatastream2 = createFileDatastream(fileName1);
+
+    LOG.info("Destination for first datastream " + fileDatastream1.getDestination().toString());
+    LOG.info("Destination for second datastream " + fileDatastream2.getDestination().toString());
+
+    Assert.assertNotEquals(fileDatastream1.getDestination().getConnectionString(),
+        fileDatastream2.getDestination().getConnectionString());
+
+    LOG.info("Writing events to the file " + fileName1);
+    eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    LOG.info("Reading events from file datastream " + fileDatastream2.getName());
+    eventsReceived1 = readFileDatastreamEvents(fileDatastream2, totalEvents);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
     _datastreamCluster.shutdown();
   }
 
