@@ -17,7 +17,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  * some bookkeeping features like logging and try-catch error handling.
  */
 public class ConnectorWrapper {
-  private static final Logger LOG = LoggerFactory.getLogger(ConnectorWrapper.class.getName());
+  private final Logger _log;
   private final String _connectorType;
 
   private String _instanceName;
@@ -28,6 +28,7 @@ public class ConnectorWrapper {
   private long _endTime;
 
   public ConnectorWrapper(String connectorType, Connector connector) {
+    _log = LoggerFactory.getLogger(String.format("%s:%s", ConnectorWrapper.class.getName(), connectorType));
     _connectorType = connectorType;
     _connector = connector;
   }
@@ -46,19 +47,19 @@ public class ConnectorWrapper {
 
   private void logErrorAndException(String method, Exception ex) {
     String msg = "Failed to call connector API: Connector::" + method;
-    LOG.error(msg, ex);
+    _log.error(msg, ex);
     _lastError = msg + "\n" + ex.getMessage() + "\n" + ex.getStackTrace().toString();
   }
 
   private void logApiStart(String method) {
-    LOG.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType, _instanceName));
+    _log.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType, _instanceName));
     _startTime = System.currentTimeMillis();
     _lastError = null;
   }
 
   private void logApiEnd(String method) {
     _endTime = System.currentTimeMillis();
-    LOG.info(String.format("END: Connector::%s. Connector: %s, Instance: %s, Duration: %d milliseconds", method,
+    _log.info(String.format("END: Connector::%s. Connector: %s, Instance: %s, Duration: %d milliseconds", method,
         _connectorType, _instanceName, _endTime - _startTime));
   }
 

@@ -94,7 +94,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener {
-  private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class.getName());
+  private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
   public static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "datastream.server.schemaRegistry";
@@ -138,16 +138,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   public Coordinator(CoordinatorConfig config)
       throws DatastreamException {
     _config = config;
-    _eventQueue = new CoordinatorEventBlockingQueue();
-    _eventThread = new CoordinatorEventProcessor();
-    _eventThread.setDaemon(true);
-    _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
-        config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
     _clusterName = _config.getCluster();
 
     _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getZkSessionTimeout(),
         _config.getZkConnectionTimeout(), this);
     _adapter.setListener(this);
+
+    _eventQueue = new CoordinatorEventBlockingQueue();
+    _eventThread = new CoordinatorEventProcessor();
+    _eventThread.setDaemon(true);
+    _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
+        config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+
+
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     String transportFactory = config.getTransportProviderFactory();
@@ -156,14 +159,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     if (factory == null) {
       String errorMessage = "failed to create transport provider factory: " + transportFactory;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
     }
 
     _transportProvider =
         factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
       String errorMessage = "failed to create transport provider, factory: " + transportFactory;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
     }
 
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
@@ -173,13 +176,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
       if (schemaRegistryFactory == null) {
         String errorMessage = "failed to create schema registry factory: " + schemaRegistryFactoryType;
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
       }
 
       schemaRegistry = schemaRegistryFactory.createSchemaRegistryProvider(
           coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
     } else {
-      LOG.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
+      _log.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
     }
 
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
@@ -191,8 +194,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   public void start() {
+    _log.info("Starting coordinator");
     _eventThread.start();
     _adapter.connect();
+    _log = LoggerFactory.getLogger(String.format("%s:%s", Coordinator.class.getName(), _adapter.getInstanceName()));
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorWrapper connector = _connectors.get(connectorType);
@@ -206,6 +211,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
       // call connector::start API
       connector.start();
+
+      _log.info("Coordiantor started");
     }
 
     // now that instance is started, make sure it doesn't miss any assignment created during
@@ -214,11 +221,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   public void stop() {
+    _log.info("Stopping coordinator");
     for (String connectorType : _connectors.keySet()) {
       try {
         _connectors.get(connectorType).stop();
       } catch (Exception ex) {
-        LOG.warn(String.format(
+        _log.warn(String.format(
             "Connector stop threw an exception for connectorType %s, " + "Swallowing it and continuing shutdown.",
             connectorType), ex);
       }
@@ -229,13 +237,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         _eventThread.interrupt();
         _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
       } catch (InterruptedException e) {
-        LOG.warn("Exception caught while stopping coordinator", e);
+        _log.warn("Exception caught while stopping coordinator", e);
       }
     }
 
     _eventProducerPool.shutdown();
 
     _adapter.disconnect();
+    _log.info("Coordinator stopped");
   }
 
   public String getInstanceName() {
@@ -252,12 +261,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onBecomeLeader() {
-    LOG.info("Coordinator::onBecomeLeader is called");
+    _log.info("Coordinator::onBecomeLeader is called");
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    LOG.info("Coordinator::onBecomeLeader completed successfully");
+    _log.info("Coordinator::onBecomeLeader completed successfully");
   }
 
   /**
@@ -265,9 +274,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onLiveInstancesChange() {
-    LOG.info("Coordinator::onLiveInstancesChange is called");
+    _log.info("Coordinator::onLiveInstancesChange is called");
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    LOG.info("Coordinator::onLiveInstancesChange completed successfully");
+    _log.info("Coordinator::onLiveInstancesChange completed successfully");
   }
 
   /**
@@ -275,11 +284,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onDatastreamChange() {
-    LOG.info("Coordinator::onDatastreamChange is called");
+    _log.info("Coordinator::onDatastreamChange is called");
     // if there are new datastreams created, we need to trigger the topic creation logic
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    LOG.info("Coordinator::onDatastreamChange completed successfully");
+    _log.info("Coordinator::onDatastreamChange completed successfully");
   }
 
   /**
@@ -293,9 +302,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   @Override
   public void onAssignmentChange() {
-    LOG.info("Coordinator::onAssignmentChange is called");
+    _log.info("Coordinator::onAssignmentChange is called");
     _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
-    LOG.info("Coordinator::onAssignmentChange completed successfully");
+    _log.info("Coordinator::onAssignmentChange completed successfully");
   }
 
   private void handleAssignmentChange() {
@@ -305,7 +314,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // type of the changed assignment, and then call the corresponding callback of the connector instance
     List<String> assignment = _adapter.getInstanceAssignment(_adapter.getInstanceName());
 
-    LOG.info("START: Coordinator::handleAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: "
+    _log.info("START: Coordinator::handleAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: "
         + assignment);
 
     // all datastreamtask for all connector types
@@ -320,7 +329,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       currentAssignment.get(connectorType).add(task);
     });
 
-    LOG.info(printAssignmentByType(currentAssignment));
+    _log.info(printAssignmentByType(currentAssignment));
 
     //
     // diff the currentAssignment with last saved assignment _assignedDatastreamTasksByConnectorType and make sure
@@ -352,7 +361,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     long endAt = System.currentTimeMillis();
 
-    LOG.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
+    _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
   private void dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
@@ -396,7 +405,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           newAssignment.add(task);
         } else {
           taskImpl.setStatus(DatastreamTaskStatus.error("Producer is missing"));
-          LOG.error("Event producer not created for datastream task: " + task);
+          _log.error("Event producer not created for datastream task: " + task);
         }
       }
 
@@ -406,7 +415,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           connector.onAssignmentChange(newAssignment);
 
           if (unusedProducers.size() > 0) {
-            LOG.info("Shutting down all unused event producers: " + unusedProducers);
+            _log.info("Shutting down all unused event producers: " + unusedProducers);
             unusedProducers.forEach((producer) -> producer.shutdown());
           }
         } catch (Exception ex) {
@@ -417,7 +426,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
-    LOG.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
+    _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
 
     try {
       switch (event.getType()) {
@@ -438,14 +447,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           break;
         default:
           String errorMessage = String.format("Unknown event type %s.", event.getType());
-          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
           break;
       }
     } catch (Throwable e) {
-      LOG.error("ERROR: event + " + event + " failed.", e);
+      _log.error("ERROR: event + " + event + " failed.", e);
     }
 
-    LOG.info("END: Handle event " + event);
+    _log.info("END: Handle event " + event);
   }
 
   // when we encounter an error, we need to persist the error message in zookeeper. We only persist the
@@ -470,7 +479,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     // do nothing if there is zero datastreams
     if (newDatastreams.isEmpty()) {
-      LOG.warn("Received a new datastream event, but there were no datastreams");
+      _log.warn("Received a new datastream event, but there were no datastreams");
       return;
     }
 
@@ -482,19 +491,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       // Update the znodes after destinations have been populated
       for (Datastream stream : newDatastreams) {
         if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
-          LOG.error(String.format("Failed to update datastream destination for datastream %s, "
+          _log.error(String.format("Failed to update datastream destination for datastream %s, "
               + "This datastream will not be scheduled for producing events ", stream.getName()));
         }
       }
 
       _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     } catch (Exception e) {
-      LOG.error("Failed to update the destination of new datastreams.", e);
+      _log.error("Failed to update the destination of new datastreams.", e);
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
       if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
-        LOG.warn("Schedule retry for handling new datastream");
+        _log.warn("Schedule retry for handling new datastream");
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
             _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
       }
@@ -535,7 +544,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
     Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
-    LOG.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
+    _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
 
     for (String connectorType : streamsByConnectorType.keySet()) {
       AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
@@ -568,7 +577,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
-    LOG.info("handleLeaderDoAssignment: new assignment: " + assigmentsByInstance);
+    _log.info("handleLeaderDoAssignment: new assignment: " + assigmentsByInstance);
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
@@ -577,7 +586,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
     // schedule retry if failure
     if (!succeeded && !leaderDoAssignmentScheduled.get()) {
-      LOG.info("Schedule retry for leader assigning tasks");
+      _log.info("Schedule retry for leader assigning tasks");
       leaderDoAssignmentScheduled.set(true);
       _executor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
@@ -598,11 +607,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
    */
   public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy,
       boolean customCheckpointing) {
-    LOG.info("Add new connector of type " + connectorType + " to coordinator");
+    _log.info("Add new connector of type " + connectorType + " to coordinator");
 
     if (_connectors.containsKey(connectorType)) {
       String err = "A connector of type " + connectorType + " already exists.";
-      LOG.error(err);
+      _log.error(err);
       throw new IllegalArgumentException(err);
     }
 
@@ -631,7 +640,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {
       String errorMessage = "Invalid connector type: " + connectorType;
-      LOG.error(errorMessage);
+      _log.error(errorMessage);
       throw new DatastreamValidationException(errorMessage);
     }
 
@@ -651,7 +660,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private class CoordinatorEventProcessor extends Thread {
     @Override
     public void run() {
-      LOG.info("START CoordinatorEventProcessor thread");
+      _log.info("START CoordinatorEventProcessor thread");
       while (!isInterrupted()) {
         try {
           CoordinatorEvent event = _eventQueue.take();
@@ -659,13 +668,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
             handleEvent(event);
           }
         } catch (InterruptedException e) {
-          LOG.warn("CoordinatorEventProcess interrupted", e);
+          _log.warn("CoordinatorEventProcess interrupted", e);
           interrupt();
         } catch (Throwable t) {
-          LOG.error("CoordinatorEventProcessor failed", t);
+          _log.error("CoordinatorEventProcessor failed", t);
         }
       }
-      LOG.info("END CoordinatorEventProcessor");
+      _log.info("END CoordinatorEventProcessor");
     }
   }
 

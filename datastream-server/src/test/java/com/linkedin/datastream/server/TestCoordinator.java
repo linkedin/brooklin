@@ -737,6 +737,10 @@ public class TestCoordinator {
     // Make sure strategy reused all tasks as opposed to creating new ones
     List<DatastreamTask> tasks2 = new ArrayList<>(connector1.getTasks());
     Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+
+    LOG.info("Tasks1: " + tasks1.toString());
+    LOG.info("Tasks2: " + tasks2.toString());
+
     Assert.assertEquals(tasks1, tasks2);
 
     // Verify dead instance assignments have been removed
@@ -813,10 +817,11 @@ public class TestCoordinator {
     //
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0", "datastream1");
 
-    // Make sure Coordinator has remove deprecated connector tasks of instance2
+    // Make sure Coordinator has removed deprecated connector tasks of instance2
     for (DatastreamTask task : tasks2) {
       String path = KeyBuilder.connectorTask(testCluster, task.getConnectorType(), task.getDatastreamTaskName());
-      Assert.assertFalse(zkClient.exists(path));
+      LOG.info("Checking whether the path doesn't exist anymore: " + path);
+      Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
     }
 
     //
@@ -915,6 +920,10 @@ public class TestCoordinator {
     // Make sure strategy reused all tasks as opposed to creating new ones
     List<DatastreamTask> tasks2 = new ArrayList<>(connector3.getTasks());
     Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+
+    LOG.info("Tasks1: " + tasks1.toString());
+    LOG.info("Tasks2: " + tasks2.toString());
+
     Assert.assertEquals(tasks1, tasks2);
 
     // Verify dead instance assignments have been removed
