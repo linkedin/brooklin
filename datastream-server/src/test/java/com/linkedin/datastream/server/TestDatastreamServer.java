@@ -163,6 +163,34 @@ public class TestDatastreamServer {
     _datastreamCluster.shutdown();
   }
 
+  /**
+   * This test is disabled because of the bug DDSDBUS-7413
+   */
+  @Test(enabled = false)
+  public void testUserManagedDestination() throws Exception {
+
+    int numberOfPartitions = 5;
+    String destinationTopic = "userManaged_" + UUID.randomUUID().toString();
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    int totalEvents = 10;
+    _datastreamCluster.startup();
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Datastream fileDatastream1 = createFileDatastream(fileName1, destinationTopic, 2);
+    Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 2);
+
+    Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 3);
+    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 3);
+    eventsReceived1.addAll(eventsReceived2);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+//    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+  }
+
   @Test
   public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
     int numberOfPartitions = 5;
@@ -460,12 +488,17 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
   }
 
+
   private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {
+    return readFileDatastreamEvents(datastream, 0, totalEvents);
+  }
+
+  private List<String> readFileDatastreamEvents(Datastream datastream, int partition, int totalEvents) throws Exception {
     KafkaDestination kafkaDestination =
         KafkaDestination.parseKafkaDestinationUri(datastream.getDestination().getConnectionString());
     final int[] numberOfMessages = { 0 };
     List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.topicName(), 0, _datastreamCluster.getBrokerList(), (key, value) -> {
+    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getBrokerList(), (key, value) -> {
       DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
       String eventValue = new String(datastreamEvent.payload.array());
       DatastreamUtils.processEventMetadata(datastreamEvent);
@@ -480,13 +513,25 @@ public class TestDatastreamServer {
     return eventsReceived;
   }
 
-  private Datastream createFileDatastream(String fileName) throws IOException, DatastreamException {
+  private Datastream createFileDatastream(String fileName)
+      throws IOException, DatastreamException {
+    return createFileDatastream(fileName, null, -1);
+  }
+
+  private Datastream createFileDatastream(String fileName, String destinationTopic, int destinationPartitions)
+      throws IOException, DatastreamException {
     File testFile = new File(fileName);
     testFile.createNewFile();
     testFile.deleteOnExit();
-    Datastream fileDatastream1 =
-        DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
-            testFile.getAbsolutePath());
+    Datastream fileDatastream1;
+    if(destinationTopic != null) {
+      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
+          testFile.getAbsolutePath(), destinationTopic, destinationPartitions);
+    } else {
+      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
+          testFile.getAbsolutePath());
+    }
+
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.createDatastream(fileDatastream1);
     return getPopulatedDatastream(restClient, fileDatastream1);

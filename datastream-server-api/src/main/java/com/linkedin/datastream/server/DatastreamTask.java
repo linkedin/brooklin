@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -58,6 +59,11 @@ public interface DatastreamTask {
   String getDatastreamTaskName();
 
   /**
+   * @return whether the destination is a user managed.
+   */
+  boolean isUserManagedDestination();
+
+  /**
    * @return the Datastream source.
    */
   DatastreamSource getDatastreamSource();
@@ -80,9 +86,9 @@ public interface DatastreamTask {
   Map<Integer, String> getCheckpoints();
 
   /**
-   * @return the list of datastream names for which this task is producing events for.
+   * @return the list of datastreams for which this task is producing events for.
    */
-  List<String> getDatastreams();
+  List<Datastream> getDatastreams();
 
   /**
    * A connector must acquire a task before starting processing it. This ensures no

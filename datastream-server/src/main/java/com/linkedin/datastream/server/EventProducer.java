@@ -288,6 +288,8 @@ public class EventProducer {
       _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record);
 
       // Update the checkpoint for the task/partition
+      // TODO DDSDBUS-7413 This assumption that record.getPartition() will always be present may not be valid.
+      // TODO Because connector may use transport provider's hashing method to write to a specific partition.
       _latestCheckpoints.get(task).put(record.getPartition().get(), record.getCheckpoint());
 
       // Dirty the flag
@@ -340,9 +342,9 @@ public class EventProducer {
 
       // Clear the dirty flag
       _pendingCheckpoint = false;
-    } catch (Throwable t) {
+    } catch (Exception e) {
       String errorMessage = String.format("Failed to flush transport, tasks = [%s].", _tasks);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, t);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     } finally {
       _sendFlushLock.writeLock().unlock();
     }

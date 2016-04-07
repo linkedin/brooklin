@@ -62,21 +62,11 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
 
     for (DatastreamTask task : _coordinator.getTasksByConnectorType().get(connectorType)) {
       TaskHealth taskHealth = new TaskHealth();
-      taskHealth.setDatastreams(String.join(",", task.getDatastreams()));
-
-      if (task.getDatastreamDestination() != null) {
-        taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
-      }
-
-      if (task.getDatastreamSource() != null) {
-        taskHealth.setSource(task.getDatastreamSource().getConnectionString());
-      }
-
-      if (task.getStatus() != null) {
-        taskHealth.setStatusCode(task.getStatus().getCode().toString());
-        taskHealth.setStatusMessage(task.getStatus().getMessage());
-      }
-
+      taskHealth.setDatastreams(task.getDatastreams().toString());
+      taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
+      taskHealth.setSource(task.getDatastreamSource().getConnectionString());
+      taskHealth.setStatusCode(task.getStatus().getCode().toString());
+      taskHealth.setStatusMessage(task.getStatus().getMessage());
       taskHealth.setName(task.getDatastreamTaskName());
       taskHealth.setPartitions(task.getPartitions().toString());
       taskHealth.setSourceCheckpoint(task.getCheckpoints().toString());
