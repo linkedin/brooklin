@@ -15,6 +15,7 @@ import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.diagnostics.ServerHealth;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.server.diagnostics.HealthBuilders;
+import com.linkedin.datastream.server.diagnostics.HealthRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
@@ -25,11 +26,10 @@ import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 
 
-@Test
 public class TestServerHealth {
 
   private EmbeddedDatastreamCluster _datastreamCluster;
-  private HealthBuilders _builders;
+  private HealthRequestBuilders _builders;
   private RestClient _restClient;
 
   @BeforeTest
@@ -64,6 +64,7 @@ public class TestServerHealth {
     _datastreamCluster.shutdown();
   }
 
+  @Test
   public void testServerHealthHasRightClusterNameAndInstanceName() throws RemoteInvocationException {
     ServerHealth serverHealth = fetchServerHealth();
     Assert.assertEquals(serverHealth.getClusterName(),
@@ -74,7 +75,7 @@ public class TestServerHealth {
 
   public ServerHealth fetchServerHealth() throws RemoteInvocationException {
     String healthUri = "http://localhost:" + _datastreamCluster.getPrimaryDatastreamPort() + "/";
-    _builders = new HealthBuilders();
+    _builders = new HealthRequestBuilders();
     final HttpClientFactory http = new HttpClientFactory();
     final Client r2Client = new TransportClientAdapter(http.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, healthUri);
