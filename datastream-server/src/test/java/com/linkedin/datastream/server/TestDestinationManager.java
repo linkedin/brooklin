@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,12 +23,14 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 
 public class TestDestinationManager {
+  private static final Duration RETENTION = Duration.ofDays(3);
 
   public static Datastream generateDatastream(int seed) {
     return generateDatastream(seed, false);
@@ -53,6 +56,7 @@ public class TestDestinationManager {
     TransportProvider transport = mock(TransportProvider.class);
     doAnswer(invocation -> "transport://" + invocation.getArguments()[0]).when(transport).createTopic(
             anyString(), anyInt(), anyObject());
+    doReturn(RETENTION).when(transport).getRetention(anyString());
     return transport;
   }
 
@@ -179,5 +183,21 @@ public class TestDestinationManager {
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(0)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
+  }
+
+  @Test
+  public void testDestinationRetention() throws Exception {
+    DestinationManager destinationManager = new DestinationManager(true, createTransport());
+
+    // Allow DestinationManager set up creationTime
+    Datastream stream = generateDatastream(1);
+    destinationManager.populateDatastreamDestination(Collections.singletonList(stream));
+
+    // Make sure both timestamps are set
+    Assert.assertNotNull(stream.getMetadata().getOrDefault(DatastreamMetadataConstants.DESTINATION_CREATION_MS, null));
+    Assert.assertNotNull(stream.getMetadata().getOrDefault(DatastreamMetadataConstants.DESTINATION_RETENION_MS, null));
+
+    String retentionMs = stream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
+    Assert.assertEquals(retentionMs, String.valueOf(RETENTION.toMillis()));
   }
 }

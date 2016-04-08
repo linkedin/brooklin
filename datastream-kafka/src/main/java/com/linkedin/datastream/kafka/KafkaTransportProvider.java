@@ -18,6 +18,7 @@ package com.linkedin.datastream.kafka;
  */
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import javafx.util.Pair;
 import kafka.admin.AdminUtils;
+import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.DatastreamException;
@@ -48,16 +50,21 @@ public class KafkaTransportProvider implements TransportProvider {
 
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
+  private static final String TOPIC_RETENTION_MS = "retention.ms";
 
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
+  public static final String CONFIG_RETENTION_MS = "retentionMs";
 
-  private static final String DEFAULT_REPLICATION_FACTOR = "1";
+  public static final String DEFAULT_REPLICATION_FACTOR = "1";
+  public static final Duration DEFAULT_RETENTION = Duration.ofDays(3);
+
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
   private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
   private final ZkClient _zkClient;
   private final ZkUtils _zkUtils;
+  private final Duration _retention;
 
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
@@ -76,6 +83,12 @@ public class KafkaTransportProvider implements TransportProvider {
     _zkClient = new ZkClient(_zkAddress);
     ZkConnection zkConnection = new ZkConnection(_zkAddress);
     _zkUtils = new ZkUtils(_zkClient, zkConnection, false);
+
+    if (props.containsKey(CONFIG_RETENTION_MS)) {
+      _retention = Duration.ofMillis(Long.parseLong(props.getProperty(CONFIG_RETENTION_MS)));
+    } else {
+      _retention = DEFAULT_RETENTION;
+    }
 
     // Assign mandatory arguments
     props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
@@ -104,8 +117,13 @@ public class KafkaTransportProvider implements TransportProvider {
     Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-    LOG.info(String.format("Creating topic with name %s  partitions %d with properties %s", topicConfig,
+    LOG.info(String.format("Creating topic with name %s partitions=%d with properties %s", topicName,
         numberOfPartitions, topicConfig));
+
+    // Add default retention if no topic-level retention is specified
+    if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
+      topicConfig.put(TOPIC_RETENTION_MS, String.valueOf(_retention.toMillis()));
+    }
 
     try {
       // Create only if it doesn't exist.
@@ -122,10 +140,14 @@ public class KafkaTransportProvider implements TransportProvider {
     return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
   }
 
+  private String getTopicName(String destination) {
+    return URI.create(destination).getPath().substring(1);
+  }
+
   @Override
   public void dropTopic(String destinationUri) {
     Validate.notNull(destinationUri, "destinationuri should not null");
-    String topicName = URI.create(destinationUri).getPath();
+    String topicName = getTopicName(destinationUri);
 
     try {
       // Delete only if it exist.
@@ -179,5 +201,24 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void flush() {
     _producer.flush();
+  }
+
+  /**
+   * Consult Kafka to get the retention for a topic. This is not cached
+   * in case the retention might be changed externally after creation.
+   * If no topic-level retention is configured, this method returns null.
+   *
+   * @param destination Destination URI
+   * @return topic retention or null if no such config
+   */
+  @Override
+  public Duration getRetention(String destination) {
+    Validate.notNull(destination, "null destination URI");
+    String topicName = getTopicName(destination);
+    Properties props = AdminUtils.fetchEntityConfig(_zkUtils, ConfigType.Topic(), topicName);
+    if (!props.containsKey(TOPIC_RETENTION_MS)) {
+      return null;
+    }
+    return Duration.ofMillis(Long.parseLong(props.getProperty(TOPIC_RETENTION_MS)));
   }
 }

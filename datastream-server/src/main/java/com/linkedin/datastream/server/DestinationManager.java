@@ -1,6 +1,8 @@
 package com.linkedin.datastream.server;
 
 import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
@@ -27,6 +29,7 @@ public class DestinationManager {
   private static final Logger LOG = LoggerFactory.getLogger(DestinationManager.class.getName());
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
   private static final String REGEX_NON_ALPHA = "[^\\w]";
+  private static final String DESTINATION_DOMAIN = "destination";
 
   private final TransportProvider _transportProvider;
   private final boolean _reuseExistingTopic;
@@ -46,13 +49,13 @@ public class DestinationManager {
   public void populateDatastreamDestination(List<Datastream> datastreams) throws TransportException {
     Validate.notNull(datastreams, "Datastream should not be null");
 
-    HashMap<DatastreamSource, DatastreamDestination> sourceDestinationMapping = new HashMap<>();
+    HashMap<DatastreamSource, Datastream> sourceStreamMapping = new HashMap<>();
     datastreams.stream().filter(d -> d.hasDestination() && d.getDestination().hasConnectionString() &&
         !d.getDestination().getConnectionString().isEmpty())
-        .forEach(d -> sourceDestinationMapping.put(d.getSource(), d.getDestination()));
+        .forEach(d -> sourceStreamMapping.put(d.getSource(), d));
 
-    LOG.debug("Datastream Source -> Destination mapping before populating new datastream destinations",
-            sourceDestinationMapping);
+    LOG.debug("Datastream Source -> Datastream mapping before populating new datastream destinations",
+            sourceStreamMapping);
 
     for (Datastream datastream : datastreams) {
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString() &&
@@ -67,22 +70,29 @@ public class DestinationManager {
       }
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
-      if (topicReuse && sourceDestinationMapping.containsKey(datastream.getSource())) {
-        DatastreamDestination destination = sourceDestinationMapping.get(datastream.getSource());
+      if (topicReuse && sourceStreamMapping.containsKey(datastream.getSource())) {
+        Datastream existingStream = sourceStreamMapping.get(datastream.getSource());
+        DatastreamDestination destination = existingStream.getDestination();
         LOG.info(String.format("Datastream %s has same source as existing datastream, Setting the destination %s",
             datastream.getName(), destination));
         datastream.setDestination(destination);
+
+        // Copy destination-related metadata
+        datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
+            existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_CREATION_MS));
+        datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
+            existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
       } else {
         String connectionString = createTopic(datastream);
         LOG.info(String.format(
             "Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new destination topic %s",
             datastream.getName(), topicReuse, connectionString));
-        sourceDestinationMapping.put(datastream.getSource(), datastream.getDestination());
+        sourceStreamMapping.put(datastream.getSource(), datastream);
       }
     }
 
     LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations",
-            sourceDestinationMapping);
+            sourceStreamMapping);
   }
 
   private String createTopic(Datastream datastream) throws TransportException {
@@ -90,7 +100,7 @@ public class DestinationManager {
     if (datastream.hasMetadata()) {
       datastreamProperties.putAll(datastream.getMetadata());
     }
-    Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties("topic");
+    Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties(DESTINATION_DOMAIN);
     int numberOfPartitions = DEFAULT_NUMBER_PARTITIONS;
 
     // if the number of partitions is already set on the destination then use that.
@@ -107,6 +117,17 @@ public class DestinationManager {
     destination.setConnectionString(connectionString);
     destination.setPartitions(numberOfPartitions);
     datastream.setDestination(destination);
+
+    // Set destination creation time and retention
+    datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
+        String.valueOf(Instant.now().toEpochMilli()));
+
+    Duration retention = _transportProvider.getRetention(connectionString);
+    if (retention != null) {
+      datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
+          String.valueOf(retention.toMillis()));
+    }
+
     return connectionString;
   }
 

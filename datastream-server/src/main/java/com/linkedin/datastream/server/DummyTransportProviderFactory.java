@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.util.Properties;
 
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -33,6 +34,11 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       @Override
       public void flush() {
 
+      }
+
+      @Override
+      public Duration getRetention(String destination) {
+        return Duration.ofDays(3);
       }
     };
   }

@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -22,12 +23,15 @@ import org.testng.annotations.Test;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.kafka.KafkaTransportProvider;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
@@ -42,7 +46,7 @@ import com.linkedin.restli.server.CreateResponse;
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
-  private static final String TRANSPORT_FCTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
+  private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
   private static final int WAIT_DURATION_FOR_ZK = 1000;
   private static final int WAIT_TIMEOUT_MS = 30000;
 
@@ -56,7 +60,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
-    props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FCTORY_CLASS);
+    props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     props.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
         "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
 
@@ -1256,6 +1260,16 @@ public class TestCoordinator {
     return new TestSetup(datastreamKafkaCluster, coordinator, resource, connector);
   }
 
+  private void validateRetention(Datastream stream, DatastreamResources resource, Duration expectedRetention) {
+    Datastream queryStream = resource.get(stream.getName());
+    Assert.assertNotNull(queryStream.getDestination());
+    StringMap metadata = queryStream.getMetadata();
+    Assert.assertNotNull(metadata.getOrDefault(DatastreamMetadataConstants.DESTINATION_CREATION_MS, null));
+    Assert.assertNotNull(metadata.getOrDefault(DatastreamMetadataConstants.DESTINATION_RETENION_MS, null));
+    String retentionMs = metadata.get(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
+    Assert.assertEquals(retentionMs, String.valueOf(expectedRetention.toMillis()));
+  }
+
   /**
    * Test create datastream scenario with the actual DSM.
    *
@@ -1272,6 +1286,27 @@ public class TestCoordinator {
       throws Exception {
     TestSetup setup = createTestCoordinator();
 
+    // Check retention when it's specific in topicConfig
+    Duration myRetention = Duration.ofDays(10);
+    String datastreamName = "TestDatastream";
+    Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    stream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
+    CreateResponse response = setup._resource.create(stream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Make sure connector has received the assignment (timeout in 30 seconds)
+    assertConnectorAssignment(setup._connector, 30000, datastreamName);
+    validateRetention(stream, setup._resource, myRetention);
+  }
+
+  @Test
+  public void testCreateDatastreamHappyPathDefaultRetention()
+      throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    // Check default retention when no topicConfig is specified
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
@@ -1281,9 +1316,8 @@ public class TestCoordinator {
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
+    validateRetention(stream, setup._resource, KafkaTransportProvider.DEFAULT_RETENTION);
 
-    Datastream queryStream = setup._resource.get(stream.getName());
-    Assert.assertNotNull(queryStream.getDestination());
     setup._datastreamKafkaCluster.shutdown();
   }
 
