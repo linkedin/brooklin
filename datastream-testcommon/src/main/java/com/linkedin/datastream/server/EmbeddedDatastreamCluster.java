@@ -17,10 +17,6 @@ package com.linkedin.datastream.server;
  * under the License.
  */
 
-import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.NetworkUtils;
-import com.linkedin.datastream.kafka.KafkaCluster;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,8 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
+
+import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.NetworkUtils;
+import com.linkedin.datastream.kafka.KafkaCluster;
 
 
 public class EmbeddedDatastreamCluster {
@@ -48,14 +51,18 @@ public class EmbeddedDatastreamCluster {
   private List<DatastreamServer> _servers = new ArrayList<>();
 
   private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override,
-      KafkaCluster kafkaCluster, int numServers)
+      KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts)
       throws IOException {
     _kafkaCluster = kafkaCluster;
     _numServers = numServers;
     for (int i = 0; i < numServers; i++) {
       _servers.add(null);
       _datastreamServerProperties.add(null);
-      _datastreamPorts.add(-1);
+      int dmsPort = -1;
+      if (dmsPorts != null) {
+        dmsPort = dmsPorts.get(i);
+      }
+      _datastreamPorts.add(dmsPort);
       setupDatastreamProperties(i, _kafkaCluster.getZkConnection(), connectorProperties, override, kafkaCluster);
     }
   }
@@ -63,7 +70,14 @@ public class EmbeddedDatastreamCluster {
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
       Map<String, Properties> connectorProperties, Properties override)
       throws IllegalArgumentException, IOException, DatastreamException {
-    return newTestDatastreamCluster(kafkaCluster, connectorProperties, override, 1);
+    return newTestDatastreamCluster(kafkaCluster, connectorProperties, override, 1, null);
+  }
+
+  public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
+      Map<String, Properties> connectorProperties, Properties override, int numServers)
+      throws IllegalArgumentException, IOException, DatastreamException {
+
+    return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, null);
   }
 
   private void setupDatastreamProperties(int index, String zkConnectionString, Map<String, Properties> connectorProperties,
@@ -103,13 +117,24 @@ public class EmbeddedDatastreamCluster {
     return domainConnectorProperties;
   }
 
+  /**
+   * Create a new test datastream cluster
+   * @param kafkaCluster kafka cluster to be used by the datastream cluster
+   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param override any server level config override
+   * @param numServers number of datastream servers in the cluster
+   * @param dmsPorts the dms ports to be used; accept null if automatic assignment
+   * @return instance of a new EmbeddedDatastreamCluster
+   * @throws IllegalArgumentException
+   * @throws IOException
+   * @throws DatastreamException
+   */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
-      Map<String, Properties> connectorProperties, Properties override, int numServers)
+      Map<String, Properties> connectorProperties, Properties override, int numServers,
+      @Nullable List<Integer> dmsPorts)
       throws IllegalArgumentException, IOException, DatastreamException {
 
-    EmbeddedDatastreamCluster cluster =
-        new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers);
-    return cluster;
+    return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, dmsPorts);
   }
 
   /**
