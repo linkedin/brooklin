@@ -9,4 +9,5 @@ ext {
     zkclientVersion = "0.5"
     zookeeperVersion = "3.4.6"
     testngVersion = "6.4"
+    intellijAnnotations = "12.0"
 }

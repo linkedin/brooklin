@@ -43,7 +43,7 @@ public class TestServerHealth {
     connectorProperties.put(TestDatastreamServer.DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
-            override, 1);
+            override);
     return datastreamKafkaCluster;
   }
 

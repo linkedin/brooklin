@@ -165,6 +165,7 @@ project(':datastream-testcommon') {
     compile project(':datastream-utils')
     compile project(':datastream-server')
     compile project(':datastream-client')
+    compile "com.intellij:annotations:$intellijAnnotations"
     compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"

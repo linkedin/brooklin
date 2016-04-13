@@ -113,7 +113,7 @@ public class TestDatastreamServer {
     override.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY, MockSchemaRegistryProviderFactory.class.getTypeName());
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
-            override, numServers);
+            override, numServers, null);
     return datastreamKafkaCluster;
   }
 
