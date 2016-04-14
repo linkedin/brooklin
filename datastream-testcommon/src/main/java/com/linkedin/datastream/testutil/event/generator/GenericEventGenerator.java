@@ -16,8 +16,9 @@ import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.Encoder;
 
 
-/*
- * The class is a factory which returns an instance based on which random data can be written to the record
+/**
+ * Generator for generic events based on input schema. It allows for customization
+ * by overriding {@link GenericEventGenerator#getNextEvent()}.
  */
 public class GenericEventGenerator {
 
@@ -53,6 +54,10 @@ public class GenericEventGenerator {
    */
   public GenericEventGenerator(String schema) {
     _schema = Schema.parse(schema);
+  }
+
+  public GenericEventGenerator() {
+    // Subclass generator needs to override getNextEvent
   }
 
   // set seed for random generator - actual setting happens only once before calling any event generation
@@ -154,7 +159,7 @@ public class GenericEventGenerator {
    */
   public List<Object> generateGenericEventList(int numEvents) throws UnknownTypeException, IOException {
 
-    if (_schema.getType() != Schema.Type.RECORD) {
+    if (_schema != null && _schema.getType() != Schema.Type.RECORD) {
       // LOG.error("The schema first level must be record.");
       return null;
     }

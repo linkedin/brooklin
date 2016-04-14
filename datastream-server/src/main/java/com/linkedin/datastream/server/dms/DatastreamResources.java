@@ -84,11 +84,11 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
-    if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
-      if (!datastream.hasMetadata()) {
-        datastream.setMetadata(new StringMap());
-      }
+    if (!datastream.hasMetadata()) {
+      datastream.setMetadata(new StringMap());
+    }
 
+    if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
       datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
     }
 
