@@ -86,7 +86,9 @@ public class EmbeddedDatastreamCluster {
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "DatastreamCluster");
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    _datastreamPorts.set(index, NetworkUtils.getAvailablePort());
+    if (_datastreamPorts.get(index) == -1) {
+      _datastreamPorts.set(index, NetworkUtils.getAvailablePort());
+    }
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(_datastreamPorts.get(index)));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, connectorTypes);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
