@@ -13,7 +13,6 @@ import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.RestLiActions;
 
-
 /**
  * BootstrapActionResources is the rest end point to process bootstrap datastream request
  */
@@ -40,6 +39,8 @@ public class BootstrapActionResources {
    */
   @Action(name = "create")
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
+
+    LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
 
     if (!bootstrapDatastream.hasName()) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");

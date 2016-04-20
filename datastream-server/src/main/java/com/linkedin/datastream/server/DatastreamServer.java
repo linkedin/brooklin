@@ -182,26 +182,6 @@ public class DatastreamServer {
     _isStarted = false;
   }
 
-  /**
-   * Return the corresponding bootstrap connector type for a connector
-   * @param baseConnectorType the base (online) connector type
-   * @return bootstrap connector type for the base connector. If the base connector doesn't
-   * have a bootstrap connector, a DatastreamException will be thrown.
-   * @throws DatastreamException
-   */
-  public String getBootstrapConnector(String baseConnectorType) {
-    if (!_isInitialized) {
-      String errorMessage = "DatastreamServer is not initialized.";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
-    }
-    String ret = _bootstrapConnectors.get(baseConnectorType);
-    if (ret == null) {
-      String errorMessage = "No bootstrap connector specified for connector: " + baseConnectorType;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
-    }
-    return ret;
-  }
-
   public static void main(String[] args) throws Exception {
     Properties serverProperties = getServerProperties(args);
     DatastreamServer server = new DatastreamServer(serverProperties);

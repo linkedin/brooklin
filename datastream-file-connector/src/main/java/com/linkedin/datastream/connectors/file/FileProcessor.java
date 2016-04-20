@@ -96,7 +96,9 @@ class FileProcessor implements Runnable {
         if (text != null) {
           DatastreamEvent event = new DatastreamEvent();
           event.payload = ByteBuffer.wrap(text.getBytes());
-          event.key = ByteBuffer.allocate(0);
+
+          // Using the line# as the key
+          event.key = ByteBuffer.wrap(lineNo.toString().getBytes());
           event.metadata = new HashMap<>();
           //Registering a null schema just for testing using the MockSchemaRegistryProvider
           event.metadata.put("PayloadSchemaId", _producer.registerSchema(null, null));
@@ -104,9 +106,14 @@ class FileProcessor implements Runnable {
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
           builder.addEvent(event);
-          builder.setPartition(0);
+
+          // If the destination is user managed, we will use the key to decide the partition.
+          if(!_task.isUserManagedDestination()) {
+            builder.setPartition(0);
+          }
+
           builder.setSourceCheckpoint(lineNo.toString());
-          _producer.send(builder.build());
+          _producer.send(builder.build(), null);
           LOG.info("Sending event succeeded");
           ++lineNo;
         } else {

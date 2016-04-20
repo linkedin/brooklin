@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.SendCallback;
+
 
 /**
  * Implementation of the DatastremaEventProducer that connector will use to produce events. There is an unique
@@ -20,7 +22,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerImpl.class);
 
   private final SchemaRegistryProvider _schemaRegistryProvider;
-  private final EventProducer _eventProducer;
+  private EventProducer _eventProducer;
   private final DatastreamTask _task;
 
   public DatastreamEventProducerImpl(DatastreamTask task, SchemaRegistryProvider schemaRegistryProvider,
@@ -30,13 +32,17 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
     _task = task;
   }
 
+  void resetEventProducer(EventProducer eventProducer) {
+    _eventProducer = eventProducer;
+  }
+
   EventProducer getEventProducer() {
     return _eventProducer;
   }
 
   @Override
-  public void send(DatastreamProducerRecord event) {
-    _eventProducer.send(_task, event);
+  public void send(DatastreamProducerRecord event, SendCallback sendCallback) {
+    _eventProducer.send(_task, event, sendCallback);
   }
 
   /**

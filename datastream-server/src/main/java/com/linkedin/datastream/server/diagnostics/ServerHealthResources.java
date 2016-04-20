@@ -1,8 +1,13 @@
 package com.linkedin.datastream.server.diagnostics;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.diagnostics.ConnectorHealth;
 import com.linkedin.datastream.diagnostics.ConnectorHealthArray;
 import com.linkedin.datastream.diagnostics.ServerHealth;
@@ -46,8 +51,14 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
 
   private ConnectorHealthArray buildConnectorHealth() {
     ConnectorHealthArray allConnectorsHealth = new ConnectorHealthArray();
+    Collection<DatastreamTask> tasks = _coordinator.getDatastreamTasks();
+    List<String> connectors = tasks
+        .stream()
+        .map(DatastreamTask::getConnectorType)
+        .distinct()
+        .collect(Collectors.toList());
 
-    for (String connectorType : _coordinator.getTasksByConnectorType().keySet()) {
+    for (String connectorType : connectors) {
       ConnectorHealth connectorHealth = new ConnectorHealth();
       connectorHealth.setConnectorType(connectorType);
       connectorHealth.setTasks(buildTasksHealthForConnectorType(connectorType));
@@ -60,9 +71,12 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
   private TaskHealthArray buildTasksHealthForConnectorType(String connectorType) {
     TaskHealthArray allTasksHealth = new TaskHealthArray();
 
-    for (DatastreamTask task : _coordinator.getTasksByConnectorType().get(connectorType)) {
+    _coordinator.getDatastreamTasks().stream()
+        .filter(t -> t.getConnectorType().equals(connectorType)).forEach(task -> {
       TaskHealth taskHealth = new TaskHealth();
-      taskHealth.setDatastreams(String.join(",", task.getDatastreams()));
+      taskHealth.setDatastreams(task.getDatastreams().toString());
+      taskHealth.setDatastreams(task.getDatastreams().stream()
+          .collect(Collectors.joining(",")));
 
       if (task.getDatastreamDestination() != null) {
         taskHealth.setDestination(task.getDatastreamDestination().getConnectionString());
@@ -81,7 +95,7 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
       taskHealth.setPartitions(task.getPartitions().toString());
       taskHealth.setSourceCheckpoint(task.getCheckpoints().toString());
       allTasksHealth.add(taskHealth);
-    }
+    });
 
     return allTasksHealth;
   }

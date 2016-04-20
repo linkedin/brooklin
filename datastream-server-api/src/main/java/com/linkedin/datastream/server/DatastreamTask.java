@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -58,6 +59,11 @@ public interface DatastreamTask {
   String getDatastreamTaskName();
 
   /**
+   * @return whether the destination is a user managed.
+   */
+  boolean isUserManagedDestination();
+
+  /**
    * @return the Datastream source.
    */
   DatastreamSource getDatastreamSource();
@@ -80,22 +86,24 @@ public interface DatastreamTask {
   Map<Integer, String> getCheckpoints();
 
   /**
-   * @return the list of datastream names for which this task is producing events for.
+   * @return the list of datastreams for which this task is producing events for.
    */
   List<String> getDatastreams();
 
   /**
-   * A connector must acquire a task before starting processing it. This ensures no
+   * A connector must acquire a task before starting to process it. This ensures no
    * two instances will work on the same task concurrently thus causing duplicate
    * events. This can happen in task reassignment induced by new or dead instances.
-   * This is an no-op if the task is already aquired by the same instance.
+   * This is a no-op if the task is already acquired by the same instance.
    */
   void acquire() throws DatastreamException;
 
   /**
    * A connector should remember to release a task if the task is unassigned to it
    * such that the next assigned instance can acquire the task for processing.
-   * This is an no-op if the task is not assigned to the current instance.
+   * This is a no-op if the task is not assigned to the current instance.
+   * TODO we should be able to remove this from the interface and coordinator can call this (internal) api
+   * TODO after on assignment change call.
    */
   void release();
 }
