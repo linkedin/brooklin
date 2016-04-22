@@ -2,6 +2,7 @@ package com.linkedin.datastream.testutil;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -56,10 +57,35 @@ public class DatastreamTestUtils {
   }
 
   /**
+   * Creates a test datastream of specific connector type
+   * @param connectorType connector type of the datastream to be created.
+   * @param datastreamName Name of the datastream to be created.
+   * @param source source connection string to be used.
+   * @param destination the destination connection string to be used.
+   * @param destinationPartitions the destination partitions
+   * @return Datastream that is created.
+   */
+  public static Datastream createDatastream(String connectorType, String datastreamName, String source,
+      String destination, int destinationPartitions) {
+    Datastream ds = new Datastream();
+    ds.setName(datastreamName);
+    ds.setConnectorType(connectorType);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString(source);
+    ds.setDestination(new DatastreamDestination());
+    ds.getDestination().setConnectionString(destination);
+    ds.getDestination().setPartitions(destinationPartitions);
+    StringMap metadata = new StringMap();
+    ds.setMetadata(metadata);
+    return ds;
+  }
+
+  /**
    * Store the datastreams into the appropriate locations in zookeeper.
    * @param zkClient zookeeper client
    * @param cluster name of the datastream cluster
    * @param datastreams list of datastreams
+   * @throws DatastreamException the datastream exception
    */
   public static void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams) throws DatastreamException {
     for (Datastream datastream : datastreams) {
@@ -76,7 +102,8 @@ public class DatastreamTestUtils {
    * @param cluster name of the datastream cluster
    * @param connectorType connector type string
    * @param datastreamNames list of datastream names
-   * @return
+   * @return datastream [ ]
+   * @throws DatastreamException the datastream exception
    */
   public static Datastream[] createAndStoreDatastreams(ZkClient zkClient, String cluster, String connectorType,
       String... datastreamNames) throws DatastreamException {
