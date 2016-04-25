@@ -7,7 +7,6 @@ import java.util.Optional;
 
 import org.apache.commons.lang.Validate;
 
-import javafx.util.Pair;
 
 /**
  * Envelope of a Datastream event to be sent via Kafka.

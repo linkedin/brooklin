@@ -8,23 +8,13 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
+import org.codehaus.jackson.type.TypeReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
-import org.codehaus.jackson.type.TypeReference;
-
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.server.api.transport.TransportException;
-import com.linkedin.datastream.server.api.transport.TransportProvider;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
-import com.linkedin.datastream.testutil.InMemoryCheckpointProvider;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
@@ -35,8 +25,26 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.server.api.transport.TransportException;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.testutil.InMemoryCheckpointProvider;
+
 
 public class TestEventProducer {
+  private static final Logger LOG = LoggerFactory.getLogger(TestEventProducer.class);
+
   private ArrayList<DatastreamTask> _tasks;
   private EventProducer _producer;
   private Datastream _datastream;
@@ -78,11 +86,13 @@ public class TestEventProducer {
     return builder.build();
   }
 
-  private void setup(boolean customCheckpointing) {
-    setup(customCheckpointing, false);
+  private void setup(boolean customCheckpointing)
+      throws TransportException {
+    setup(customCheckpointing, false, false, null);
   }
 
-  private void setup(boolean customCheckpointing, boolean checkRace) {
+  private void setup(boolean customCheckpointing, boolean checkRace, boolean throwExceptionOnSend, Consumer<EventProducer> onUnrecoverableError)
+      throws TransportException {
     _datastream = createDatastream();
 
     DatastreamTaskImpl task1 = new DatastreamTaskImpl(_datastream);
@@ -107,34 +117,46 @@ public class TestEventProducer {
 
     // Verify transport.send() and transport.flush() is never called simultaneously
     if (checkRace) {
-      try {
-        doAnswer((invocation) -> {
-          Assert.assertFalse(_inFlush.get());
-          _inSend.incrementAndGet();
-          try {
-            Thread.sleep(1); // mimic send delay
-          } catch (InterruptedException e) {
-            Assert.fail();
-          }
-          _inSend.decrementAndGet();
-          return null;
-        }).when(_transport).send(anyString(), anyObject());
+      doAnswer((invocation) -> {
+        Assert.assertFalse(_inFlush.get());
+        _inSend.incrementAndGet();
+        try {
+          Thread.sleep(1); // mimic send delay
+        } catch (InterruptedException e) {
+          Assert.fail();
+        }
+        _inSend.decrementAndGet();
+        return null;
+      }).when(_transport).send(anyString(), anyObject(), anyObject());
 
-        doAnswer((invocation) -> {
-          Assert.assertEquals(_inSend.get(), 0);
-          _inFlush.set(true);
-          try {
-            Thread.sleep(3); // mimic send delay
-          } catch (InterruptedException e) {
-            Assert.fail();
-          }
-          _inFlush.set(false);
-          return null;
-        }).when(_transport).flush();
-      } catch (TransportException e) {
-        Assert.fail(); // this is impossible
-      }
+      doAnswer((invocation) -> {
+        Assert.assertEquals(_inSend.get(), 0);
+        _inFlush.set(true);
+        try {
+          Thread.sleep(3); // mimic send delay
+        } catch (InterruptedException e) {
+          Assert.fail();
+        }
+        _inFlush.set(false);
+        return null;
+      }).when(_transport).flush();
     }
+
+    doAnswer(invocation -> {
+      Object[] args = invocation.getArguments();
+      String topic = (String) args[0];
+      DatastreamProducerRecord record = (DatastreamProducerRecord) args[1];
+      SendCallback callback = (SendCallback) args[2];
+      if (callback != null) {
+        Exception exception = null;
+        if (throwExceptionOnSend) {
+          exception = new DatastreamRuntimeException();
+        }
+        callback.onCompletion(new DatastreamRecordMetadata(record.getCheckpoint(), topic, record.getPartition().get()),
+            exception);
+      }
+      return null;
+    }).when(_transport).send(anyString(), anyObject(), anyObject());
 
     if (!customCheckpointing) {
       _cpProvider = new InMemoryCheckpointProvider();
@@ -146,12 +168,14 @@ public class TestEventProducer {
     _config = new Properties();
     _config.put(EventProducer.CHECKPOINT_PERIOD_MS, "50");
 
-    _producer = new EventProducer(_tasks, _transport, _cpProvider, _config, customCheckpointing);
+    _producer = new EventProducer(_transport, _cpProvider, _config, customCheckpointing, onUnrecoverableError);
+    _tasks.forEach(t -> _producer.assignTask(t));
   }
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testSendWithCustomCheckpoint() throws DatastreamException, TransportException, InterruptedException {
+  public void testSendWithCustomCheckpoint()
+      throws DatastreamException, TransportException, InterruptedException {
     setup(true);
     DatastreamTask task;
     Integer partition;
@@ -161,11 +185,11 @@ public class TestEventProducer {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
       record = createEventRecord(partition);
-      _producer.send(task, record);
+      _producer.send(task, record, null);
     }
-    final boolean[] isCommitCalled = { false };
+    final boolean[] isCommitCalled = {false};
 
-    verify(_transport, times(500)).send(any(), any());
+    verify(_transport, times(500)).send(any(), any(), anyObject());
     doAnswer(invocation -> isCommitCalled[0] = true).when(_cpProvider).commit(anyMap());
 
     // Ensure that commit is not called even after 1 second.
@@ -179,11 +203,14 @@ public class TestEventProducer {
     for (DatastreamTask task : tasks) {
       String cpString = checkpoints.getOrDefault(task, null);
       if (cpString == null) { // not ready
+        LOG.info("Committed checkpoints is null");
         return false;
       }
       TypeReference<HashMap<Integer, String>> typeRef = new TypeReference<HashMap<Integer, String>>() {
       };
       Map<Integer, String> cpMap = JsonUtils.fromJson(cpString, typeRef);
+
+      LOG.info(String.format("Committed checkpoints %s, Expected checkpoints %s", cpMap, taskCpMap));
       if (!cpMap.equals(taskCpMap.get(task))) {
         return false;
       }
@@ -192,10 +219,68 @@ public class TestEventProducer {
   }
 
   @Test
-  public void testSendWithDatastreamCheckpoint() throws DatastreamException, InterruptedException, TransportException {
+  public void testProducerUnrecoverableErrorCalled()
+      throws TransportException {
+
+    List<EventProducer> producersWithUnrecoverableError = new ArrayList<>();
+    setup(false, false, true, producersWithUnrecoverableError::add);
+    List<Exception> exceptions = new ArrayList<>();
+    List<DatastreamRecordMetadata> producedMetadata = new ArrayList<>();
+    DatastreamProducerRecord record = createEventRecord(0);
+    _producer.send(_tasks.get(0), record, (metadata, exception) -> {
+
+      producedMetadata.add(metadata);
+      if (exception != null) {
+        exceptions.add(exception);
+      }
+    });
+
+    Assert.assertEquals(producersWithUnrecoverableError.size(), 1);
+    Assert.assertEquals(producersWithUnrecoverableError.get(0), _producer);
+    Assert.assertEquals(exceptions.size(), 1);
+    Assert.assertEquals(producedMetadata.size(), 1);
+    Assert.assertEquals(producedMetadata.get(0).getCheckpoint(), record.getCheckpoint());
+    Assert.assertEquals(producedMetadata.get(0).getPartition(), 0);
+  }
+
+  @Test
+  public void testProducerCallsCallback()
+      throws TransportException {
+    setup(false);
+    List<DatastreamRecordMetadata> producedMetadata = new ArrayList<>();
+    DatastreamProducerRecord record = createEventRecord(0);
+    _producer.send(_tasks.get(0), record, (m, e) -> producedMetadata.add(m));
+    Assert.assertEquals(producedMetadata.size(), 1);
+    Assert.assertEquals(producedMetadata.get(0).getCheckpoint(), record.getCheckpoint());
+    Assert.assertEquals(producedMetadata.get(0).getPartition(), 0);
+  }
+
+  @Test
+  public void testProducerCallsCallbackWithException()
+      throws TransportException {
+    setup(false, false, true, null);
+    List<Exception> exceptions = new ArrayList<>();
+    List<DatastreamRecordMetadata> producedMetadata = new ArrayList<>();
+    DatastreamProducerRecord record = createEventRecord(0);
+    _producer.send(_tasks.get(0), record, (metadata, exception) -> {
+
+      producedMetadata.add(metadata);
+      if (exception != null) {
+        exceptions.add(exception);
+      }
+    });
+
+    Assert.assertEquals(exceptions.size(), 1);
+    Assert.assertEquals(producedMetadata.size(), 1);
+    Assert.assertEquals(producedMetadata.get(0).getCheckpoint(), record.getCheckpoint());
+    Assert.assertEquals(producedMetadata.get(0).getPartition(), 0);
+  }
+
+  @Test
+  public void testSendWithDatastreamCheckpoint()
+      throws DatastreamException, InterruptedException, TransportException {
 
     setup(false);
-
     Map<DatastreamTask, Map<Integer, String>> taskCpMap = new HashMap<>();
 
     DatastreamTask task;
@@ -206,14 +291,14 @@ public class TestEventProducer {
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
       partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
       record = createEventRecord(partition);
-      _producer.send(task, record);
+      _producer.send(task, record, null);
 
       Map<Integer, String> cpMap = taskCpMap.getOrDefault(task, new HashMap<>());
       cpMap.put(partition, record.getCheckpoint());
       taskCpMap.put(task, cpMap);
     }
 
-    verify(_transport, times(500)).send(any(), any());
+    verify(_transport, times(500)).send(any(), any(), any());
 
     // Verify all safe checkpoints from producer match the last event
     Assert.assertTrue(PollUtils.poll(() -> validateCheckpoint(_cpProvider, _tasks, taskCpMap), 100, 5000));
@@ -224,8 +309,9 @@ public class TestEventProducer {
     _producer.shutdown();
 
     // Create a new producer
-    _producer = new EventProducer(_tasks, _transport, _cpProvider, _config, false);
+    _producer = new EventProducer(_transport, _cpProvider, _config, false, null);
 
+    _tasks.forEach(t -> _producer.assignTask(t));
     // Expect saved checkpoint to match that of the last event
     Map<DatastreamTask, Map<Integer, String>> checkpointsNew = _producer.getSafeCheckpoints();
     Assert.assertEquals(checkpointsNew, taskCpMap);
@@ -256,18 +342,19 @@ public class TestEventProducer {
     DatastreamTaskImpl task3 = new DatastreamTaskImpl(_datastream);
     task3.setPartitions(partitions);
     _tasks.add(task3);
-    _producer.updateTasks(_tasks);
+    _tasks.forEach(t -> _producer.assignTask(t));
     verifyCheckpoints();
 
     // Remove a task
+    _producer.unassignTask(_tasks.get(2));
     _tasks.remove(2);
-    _producer.updateTasks(_tasks);
     verifyCheckpoints();
 
     // Add and remove a task
+    _producer.unassignTask(_tasks.get(1));
+    _producer.assignTask(task3);
     _tasks.remove(1);
     _tasks.add(task3);
-    _producer.updateTasks(_tasks);
     verifyCheckpoints();
   }
 
@@ -275,7 +362,8 @@ public class TestEventProducer {
    * Basic test case of update tasks
    */
   @Test
-  public void testUpdateTasks() {
+  public void testUpdateTasks()
+      throws TransportException {
     setup(false);
 
     verifyCheckpoints();
@@ -286,11 +374,12 @@ public class TestEventProducer {
    * Using three threads doing repeated send/flush/updateTasks and check for race conditions.
    */
   @Test
-  public void testSendFlushUpdateTaskStress() {
-    setup(false, true);
+  public void testSendFlushUpdateTaskStress()
+      throws TransportException {
+    setup(false, true, false, null);
 
     // Mimic a connector constantly calls send/flush
-    final boolean[] stopHandler = { false };
+    final boolean[] stopHandler = {false};
     Thread sender = new Thread(() -> {
       DatastreamTask task = _tasks.get(0);
       while (!stopHandler[0]) {
@@ -300,7 +389,7 @@ public class TestEventProducer {
           break;
         }
 
-        _producer.send(task, createEventRecord(1));
+        _producer.send(task, createEventRecord(1), null);
       }
     });
     sender.start();
@@ -334,9 +423,8 @@ public class TestEventProducer {
     Assert.assertTrue(PollUtils.poll(() -> !flusher.isAlive(), 50, 2000));
 
     // Remove all tasks
+    _tasks.forEach(t -> _producer.unassignTask(t));
     _tasks.clear();
-    _producer.updateTasks(_tasks);
     verifyCheckpoints();
-
   }
 }

@@ -125,7 +125,9 @@ public class TestCoordinator {
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
-        Assert.assertNotNull(task.getEventProducer());
+        if(task.getEventProducer() == null) {
+          Assert.assertNotNull(task.getEventProducer());
+        }
       }
 
       LOG.info("END: onAssignmentChange");
@@ -149,7 +151,7 @@ public class TestCoordinator {
    */
   // This test is disabled because there are still some issues around saving the state. This should be fixed as part of
   // Scenario #3.
-  @Test(enabled = true)
+  @Test
   public void testConnectorStateSetAndGet()
       throws Exception {
     String testCluster = "testConnectorStateSetAndGet";
@@ -271,7 +273,7 @@ public class TestCoordinator {
    *
    * @throws Exception
    */
-  @Test(enabled = true)
+  @Test
   public void testCoordinationWithBroadcastStrategy()
       throws Exception {
     String testCluster = "testCoordinationSmoke";
@@ -427,7 +429,7 @@ public class TestCoordinator {
     }
   }
 
-  @Test(enabled = true)
+  @Test
   public void testCoordinationMultipleConnectorTypesForBroadcastStrategy()
       throws Exception {
     String testCluster = "testCoordinationMultipleConnectors";
@@ -550,7 +552,7 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  @Test(enabled = true)
+  @Test
   public void testStressLargeNumberOfDatastreams()
       throws Exception {
 
@@ -603,7 +605,7 @@ public class TestCoordinator {
   // Test SimpleAssignmentStrategy: if new live instances come online, some tasks
   // will be moved from existing live instance to the new live instance
   //
-  @Test(enabled = true)
+  @Test
   public void testSimpleAssignmentReassignWithNewInstances()
       throws Exception {
     String testCluster = "testSimpleAssignmentReassignWithNewInstances";
@@ -678,7 +680,7 @@ public class TestCoordinator {
   // Test for SimpleAssignmentStrategy
   // Verify that when instance dies, the assigned tasks will be re-assigned to remaining live instances
   //
-  @Test(enabled = true)
+  @Test
   public void testSimpleAssignmentReassignAfterDeath()
       throws Exception {
     String testCluster = "testSimpleAssignmentReassignAfterDeath";
@@ -757,7 +759,7 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  @Test(enabled = true)
+  @Test
   public void testBroadcastAssignmentReassignAfterDeath()
       throws Exception {
     String testCluster = "testBroadcastAssignmentReassignAfterDeath";
@@ -839,7 +841,7 @@ public class TestCoordinator {
   // this case tests the scenario when the leader of the cluster dies, and make sure
   // the assignment will be taken over by the new leader.
   //
-  @Test(enabled = true)
+  @Test
   public void testSimpleAssignmentReassignAfterLeaderDeath()
       throws Exception {
     String testCluster = "testSimpleAssignmentReassignAfterLeaderDeath";
@@ -944,7 +946,7 @@ public class TestCoordinator {
   //
   // this test covers the scenario when multiple instances die at the same time
   //
-  @Test(enabled = true)
+  @Test
   public void testMultipleInstanceDeath()
       throws Exception {
     String testCluster = "testMultipleInstanceDeath";
@@ -1016,7 +1018,7 @@ public class TestCoordinator {
   // has a smaller lexicographical order, it will be assigned to an instance with smaller lexicographical order.
   // Put it in another word, this is how Kafka consumer rebalancing works.
   //
-  @Test(enabled = true)
+  @Test
   public void testSimpleAssignmentRebalancing()
       throws Exception {
     String testCluster = "testSimpleAssignmentRebalancing";
@@ -1083,7 +1085,7 @@ public class TestCoordinator {
   // we have two connectors for each instance, and they are using different assignment
   // strategies, BroadcastStrategy and SimpleStrategy respectively.
   //
-  @Test(enabled = true)
+  @Test
   public void testSimpleAssignmentStrategyIndependent()
       throws Exception {
     String testCluster = "testSimpleAssignmentStrategy";
@@ -1174,7 +1176,7 @@ public class TestCoordinator {
     }
   }
 
-  @Test(enabled = true)
+  @Test
   public void testCoordinatorErrorHandling()
       throws Exception {
     String testCluster = "testCoordinatorErrorHandling";
@@ -1281,7 +1283,7 @@ public class TestCoordinator {
    *
    * @throws Exception
    */
-  @Test(enabled = true)
+  @Test
   public void testCreateDatastreamHappyPath()
       throws Exception {
     TestSetup setup = createTestCoordinator();

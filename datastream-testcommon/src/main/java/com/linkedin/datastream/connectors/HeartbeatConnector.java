@@ -65,12 +65,12 @@ public class HeartbeatConnector implements Connector {
       for (DatastreamTask task : tasks) {
         if (task.getConnectorType().equalsIgnoreCase(BROADCAST_CONNECTOR_TYPE)) {
           Integer eventIndex = _checkpoint.get(task).get(0);
-          task.getEventProducer().send(createHeartbeatEvent(0, eventIndex));
+          task.getEventProducer().send(createHeartbeatEvent(0, eventIndex), null);
           _checkpoint.get(task).put(0, eventIndex + 1);
         } else {
           for (int partition : task.getPartitions()) {
             Integer eventIndex = _checkpoint.get(task).get(partition);
-            task.getEventProducer().send(createHeartbeatEvent(partition, eventIndex));
+            task.getEventProducer().send(createHeartbeatEvent(partition, eventIndex), null);
             _checkpoint.get(task).put(partition, eventIndex + 1);
           }
         }

@@ -21,6 +21,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.lang.Validate;
@@ -30,15 +31,18 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javafx.util.Pair;
 import kafka.admin.AdminUtils;
 import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.Pair;
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
@@ -163,7 +167,7 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void send(String destinationUri, DatastreamProducerRecord record) {
+  public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
@@ -176,11 +180,14 @@ public class KafkaTransportProvider implements TransportProvider {
         try {
           outgoing = convertToProducerRecord(destinationUri, record, event.getKey(), event.getValue());
         } catch (Exception e) {
-          LOG.error(String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event), e);
-          // TODO: Error handling
-          return;
+          String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
+          LOG.error(errorMessage, e);
+          throw new DatastreamRuntimeException(errorMessage, e);
         }
-        _producer.send(outgoing);
+
+        _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
+                new DatastreamRecordMetadata(String.valueOf(metadata.offset()), metadata.topic(), metadata.partition()),
+                exception));
       }
     } catch (Exception e) {
       String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
@@ -193,8 +200,11 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void close() {
+    // Close the kafka producer connection immediately (timeout of zero). If timeout > 0 producer connection won't
+    // close immediately and will result in out of order events. More details in the below slide.
+    // http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844/10
     if (_producer != null) {
-      _producer.close();
+      _producer.close(0, TimeUnit.MILLISECONDS);
     }
   }
 

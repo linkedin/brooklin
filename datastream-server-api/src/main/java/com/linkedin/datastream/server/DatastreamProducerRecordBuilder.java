@@ -11,7 +11,6 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javafx.util.Pair;
 
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;

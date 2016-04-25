@@ -50,6 +50,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public UpdateResponse delete(String key) {
+    LOG.info("Delete datastream called for datastream " + key);
     _store.deleteDatastream(key);
     return new UpdateResponse(HttpStatus.S_200_OK);
   }
@@ -57,12 +58,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   // Returning null will automatically trigger a 404 Not Found response
   @Override
   public Datastream get(String name) {
+    LOG.info(String.format("Get datastream called for datastream %s", name));
     return _store.getDatastream(name);
   }
 
   @SuppressWarnings("deprecated")
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
+    LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
     return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
         .map(_store::getDatastream)
         .filter(stream -> stream != null)
@@ -71,6 +74,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public CreateResponse create(Datastream datastream) {
+
+    LOG.info(String.format("Create datastream called with datastream %s", datastream));
 
     // rest.li has done this mandatory field check in the latest version.
     // Just in case we roll back to an earlier version, let's do the validation here anyway
@@ -97,7 +102,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (DatastreamValidationException e) {
       return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
     }
-    
+
     try {
       _store.createDatastream(datastream.getName(), datastream);
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);

@@ -1,18 +1,17 @@
 package com.linkedin.datastream.server;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -20,24 +19,30 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javafx.util.Pair;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.server.api.transport.SendFailedException;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
-* EventProducer class uses the transport to send events and handles save/restore checkpoints
-* automatically if {@link EventProducer.CheckpointPolicy#DATASTREAM} is specified.
-* Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
-*/
+ * EventProducer class uses the transport to send events and handles save/restore checkpoints
+ * automatically if {@link EventProducer.CheckpointPolicy#DATASTREAM} is specified.
+ * Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
+ */
 public class EventProducer {
-  private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(EventProducer.class);
+  private final Consumer<EventProducer> _onUnrecoverableError;
+
+  private final String _producerid;
 
   /**
    * Policy for checkpoint handling
@@ -49,7 +54,7 @@ public class EventProducer {
 
   public static final String INVALID_CHECKPOINT = "";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
-  public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000;
+  public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000 * 60; // 1 minute
   public static final Integer SHUTDOWN_POLL_MS = 1000;
   public static final Integer SHUTDOWN_POLL_PERIOD_MS = 50;
 
@@ -120,10 +125,10 @@ public class EventProducer {
       try {
         flush();
         LOG.debug(String.format("Checkpoint handler exited, tasks = [%s].", _tasks));
-      } catch (Throwable t) {
+      } catch (Exception e) {
         // Since have have handled all exceptions here, there would be no exceptions leaked
         // to the executor, which will reschedules as usual so no explicit retry is needed.
-        LOG.error(String.format("Checkpoint failed, will retry after %d ms, reason = %s", _periodMs, t.getMessage()), t);
+        LOG.error(String.format("Checkpoint failed, will retry after %d ms, reason = %s", _periodMs, e.getMessage()), e);
       }
     }
 
@@ -135,16 +140,14 @@ public class EventProducer {
 
   /**
    * Construct an EventProducer instance.
-   * @param tasks list of tasks which have the same destination
    * @param transportProvider event transport
    * @param checkpointProvider checkpoint store
    * @param config global config
    * @param customCheckpointing decides whether Producer should use custom checkpointing or the datastream server
    *                            provided checkpointing.
    */
-  public EventProducer(List<DatastreamTask> tasks, TransportProvider transportProvider,
-      CheckpointProvider checkpointProvider, Properties config, boolean customCheckpointing) {
-    Validate.notNull(tasks, "null tasks");
+  public EventProducer(TransportProvider transportProvider, CheckpointProvider checkpointProvider, Properties config,
+      boolean customCheckpointing, Consumer<EventProducer> onUnrecoverableError) {
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
     Validate.notNull(config, "null config");
@@ -157,43 +160,47 @@ public class EventProducer {
     _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
     _tasks = new HashSet<>();
     _safeCheckpoints = new HashMap<>();
-
-    // Prepare checkpoints for all tasks
-    updateTasks(tasks);
+    _onUnrecoverableError = onUnrecoverableError;
+    _latestCheckpoints = new HashMap<>();
 
     // Start checkpoint handler
     _checkpointHandler = new CheckpointHandler(config);
 
-    LOG.info("Created event producer, tasks: " + tasks + ", safe checkpoints: " + _safeCheckpoints);
+    _producerid = UUID.randomUUID().toString();
+
+    LOG.info(String.format("Created event producer with customCheckpointing %s", customCheckpointing));
+  }
+
+  public String getProducerid() {
+    return _producerid;
   }
 
   /**
-   * This method should be called with sendFluchLock.writeLock acquired.
+   * This method should be called with sendFlushLock.writeLock acquired.
    */
-  private void loadCheckpoints(List<DatastreamTask> tasks) {
-    Map<DatastreamTask, String> committed = _checkpointProvider.getCommitted(tasks);
-
+  private Map<Integer, String> loadCheckpoints(DatastreamTask task) {
+    Map<DatastreamTask, String> committed = _checkpointProvider.getCommitted(Collections.singletonList(task));
+    final Map<Integer, String> cpMap;
     // Instruct jackson to convert string keys to integer
     TypeReference<HashMap<Integer, String>> typeRef = new TypeReference<HashMap<Integer, String>>() {
     };
 
-    // Load checkpoints only for specified task list
-    for (DatastreamTask task : tasks) {
-      String cpString = committed.get(task);
-      if (!StringUtils.isBlank(cpString)) {
-        // Deserialize checkpoints from JSON
-        try {
-          _safeCheckpoints.put(task, JsonUtils.fromJson(cpString, typeRef));
-        } catch (Exception e) {
-          throw new RuntimeException("Failed to load checkpoints from json: " + cpString + ", task=" + task, e);
-        }
-      } else {
-        // Brand new task without checkpoints
-        Map<Integer, String> cpMap = new HashMap<>();
-        task.getPartitions().forEach(partition -> cpMap.put(partition, INVALID_CHECKPOINT));
-        _safeCheckpoints.put(task, cpMap);
+    String cpString = committed.get(task);
+    if (!StringUtils.isBlank(cpString)) {
+      // Deserialize checkpoints from JSON
+      try {
+        cpMap = JsonUtils.fromJson(cpString, typeRef);
+      } catch (Exception e) {
+        throw new DatastreamRuntimeException("Failed to load checkpoints from json: " + cpString + ", task=" + task, e);
       }
+    } else {
+      // Brand new task without checkpoints
+      cpMap = new HashMap<>();
+      task.getPartitions().forEach(partition -> cpMap.put(partition, INVALID_CHECKPOINT));
     }
+
+    _safeCheckpoints.put(task, cpMap);
+    return cpMap;
   }
 
   private void validateAndNormalizeEventRecord(DatastreamProducerRecord record) {
@@ -208,60 +215,40 @@ public class EventProducer {
     }
   }
 
-  /**
-   * For a new task assignment, this method should be called to update the internal
-   * checkpoint structures to accommodate for newly assigned and unassigned tasks.
-   *
-   * @param assignment current task assignment
-   */
-  public void updateTasks(Collection<DatastreamTask> assignment) {
-    Validate.notNull(assignment, "null assigned tasks");
+  public CheckpointPolicy getCheckpointPolicy() {
+    return _checkpointPolicy;
+  }
 
-    // Calculate newly assigned and unassigned tasks
-    Set<DatastreamTask> assigned = new HashSet<>(assignment);
-    Set<DatastreamTask> unassigned = new HashSet<>(_tasks);
-    unassigned.removeAll(assignment);
-    assigned.removeAll(_tasks);
-    if (assigned.size() == 0 && unassigned.size() == 0) { // no changes
-      return;
-    }
-
-    // Validate newly assigned tasks
-    //  a. all tasks pointing to the same destination
-    //  b. no overlapping partitions among all tasks
-    DatastreamTask task0 = _tasks.size() > 0 ? _tasks.iterator().next() : assigned.iterator().next();
-    for (DatastreamTask task : assigned) {
-      // Ensure all tasks are for the same destination
-      task.getDatastreamDestination().equals(task0.getDatastreamDestination());
-
-      // DatastreamTask should include at least one partition.
-      // This should be ensured by DatastreamTaskImpl's ctor.
-      Validate.notEmpty(task.getPartitions(), "null or empty partitions in: " + task);
-    }
-
+  public void unassignTask(DatastreamTask task) {
     try {
       // Write lock is required
       _sendFlushLock.writeLock().lock();
 
       // Flush any outstanding events
       flush();
+      _safeCheckpoints.remove(task);
+      _latestCheckpoints.remove(task);
+      _tasks.remove(task);
+    } finally {
+      _sendFlushLock.writeLock().unlock();
+    }
+  }
 
-      // Remove unassigned tasks and their checkpoints
-      unassigned.forEach(_safeCheckpoints::remove);
-      _tasks.removeAll(unassigned);
+  /**
+   * For a new task assignment, this method should be called to update the internal
+   * checkpoint structures to accommodate for newly assigned and unassigned tasks.
+   */
+  public void assignTask(DatastreamTask task) {
+    Validate.notNull(task, "null assigned task");
+
+    try {
+      // Write lock is required
+      _sendFlushLock.writeLock().lock();
 
       // Add newly assigned tasks and populate checkpoints
-      loadCheckpoints(new ArrayList<>(assigned));
-      _tasks.addAll(assigned);
-
-      // Collect all partitions
-      Set<Integer> knownPartitions = new HashSet<>();
-      _tasks.forEach(t -> {
-        t.getPartitions().forEach(p -> Validate.isTrue(!knownPartitions.contains(p), "duplicate partition: " + p));
-        knownPartitions.addAll(t.getPartitions());
-      });
-
-      _latestCheckpoints = new HashMap<>(_safeCheckpoints);
+      Map<Integer, String> checkpoints = loadCheckpoints(task);
+      _tasks.add(task);
+      _latestCheckpoints.put(task, checkpoints);
     } finally {
       _sendFlushLock.writeLock().unlock();
     }
@@ -271,11 +258,12 @@ public class EventProducer {
    * Send the event onto the underlying transport.
    *
    * @param record DatastreamEvent envelope
+   * @param sendCallback
    */
-  public void send(DatastreamTask task, DatastreamProducerRecord record) {
+  public void send(DatastreamTask task, DatastreamProducerRecord record, SendCallback sendCallback) {
     // Prevent sending if we have been shutdown
     if (_shutdownRequested) {
-      throw new IllegalStateException("send() is not allowed on a shutdown producer");
+      throw new IllegalStateException("send() is not allowed on a producer that is already shutdown.");
     }
 
     validateAndNormalizeEventRecord(record);
@@ -285,18 +273,45 @@ public class EventProducer {
       _sendFlushLock.readLock().lock();
 
       // Send the event to transport
-      _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record);
+      _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record,
+          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, task, record));
+    } catch (Exception e) {
+      String errorMessage = String.format("Failed send the event %s exception %s", record, e);
+      LOG.warn(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
+    } finally {
+      _sendFlushLock.readLock().unlock();
+    }
+  }
 
+  private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
+      DatastreamTask task, DatastreamProducerRecord record) {
+
+    SendFailedException sendFailedException = null;
+
+    // Shutdown the producer right away
+    if(exception != null) {
+      shutdown();
+      sendFailedException = new SendFailedException(_safeCheckpoints);
+    }
+
+    // Inform the connector about the success or failure, In the case of failure, the connector will go back to the
+    // last checkpoint.
+    if (sendCallback != null) {
+      sendCallback.onCompletion(metadata, sendFailedException);
+    }
+
+    // If the send failed, then shutdown the producer, Notify the eventProducerPool and the connector sendCallback
+    if (exception != null) {
+      if (_onUnrecoverableError != null) {
+        _onUnrecoverableError.accept(this);
+      }
+    } else {
       // Update the checkpoint for the task/partition
-      _latestCheckpoints.get(task).put(record.getPartition().get(), record.getCheckpoint());
+      _latestCheckpoints.get(task).put(metadata.getPartition(), record.getCheckpoint());
 
       // Dirty the flag
       _pendingCheckpoint = true;
-    } catch (TransportException e) {
-      LOG.info(String.format("Failed send the event %s exception %s", record, e));
-      throw new RuntimeException("Failed to send: " + record, e);
-    } finally {
-      _sendFlushLock.readLock().unlock();
     }
   }
 
@@ -332,17 +347,17 @@ public class EventProducer {
           _latestCheckpoints.forEach((task, cpMap) -> _safeCheckpoints.put(task, new HashMap<>(cpMap)));
 
           LOG.info("Checkpoints have been successfully committed: " + _safeCheckpoints);
-        } catch (Throwable t) {
+        } catch (Exception e) {
           String errorMessage = String.format("Checkpoint commit failed, tasks = [%s].", _tasks);
-          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, t);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
         }
       }
 
       // Clear the dirty flag
       _pendingCheckpoint = false;
-    } catch (Throwable t) {
+    } catch (Exception e) {
       String errorMessage = String.format("Failed to flush transport, tasks = [%s].", _tasks);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, t);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     } finally {
       _sendFlushLock.writeLock().unlock();
     }

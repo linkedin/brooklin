@@ -27,7 +27,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY = PREFIX + "schemaRegistryProviderFactory";
   public static final String CONFIG_REUSE_EXISTING_DESTINATION = PREFIX + "reuseExistingDestination";
   private final String _schemaRegistryProviderFactory;
-  private int _assignmentChangeThreadPoolThreadCount = 1;
+  private int _assignmentChangeThreadPoolThreadCount = 3;
 
   public CoordinatorConfig(Properties config) {
     _config = config;

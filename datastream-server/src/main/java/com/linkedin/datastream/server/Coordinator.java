@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -13,11 +14,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -126,9 +129,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final TransportProvider _transportProvider;
   private final DestinationManager _destinationManager;
 
-  // Currently assigned datastream tasks by connector type. This is also valid for the coordinator leader
-  // and it is stored after the leader finishes the datastream assignment
-  private Map<String, List<DatastreamTask>> _assignedDatastreamTasksByConnectorType = new HashMap<>();
+
+  // Currently assigned datastream tasks by taskName
+  private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
   public Coordinator(Properties config)
       throws DatastreamException {
@@ -147,6 +150,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
     _eventThread.setDaemon(true);
+
+    // Creating a separate threadpool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
         config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
@@ -251,8 +256,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     return _adapter.getInstanceName();
   }
 
-  public Map<String, List<DatastreamTask>> getTasksByConnectorType() {
-    return _assignedDatastreamTasksByConnectorType;
+  public Collection<DatastreamTask> getDatastreamTasks() {
+    return _assignedDatastreamTasks.values();
   }
 
   /**
@@ -320,7 +325,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // all datastreamtask for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
     assignment.forEach(ds -> {
-      DatastreamTask task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), ds);
+
+      DatastreamTask task = getDatastreamTask(ds);
 
       String connectorType = task.getConnectorType();
       if (!currentAssignment.containsKey(connectorType)) {
@@ -343,8 +349,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     //
 
     // case (1), find connectors that now doesn't handle any tasks
-    List<String> oldConnectorList = new ArrayList<>();
-    oldConnectorList.addAll(_assignedDatastreamTasksByConnectorType.keySet());
+    List<String> oldConnectorList = _assignedDatastreamTasks
+        .values()
+        .stream()
+        .map(DatastreamTask::getConnectorType).distinct().collect(Collectors.toList());
     List<String> newConnectorList = new ArrayList<>();
     newConnectorList.addAll(currentAssignment.keySet());
 
@@ -357,69 +365,53 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
         connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)));
 
     // now save the current assignment
-    _assignedDatastreamTasksByConnectorType = currentAssignment;
+    _assignedDatastreamTasks.clear();
+    _assignedDatastreamTasks = currentAssignment.values().stream()
+        .flatMap(Collection::stream)
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
 
     long endAt = System.currentTimeMillis();
 
     _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
-  private void dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
+  private DatastreamTask getDatastreamTask( String taskName) {
+    if(_assignedDatastreamTasks.containsKey(taskName)) {
+      return _assignedDatastreamTasks.get(taskName);
 
+    } else {
+      return _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
+    }
+  }
+
+  private void dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
     ConnectorWrapper connector = _connectors.get(connectorType);
 
-    // only call Connector onAssignment if it is needed
-    boolean needed = false;
+    List<DatastreamTask> addedTasks = new ArrayList<>(assignment);
+    List<DatastreamTask> removedTasks;
+    List<DatastreamTask> oldAssignment = _assignedDatastreamTasks.values().stream()
+        .filter(t -> t.getConnectorType().equals(connectorType))
+        .collect(Collectors.toList());
 
-    if (!_assignedDatastreamTasksByConnectorType.containsKey(connectorType)) {
-      // if there were no assignment in last cached version
-      needed = true;
-    } else if (_assignedDatastreamTasksByConnectorType.get(connectorType).size() != assignment.size()) {
-      needed = true;
-    } else {
-      // if there are any difference in the list of assignment. Note that if there are no difference
-      // between the two lists, then the connector onAssignmentChange() is not called.
-      Set<DatastreamTask> oldSet = new HashSet<>(_assignedDatastreamTasksByConnectorType.get(connectorType));
-      Set<DatastreamTask> newSet = new HashSet<>(assignment);
-      Set<DatastreamTask> diffList1 = new HashSet<>(oldSet);
-      Set<DatastreamTask> diffList2 = new HashSet<>(newSet);
-      diffList1.removeAll(newSet);
-      diffList2.removeAll(oldSet);
-      if (diffList1.size() > 0 || diffList2.size() > 0) {
-        needed = true;
-      }
-    }
+    // if there are any difference in the list of assignment. Note that if there are no difference
+    // between the two lists, then the connector onAssignmentChange() is not called.
+    addedTasks.removeAll(oldAssignment);
+    oldAssignment.removeAll(assignment);
+    removedTasks = oldAssignment;
 
-    if (needed) {
-      List<EventProducer> unusedProducers = new ArrayList<>();
-
-      List<DatastreamTask> newAssignment = new ArrayList<>();
+    if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
-      Map<DatastreamTask, DatastreamEventProducer> producerMap =
-          _eventProducerPool.getEventProducers(assignment, connectorType,
-              _customCheckpointingConnectorTypes.contains(connectorType), unusedProducers);
-      for (DatastreamTask task : assignment) {
-        DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
-        if (producerMap.containsKey(task)) {
-          taskImpl.setEventProducer(producerMap.get(task));
-          newAssignment.add(task);
-        } else {
-          taskImpl.setStatus(DatastreamTaskStatus.error("Producer is missing"));
-          _log.error("Event producer not created for datastream task: " + task);
-        }
-      }
+      _eventProducerPool.assignEventProducers(connectorType, addedTasks, removedTasks,
+              _customCheckpointingConnectorTypes.contains(connectorType));
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       _assignmentChangeThreadPool.execute(() -> {
         try {
-          connector.onAssignmentChange(newAssignment);
-
-          if (unusedProducers.size() > 0) {
-            _log.info("Shutting down all unused event producers: " + unusedProducers);
-            unusedProducers.forEach((producer) -> producer.shutdown());
-          }
+          connector.onAssignmentChange(assignment);
         } catch (Exception ex) {
+          _log.warn("connector.onAssignmentChange threw an exception, Queuing up a new onAssignmentChange event for retry.", ex);
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
+          _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
         }
       });
     }

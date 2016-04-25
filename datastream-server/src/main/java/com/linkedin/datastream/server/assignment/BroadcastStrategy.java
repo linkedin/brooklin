@@ -23,6 +23,9 @@ public class BroadcastStrategy implements AssignmentStrategy {
   public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
+    LOG.info(String.format("Trying to assign datastreams {%s} to instances {%s} and the current assignment is {%s}",
+        datastreams, instances, currentAssignment));
+
     Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
 
     for (String instance : instances) {
@@ -45,6 +48,8 @@ public class BroadcastStrategy implements AssignmentStrategy {
         newAssignmentForInstance.add(foundDatastreamTask);
       }
     }
+
+    LOG.info(String.format("New assignment is {%s}", assignment));
 
     return assignment;
   }

@@ -89,8 +89,10 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     currentAssignment.values().forEach(currentlyAssignedDatastreamTasks::addAll);
 
     for (Datastream datastream : datastreams) {
-      Set<DatastreamTask> tasksForDatastream = new HashSet<>();
-      currentlyAssignedDatastreamTasks.stream().filter(x -> x.getDatastreams().contains(datastream.getName())).forEach(tasksForDatastream::add);
+      Set<DatastreamTask> tasksForDatastream = currentlyAssignedDatastreamTasks.stream()
+          .filter(x -> x.getDatastreams().stream().anyMatch(y -> y.equals(datastream.getName())))
+          .collect(Collectors.toSet());
+
       // If there are no datastream tasks that are currently assigned for this datastream.
       if (tasksForDatastream.isEmpty()) {
         tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);

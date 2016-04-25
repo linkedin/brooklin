@@ -23,6 +23,12 @@ allprojects {
   }
 }
 
+idea {
+  project {
+    languageLevel = 1.8
+  }
+}
+
 subprojects {
   apply plugin: 'java'
   apply plugin: 'pegasus'

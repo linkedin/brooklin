@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -15,6 +16,7 @@ import org.apache.commons.lang.Validate;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -137,6 +139,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @JsonIgnore
   @Override
+  public boolean isUserManagedDestination() {
+    String userManaged = _datastream.getMetadata().getOrDefault(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "false");
+    return Boolean.parseBoolean(userManaged);
+  }
+
+  @JsonIgnore
+  @Override
   public DatastreamSource getDatastreamSource() {
     return _datastream.getSource();
   }
@@ -171,7 +180,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public List<String> getDatastreams() {
-    return Arrays.asList(_datastreamName);
+    return Collections.singletonList(_datastreamName);
   }
 
   @Override

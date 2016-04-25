@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import org.apache.avro.Schema;
 
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryException;
+import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
 /**
@@ -21,7 +22,7 @@ public interface DatastreamEventProducer {
    * Send event onto the transport
    * @param event
    */
-  void send(DatastreamProducerRecord event);
+  void send(DatastreamProducerRecord event, SendCallback callback);
 
   /**
    * Register the schema in schema registry. If the schema already exists in the registry
