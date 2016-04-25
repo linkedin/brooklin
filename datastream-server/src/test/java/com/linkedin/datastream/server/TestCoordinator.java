@@ -46,10 +46,6 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 
-import static com.linkedin.datastream.common.RetryStrategy.Result.Complete;
-import static com.linkedin.datastream.common.RetryStrategy.Result.Abort;
-import static com.linkedin.datastream.common.RetryStrategy.Result.Retry;
-
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
@@ -216,10 +212,10 @@ public class TestCoordinator {
     //
     RetryStrategy<?> retryStrategy = new RetryStrategy.TimeoutRetryStrategy(SCHEDULER, Duration.ofMillis(500), Duration.ofSeconds(30));
 
-    retryStrategy.retryPredicate("Check size", () -> taskNames.size() == 1).get();
+    retryStrategy.until("Check size", () -> taskNames.size() == 1).get();
     String name1 = (String) taskNames.toArray()[0];
     String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name1, "counter");
-    retryStrategy.retryPredicate("Path exists", () -> zkClient.exists(datastream1CounterPath)).get();
+    retryStrategy.until("Path exists", () -> zkClient.exists(datastream1CounterPath)).get();
     Assert.assertEquals(zkClient.readData(datastream1CounterPath), "1");
 
     //
@@ -227,11 +223,11 @@ public class TestCoordinator {
     //
     String datastreamName2 = "datastream2";
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName2);
-    retryStrategy.retryPredicate("Check size again", () -> taskNames.size() == 2).get();
+    retryStrategy.until("Check size again", () -> taskNames.size() == 2).get();
 
     String name2 = (String) taskNames.toArray()[1];
     String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name2, "counter");
-    retryStrategy.retryPredicate("Path exists again", () -> zkClient.exists(datastream2CounterPath)).get();
+    retryStrategy.until("Path exists again", () -> zkClient.exists(datastream2CounterPath)).get();
     //
     // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
     //
