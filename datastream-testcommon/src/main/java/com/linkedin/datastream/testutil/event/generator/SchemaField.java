@@ -1,9 +1,9 @@
 package com.linkedin.datastream.testutil.event.generator;
 
+import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
-import org.apache.avro.generic.GenericRecord;
-import com.linkedin.datastream.testutil.common.RandomValueGenerator;
+import org.apache.avro.generic.IndexedRecord;
 
 
 /*
@@ -112,9 +112,9 @@ public abstract class SchemaField {
 
   /*
    * Override to write data
-   * @param  record  The GenericRecord to which the data is to be written.
+   * @param  record  The IndexedRecord to which the data is to be written.
    */
-  public abstract void writeToRecord(GenericRecord record) throws UnknownTypeException;
+  public abstract void writeToRecord(IndexedRecord record) throws UnknownTypeException;
 
   /*
    * return the random generated object. Use this to fetch the object instead of writing to an record.

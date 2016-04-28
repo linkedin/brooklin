@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.avro.Schema.Field;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
 
 
@@ -15,8 +15,8 @@ public class MapSchemaField extends SchemaField {
   }
 
   @Override
-  public void writeToRecord(GenericRecord record) throws UnknownTypeException {
-    record.put(_field.name(), generateMap());
+  public void writeToRecord(IndexedRecord record) throws UnknownTypeException {
+    record.put(_field.pos(), generateMap());
   }
 
   @Override

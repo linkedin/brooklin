@@ -3,7 +3,6 @@ package com.linkedin.datastream.server;
 import java.util.List;
 import java.util.Map;
 
-import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;

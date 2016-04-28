@@ -125,7 +125,7 @@ public class TestCoordinator {
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
-        if(task.getEventProducer() == null) {
+        if (task.getEventProducer() == null) {
           Assert.assertNotNull(task.getEventProducer());
         }
       }

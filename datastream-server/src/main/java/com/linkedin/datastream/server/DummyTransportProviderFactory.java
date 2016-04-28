@@ -39,8 +39,10 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       @Override
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete)
           throws TransportException {
-        if(_throwOnSend && onComplete != null) {
-          onComplete.onCompletion(new DatastreamRecordMetadata(record.getCheckpoint(), destination, record.getPartition().get()), new DatastreamRuntimeException());
+        if (_throwOnSend && onComplete != null) {
+          onComplete.onCompletion(
+              new DatastreamRecordMetadata(record.getCheckpoint(), destination, record.getPartition().get()),
+              new DatastreamRuntimeException());
         }
       }
 

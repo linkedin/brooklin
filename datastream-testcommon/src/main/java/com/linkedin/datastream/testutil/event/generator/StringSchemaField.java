@@ -1,7 +1,7 @@
 package com.linkedin.datastream.testutil.event.generator;
 
 import org.apache.avro.Schema.Field;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 
 
 public class StringSchemaField extends SchemaField {
@@ -12,8 +12,8 @@ public class StringSchemaField extends SchemaField {
   }
 
   @Override
-  public void writeToRecord(GenericRecord genericRecord) {
-    genericRecord.put(_field.name(), generateString());
+  public void writeToRecord(IndexedRecord record) {
+    record.put(_field.pos(), generateString());
   }
 
   @Override

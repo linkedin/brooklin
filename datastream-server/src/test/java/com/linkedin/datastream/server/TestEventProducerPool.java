@@ -2,23 +2,18 @@ package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
-import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 import static org.mockito.Mockito.mock;
 
@@ -83,7 +78,7 @@ public class TestEventProducerPool {
     EventProducer oldEventProducer = oldDatastreamEventProducer.getEventProducer();
     task.getEventProducer().send(createEventRecord(0), (m, e) -> {
       metadata.add(m);
-      if(e != null) {
+      if (e != null) {
         exceptions.add(e);
       }
     });

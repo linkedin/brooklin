@@ -3,7 +3,7 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 
 
 public class ArraySchemaField extends SchemaField {
@@ -15,8 +15,8 @@ public class ArraySchemaField extends SchemaField {
   }
 
   @Override
-  public void writeToRecord(GenericRecord record) throws UnknownTypeException {
-    record.put(_field.name(), generateArray());
+  public void writeToRecord(IndexedRecord record) throws UnknownTypeException {
+    record.put(_field.pos(), generateArray());
   }
 
   @Override
