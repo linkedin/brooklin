@@ -10,4 +10,5 @@ ext {
     zookeeperVersion = "3.4.6"
     testngVersion = "6.4"
     intellijAnnotations = "12.0"
+    commonslang3Version = "3.4"
 }
