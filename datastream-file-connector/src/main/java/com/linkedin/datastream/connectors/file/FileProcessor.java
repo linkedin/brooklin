@@ -108,7 +108,7 @@ class FileProcessor implements Runnable {
           builder.addEvent(event);
 
           // If the destination is user managed, we will use the key to decide the partition.
-          if(!_task.isUserManagedDestination()) {
+          if (!_task.isUserManagedDestination()) {
             builder.setPartition(0);
           }
 

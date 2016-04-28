@@ -1,9 +1,10 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
+
+import java.util.Optional;
 
 
 public class UnionSchemaField extends SchemaField {
@@ -13,7 +14,7 @@ public class UnionSchemaField extends SchemaField {
   }
 
   @Override
-  public void writeToRecord(GenericRecord record) throws UnknownTypeException {
+  public void writeToRecord(IndexedRecord record) throws UnknownTypeException {
     getUnionFieldField().writeToRecord(record);
   }
 

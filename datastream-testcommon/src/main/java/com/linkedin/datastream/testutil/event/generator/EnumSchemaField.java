@@ -3,7 +3,7 @@ package com.linkedin.datastream.testutil.event.generator;
 import java.util.List;
 
 import org.apache.avro.Schema.Field;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 
 
 public class EnumSchemaField extends SchemaField {
@@ -16,8 +16,8 @@ public class EnumSchemaField extends SchemaField {
   }
 
   @Override
-  public void writeToRecord(GenericRecord record) throws UnknownTypeException {
-    record.put(_field.name(), generateEnum());
+  public void writeToRecord(IndexedRecord record) throws UnknownTypeException {
+    record.put(_field.pos(), generateEnum());
   }
 
   @Override

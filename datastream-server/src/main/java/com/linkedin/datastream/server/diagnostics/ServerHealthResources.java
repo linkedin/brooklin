@@ -7,7 +7,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.diagnostics.ConnectorHealth;
 import com.linkedin.datastream.diagnostics.ConnectorHealthArray;
 import com.linkedin.datastream.diagnostics.ServerHealth;

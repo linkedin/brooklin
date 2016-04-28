@@ -290,7 +290,7 @@ public class EventProducer {
     SendFailedException sendFailedException = null;
 
     // Shutdown the producer right away
-    if(exception != null) {
+    if (exception != null) {
       shutdown();
       sendFailedException = new SendFailedException(_safeCheckpoints);
     }

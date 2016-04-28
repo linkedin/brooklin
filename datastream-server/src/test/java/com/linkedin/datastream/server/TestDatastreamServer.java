@@ -524,7 +524,7 @@ public class TestDatastreamServer {
     testFile.createNewFile();
     testFile.deleteOnExit();
     Datastream fileDatastream1;
-    if(destinationTopic != null) {
+    if (destinationTopic != null) {
       fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
           testFile.getAbsolutePath(), destinationTopic, destinationPartitions);
     } else {

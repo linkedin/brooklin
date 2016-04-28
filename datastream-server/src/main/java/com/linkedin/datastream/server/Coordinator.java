@@ -375,8 +375,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
-  private DatastreamTask getDatastreamTask( String taskName) {
-    if(_assignedDatastreamTasks.containsKey(taskName)) {
+  private DatastreamTask getDatastreamTask(String taskName) {
+    if (_assignedDatastreamTasks.containsKey(taskName)) {
       return _assignedDatastreamTasks.get(taskName);
 
     } else {
