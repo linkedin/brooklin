@@ -102,7 +102,7 @@ public class TestDatastreamRestClient {
   public void testCreateDatastream() throws DatastreamException, IOException, RemoteInvocationException {
     Datastream datastream = generateDatastream(1);
     LOG.info("Datastream : " + datastream);
-    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.getDatastream(datastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
@@ -118,7 +118,7 @@ public class TestDatastreamRestClient {
       throws DatastreamException, InterruptedException {
     Datastream datastream = generateDatastream(11);
     LOG.info("Datastream : " + datastream);
-    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
     restClient.createDatastream(datastream);
     Datastream initializedDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), 60000);
     LOG.info("Initialized Datastream : " + initializedDatastream);

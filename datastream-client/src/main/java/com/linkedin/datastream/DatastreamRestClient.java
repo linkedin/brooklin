@@ -3,6 +3,8 @@ package com.linkedin.datastream;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.lang.Validate;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,8 @@ public class DatastreamRestClient {
   private final HttpClientFactory _httpClient;
 
   public DatastreamRestClient(String dsmUri) {
+    Validate.notEmpty(dsmUri, "invalid DSM URI");
+    dsmUri = StringUtils.appendIfMissing(dsmUri, "/");
     _builders = new DatastreamRequestBuilders();
     _bootstrapBuilders = new BootstrapRequestBuilders();
     _httpClient = new HttpClientFactory();
