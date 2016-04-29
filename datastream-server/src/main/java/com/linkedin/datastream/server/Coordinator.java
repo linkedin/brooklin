@@ -6,9 +6,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -20,7 +23,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -129,7 +131,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private final TransportProvider _transportProvider;
   private final DestinationManager _destinationManager;
 
-
   // Currently assigned datastream tasks by taskName
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
@@ -154,7 +155,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     // Creating a separate threadpool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
         config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
@@ -349,24 +349,43 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     //
 
     // case (1), find connectors that now doesn't handle any tasks
-    List<String> oldConnectorList = _assignedDatastreamTasks
-        .values()
+    List<String> oldConnectorList = _assignedDatastreamTasks.values()
         .stream()
-        .map(DatastreamTask::getConnectorType).distinct().collect(Collectors.toList());
+        .map(DatastreamTask::getConnectorType)
+        .distinct()
+        .collect(Collectors.toList());
     List<String> newConnectorList = new ArrayList<>();
     newConnectorList.addAll(currentAssignment.keySet());
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    deactivated.forEach(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>()));
+    List<Future<Void>> assignmentChangeFutures = deactivated.stream()
+        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>()))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
 
-    // case (2)
-    newConnectorList.forEach(
-        connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)));
+    // case (2) - Dispatch all the assignment changes in a separate thread
+    assignmentChangeFutures.addAll(newConnectorList.stream()
+        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList()));
+
+    // Wait till all the futures are complete.
+    for (Future<Void> assignmentChangeFuture : assignmentChangeFutures) {
+      try {
+        assignmentChangeFuture.get();
+      } catch (InterruptedException e) {
+        _log.warn("onAssignmentChange call got interrupted", e);
+        break;
+      } catch (ExecutionException e) {
+        _log.warn("onAssignmentChange call threw exception", e);
+      }
+    }
 
     // now save the current assignment
     _assignedDatastreamTasks.clear();
-    _assignedDatastreamTasks = currentAssignment.values().stream()
+    _assignedDatastreamTasks = currentAssignment.values()
+        .stream()
         .flatMap(Collection::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
 
@@ -378,18 +397,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
   private DatastreamTask getDatastreamTask(String taskName) {
     if (_assignedDatastreamTasks.containsKey(taskName)) {
       return _assignedDatastreamTasks.get(taskName);
-
     } else {
       return _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
     }
   }
 
-  private void dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
+  private Future<Void> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
     ConnectorWrapper connector = _connectors.get(connectorType);
 
     List<DatastreamTask> addedTasks = new ArrayList<>(assignment);
     List<DatastreamTask> removedTasks;
-    List<DatastreamTask> oldAssignment = _assignedDatastreamTasks.values().stream()
+    List<DatastreamTask> oldAssignment = _assignedDatastreamTasks.values()
+        .stream()
         .filter(t -> t.getConnectorType().equals(connectorType))
         .collect(Collectors.toList());
 
@@ -402,19 +421,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       _eventProducerPool.assignEventProducers(connectorType, addedTasks, removedTasks,
-              _customCheckpointingConnectorTypes.contains(connectorType));
+          _customCheckpointingConnectorTypes.contains(connectorType));
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
-      _assignmentChangeThreadPool.execute(() -> {
+      _assignmentChangeThreadPool.submit(() -> {
         try {
           connector.onAssignmentChange(assignment);
         } catch (Exception ex) {
-          _log.warn("connector.onAssignmentChange threw an exception, Queuing up a new onAssignmentChange event for retry.", ex);
+          _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
+              + "Queuing up a new onAssignmentChange event for retry.", connectorType),
+              ex);
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
           _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
         }
       });
     }
+
+    return null;
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
