@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -424,16 +425,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
           _customCheckpointingConnectorTypes.contains(connectorType));
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
-      _assignmentChangeThreadPool.submit(() -> {
+      return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
         try {
           connector.onAssignmentChange(assignment);
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
-              + "Queuing up a new onAssignmentChange event for retry.", connectorType),
-              ex);
+              + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
           _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
         }
+
+        return null;
       });
     }
 
