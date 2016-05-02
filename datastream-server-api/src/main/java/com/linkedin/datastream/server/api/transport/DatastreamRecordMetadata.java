@@ -35,4 +35,8 @@ public class DatastreamRecordMetadata {
   public String getTopic() {
     return _topic;
   }
+
+  public String toString() {
+    return String.format("Checkpoint: %s, Topic: %s, Partition: %d", _checkpoint, _topic, _partition);
+  }
 }
