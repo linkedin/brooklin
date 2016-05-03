@@ -10,12 +10,16 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
+import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
+
+import kafka.admin.AdminUtils;
+import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.AvroUtils;
@@ -50,10 +54,10 @@ public class TestDatastreamServer {
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
   public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_TYPE;
 
-
   private EmbeddedDatastreamCluster _datastreamCluster;
 
-  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap()
+      throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
@@ -62,7 +66,7 @@ public class TestDatastreamServer {
   }
 
   @AfterMethod
-    public void cleanup() {
+  public void cleanup() {
     if (_datastreamCluster != null) {
       _datastreamCluster.shutdown();
     }
@@ -96,21 +100,21 @@ public class TestDatastreamServer {
     return props;
   }
 
-
   private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers, String strategy)
       throws IOException, DatastreamException {
     return initializeTestDatastreamServerWithFileConnector(numServers, strategy, 1);
   }
 
-
-  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(
-      int numServers, String strategy, int numDestinationPartitions)
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers, String strategy,
+      int numDestinationPartitions)
       throws IOException, DatastreamException {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
-    connectorProperties.get(FILE_CONNECTOR).put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
+    connectorProperties.get(FILE_CONNECTOR)
+        .put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
     Properties override = new Properties();
-    override.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY, MockSchemaRegistryProviderFactory.class.getTypeName());
+    override.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
+        MockSchemaRegistryProviderFactory.class.getTypeName());
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
             override, numServers, null);
@@ -118,14 +122,16 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testDatastreamServerBasics() throws Exception {
+  public void testDatastreamServerBasics()
+      throws Exception {
     initializeTestDatastreamServerWithDummyConnector(null);
     initializeTestDatastreamServerWithBootstrap();
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
   }
 
   @Test
-  public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents() throws Exception {
+  public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents()
+      throws Exception {
     int numberOfPartitions = 5;
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
     int totalEvents = 10;
@@ -136,7 +142,6 @@ public class TestDatastreamServer {
 
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
-
 
     Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, totalEvents);
 
@@ -163,36 +168,40 @@ public class TestDatastreamServer {
     _datastreamCluster.shutdown();
   }
 
-  /**
-   * This test is disabled because of the bug DDSDBUS-7413
-   */
-  @Test(enabled = false)
-  public void testUserManagedDestination() throws Exception {
-
-    int numberOfPartitions = 5;
+  @Test
+  public void testUserManagedDestination()
+      throws Exception {
+    int numberOfPartitions = 2;
     String destinationTopic = "userManaged_" + UUID.randomUUID().toString();
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
     String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+
+    ZkClient zkClient = new ZkClient(_datastreamCluster.getZkConnection());
+    ZkConnection zkConnection = new ZkConnection(_datastreamCluster.getZkConnection());
+    ZkUtils zkUtils = new ZkUtils(zkClient, zkConnection, false);
+    AdminUtils.createTopic(zkUtils, destinationTopic, numberOfPartitions, 1, new Properties());
+
     Datastream fileDatastream1 = createFileDatastream(fileName1, destinationTopic, 2);
     Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 2);
 
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
 
-    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 3);
-    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 3);
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 4);
+    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 6);
     eventsReceived1.addAll(eventsReceived2);
 
     LOG.info("Events Received " + eventsReceived1);
     LOG.info("Events Written to file " + eventsWritten1);
 
-//    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
   }
 
   @Test
-  public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
+  public void testDeleteDatastreamAndRecreateDatastream()
+      throws Exception {
     int numberOfPartitions = 5;
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
     int totalEvents = 10;
@@ -249,8 +258,9 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDownOneDatastreamSimpleStrategy() throws Exception {
-      _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
+  public void testNodeDownOneDatastreamSimpleStrategy()
+      throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
     _datastreamCluster.startup();
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -276,8 +286,8 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
     // Ensure 1st instance was assigned the task
-    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
-            DatastreamServer.CONFIG_CLUSTER_NAME);
+    String cluster =
+        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -318,7 +328,8 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDownOneDatastreamBroadcastStrategy() throws Exception {
+  public void testNodeDownOneDatastreamBroadcastStrategy()
+      throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
     _datastreamCluster.startup();
 
@@ -349,8 +360,8 @@ public class TestDatastreamServer {
     countMap.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
 
     // Ensure both instances were assigned the task
-    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
-        DatastreamServer.CONFIG_CLUSTER_NAME);
+    String cluster =
+        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -405,7 +416,8 @@ public class TestDatastreamServer {
   // Test is flaky, Need to deflake before enabling it.
   // This test doesn't fail often, Need to run this quite a few times before enabling it
   @Test(enabled = false)
-  public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy() throws Exception {
+  public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy()
+      throws Exception {
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
     _datastreamCluster.startupServer(0);
 
@@ -439,8 +451,8 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
 
     // Ensure 1st instance was assigned both tasks
-    String cluster = _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(
-            DatastreamServer.CONFIG_CLUSTER_NAME);
+    String cluster =
+        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance1 = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
@@ -488,27 +500,29 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
   }
 
-
-  private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {
+  private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents)
+      throws Exception {
     return readFileDatastreamEvents(datastream, 0, totalEvents);
   }
 
-  private List<String> readFileDatastreamEvents(Datastream datastream, int partition, int totalEvents) throws Exception {
+  private List<String> readFileDatastreamEvents(Datastream datastream, int partition, int totalEvents)
+      throws Exception {
     KafkaDestination kafkaDestination =
         KafkaDestination.parseKafkaDestinationUri(datastream.getDestination().getConnectionString());
-    final int[] numberOfMessages = { 0 };
+    final int[] numberOfMessages = {0};
     List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getBrokerList(), (key, value) -> {
-      DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
-      String eventValue = new String(datastreamEvent.payload.array());
-      DatastreamUtils.processEventMetadata(datastreamEvent);
-      String schemaId = datastreamEvent.metadata.get("PayloadSchemaId").toString();
-      LOG.info(String.format("Datastream: %s, Schema Id: %s", datastream, schemaId));
-      Assert.assertEquals(schemaId, MockSchemaRegistryProvider.MOCK_SCHEMA_ID);
-      eventsReceived.add(eventValue);
-      numberOfMessages[0]++;
-      return numberOfMessages[0] < totalEvents;
-    });
+    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getBrokerList(),
+        (key, value) -> {
+          DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
+          String eventValue = new String(datastreamEvent.payload.array());
+          DatastreamUtils.processEventMetadata(datastreamEvent);
+          String schemaId = datastreamEvent.metadata.get("PayloadSchemaId").toString();
+          LOG.info(String.format("Datastream: %s, Schema Id: %s", datastream, schemaId));
+          Assert.assertEquals(schemaId, MockSchemaRegistryProvider.MOCK_SCHEMA_ID);
+          eventsReceived.add(eventValue);
+          numberOfMessages[0]++;
+          return numberOfMessages[0] < totalEvents;
+        });
 
     return eventsReceived;
   }
@@ -541,7 +555,9 @@ public class TestDatastreamServer {
     Boolean pollResult = PollUtils.poll(() -> {
       Datastream ds = null;
       ds = restClient.getDatastream(fileDatastream1.getName());
-      return ds.hasDestination() && ds.getDestination().hasConnectionString() && !ds.getDestination().getConnectionString().isEmpty();
+      return ds.hasDestination() && ds.getDestination().hasConnectionString() && !ds.getDestination()
+          .getConnectionString()
+          .isEmpty();
     }, 500, 60000);
 
     if (pollResult) {
