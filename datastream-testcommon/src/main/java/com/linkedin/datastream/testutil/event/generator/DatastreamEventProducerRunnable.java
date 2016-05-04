@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class DatastreamEventProducer implements Runnable {
-  private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducer.class.getName());
+public class DatastreamEventProducerRunnable implements Runnable {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerRunnable.class.getName());
   private final GlobalSettings _globalSettings;
 
   /**
@@ -19,7 +19,7 @@ public class DatastreamEventProducer implements Runnable {
    * It will produce
    * @param globalSettings
    */
-  public DatastreamEventProducer(GlobalSettings globalSettings) {
+  public DatastreamEventProducerRunnable(GlobalSettings globalSettings) {
     _globalSettings = globalSettings;
 
   }

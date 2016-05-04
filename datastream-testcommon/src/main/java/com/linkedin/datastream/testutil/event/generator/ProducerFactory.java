@@ -8,7 +8,7 @@ public class ProducerFactory {
     switch (globalSettings._producerType) {
 
       case Datastream: {
-        return new DatastreamEventProducer(globalSettings);
+        return new DatastreamEventProducerRunnable(globalSettings);
       }
 
       case Generic: // let it slide
