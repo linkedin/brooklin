@@ -1,12 +1,12 @@
-dependencies:
-  pre:
-    - sudo update-alternatives --set java /usr/lib/jvm/jdk1.8.0/bin/java
-    - sudo update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
-    - echo 'export JAVA_HOME=/usr/lib/jvm/jdk1.8.0/' >> ~/.circlerc
+machine:
+  java:
+    version: oraclejdk8
 
 test:
   override:
-    - export TERM="dumb"; if [ -e ./gradlew ]; then ./gradlew build;else gradle build;fi
+    - export TERM="dumb"; if [ -e ./gradlew ]; then ./gradlew check;else gradle check;fi
   post:
     - mkdir -p $CIRCLE_ARTIFACTS/testresults
     - if [ -e out ]; then cp -R out/ $CIRCLE_ARTIFACTS/testresults;fi
+    - mkdir -p $CIRCLE_ARTIFACTS/checkstyle
+    - find . -maxdepth 5 -name 'main.html' -path '*/checkstyle/*' -exec cp -p --parent '{}' $CIRCLE_ARTIFACTS/checkstyle/ \;
