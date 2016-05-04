@@ -33,8 +33,6 @@ import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
 class FileProcessor implements Runnable {
@@ -117,7 +115,7 @@ class FileProcessor implements Runnable {
           builder.setSourceCheckpoint(lineNo.toString());
           _producer.send(builder.build(),
               (metadata, exception) -> {
-                if(exception == null) {
+                if (exception == null) {
                   LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
                 } else {
                   LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
