@@ -53,6 +53,7 @@ public class TestEventProducer {
   private Properties _config;
   private AtomicInteger _inSend = new AtomicInteger(0);
   private AtomicBoolean _inFlush = new AtomicBoolean(false);
+  private Random _random = new Random();
 
   private Datastream createDatastream() {
     Datastream datastream = new Datastream();
@@ -91,27 +92,29 @@ public class TestEventProducer {
     setup(customCheckpointing, false, false, null);
   }
 
-  private void setup(boolean customCheckpointing, boolean checkRace, boolean throwExceptionOnSend, Consumer<EventProducer> onUnrecoverableError)
+  private void setup(boolean customCheckpointing, boolean checkRace, boolean throwExceptionOnSend,
+      Consumer<EventProducer> onUnrecoverableError)
       throws TransportException {
     _datastream = createDatastream();
 
+    // Start with two tasks covering partition [0,1] and [2,3]
+    DatastreamTaskImpl task0 = new DatastreamTaskImpl(_datastream);
     DatastreamTaskImpl task1 = new DatastreamTaskImpl(_datastream);
-    DatastreamTaskImpl task2 = new DatastreamTaskImpl(_datastream);
 
     List<Integer> partitions1 = new ArrayList<>();
+    partitions1.add(0);
     partitions1.add(1);
-    partitions1.add(2);
 
     List<Integer> partitions2 = new ArrayList<>();
+    partitions2.add(2);
     partitions2.add(3);
-    partitions2.add(4);
 
-    task1.setPartitions(partitions1);
-    task2.setPartitions(partitions2);
+    task0.setPartitions(partitions1);
+    task1.setPartitions(partitions2);
 
     _tasks = new ArrayList<>();
+    _tasks.add(task0);
     _tasks.add(task1);
-    _tasks.add(task2);
 
     _transport = mock(TransportProvider.class);
 
@@ -288,8 +291,10 @@ public class TestEventProducer {
     Random rand = new Random();
     DatastreamProducerRecord record;
     for (int i = 0; i < 500; i++) {
+      // choose task0 for iteration of multiple of 3, otherwise task1
       task = i % 3 == 0 ? _tasks.get(0) : _tasks.get(1);
-      partition = i % 3 == 0 ? 1 + rand.nextInt(2) : 3 + rand.nextInt(2);
+      int partitions = task.getPartitions().size();
+      partition = task.getPartitions().get(rand.nextInt(partitions));
       record = createEventRecord(partition);
       _producer.send(task, record, null);
 
@@ -319,47 +324,58 @@ public class TestEventProducer {
 
   private void verifyCheckpoints() {
     int size = _tasks.size();
+    // # of checkpoint entries must equal # of tasks
     Assert.assertEquals(_producer.getSafeCheckpoints().size(), size);
     _tasks.forEach(t -> {
-      Assert.assertNotNull(_producer.getSafeCheckpoints().get(t), t.toString());
-      Assert.assertEquals(_producer.getSafeCheckpoints().get(t).keySet(), t.getPartitions(), t.toString());
+      // There must be a checkpoint for an assigned task
+      Assert.assertNotNull(_producer.getSafeCheckpoints().get(t));
+      // Checkpoint map of a task must have the same number of entries as number of partitions in the task
+      Assert.assertEquals(_producer.getSafeCheckpoints().get(t).keySet(), t.getPartitions());
     });
   }
 
   /**
-   * Helper for tests exercising updateTasks
+   * Helper for tests exercising assign/unassignTasks
    *
-   * 1. add a new task (task3)
-   * 2. remove a task (task3)
-   * 3. add task3 and remove task2
+   * 1. assign a new task (task2)
+   * 2. unassign a task (task2)
+   * 3. unassign task2
+   * 4. assign task3
    *
    * Validate the checkpoint map after each step.
+   * Invariant:
+   *  entry: 2 tasks assigned
+   *  exit: 2 tasks assigned
+   *  task0 is always assigned (for sender)
    */
   private void callUpdateTasksAndVerify(int partition) {
     List<Integer> partitions = new ArrayList<>();
     partitions.add(partition);
     partitions.add(partition + 1);
-    DatastreamTaskImpl task3 = new DatastreamTaskImpl(_datastream);
-    task3.setPartitions(partitions);
-    _tasks.add(task3);
-    _tasks.forEach(t -> _producer.assignTask(t));
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl(_datastream);
+    task2.setPartitions(partitions);
+    _tasks.add(task2);
+    _producer.assignTask(task2);
     verifyCheckpoints();
 
-    // Remove a task
+    // Unassign task2
     _producer.unassignTask(_tasks.get(2));
     _tasks.remove(2);
     verifyCheckpoints();
 
-    // Add and remove a task
+    // unassign task1
     _producer.unassignTask(_tasks.get(1));
-    _producer.assignTask(task3);
     _tasks.remove(1);
-    _tasks.add(task3);
+
+    // assign task2 back
+    _producer.assignTask(task2);
+    _tasks.add(task2);
+
     verifyCheckpoints();
   }
 
   /**
-   * Basic test case of update tasks
+   * Basic test case of assign/unassign tasks
    */
   @Test
   public void testUpdateTasks()
@@ -370,61 +386,89 @@ public class TestEventProducer {
     callUpdateTasksAndVerify(5);
   }
 
+  private void randomSleep(int limit) {
+    try {
+      Thread.sleep(1 + _random.nextInt(limit));
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted"); // Force abort with runtime exception if interrupted
+    }
+  }
+
   /**
-   * Using three threads doing repeated send/flush/updateTasks and check for race conditions.
+   * Using three threads doing repeated send/flush/(un)assignTasks and check for race conditions.
+   * The aim for the test is to stress the synchronization needed among send(), flush(), and
+   * assign/unassignTasks in EventProducer. The transport provider is also mocked to ensure send()
+   * and flush() are never interleaved.
+   *
+   * Test logic:
+   *  1) create two threads as the sender and flusher that repeatedly
+   *    - sender: send events with producer.send()
+   *    - flusher: flush events with producer.flush()
+   *  2) use the main thread to call assign/unassignTask repeatedly
+   *  3) add random sleeps between back-to-back operations
+   *  4) start both sender/flusher and wait
+   *  5) perform 100 iterations of assign/unassignTasks
+   *  6) signal stop to both send and flusher
+   *
+   *  In each iteration, the validity of checkpoints maintained by the producer are validated
    */
   @Test
   public void testSendFlushUpdateTaskStress()
       throws TransportException {
     setup(false, true, false, null);
 
-    // Mimic a connector constantly calls send/flush
-    final boolean[] stopHandler = {false};
-    Thread sender = new Thread(() -> {
-      DatastreamTask task = _tasks.get(0);
-      while (!stopHandler[0]) {
-        try {
-          Thread.sleep(5);
-        } catch (InterruptedException e) {
-          break;
-        }
+    AtomicBoolean stopFlag = new AtomicBoolean();
 
-        _producer.send(task, createEventRecord(1), null);
+    // Mimic a connector constantly calls send/flush
+    Thread sender = new Thread(() -> {
+      DatastreamTask task = _tasks.get(0); // task0 always exists
+      while (!stopFlag.get()) {
+        randomSleep(5);
+
+        // Send to the first partition of task0
+        int partition = task.getPartitions().get(0);
+
+        // Keep task0 intact to avoid the need to synchronize
+        // sender with task updater (main test thread) since
+        // they access the same _tasks array.
+        _producer.send(task, createEventRecord(partition), null);
       }
     });
+
+    LOG.info("Starting sender thread.");
+    sender.setUncaughtExceptionHandler((a1, a2) -> Assert.fail("Sender failed"));
     sender.start();
 
     Thread flusher = new Thread(() -> {
-      DatastreamTask task = _tasks.get(0);
-      while (!stopHandler[0]) {
-        try {
-          Thread.sleep(5);
-        } catch (InterruptedException e) {
-          break;
-        }
-
+      while (!stopFlag.get()) {
+        randomSleep(5);
         _producer.flush();
       }
     });
+
+    LOG.info("Starting flusher thread.");
+    sender.setUncaughtExceptionHandler((a1, a2) -> Assert.fail("Flusher failed"));
     flusher.start();
 
-    // Repeatedly update the tasks and check for corruption
+    LOG.info("Starting assign/unassignTask loop.");
     int iterations = 100;
-    for (int i = 0, step = 0; i < iterations; i++, step += 2) {
-      callUpdateTasksAndVerify(step + 100);
-      try {
-        Thread.sleep(2);
-      } catch (InterruptedException e) {
-        Assert.fail();
-      }
+    // Each iteration we use a different partition number to avoid
+    // overlapping with task0 which is always assigned with p0 and p1
+    for (int i = 0, partition = 0; i < iterations; i++, partition += 2) {
+      callUpdateTasksAndVerify(partition + 100);
+      randomSleep(2);
     }
 
-    stopHandler[0] = true;
-    Assert.assertTrue(PollUtils.poll(() -> !flusher.isAlive(), 50, 2000));
+    // Signal stop to sender/flusher
+    stopFlag.set(true);
 
-    // Remove all tasks
+    // Ensure both sender and flusher have exited completely
+    Assert.assertTrue(PollUtils.poll(() -> !flusher.isAlive() && !sender.isAlive(), 50, 2000));
+
+    // Unassigned all tasks
     _tasks.forEach(t -> _producer.unassignTask(t));
     _tasks.clear();
+
     verifyCheckpoints();
   }
 }
