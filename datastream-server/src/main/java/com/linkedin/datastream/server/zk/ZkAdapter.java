@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.zk;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -13,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
@@ -177,7 +178,7 @@ public class ZkAdapter {
         _zkclient = null;
       }
     }
-    _isLeader = false;
+    // isLeader will be reinitialized when we reconnect
   }
 
   /**
@@ -228,6 +229,8 @@ public class ZkAdapter {
     // for resuming working on the tasks from previous sessions.
     loadAllDatastreamTasks();
 
+    _isLeader = true;
+
     if (_listener != null) {
       _listener.onBecomeLeader();
     }
@@ -247,6 +250,8 @@ public class ZkAdapter {
     }
 
     _zkclient.unsubscribeChildChanges(KeyBuilder.instances(_cluster), _liveInstancesProvider);
+
+    _isLeader = false;
   }
 
   /**
@@ -296,7 +301,6 @@ public class ZkAdapter {
     // if this instance is first in line to become leader. Check if it is already a leader.
     if (index == 0) {
       if (!_isLeader) {
-        _isLeader = true;
         onBecomeLeader();
       }
       return;
@@ -305,7 +309,6 @@ public class ZkAdapter {
     // if this instance is not the first candidate to become leader, make sure to reset
     // the _isLeader status
     if (_isLeader) {
-      _isLeader = false;
       onBecomeFollower();
     }
 
@@ -328,7 +331,6 @@ public class ZkAdapter {
 
     if (exists) {
       if (_isLeader) {
-        _isLeader = false;
         onBecomeFollower();
       }
     } else {
@@ -708,7 +710,7 @@ public class ZkAdapter {
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path =
         KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-                datastreamTask.getDatastreamTaskName(), key);
+            datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -773,6 +775,31 @@ public class ZkAdapter {
     }
   }
 
+  private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {
+    // Latch == 1 means task is busy (still held by the previous owner)
+    CountDownLatch busyLatch = new CountDownLatch(1);
+
+    String lockNode = lockPath.substring(lockPath.lastIndexOf('/') + 1);
+    String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+
+    if (_zkclient.exists(lockPath)) {
+      IZkChildListener listener = (parentPath, currentChilds) -> {
+        if (!currentChilds.contains(lockNode)) {
+          busyLatch.countDown();
+        }
+      };
+
+      try {
+        _zkclient.subscribeChildChanges(taskPath, listener);
+        busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        _log.warn("Unexpectedly interrupted during task acquire.", e);
+      } finally {
+        _zkclient.unsubscribeChildChanges(taskPath, listener);
+      }
+    }
+  }
+
   public void acquireTask(DatastreamTaskImpl task, long timeoutMs) throws DatastreamException {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
@@ -783,44 +810,16 @@ public class ZkAdapter {
         return;
       }
 
-      Object lock = new Object();
-
-      File lockFile = new File(lockPath);
-      String fileName = lockFile.getName();
-
-      String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
-      IZkChildListener listener = (parentPath, currentChilds) -> {
-        if (!currentChilds.contains(fileName)) {
-          synchronized (lock) {
-            lock.notify();
-          }
-        }
-      };
-
-      try {
-        _zkclient.subscribeChildChanges(taskPath, listener);
-
-        if (_zkclient.exists(lockPath)) {
-          synchronized (lock) {
-            try {
-              lock.wait(timeoutMs);
-            } catch (InterruptedException e) {
-              // Fall through if interrupted
-            }
-          }
-        }
-      } finally {
-        _zkclient.unsubscribeChildChanges(taskPath, listener);
-      }
+      waitForTaskRelease(task, timeoutMs, lockPath);
     }
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.createEphemeral(lockPath, _instanceName);
       _log.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
-      String errorMessage = String.format("%s failed to acquire the lock on datastream task after %dms on %s, current owner: %s",
-          _instanceName, timeoutMs, task, owner);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+      String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s",
+          _instanceName, task, timeoutMs, owner);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, msg, null);
     }
   }
 
