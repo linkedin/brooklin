@@ -5,9 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.testutil.DatastreamTestUtils;
-
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,18 +13,19 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-
 public class TestZkAdapter {
-  private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class.getName());
-
-  EmbeddedZookeeper _embeddedZookeeper;
-  String _zkConnectionString;
+  private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
+
+  private EmbeddedZookeeper _embeddedZookeeper;
+  private String _zkConnectionString;
 
   @BeforeMethod
   public void setup() throws IOException {
@@ -59,7 +57,6 @@ public class TestZkAdapter {
     //
     // verify the instance names are ending with 00000000 - 00000009
     //
-
     for (int i = 0; i < 10; i++) {
       String instanceName = adapters[i].getInstanceName();
       Assert.assertTrue(instanceName.contains("0000000" + i));
@@ -399,21 +396,9 @@ public class TestZkAdapter {
     ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
     adapter2.connect();
 
-    Thread mainThread = Thread.currentThread();
-    Thread stopper = new Thread(() -> {
-      try {
-        // interrupt the main wait after 100ms
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        // Ignore
-      }
-      mainThread.interrupt();
-    });
-    stopper.start();
-
     // Acquire from instance2 should fail
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(task::acquire, true));
+    Assert.assertTrue(expectException(() -> task.acquire(100), true));
 
     // Release the task from instance1
     task.setZkAdapter(adapter1);
@@ -422,5 +407,97 @@ public class TestZkAdapter {
     // Now acquire from instance2 should succeed
     task.setZkAdapter(adapter2);
     Assert.assertTrue(expectException(task::acquire, false));
+  }
+
+  /**
+   * Test task acquire when the current owner has shutdown uncleanly,
+   * such that the owner didn't get the chance to release the task.
+   */
+  @Test
+  public void testTaskAquireReleaseOwnerUncleanShutdown() throws Exception {
+    String testCluster = "testTaskAquireReleaseOwnerUncleanShutdown";
+    String connectorType = "connectorType";
+
+    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter1.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setDatastreamName("task1");
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter1);
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(task);
+    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+
+    Assert.assertTrue(expectException(task::acquire, false));
+
+    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter2.connect();
+
+    LOG.info("Acquire from instance2 should fail");
+    task.setZkAdapter(adapter2);
+    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+
+    LOG.info("Disconnecting instance1");
+    adapter1.disconnect();
+
+    LOG.info("instance2 should be able to acquire after instance1's disconnection");
+    Assert.assertTrue(expectException(() -> task.acquire(), false));
+  }
+
+  /**
+   * Test task acquire when the current owner was bounced uncleanly,
+   * such that the owner didn't get the chance to release the task.
+   */
+  @Test
+  public void testTaskAquireReleaseOwnerUncleanBounce() throws Exception {
+    String testCluster = "testTaskAquireReleaseOwnerUncleanBounce";
+    String connectorType = "connectorType";
+
+    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter1.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setDatastreamName("task1");
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter1);
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(task);
+    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Assert.assertTrue(expectException(task::acquire, false));
+
+    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    adapter2.connect();
+
+    LOG.info("Acquire from instance2 should fail");
+    task.setZkAdapter(adapter2);
+    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+
+    LOG.info("Disconnecting instance1");
+    String instanceName1 = adapter1.getInstanceName();
+    adapter1.disconnect();
+
+    LOG.info("Waiting up to 5 seconds for instance2 to become leader");
+    PollUtils.poll(() -> adapter2.isLeader(), 50, 5000);
+
+    LOG.info("Wait up to 5 seconds for the ephemeral node to be gone");
+    PollUtils.poll(() -> !adapter2.getLiveInstances().contains(instanceName1), 50, 5000);
+
+    LOG.info("Reconnecting instance1 should get a new instanceName");
+    adapter1.connect();
+    Assert.assertNotEquals(instanceName1, adapter1.getInstanceName());
+
+    LOG.info("instance2 should be able to acquire since old instance1 is dead");
+    Assert.assertTrue(expectException(() -> task.acquire(), false));
+
+    LOG.info("Acquire from the new instance1 should fail");
+    task.setZkAdapter(adapter1);
+    Assert.assertTrue(expectException(() -> task.acquire(100), true));
   }
 }
