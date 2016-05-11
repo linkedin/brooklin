@@ -428,6 +428,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
         try {
           connector.onAssignmentChange(assignment);
+
+          // Unassign tasks with producers
+          _eventProducerPool.unassignEventProducers(removedTasks);
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
