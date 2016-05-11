@@ -173,7 +173,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     Map<DatastreamTask, Map<Integer, String>> safeCheckpoints = impl.getEventProducer().getSafeCheckpoints();
     // Checkpoint map of the owning task must be present in the producer
     Validate.isTrue(safeCheckpoints.containsKey(this), "null checkpoints for task: " + this);
-    return safeCheckpoints.get(this);
+    return Collections.unmodifiableMap(safeCheckpoints.get(this));
   }
 
   @JsonIgnore
