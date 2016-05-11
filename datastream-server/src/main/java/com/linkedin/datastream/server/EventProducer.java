@@ -19,7 +19,6 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
@@ -80,9 +79,6 @@ public class EventProducer {
   // Helper for periodical flush/checkpoint operations
   private final CheckpointHandler _checkpointHandler;
 
-  // Flag to quickly tell if there are pending events
-  private volatile boolean _pendingCheckpoint = false;
-
   private volatile boolean _shutdownCompleted = false;
   private volatile boolean _shutdownRequested = false;
 
@@ -90,7 +86,7 @@ public class EventProducer {
   //  a. send is reader because multiple send are safe to run concurrently
   //  b. flush/updateTasks is writer because they need to run in critical
   //     section as multiple structures are modified
-  private ReentrantReadWriteLock _sendFlushLock;
+  private ReentrantReadWriteLock _checkpointRWLock;
 
   /**
    * Flush transport periodically and save checkpoints.
@@ -153,7 +149,7 @@ public class EventProducer {
     Validate.notNull(config, "null config");
 
     // Using a fair lock to prevent flush getting starved by send
-    _sendFlushLock = new ReentrantReadWriteLock(/* fairness */ true);
+    _checkpointRWLock = new ReentrantReadWriteLock(/* fairness */ true);
 
     _transportProvider = transportProvider;
     _checkpointProvider = checkpointProvider;
@@ -199,7 +195,6 @@ public class EventProducer {
       task.getPartitions().forEach(partition -> cpMap.put(partition, INVALID_CHECKPOINT));
     }
 
-    _safeCheckpoints.put(task, cpMap);
     return cpMap;
   }
 
@@ -222,7 +217,7 @@ public class EventProducer {
   public void unassignTask(DatastreamTask task) {
     try {
       // Write lock is required
-      _sendFlushLock.writeLock().lock();
+      _checkpointRWLock.writeLock().lock();
 
       // Flush any outstanding events
       flush();
@@ -230,7 +225,7 @@ public class EventProducer {
       _latestCheckpoints.remove(task);
       _tasks.remove(task);
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
     }
   }
 
@@ -243,14 +238,16 @@ public class EventProducer {
 
     try {
       // Write lock is required
-      _sendFlushLock.writeLock().lock();
+      _checkpointRWLock.writeLock().lock();
 
       // Add newly assigned tasks and populate checkpoints
-      Map<Integer, String> checkpoints = loadCheckpoints(task);
       _tasks.add(task);
-      _latestCheckpoints.put(task, checkpoints);
+
+      Map<Integer, String> checkpoints = loadCheckpoints(task);
+      _safeCheckpoints.put(task, checkpoints);
+      _latestCheckpoints.put(task, new HashMap<>(checkpoints)); // make a new copy
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
     }
   }
 
@@ -269,18 +266,13 @@ public class EventProducer {
     validateAndNormalizeEventRecord(record);
 
     try {
-      // Read lock is sufficient for send
-      _sendFlushLock.readLock().lock();
-
-      // Send the event to transport
+      // No locking is needed as send does not touch checkpoint
       _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, task, record));
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
       LOG.warn(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
-    } finally {
-      _sendFlushLock.readLock().unlock();
     }
   }
 
@@ -309,20 +301,13 @@ public class EventProducer {
     } else {
       // Update the checkpoint for the task/partition
       _latestCheckpoints.get(task).put(metadata.getPartition(), record.getCheckpoint());
-
-      // Dirty the flag
-      _pendingCheckpoint = true;
     }
   }
 
   public void flush() {
-    if (!_pendingCheckpoint) {
-      return;
-    }
-
     try {
       // Write lock is needed for flush
-      _sendFlushLock.writeLock().lock();
+      _checkpointRWLock.writeLock().lock();
 
       if (LOG.isDebugEnabled()) {
         LOG.debug(String.format("Staring transport flush, tasks = [%s].", _tasks));
@@ -338,13 +323,21 @@ public class EventProducer {
         try {
           LOG.info(String.format("Start committing checkpoints = %s, tasks = [%s].", _latestCheckpoints, _tasks));
 
+          // Make a copy to ensure safeCheckpoints is consistent with the committed ones
+          Map<DatastreamTask, Map<Integer, String>> checkpoints = new HashMap<>(_latestCheckpoints);
+
+          if (checkpoints.equals(_safeCheckpoints)) {
+            LOG.info("No changes in checkpoints, skipping commit.");
+            return;
+          }
+
           // Populate checkpoint map for checkpoint provider
           Map<DatastreamTask, String> committed = new HashMap<>();
-          _latestCheckpoints.forEach((task, cpMap) -> committed.put(task, JsonUtils.toJson(cpMap)));
+          checkpoints.forEach((task, cpMap) -> committed.put(task, JsonUtils.toJson(cpMap)));
           _checkpointProvider.commit(committed);
 
           // Update the safe checkpoints for the task
-          _latestCheckpoints.forEach((task, cpMap) -> _safeCheckpoints.put(task, new HashMap<>(cpMap)));
+          checkpoints.forEach((task, cpMap) -> _safeCheckpoints.put(task, new HashMap<>(cpMap)));
 
           LOG.info("Checkpoints have been successfully committed: " + _safeCheckpoints);
         } catch (Exception e) {
@@ -352,14 +345,11 @@ public class EventProducer {
           ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
         }
       }
-
-      // Clear the dirty flag
-      _pendingCheckpoint = false;
     } catch (Exception e) {
       String errorMessage = String.format("Failed to flush transport, tasks = [%s].", _tasks);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
     }
   }
 
@@ -372,12 +362,12 @@ public class EventProducer {
     try {
       // Read lock is needed as safeCheckpoint can be modified
       // by flush and updateTasks both of which acquire writeLock
-      _sendFlushLock.readLock().lock();
+      _checkpointRWLock.readLock().lock();
 
       // Give back read-only checkpoints
       return Collections.unmodifiableMap(_safeCheckpoints);
     } finally {
-      _sendFlushLock.readLock().unlock();
+      _checkpointRWLock.readLock().unlock();
     }
   }
 
