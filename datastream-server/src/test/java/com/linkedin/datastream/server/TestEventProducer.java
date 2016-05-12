@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import org.codehaus.jackson.type.TypeReference;
@@ -51,8 +50,6 @@ public class TestEventProducer {
   private TransportProvider _transport;
   private CheckpointProvider _cpProvider;
   private Properties _config;
-  private AtomicInteger _inSend = new AtomicInteger(0);
-  private AtomicBoolean _inFlush = new AtomicBoolean(false);
   private Random _random = new Random();
 
   private Datastream createDatastream() {
@@ -117,33 +114,6 @@ public class TestEventProducer {
     _tasks.add(task1);
 
     _transport = mock(TransportProvider.class);
-
-    // Verify transport.send() and transport.flush() is never called simultaneously
-    if (checkRace) {
-      doAnswer((invocation) -> {
-        Assert.assertFalse(_inFlush.get());
-        _inSend.incrementAndGet();
-        try {
-          Thread.sleep(1); // mimic send delay
-        } catch (InterruptedException e) {
-          Assert.fail();
-        }
-        _inSend.decrementAndGet();
-        return null;
-      }).when(_transport).send(anyString(), anyObject(), anyObject());
-
-      doAnswer((invocation) -> {
-        Assert.assertEquals(_inSend.get(), 0);
-        _inFlush.set(true);
-        try {
-          Thread.sleep(3); // mimic send delay
-        } catch (InterruptedException e) {
-          Assert.fail();
-        }
-        _inFlush.set(false);
-        return null;
-      }).when(_transport).flush();
-    }
 
     doAnswer(invocation -> {
       Object[] args = invocation.getArguments();
@@ -396,7 +366,7 @@ public class TestEventProducer {
 
   /**
    * Using three threads doing repeated send/flush/(un)assignTasks and check for race conditions.
-   * The aim for the test is to stress the synchronization needed among send(), flush(), and
+   * The aim for the test is to stress the synchronization needed among onSendCallback(), flush(), and
    * assign/unassignTasks in EventProducer. The transport provider is also mocked to ensure send()
    * and flush() are never interleaved.
    *
