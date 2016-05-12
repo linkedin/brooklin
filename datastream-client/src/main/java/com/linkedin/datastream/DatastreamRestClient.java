@@ -97,7 +97,7 @@ public class DatastreamRestClient {
    *   Returns the initialized datastream object.
    * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    */
-  public Datastream waitTillDatastreamIsInitialized(String datastreamName, int timeoutMs)
+  public Datastream waitTillDatastreamIsInitialized(String datastreamName, long timeoutMs)
       throws InterruptedException {
     final int pollIntervalMs = 500;
     final long startTimeMs = System.currentTimeMillis();
