@@ -14,7 +14,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  */
 public class DummyConnector implements Connector {
 
-  public static final String VALID_DUMMY_SOURCE = "DummySource";
+  public static final String VALID_DUMMY_SOURCE = "DummyConnector://DummySource";
   public static final String CONNECTOR_TYPE = "DummyConnector";
 
   private Properties _properties;

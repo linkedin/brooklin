@@ -46,16 +46,16 @@ public class DestinationManager {
    * datastream with the same source, they will use the same destination.
    * @param datastreams All datastreams in the current system.
    */
-  public void populateDatastreamDestination(List<Datastream> datastreams) throws TransportException {
+  public void populateDatastreamDestination(List<Datastream> datastreams)
+      throws TransportException {
     Validate.notNull(datastreams, "Datastream should not be null");
 
     HashMap<DatastreamSource, Datastream> sourceStreamMapping = new HashMap<>();
     datastreams.stream().filter(d -> d.hasDestination() && d.getDestination().hasConnectionString() &&
-        !d.getDestination().getConnectionString().isEmpty())
-        .forEach(d -> sourceStreamMapping.put(d.getSource(), d));
+        !d.getDestination().getConnectionString().isEmpty()).forEach(d -> sourceStreamMapping.put(d.getSource(), d));
 
     LOG.debug("Datastream Source -> Datastream mapping before populating new datastream destinations",
-            sourceStreamMapping);
+        sourceStreamMapping);
 
     for (Datastream datastream : datastreams) {
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString() &&
@@ -65,8 +65,9 @@ public class DestinationManager {
 
       boolean topicReuse = _reuseExistingTopic;
       if (datastream.hasMetadata()) {
-        topicReuse = Boolean.parseBoolean(datastream.getMetadata().getOrDefault(
-            DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, String.valueOf(_reuseExistingTopic)));
+        topicReuse = Boolean.parseBoolean(datastream.getMetadata()
+            .getOrDefault(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY,
+                String.valueOf(_reuseExistingTopic)));
       }
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
@@ -78,10 +79,17 @@ public class DestinationManager {
         datastream.setDestination(destination);
 
         // Copy destination-related metadata
-        datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
-            existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_CREATION_MS));
-        datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
-            existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
+        if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
+          datastream.getMetadata()
+              .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
+                  existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_CREATION_MS));
+        }
+
+        if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_RETENION_MS)) {
+          datastream.getMetadata()
+              .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
+                  existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
+        }
       } else {
         String connectionString = createTopic(datastream);
         LOG.info(String.format(
@@ -92,10 +100,11 @@ public class DestinationManager {
     }
 
     LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations",
-            sourceStreamMapping);
+        sourceStreamMapping);
   }
 
-  private String createTopic(Datastream datastream) throws TransportException {
+  private String createTopic(Datastream datastream)
+      throws TransportException {
     Properties datastreamProperties = new Properties();
     if (datastream.hasMetadata()) {
       datastreamProperties.putAll(datastream.getMetadata());
@@ -111,7 +120,8 @@ public class DestinationManager {
       numberOfPartitions = datastream.getSource().getPartitions();
     }
 
-    String connectionString = _transportProvider.createTopic(getTopicName(datastream), numberOfPartitions, topicProperties);
+    String connectionString =
+        _transportProvider.createTopic(getTopicName(datastream), numberOfPartitions, topicProperties);
 
     DatastreamDestination destination = new DatastreamDestination();
     destination.setConnectionString(connectionString);
@@ -119,13 +129,13 @@ public class DestinationManager {
     datastream.setDestination(destination);
 
     // Set destination creation time and retention
-    datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
-        String.valueOf(Instant.now().toEpochMilli()));
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
 
     Duration retention = _transportProvider.getRetention(connectionString);
     if (retention != null) {
-      datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
-          String.valueOf(retention.toMillis()));
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
     }
 
     return connectionString;
@@ -166,10 +176,9 @@ public class DestinationManager {
     Validate.notNull(datastream, "Datastream should not be null");
     Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
     Validate.notNull(allDatastreams, "allDatastreams should not be null");
-    Stream<Datastream> duplicateDatastreams =
-        allDatastreams.stream().filter(
-            d -> d.getDestination().equals(datastream.getDestination())
-                && !d.getName().equalsIgnoreCase(datastream.getName()));
+    Stream<Datastream> duplicateDatastreams = allDatastreams.stream()
+        .filter(d -> d.getDestination().equals(datastream.getDestination()) && !d.getName()
+            .equalsIgnoreCase(datastream.getName()));
 
     // If there are no datastreams using the same destination, then delete the topic.
     if (duplicateDatastreams.count() == 0) {
