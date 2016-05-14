@@ -48,7 +48,7 @@ public class FileUtils {
     File file = new File(System.getProperty("java.io.tmpdir"), dirName);
     if (!file.mkdirs()) {
       String errorMessage = "could not create temp directory: " + file.getAbsolutePath();
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+      LOG.info(errorMessage);
     }
 
     return file;
