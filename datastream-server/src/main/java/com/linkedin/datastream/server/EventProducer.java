@@ -2,14 +2,14 @@ package com.linkedin.datastream.server;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
-import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
@@ -19,11 +19,9 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -39,11 +37,6 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  * Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
  */
 public class EventProducer {
-  private static final Logger LOG = LoggerFactory.getLogger(EventProducer.class);
-  private final Consumer<EventProducer> _onUnrecoverableError;
-
-  private final String _producerid;
-
   /**
    * Policy for checkpoint handling
    */
@@ -52,51 +45,54 @@ public class EventProducer {
     CUSTOM
   }
 
+  private static final String MODULE = EventProducer.class.getName();
   public static final String INVALID_CHECKPOINT = "";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
   public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000 * 60; // 1 minute
-  public static final Integer SHUTDOWN_POLL_MS = 1000;
-  public static final Integer SHUTDOWN_POLL_PERIOD_MS = 50;
+  public static final Integer DEFAULT_SHUTDOWN_POLL_MS = 1000 * 60; // 1 minute
 
-  // List of tasks the producer is responsible for
-  private final Set<DatastreamTask> _tasks;
+  private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
+
+  private final int _producerId;
+  private final Consumer<EventProducer> _onUnrecoverableError;
+  private final Logger _logger;
 
   private final TransportProvider _transportProvider;
   private final CheckpointProvider _checkpointProvider;
   private final CheckpointPolicy _checkpointPolicy;
 
-  // This stores the latest "dirty" checkpoint that we received
-  // from send() call but haven't been flushed on the transport.
-  // One one checkpoint is needed since connector only need to
-  // fulfill all the tasks by only producing any one of them,
-  // hence producer just need to store one dirty checkpoint and
-  // update all tasks in _safeCheckpoints with this.
-  private Map<DatastreamTask, Map<Integer, String>> _latestCheckpoints;
+  // This stores the checkpoints that have been recently acknowledged by
+  // the transport (via onSendCallback) and are safe to be committed to
+  // the checkpoint provider. We instantiate it as a concurrentHashMap
+  // because we expose safeCheckpoints by reference such that connectors
+  // can be accessing the checkpoints while event procuder mutates them,
+  // which is safe but can cause ConcurrentModificationException since
+  // there is no synchronization between them. This is only be a problem
+  // for CUSTOM checkpoint policy as DATASTREAM policy users only access
+  // the checkpoints in the startup phase.
+  private final ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _safeCheckpoints;
 
-  // This stores the checkpoints that have been recently flushed such that
-  // are safe to be committed to the source consumption tracking system.
-  private Map<DatastreamTask, Map<Integer, String>> _safeCheckpoints;
-
-  // Helper for periodical flush/checkpoint operations
+  // Helper for periodical flush/checkpoint operation
   private final CheckpointHandler _checkpointHandler;
-
-  // Flag to quickly tell if there are pending events
-  private volatile boolean _pendingCheckpoint = false;
 
   private volatile boolean _shutdownCompleted = false;
   private volatile boolean _shutdownRequested = false;
 
-  // This read-write lock synchronizes send/flush/updateTasks
-  //  a. send is reader because multiple send are safe to run concurrently
-  //  b. flush/updateTasks is writer because they need to run in critical
-  //     section as multiple structures are modified
-  private ReentrantReadWriteLock _sendFlushLock;
+  // Flag indicating if there are acknowledged checkpoints pending to
+  // be committed to the checkpoint provider.
+  private final AtomicBoolean _pendingCheckpoints = new AtomicBoolean(false);
+
+  // This lock synchronizes various operations of the producer:
+  //  readers: getSafeCheckpoints, onSendCallback
+  //  writer: assign/unassignTasks, flushAndCheckpoint
+  // The lock pretects _safeCheckpoints and _pendingCheckpoints
+  private ReentrantReadWriteLock _checkpointRWLock;
 
   /**
-   * Flush transport periodically and save checkpoints.
+   * Manages the periodic checkpointing operation.
    */
   class CheckpointHandler implements Runnable {
-    private final Long _periodMs;
+    private final long _periodMs;
     private final ScheduledExecutorService _executor;
 
     public CheckpointHandler(Properties config) {
@@ -107,34 +103,37 @@ public class EventProducer {
     }
 
     public void shutdown() {
-      LOG.info(String.format("Shutdown requested, tasks = [%s].", _tasks));
+      _logger.info("Shutting down checkpoint handler, tasks = " + getTaskString());
 
-      // Initiate shutdown
-      _executor.shutdown();
+      try {
+        _executor.shutdown();
+        _executor.awaitTermination(DEFAULT_SHUTDOWN_POLL_MS, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        _logger.warn("Checkpoint handler shutdown is interrupted, forcing termination.");
+        _executor.shutdownNow();
+      }
 
-      // Poll for the thread to actually exit
-      PollUtils.poll(() -> _executor.isTerminated(), SHUTDOWN_POLL_MS, SHUTDOWN_POLL_PERIOD_MS);
+      // Final checkpointing
+      doCheckpoint();
 
-      // Final flush
-      flushAndCheckpoint();
-
-      LOG.info(String.format("Shutdown finished, tasks = [%s].", _tasks));
+      _logger.info("Checkpoint handler is shutdown.");
     }
 
-    private void flushAndCheckpoint() {
+    private void doCheckpoint() {
       try {
-        flush();
-        LOG.debug(String.format("Checkpoint handler exited, tasks = [%s].", _tasks));
+        _logger.info(String.format("Checkpoint handler started, tasks = [%s].", getTaskString()));
+        EventProducer.this.flushAndCheckpoint();
+        _logger.info("Checkpoint handler finished.");
       } catch (Exception e) {
-        // Since have have handled all exceptions here, there would be no exceptions leaked
-        // to the executor, which will reschedules as usual so no explicit retry is needed.
-        LOG.error(String.format("Checkpoint failed, will retry after %d ms, reason = %s", _periodMs, e.getMessage()), e);
+        // We need to handle catch all exceptions otherwise executor suppresses future runs.
+        _logger.error(
+            String.format("Checkpoint handler failed, will retry in %d ms, reason = %s", _periodMs, e.getMessage()), e);
       }
     }
 
     @Override
     public void run() {
-      flushAndCheckpoint();
+      doCheckpoint();
     }
   }
 
@@ -145,6 +144,7 @@ public class EventProducer {
    * @param config global config
    * @param customCheckpointing decides whether Producer should use custom checkpointing or the datastream server
    *                            provided checkpointing.
+   * @param onUnrecoverableError callback to be triggered when there is unrecoverable errors from the transport
    */
   public EventProducer(TransportProvider transportProvider, CheckpointProvider checkpointProvider, Properties config,
       boolean customCheckpointing, Consumer<EventProducer> onUnrecoverableError) {
@@ -153,57 +153,60 @@ public class EventProducer {
     Validate.notNull(config, "null config");
 
     // Using a fair lock to prevent flush getting starved by send
-    _sendFlushLock = new ReentrantReadWriteLock(/* fairness */ true);
+    _checkpointRWLock = new ReentrantReadWriteLock(/* fairness */ true);
 
     _transportProvider = transportProvider;
     _checkpointProvider = checkpointProvider;
     _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
-    _tasks = new HashSet<>();
-    _safeCheckpoints = new HashMap<>();
+    _safeCheckpoints = new ConcurrentHashMap<>();
     _onUnrecoverableError = onUnrecoverableError;
-    _latestCheckpoints = new HashMap<>();
 
     // Start checkpoint handler
     _checkpointHandler = new CheckpointHandler(config);
 
-    _producerid = UUID.randomUUID().toString();
+    _producerId = PRODUCER_ID_SEED.getAndIncrement();
+    _logger = LoggerFactory.getLogger(String.format("%s:%s", MODULE, _producerId));
 
-    LOG.info(String.format("Created event producer with customCheckpointing %s", customCheckpointing));
+    _logger.info(String
+        .format("Created event producer with customCheckpointing=%s, sendCallback=%s", customCheckpointing,
+            onUnrecoverableError != null));
   }
 
-  public String getProducerid() {
-    return _producerid;
+  public int getProducerId() {
+    return _producerId;
   }
 
-  /**
-   * This method should be called with sendFlushLock.writeLock acquired.
-   */
+  private String getTaskString() {
+    return _safeCheckpoints.keySet().toString();
+  }
+
   private Map<Integer, String> loadCheckpoints(DatastreamTask task) {
     Map<DatastreamTask, String> committed = _checkpointProvider.getCommitted(Collections.singletonList(task));
-    final Map<Integer, String> cpMap;
+
     // Instruct jackson to convert string keys to integer
-    TypeReference<HashMap<Integer, String>> typeRef = new TypeReference<HashMap<Integer, String>>() {
-    };
+    TypeReference<ConcurrentHashMap<Integer, String>> typeRef =
+        new TypeReference<ConcurrentHashMap<Integer, String>>() {
+        };
 
     String cpString = committed.get(task);
+    ConcurrentHashMap<Integer, String> cpMap;
     if (!StringUtils.isBlank(cpString)) {
-      // Deserialize checkpoints from JSON
+      // Deserialize checkpoints from persisted JSON
       try {
         cpMap = JsonUtils.fromJson(cpString, typeRef);
       } catch (Exception e) {
-        throw new DatastreamRuntimeException("Failed to load checkpoints from json: " + cpString + ", task=" + task, e);
+        throw new DatastreamRuntimeException("Failed to load checkpoints from: " + cpString + ", task=" + task, e);
       }
     } else {
-      // Brand new task without checkpoints
-      cpMap = new HashMap<>();
+      // Brand new task without any prior checkpoints
+      cpMap = new ConcurrentHashMap<>();
       task.getPartitions().forEach(partition -> cpMap.put(partition, INVALID_CHECKPOINT));
     }
 
-    _safeCheckpoints.put(task, cpMap);
     return cpMap;
   }
 
-  private void validateAndNormalizeEventRecord(DatastreamProducerRecord record) {
+  private void validateEventRecord(DatastreamProducerRecord record) {
     Validate.notNull(record, "null event record.");
     Validate.notNull(record.getEvents(), "null event payload.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
@@ -220,17 +223,21 @@ public class EventProducer {
   }
 
   public void unassignTask(DatastreamTask task) {
-    try {
-      // Write lock is required
-      _sendFlushLock.writeLock().lock();
+    Validate.notNull(task, "null task");
 
-      // Flush any outstanding events
-      flush();
+    if (!_safeCheckpoints.containsKey(task)) {
+      _logger.warn("Task is not assigned: " + task);
+      return;
+    }
+
+    // Flush can be done outside critical section
+    flushAndCheckpoint();
+
+    try {
+      _checkpointRWLock.writeLock().lock();
       _safeCheckpoints.remove(task);
-      _latestCheckpoints.remove(task);
-      _tasks.remove(task);
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
     }
   }
 
@@ -239,18 +246,21 @@ public class EventProducer {
    * checkpoint structures to accommodate for newly assigned and unassigned tasks.
    */
   public void assignTask(DatastreamTask task) {
-    Validate.notNull(task, "null assigned task");
+    Validate.notNull(task, "null task");
+
+    if (_safeCheckpoints.containsKey(task)) {
+      _logger.warn("Task is already assigned: " + task);
+      return;
+    }
+
+    // checkpoint loading can be done ouside critical section
+    Map<Integer, String> checkpoints = loadCheckpoints(task);
 
     try {
-      // Write lock is required
-      _sendFlushLock.writeLock().lock();
-
-      // Add newly assigned tasks and populate checkpoints
-      Map<Integer, String> checkpoints = loadCheckpoints(task);
-      _tasks.add(task);
-      _latestCheckpoints.put(task, checkpoints);
+      _checkpointRWLock.writeLock().lock();
+      _safeCheckpoints.put(task, checkpoints);
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
     }
   }
 
@@ -266,21 +276,16 @@ public class EventProducer {
       throw new IllegalStateException("send() is not allowed on a producer that is already shutdown.");
     }
 
-    validateAndNormalizeEventRecord(record);
+    validateEventRecord(record);
 
     try {
-      // Read lock is sufficient for send
-      _sendFlushLock.readLock().lock();
-
-      // Send the event to transport
+      // No locking is needed as send does not touch checkpoint at all
       _transportProvider.send(task.getDatastreamDestination().getConnectionString(), record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, task, record));
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
-      LOG.warn(errorMessage, e);
+      _logger.warn(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
-    } finally {
-      _sendFlushLock.readLock().unlock();
     }
   }
 
@@ -289,77 +294,96 @@ public class EventProducer {
 
     SendFailedException sendFailedException = null;
 
-    // Shutdown the producer right away
+    // Notify the eventProducerPool first which will recreate a new event producer
     if (exception != null) {
-      shutdown();
       sendFailedException = new SendFailedException(_safeCheckpoints);
-    }
 
-    // Inform the connector about the success or failure, In the case of failure, the connector will go back to the
-    // last checkpoint.
-    if (sendCallback != null) {
-      sendCallback.onCompletion(metadata, sendFailedException);
-    }
-
-    // If the send failed, then shutdown the producer, Notify the eventProducerPool and the connector sendCallback
-    if (exception != null) {
       if (_onUnrecoverableError != null) {
         _onUnrecoverableError.accept(this);
       }
     } else {
-      // Update the checkpoint for the task/partition
-      _latestCheckpoints.get(task).put(metadata.getPartition(), record.getCheckpoint());
+      try {
+        // read-lock is sufficient as messages in the same partition is expected to be acknowledged
+        // in order by the transport such that we can allow concurrent acks of other tasks/partitions.
+        _checkpointRWLock.readLock().lock();
+        if (!_safeCheckpoints.containsKey(task)) {
+          _logger.warn(String.format("Event of unknown task is being acknowledged: task=%s, record=%s", task, record));
+        } else {
+          _safeCheckpoints.get(task).put(metadata.getPartition(), record.getCheckpoint());
+          _pendingCheckpoints.set(true);
+        }
+      } finally {
+        _checkpointRWLock.readLock().unlock();
+      }
+    }
 
-      // Dirty the flag
-      _pendingCheckpoint = true;
+    // Inform the connector about the success or failure, In the case of failure,
+    // the connector is expected retry and go back to the last checkpoint.
+    if (sendCallback != null) {
+      sendCallback.onCompletion(metadata, sendFailedException);
+    }
+
+    // Shutdown the producer right away
+    if (exception != null) {
+      shutdown();
     }
   }
 
-  public void flush() {
-    if (!_pendingCheckpoint) {
+  /**
+   * Flush the pending unset events in the transport and commit the acknowledged
+   * checkpoints (via onSendCallback) with checkpoint provider afterwards.
+   *
+   * The method is maded synchronized to prevent concurrent execution by:
+   *  - unassignTask
+   *  - CheckpointHandler
+   *  - external flush request
+   */
+  public synchronized void flushAndCheckpoint() {
+    String tasks = getTaskString();
+
+    // Step 1: flush the transport to gather ACKs
+    try {
+      // Flush can and must be done without holding writer-lock which is needed by onSendCallback
+      _logger.info(String.format("Staring transport flush, tasks = [%s].", tasks));
+      _transportProvider.flush();
+      _logger.info("Transport has been successfully flushed.");
+    } catch (Exception e) {
+      String msg = String.format("Failed to flush transport, tasks = [%s].", tasks);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_logger, msg, e);
+    }
+
+    if (_checkpointPolicy != CheckpointPolicy.DATASTREAM) {
       return;
     }
 
+    if (!_pendingCheckpoints.get()) {
+      _logger.info("No changes in checkpoints, skipping commit.");
+      return;
+    }
+
+    // Step 2: serialize checkpoints to be committed
+    Map<DatastreamTask, String> committed;
     try {
-      // Write lock is needed for flush
-      _sendFlushLock.writeLock().lock();
-
-      if (LOG.isDebugEnabled()) {
-        LOG.debug(String.format("Staring transport flush, tasks = [%s].", _tasks));
-      }
-
-      _transportProvider.flush();
-
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Transport has been successfully flushed.");
-      }
-
-      if (_checkpointPolicy == CheckpointPolicy.DATASTREAM) {
-        try {
-          LOG.info(String.format("Start committing checkpoints = %s, tasks = [%s].", _latestCheckpoints, _tasks));
-
-          // Populate checkpoint map for checkpoint provider
-          Map<DatastreamTask, String> committed = new HashMap<>();
-          _latestCheckpoints.forEach((task, cpMap) -> committed.put(task, JsonUtils.toJson(cpMap)));
-          _checkpointProvider.commit(committed);
-
-          // Update the safe checkpoints for the task
-          _latestCheckpoints.forEach((task, cpMap) -> _safeCheckpoints.put(task, new HashMap<>(cpMap)));
-
-          LOG.info("Checkpoints have been successfully committed: " + _safeCheckpoints);
-        } catch (Exception e) {
-          String errorMessage = String.format("Checkpoint commit failed, tasks = [%s].", _tasks);
-          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-        }
-      }
-
-      // Clear the dirty flag
-      _pendingCheckpoint = false;
-    } catch (Exception e) {
-      String errorMessage = String.format("Failed to flush transport, tasks = [%s].", _tasks);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      // Hold write-lock to prevent:
+      //  1) _safeCheckpoints mutations (unassignTasks); and
+      //  2) _pendingCheckpoints mutations (onSendCallback)
+      _checkpointRWLock.writeLock().lock();
+      committed = new HashMap<>();
+      _safeCheckpoints.forEach((task, cpMap) -> committed.put(task, JsonUtils.toJson(cpMap)));
+      _pendingCheckpoints.set(false);
     } finally {
-      _sendFlushLock.writeLock().unlock();
+      _checkpointRWLock.writeLock().unlock();
+    }
+
+    // Step 3: commit the serialized checkpoints to checkpoint provider
+    try {
+      // Commit can be safely performed outside of critical section
+      _logger.info(String.format("Start committing checkpoints = %s, tasks = [%s].", committed, tasks));
+      _checkpointProvider.commit(committed);
+      _logger.info("Checkpoints have been successfully committed");
+    } catch (Exception e) {
+      String errorMessage = String.format("Checkpoint commit failed, tasks = [%s].", tasks);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_logger, errorMessage, e);
     }
   }
 
@@ -370,14 +394,15 @@ public class EventProducer {
    */
   public Map<DatastreamTask, Map<Integer, String>> getSafeCheckpoints() {
     try {
-      // Read lock is needed as safeCheckpoint can be modified
-      // by flush and updateTasks both of which acquire writeLock
-      _sendFlushLock.readLock().lock();
+      // read-lock is needed to synchronize with (un)assignTask
+      _checkpointRWLock.readLock().lock();
 
-      // Give back read-only checkpoints
+      // Give back read-only checkpoints. DatastreamTaskImpl will
+      // make the per-task maps unmodifiable before handing them
+      // of connectors.
       return Collections.unmodifiableMap(_safeCheckpoints);
     } finally {
-      _sendFlushLock.readLock().unlock();
+      _checkpointRWLock.readLock().unlock();
     }
   }
 
@@ -390,7 +415,7 @@ public class EventProducer {
       return;
     }
 
-    LOG.info("Shutting down event producer for " + _tasks);
+    _logger.info("Shutting down event producer for " + getTaskString());
 
     _shutdownRequested = true;
     _checkpointHandler.shutdown();
@@ -398,7 +423,7 @@ public class EventProducer {
     try {
       _transportProvider.close();
     } catch (TransportException e) {
-      LOG.warn("Closing the TransportProvider failed with exception", e);
+      _logger.warn("Closing the TransportProvider failed with exception", e);
     }
 
     _shutdownCompleted = true;
@@ -406,6 +431,6 @@ public class EventProducer {
 
   @Override
   public String toString() {
-    return "EventProducer tasks=" + _tasks;
+    return "EventProducer tasks=" + getTaskString();
   }
 }

@@ -67,7 +67,7 @@ public class DatastreamEventProducerImpl implements DatastreamEventProducer {
 
   @Override
   public void flush() {
-    _eventProducer.flush();
+    _eventProducer.flushAndCheckpoint();
   }
 
   @Override
