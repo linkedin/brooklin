@@ -50,13 +50,15 @@ public class TestDatastreamRestClient {
   private EmbeddedZookeeper _embeddedZookeeper;
 
   @BeforeTest
-  public void setUp() throws Exception {
+  public void setUp()
+      throws Exception {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
     setupServer();
   }
 
   @AfterTest
-  public void tearDown() throws Exception {
+  public void tearDown()
+      throws Exception {
     _datastreamServer.shutdown();
     _embeddedZookeeper.shutdown();
   }
@@ -66,14 +68,15 @@ public class TestDatastreamRestClient {
     ds.setName("name_" + seed);
     ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
     ds.setSource(new DatastreamSource());
-    ds.getSource().setConnectionString("DummySource");
+    ds.getSource().setConnectionString(String.format("%s://%s", DummyConnector.CONNECTOR_TYPE, "DummySource"));
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
     return ds;
   }
 
-  private void setupServer() throws Exception {
+  private void setupServer()
+      throws Exception {
     _embeddedZookeeper = new EmbeddedZookeeper();
     String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
@@ -99,7 +102,8 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateDatastream() throws DatastreamException, IOException, RemoteInvocationException {
+  public void testCreateDatastream()
+      throws DatastreamException, IOException, RemoteInvocationException {
     Datastream datastream = generateDatastream(1);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
@@ -144,7 +148,8 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testGetAllDatastreams() throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+  public void testGetAllDatastreams()
+      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
     List<Datastream> datastreams =
         IntStream.range(100, 110).mapToObj(i -> generateDatastream(i)).collect(Collectors.toList());
     LOG.info("Datastreams : " + datastreams);
@@ -157,8 +162,9 @@ public class TestDatastreamRestClient {
       restClient.createDatastream(datastream);
     }
 
-    Optional<List<Datastream>> result = PollUtils.poll(restClient::getAllDatastreams,
-        streams -> streams.size() - initialSize == createdCount, 100, 1000);
+    Optional<List<Datastream>> result =
+        PollUtils.poll(restClient::getAllDatastreams, streams -> streams.size() - initialSize == createdCount, 100,
+            1000);
 
     Assert.assertTrue(result.isPresent());
 
@@ -182,11 +188,13 @@ public class TestDatastreamRestClient {
     clearDatastreamDestination(paginatedCreatedDatastreams);
     clearDynamicMetadata(paginatedCreatedDatastreams);
 
-    Assert.assertEquals(createdDatastreams.stream().skip(skip).limit(count).collect(Collectors.toList()), paginatedCreatedDatastreams);
+    Assert.assertEquals(createdDatastreams.stream().skip(skip).limit(count).collect(Collectors.toList()),
+        paginatedCreatedDatastreams);
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testDeleteDatastream() throws DatastreamException {
+  public void testDeleteDatastream()
+      throws DatastreamException {
     Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -196,7 +204,8 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
+  public void testCreateBootstrapDatastream()
+      throws IOException, DatastreamException, RemoteInvocationException {
     Datastream bootstrapDatastream = generateDatastream(3);
     LOG.info("Bootstrap datastream : " + bootstrapDatastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -208,15 +217,15 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws IOException,
-      DatastreamException, RemoteInvocationException {
+  public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound()
+      throws IOException, DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.getDatastream("Datastream_doesntexist");
   }
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
-  public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream() throws IOException, DatastreamException,
-      RemoteInvocationException {
+  public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream()
+      throws IOException, DatastreamException, RemoteInvocationException {
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
     restClient.createDatastream(new Datastream());
   }
