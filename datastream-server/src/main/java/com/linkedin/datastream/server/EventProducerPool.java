@@ -76,11 +76,6 @@ public class EventProducerPool {
     Validate.notNull(connectorType);
     Validate.notEmpty(connectorType);
 
-    for (DatastreamTask task : removedTasks) {
-      _taskEventProducerMap.get(task).unassignTask(task);
-      _taskEventProducerMap.remove(task);
-    }
-
     if (!_producerPool.containsKey(customCheckpointing)) {
       _producerPool.put(customCheckpointing, createProducers(_poolSize / 2, customCheckpointing));
     }
@@ -98,6 +93,13 @@ public class EventProducerPool {
 
       assignEventProducerToTask(eventProducer, task);
     }
+
+    // NOTE: removedTasks are unassigned later in unassignEventProducers
+    // This is because at this time the connector might still be actively
+    // sending events with the producer. If we unassign them right now,
+    // their checkpoints will not get acknowledged in the producer. Thus,
+    // we must unassign producers ONLY after connector.onAssignmentChange()
+    // have returned.
   }
 
   private void assignEventProducerToTask(EventProducer eventProducer, DatastreamTask task) {
@@ -113,6 +115,15 @@ public class EventProducerPool {
     }
 
     _taskEventProducerMap.put(task, eventProducer);
+  }
+
+  /**
+   * Detach producers with the unassign tasks.
+   * @param unassignedTasks
+   */
+  public synchronized void unassignEventProducers(List<DatastreamTask> unassignedTasks) {
+    Validate.notNull(unassignedTasks);
+    unassignedTasks.forEach(t -> _taskEventProducerMap.get(t).unassignTask(t));
   }
 
   private List<EventProducer> createProducers(int poolSize, boolean customCheckpointing) {
@@ -132,8 +143,8 @@ public class EventProducerPool {
 
     List<DatastreamTask> tasks = findTasksUsingEventProducer(eventProducer);
 
-    LOG.warn(String.format("Producer %s failed with unrecoverable error, shutting down the producer "
-        + ", creating a new producer and assigning them to the tasks %s", eventProducer.getProducerid(), tasks));
+    LOG.warn(String.format("Producer-%d failed with unrecoverable error, shutting down the producer "
+        + ", creating a new producer and assigning them to the tasks %s", eventProducer.getProducerId(), tasks));
 
     boolean customCheckpointing = eventProducer.getCheckpointPolicy() == EventProducer.CheckpointPolicy.CUSTOM;
 
@@ -145,7 +156,6 @@ public class EventProducerPool {
             this::onUnrecoverableError);
 
     tasks.forEach(t -> assignEventProducerToTask(newEventProducer, t));
-    eventProducer.shutdown();
   }
 
   private List<DatastreamTask> findTasksUsingEventProducer(EventProducer eventProducer) {

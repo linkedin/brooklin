@@ -1,11 +1,11 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-import java.io.File;
 import java.io.IOException;
-
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.avro.Schema;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 
@@ -15,36 +15,18 @@ import com.linkedin.datastream.common.DatastreamEvent;
  * todo - right now, it returns a list of generated events. Need to support publishing to kafka topic directly
  */
 
-public class DatastreamEventGenerator extends GenericEventGenerator {
+public class DatastreamEventGenerator extends AbstractEventGenerator<DatastreamEvent> {
 
   private boolean _needPreviousPayload;
   private String _datastreamName;
   private DatastreamEvent _lastInsertedEvent = null;
   private DatastreamEvent _lastUpdatedEvent = null;
 
-  /**
-   * Takes a schema file as input
-   * @param schemaFile
-   * @throws IOException
-   */
-  public DatastreamEventGenerator(File schemaFile) throws IOException {
-    super(schemaFile);
-    setDefaults();
-  }
+  public DatastreamEventGenerator(Schema schema, EventGeneratorConfig cfg) {
+    super(schema, cfg);
 
-  /**
-   * Takes a schema string as an input
-   * @param schema
-   */
-  public DatastreamEventGenerator(String schema) {
-    super(schema);
-    setDefaults();
-  }
-
-  public void setDefaults() {
     _needPreviousPayload = true;
     _datastreamName = "testDatastream";
-
   }
 
   public void setNeedPreviousPayload(boolean needPreviousPayload) {
@@ -57,10 +39,10 @@ public class DatastreamEventGenerator extends GenericEventGenerator {
 
   private Map<CharSequence, CharSequence> getMetaData(int partNum, String opcode) {
     Map<CharSequence, CharSequence> metaData = new HashMap<>();
-    metaData.put("Database", _dbName);
-    metaData.put("Table", _tableName);
+    metaData.put("Database", _cfg.getDbName());
+    metaData.put("Table", _cfg.getTableName());
     metaData.put("Partition", String.valueOf(partNum));
-    metaData.put("Scn", String.valueOf(_startScn));
+    metaData.put("Scn", String.valueOf(_scn));
     metaData.put("EventTimestamp", String.valueOf(System.currentTimeMillis()));
     metaData.put("__OpCode", opcode);
     // OpCode is set at the caller level.
@@ -71,7 +53,7 @@ public class DatastreamEventGenerator extends GenericEventGenerator {
   // right now, using startScn as the key also for easier verification. In future, we will randomize it or have key schema
   private ByteBuffer getKey() {
     ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-    buffer.putLong(_startScn);
+    buffer.putLong(_scn);
     return buffer;
   }
 
@@ -80,7 +62,7 @@ public class DatastreamEventGenerator extends GenericEventGenerator {
   }
 
   @Override
-  protected Object getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException {
+  protected DatastreamEvent getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException {
     DatastreamEvent datastreamEvent = new DatastreamEvent();
     datastreamEvent.payload = getPayload();
     datastreamEvent.previous_payload = null;

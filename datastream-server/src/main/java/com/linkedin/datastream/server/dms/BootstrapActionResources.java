@@ -4,14 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.RestLiActions;
+
 
 /**
  * BootstrapActionResources is the rest end point to process bootstrap datastream request
@@ -55,15 +55,13 @@ public class BootstrapActionResources {
 
     try {
       _coordinator.initializeDatastream(bootstrapDatastream);
-    } catch (DatastreamValidationException e) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize " + bootstrapDatastream, e);
-    }
-
-    try {
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
-    } catch (DatastreamException e) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to initialize " + bootstrapDatastream,
-          e);
+    } catch (DatastreamAlreadyExistsException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
+          "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
+    } catch (Exception e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }
 
     return bootstrapDatastream;

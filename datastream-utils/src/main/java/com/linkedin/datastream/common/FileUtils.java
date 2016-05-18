@@ -37,6 +37,25 @@ public class FileUtils {
   }
 
   /**
+   * Constructs a directory in the temp folder
+   * This directory will NOT get deleted when the process exits.
+   * @param dirName
+   *   Prefix to be used for the directory that needs to be created.
+   * @return
+   *   Object referencing the directory that is created.
+   */
+  public static File constructDirectoryInTempDir(String dirName) {
+    File file = new File(System.getProperty("java.io.tmpdir"), dirName);
+    if (!file.mkdirs()) {
+      String errorMessage = "could not create temp directory: " + file.getAbsolutePath();
+      LOG.info(errorMessage);
+    }
+
+    return file;
+  }
+
+
+  /**
    * Delete the folder and all its contents recursively.
    * @param path
    *  Path that needs to be deleted.
