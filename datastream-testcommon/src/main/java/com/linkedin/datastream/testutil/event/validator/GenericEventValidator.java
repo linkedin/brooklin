@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.Schema;
-import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.avro.generic.IndexedRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,22 +25,20 @@ public class GenericEventValidator {
   public GenericEventValidator() {
   }
 
-  private static Object getPayload(Object obj) {
-    SpecificRecordBase record = (SpecificRecordBase) obj;
-    Schema schema = record.getSchema();
+  private static Object getPayload(IndexedRecord obj) {
+    Schema schema = obj.getSchema();
     for (String name : PAYLOAD_STRS) {
       Schema.Field payload = schema.getField(name);
       if (payload != null) {
         // found it
-        return record.get(payload.pos());
+        return obj.get(payload.pos());
       }
     }
     return obj;        // treat this as generic payload record
   }
 
-  private static Object getKey(Object obj) {
-    SpecificRecordBase record = (SpecificRecordBase) obj;
-    Schema schema = record.getSchema();
+  private static Object getKey(IndexedRecord obj) {
+    Schema schema = obj.getSchema();
     for (String name : KEY_STRS) {
       Object key = schema.getField(name);
       if (key != null) {
@@ -58,7 +56,7 @@ public class GenericEventValidator {
    * @return true if payloads match
    */
 
-  public static boolean matchPayloads(Object event1, Object event2) {
+  public static boolean matchPayloads(IndexedRecord event1, IndexedRecord event2) {
     Object payload1 = getPayload(event1);
     Object payload2 = getPayload(event2);
     if (payload1 instanceof ByteBuffer) {
@@ -74,7 +72,7 @@ public class GenericEventValidator {
    * @param event2
    * @return true if keys match
    */
-  public static boolean matchKeys(Object event1, Object event2) {
+  public static boolean matchKeys(IndexedRecord event1, IndexedRecord event2) {
     Object key1 = getKey(event1);
     Object key2 = getKey(event2);
     if (key1 instanceof ByteBuffer) {
@@ -102,7 +100,7 @@ public class GenericEventValidator {
    * @throws UnknownTypeException
    * @throws IOException
    */
-  public static boolean validateGenericEventList(List<Object> list1, List<Object> list2)
+  public static boolean validateGenericEventList(List<? extends IndexedRecord> list1, List<? extends IndexedRecord> list2)
       throws UnknownTypeException, IOException {
     if (list1 == null && list2 == null) {
       return true;
@@ -111,11 +109,11 @@ public class GenericEventValidator {
       return false;
     }
 
-    Iterator<Object> iter1 = list1.iterator();
-    Iterator<Object> iter2 = list2.iterator();
+    Iterator<? extends IndexedRecord> iter1 = list1.iterator();
+    Iterator<? extends IndexedRecord> iter2 = list2.iterator();
     while (iter1.hasNext()) {
-      Object obj1 = iter1.next();
-      Object obj2 = iter2.next();
+      IndexedRecord obj1 = iter1.next();
+      IndexedRecord obj2 = iter2.next();
       if (!matchPayloads(obj1, obj2) || !matchKeys(obj1, obj2)) {
         LOG.error("Failed to match event: " + obj1 + " with: " + obj2);
         return false;
