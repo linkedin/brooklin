@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
@@ -168,8 +169,15 @@ public class DatastreamRestClient {
     try {
       datastreamResponseFuture.getResponse();
     } catch (RemoteInvocationException e) {
-      String errorMessage = String.format("Create Datastream {%s} failed with error.", datastream);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      if (e instanceof RestLiResponseException && ((RestLiResponseException) e).getStatus() == HttpStatus.S_409_CONFLICT
+          .getCode()) {
+        String msg = String.format("Datastream %s already exists", datastream.getName());
+        LOG.warn(msg, e);
+        throw new DatastreamAlreadyExistsException(msg);
+      } else {
+        String errorMessage = String.format("Create Datastream {%s} failed with error.", datastream);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
     }
   }
 
@@ -187,8 +195,8 @@ public class DatastreamRestClient {
    *
    */
   public Datastream createBootstrapDatastream(Datastream bootstrapDatastream) {
-    ActionRequest<Datastream> request = _bootstrapBuilders.actionCreate()
-        .boostrapDatastreamParam(bootstrapDatastream).build();
+    ActionRequest<Datastream> request =
+        _bootstrapBuilders.actionCreate().boostrapDatastreamParam(bootstrapDatastream).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
       return datastreamResponseFuture.getResponse().getEntity();
