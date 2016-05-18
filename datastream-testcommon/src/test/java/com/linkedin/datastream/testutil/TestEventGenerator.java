@@ -1,10 +1,13 @@
 package com.linkedin.datastream.testutil;
 
 import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.testutil.event.generator.AbstractEventGenerator;
 import com.linkedin.datastream.testutil.event.generator.DatastreamEventGenerator;
 import com.linkedin.datastream.testutil.event.validator.GenericEventValidator;
 import java.io.IOException;
 import java.util.List;
+
+import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -40,13 +43,14 @@ public class TestEventGenerator {
         + "     \"type\" : \"string\"" + "   }, {" + "     \"name\" : \"taxId\"," + "     \"type\" : \"long\""
         + "   } ]" + " }";
 
-    DatastreamEventGenerator eeg = new DatastreamEventGenerator(schema);
-    eeg.setPercentageUpdates(percentageUpdates);
-    eeg.setPercentageDeletes(percentageDeletes);
+    AbstractEventGenerator.EventGeneratorConfig generatorConfig = new AbstractEventGenerator.EventGeneratorConfig();
+    generatorConfig.setPercentageUpdates(percentageUpdates);
+    generatorConfig.setPercentageDeletes(percentageDeletes);
+    DatastreamEventGenerator eeg = new DatastreamEventGenerator(Schema.parse(schema), generatorConfig);
 
     // generate events
-    List<Object> eventList = eeg.generateGenericEventList(numEvents); // todo this should be generateEventList
-    List<Object> eventList2 = eeg.generateGenericEventList(numEvents);
+    List<DatastreamEvent> eventList = eeg.generateGenericEventList(numEvents); // todo this should be generateEventList
+    List<DatastreamEvent> eventList2 = eeg.generateGenericEventList(numEvents);
 
     Assert.assertTrue(GenericEventValidator.validateGenericEventList(eventList, eventList),
         "Same event lists should pass the event validation");
