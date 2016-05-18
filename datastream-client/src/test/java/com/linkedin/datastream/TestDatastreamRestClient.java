@@ -20,6 +20,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -115,6 +116,16 @@ public class TestDatastreamRestClient {
     clearDatastreamDestination(Collections.singletonList(createdDatastream));
     clearDynamicMetadata(Collections.singletonList(createdDatastream));
     Assert.assertEquals(createdDatastream, datastream);
+  }
+
+  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
+  public void testCreateDatastreamThatAlreadyExists()
+      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+    Datastream datastream = generateDatastream(1);
+    LOG.info("Datastream : " + datastream);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
+    restClient.createDatastream(datastream);
+    restClient.createDatastream(datastream);
   }
 
   @Test
