@@ -4,10 +4,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.List;
-import com.linkedin.datastream.common.DatastreamEvent;
 
+import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.linkedin.datastream.common.DatastreamEvent;
 
 
 public class DatastreamEventProducerRunnable implements Runnable {
@@ -29,9 +31,29 @@ public class DatastreamEventProducerRunnable implements Runnable {
   @Override
   public void run() {
     File schemaFile = new File(_globalSettings._schemataPath, _globalSettings._schemaFileName);
+
+    AbstractEventGenerator.EventGeneratorConfig generatorConfig = new AbstractEventGenerator.EventGeneratorConfig();
+    generatorConfig.setDbName(_globalSettings._dbName);
+    generatorConfig.setTableName(_globalSettings._tableName);
+    generatorConfig.setStartScn(_globalSettings._startResourceKey);
+    generatorConfig.setNumPartitions(_globalSettings._numPartitions);
+    generatorConfig.setMaxTransactionSize(_globalSettings._maxTransactionSize);
+
+    String[] dataPerc = _globalSettings._percentData.split(",");
+
+    if (dataPerc.length > 1) {
+      generatorConfig.setPercentageUpdates(Integer.valueOf(dataPerc[1]));
+    }
+    if (dataPerc.length > 2) {
+      generatorConfig.setPercentageDeletes(Integer.valueOf(dataPerc[2]));
+    }
+    if (dataPerc.length > 3) {
+      generatorConfig.setPercentageControls(Integer.valueOf(dataPerc[3]));
+    }
+
     DatastreamEventGenerator deg = null;
     try {
-      deg = new DatastreamEventGenerator(schemaFile);
+      deg = new DatastreamEventGenerator(Schema.parse(schemaFile), generatorConfig);
     } catch (java.io.IOException exp) {
       LOG.error("Got IOException " + exp.getStackTrace());
     }
@@ -40,28 +62,12 @@ public class DatastreamEventProducerRunnable implements Runnable {
       return;
     }
     deg.setDatastreamName(_globalSettings._datastreamName);
-    deg.setDbName(_globalSettings._dbName);
-    deg.setTableName(_globalSettings._tableName);
-    deg.setStartScn(_globalSettings._startResourceKey);
-    deg.setNumPartitions(_globalSettings._numPartitions);
-    deg.setMaxTransactionSize(_globalSettings._maxTransactionSize);
 
-    String[] dataPerc = _globalSettings._percentData.split(",");
-
-    if (dataPerc.length > 1) {
-      deg.setPercentageUpdates(Integer.valueOf(dataPerc[1]));
-    }
-    if (dataPerc.length > 2) {
-      deg.setPercentageDeletes(Integer.valueOf(dataPerc[2]));
-    }
-    if (dataPerc.length > 3) {
-      deg.setPercentageControls(Integer.valueOf(dataPerc[3]));
-    }
 
     // generate events
     // List<Object> eventList = null;
     try {
-      List<Object> eventList = deg.generateGenericEventList(_globalSettings._numEvents); // todo this should be posting to the proper producer
+      List<DatastreamEvent> eventList = deg.generateGenericEventList(_globalSettings._numEvents); // todo this should be posting to the proper producer
       BufferedWriter indexWriter = new BufferedWriter(new FileWriter(_globalSettings._dataFileName));
       for (Object obj : eventList) {
         @SuppressWarnings("unchecked")
