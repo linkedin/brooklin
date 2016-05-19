@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.server.Coordinator;
@@ -105,9 +105,13 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     try {
       _store.createDatastream(datastream.getName(), datastream);
-      return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
-    } catch (DatastreamException e) {
+    } catch (DatastreamAlreadyExistsException e) {
       return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream, e);
+    } catch (Exception e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          String.format("Failed to create Datastream %s", datastream), e);
     }
+
+    return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
   }
 }
