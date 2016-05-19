@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -78,7 +79,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   }
 
   @Override
-  public void createDatastream(String key, Datastream datastream) throws DatastreamException {
+  public void createDatastream(String key, Datastream datastream) {
     Validate.notNull(datastream, "null datastream");
     Validate.notNull(key, "null key for datastream" + datastream);
 
@@ -87,7 +88,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       String content = _zkClient.ensureReadData(path);
       String errorMessage = String.format("Datastream already exists: path=%s, content=%s", key, content);
       LOG.warn(errorMessage);
-      throw new DatastreamException(errorMessage);
+      throw new DatastreamAlreadyExistsException(errorMessage);
     }
     _zkClient.ensurePath(path);
     String json = DatastreamUtils.toJSON(datastream);
