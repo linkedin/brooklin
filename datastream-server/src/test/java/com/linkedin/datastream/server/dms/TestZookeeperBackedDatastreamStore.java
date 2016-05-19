@@ -1,18 +1,18 @@
 package com.linkedin.datastream.server.dms;
 
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import java.io.IOException;
 
+import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-import org.testng.Assert;
 
-import java.io.IOException;
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class TestZookeeperBackedDatastreamStore {
@@ -70,7 +70,7 @@ public class TestZookeeperBackedDatastreamStore {
     try {
       _store.createDatastream(ds.getName(), ds);
       Assert.fail();
-    } catch (DatastreamException e) {
+    } catch (DatastreamAlreadyExistsException e) {
     }
 
     // deleting the Datastream
@@ -83,13 +83,13 @@ public class TestZookeeperBackedDatastreamStore {
   /**
    * Test invalid parameters or data on DatastreamStore
    */
-  @Test(expectedExceptions = DatastreamException.class)
-  public void testCreateDuplicateDatastreams() throws DatastreamException {
+  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
+  public void testCreateDuplicateDatastreams() {
     try {
       // This must work
       Datastream ds = generateDatastream(0);
       _store.createDatastream(ds.getName(), ds);
-    } catch (DatastreamException e) {
+    } catch (DatastreamAlreadyExistsException e) {
       Assert.fail();
     }
 

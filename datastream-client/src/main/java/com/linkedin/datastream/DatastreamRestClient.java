@@ -201,8 +201,15 @@ public class DatastreamRestClient {
     try {
       return datastreamResponseFuture.getResponse().getEntity();
     } catch (RemoteInvocationException e) {
-      String errorMessage = String.format("Create Bootstrap Datastream {%s} failed with error.", bootstrapDatastream);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      if (e instanceof RestLiResponseException && ((RestLiResponseException) e).getStatus() == HttpStatus.S_409_CONFLICT
+          .getCode()) {
+        String msg = String.format("Datastream %s already exists", bootstrapDatastream.getName());
+        LOG.warn(msg, e);
+        throw new DatastreamAlreadyExistsException(msg);
+      } else {
+        String errorMessage = String.format("Create Bootstrap Datastream {%s} failed with error.", bootstrapDatastream);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
     }
 
     return null;

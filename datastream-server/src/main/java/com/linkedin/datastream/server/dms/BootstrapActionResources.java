@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
@@ -49,13 +50,15 @@ public class BootstrapActionResources {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
     if (!bootstrapDatastream.hasSource()) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Must specify source of Datastream!");
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
     try {
       _coordinator.initializeDatastream(bootstrapDatastream);
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
+    } catch (DatastreamAlreadyExistsException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
+          "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
     } catch (Exception e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
