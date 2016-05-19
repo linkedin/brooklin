@@ -39,7 +39,7 @@ public interface DatastreamStore {
    * @param datastream
    * @throws DatastreamException
    */
-  void createDatastream(String key, Datastream datastream) throws DatastreamException;
+  void createDatastream(String key, Datastream datastream);
 
   /**
    * Deletes the datastream associated with the provided key.

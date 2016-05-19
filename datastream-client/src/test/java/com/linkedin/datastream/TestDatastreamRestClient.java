@@ -227,6 +227,17 @@ public class TestDatastreamRestClient {
     Assert.assertEquals(bootstrapDatastream.getConnectorType(), createdDatastream.getConnectorType());
   }
 
+  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
+  public void testCreateBootstrapDatastreamThatAlreadyExists() {
+
+    Datastream bootstrapDatastream = generateDatastream(4);
+    LOG.info("Bootstrap datastream : " + bootstrapDatastream);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
+    restClient.createBootstrapDatastream(bootstrapDatastream);
+    restClient.createBootstrapDatastream(bootstrapDatastream);
+  }
+
+
   @Test(expectedExceptions = DatastreamNotFoundException.class)
   public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound()
       throws IOException, DatastreamException, RemoteInvocationException {
