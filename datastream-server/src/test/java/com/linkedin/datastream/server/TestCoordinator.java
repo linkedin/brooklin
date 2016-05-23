@@ -6,12 +6,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import com.codahale.metrics.Metric;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -141,6 +143,11 @@ public class TestCoordinator {
     public String toString() {
       return "Connector " + _name + ", StatusId: " + _connectorType + ", Instance: " + _instance;
     }
+
+    @Override
+    public Map<String, Metric> getMetrics() {
+      return null;
+    }
   }
 
   /**
@@ -192,6 +199,11 @@ public class TestCoordinator {
 
       @Override
       public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
+      }
+
+      @Override
+      public Map<String, Metric> getMetrics() {
+        return null;
       }
     };
 
@@ -1173,6 +1185,11 @@ public class TestCoordinator {
     @Override
     public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
         throws DatastreamValidationException {
+    }
+
+    @Override
+    public Map<String, Metric> getMetrics() {
+      return null;
     }
   }
 

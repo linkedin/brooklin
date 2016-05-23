@@ -1,7 +1,10 @@
 package com.linkedin.datastream.connectors;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+
+import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -49,5 +52,10 @@ public class DummyConnector implements Connector {
     if (!stream.getSource().getConnectionString().equals(VALID_DUMMY_SOURCE)) {
       throw new DatastreamValidationException("Invalid source (" + stream.getSource() + ") in datastream.");
     }
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return null;
   }
 }

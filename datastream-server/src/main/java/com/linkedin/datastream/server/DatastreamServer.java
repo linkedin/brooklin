@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -13,8 +14,13 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.ReadOnlyMetricRegistry;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -52,6 +58,9 @@ public class DatastreamServer {
 
   private Map<String, String> _bootstrapConnectors;
 
+  private MetricRegistry _metricRegistry;
+  private JmxReporter _jmxReporter;
+
   public synchronized boolean isInitialized() {
     return _isInitialized;
   }
@@ -62,6 +71,10 @@ public class DatastreamServer {
 
   public Coordinator getCoordinator() {
     return _coordinator;
+  }
+
+  public ReadOnlyMetricRegistry getMetricRegistry() {
+    return new ReadOnlyMetricRegistry(_metricRegistry);
   }
 
   public DatastreamStore getDatastreamStore() {
@@ -144,11 +157,40 @@ public class DatastreamServer {
         "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
 
     verifiableProperties.verify();
+
+    initializeMetrics();
+
     _isInitialized = true;
 
     LOG.info("DatastreamServer initialized successfully.");
   }
+
+  private void initializeMetrics() {
+    if (_metricRegistry == null) {
+      _metricRegistry = new MetricRegistry();
+
+      registerMetrics(_coordinator.getMetrics());
+
+      _jmxReporter = JmxReporter.forRegistry(_metricRegistry).build();
+    }
+  }
+
+  private void registerMetrics(Map<String, Metric> metrics) {
+    Optional.of(metrics).ifPresent(m -> m.forEach((key, value) -> {
+      try {
+        _metricRegistry.register(key, value);
+      } catch (IllegalArgumentException e) {
+        LOG.error("Metric " + key + " has already been registered.", e);
+      }
+    }));
+  }
+
   public synchronized void startup() throws DatastreamException {
+    // Start the JMX reporter
+    if (_jmxReporter != null) {
+      _jmxReporter.start();
+    }
+
     // Start the coordinator
     if (_coordinator != null) {
       _coordinator.start();
@@ -177,6 +219,10 @@ public class DatastreamServer {
         LOG.error("Fail to stop netty launcher.", e);
       }
       _nettyLauncher = null;
+    }
+
+    if (_jmxReporter != null) {
+      _jmxReporter.stop();
     }
     _isInitialized = false;
     _isStarted = false;

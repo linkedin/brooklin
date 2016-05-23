@@ -11,4 +11,5 @@ ext {
     testngVersion = "6.4"
     intellijAnnotations = "12.0"
     commonslang3Version = "3.4"
+    metricsCoreVersion = "3.1.2"
 }
