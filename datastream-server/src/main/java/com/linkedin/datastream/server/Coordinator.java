@@ -2,11 +2,13 @@ package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -25,10 +27,13 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Metric;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -99,7 +104,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  *
  */
 
-public class Coordinator implements ZkAdapter.ZkAdapterListener {
+public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
@@ -134,6 +139,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
 
   // Currently assigned datastream tasks by taskName
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
+
+  private Map<String, Metric> _metrics = new HashMap<>();
 
   public Coordinator(Properties config)
       throws DatastreamException {
@@ -174,6 +181,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       String errorMessage = "failed to create transport provider, factory: " + transportFactory;
       ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
     }
+
+    Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
 
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
     SchemaRegistryProvider schemaRegistry = null;
@@ -218,7 +227,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       // call connector::start API
       connector.start();
 
-      _log.info("Coordiantor started");
+      _log.info("Coordinator started");
     }
 
     // now that instance is started, make sure it doesn't miss any assignment created during
@@ -635,6 +644,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       throw new IllegalArgumentException(err);
     }
 
+    Optional<Map<String, Metric>> connectorMetrics = Optional.ofNullable(connector.getMetrics());
+    connectorMetrics.ifPresent(m -> _metrics.putAll(m));
+
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorType, connector);
     _connectors.put(connectorType, connectorWrapper);
     _strategies.put(connectorWrapper, strategy);
@@ -668,6 +680,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
     if (connector.hasError()) {
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return Collections.unmodifiableMap(_metrics);
   }
 
   /**

@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.api.connector;
 import java.util.List;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
@@ -11,7 +12,7 @@ import com.linkedin.datastream.server.DatastreamTask;
  *  When the Coordinator starts, it will start all connectors it manages by calling the <i>start</i> method. When the Coordinator is
  *  shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
-public interface Connector {
+public interface Connector extends MetricsAware {
 
   /**
    * Method to start the connector. This is called immediately after the connector is instantiated.
@@ -42,4 +43,5 @@ public interface Connector {
    * @throws DatastreamValidationException when the datastream that is being created fails any validation.
    */
   void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) throws DatastreamValidationException;
+
 }

@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
@@ -141,5 +144,10 @@ public class FileConnector implements Connector {
     if (_numPartitions != 1) {
       stream.getSource().setPartitions(_numPartitions);
     }
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return null;
   }
 }

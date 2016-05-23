@@ -12,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Metric;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -118,5 +120,10 @@ public class HeartbeatConnector implements Connector {
   @Override
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return null;
   }
 }

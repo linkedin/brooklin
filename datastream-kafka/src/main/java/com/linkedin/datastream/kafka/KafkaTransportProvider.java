@@ -19,6 +19,9 @@ package com.linkedin.datastream.kafka;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +34,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import kafka.admin.AdminUtils;
 import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
@@ -70,6 +75,10 @@ public class KafkaTransportProvider implements TransportProvider {
   private final ZkUtils _zkUtils;
   private final Duration _retention;
 
+  private final Meter _eventWriteRate;
+  private final Meter _eventByteWriteRate;
+  private final Meter _eventTransportErrorRate;
+
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
@@ -99,6 +108,11 @@ public class KafkaTransportProvider implements TransportProvider {
     props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, VAL_SERIALIZER);
 
     _producer = new KafkaProducer<>(props);
+
+    // initialize metrics
+    _eventWriteRate = new Meter();
+    _eventByteWriteRate = new Meter();
+    _eventTransportErrorRate = new Meter();
   }
 
   private ProducerRecord<byte[], byte[]> convertToProducerRecord(String destinationUri, DatastreamProducerRecord record,
@@ -184,12 +198,15 @@ public class KafkaTransportProvider implements TransportProvider {
           LOG.error(errorMessage, e);
           throw new DatastreamRuntimeException(errorMessage, e);
         }
+        _eventWriteRate.mark();
+        _eventByteWriteRate.mark(event.getKey().length + event.getValue().length);
 
         _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
                 new DatastreamRecordMetadata(String.valueOf(metadata.offset()), metadata.topic(), metadata.partition()),
                 exception));
       }
     } catch (Exception e) {
+      _eventTransportErrorRate.mark();
       String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
           + "failed with exception", record.getEvents(), destinationUri, _brokers);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
@@ -230,5 +247,16 @@ public class KafkaTransportProvider implements TransportProvider {
       return null;
     }
     return Duration.ofMillis(Long.parseLong(props.getProperty(TOPIC_RETENTION_MS)));
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(buildMetricName("eventsWrittenPerSec"), _eventWriteRate);
+    metrics.put(buildMetricName("eventBytesWrittenPerSec"), _eventByteWriteRate);
+    metrics.put(buildMetricName("eventTransportErrorCount"), _eventTransportErrorRate);
+
+    return Collections.unmodifiableMap(metrics);
   }
 }

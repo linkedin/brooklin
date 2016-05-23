@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.api.transport;
 
+import com.linkedin.datastream.common.MetricsAware;
 import java.time.Duration;
 import java.util.Properties;
 
@@ -10,7 +11,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
  * Datastream is transport agnostic system, This is the interface that each TransportProvider needs to be implement
  * to plug the different transport mechanisms (Kafka, kinesis, etc..) to Datastream
  */
-public interface TransportProvider {
+public interface TransportProvider extends MetricsAware {
 
   /**
    * Create a topic with specified number of configurations.
@@ -61,4 +62,5 @@ public interface TransportProvider {
    * @return retention duration
    */
   Duration getRetention(String destination);
+
 }
