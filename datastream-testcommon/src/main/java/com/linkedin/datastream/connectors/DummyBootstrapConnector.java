@@ -1,7 +1,10 @@
 package com.linkedin.datastream.connectors;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+
+import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -41,5 +44,10 @@ public class DummyBootstrapConnector implements Connector {
     if (stream == null || stream.getSource() == null) {
       throw new DatastreamValidationException("Failed to get source from datastream.");
     }
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return null;
   }
 }
