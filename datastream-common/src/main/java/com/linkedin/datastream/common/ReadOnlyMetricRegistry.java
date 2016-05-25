@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.SortedMap;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
@@ -21,6 +22,26 @@ public class ReadOnlyMetricRegistry {
 
   public ReadOnlyMetricRegistry(MetricRegistry metricRegistry) {
     _metricRegistry = metricRegistry;
+  }
+
+  /**
+   * Returns a map of all the gauges in the registry and their names.
+   * @return all the gauges in the registry
+   */
+  @SuppressWarnings("rawtypes")
+  public SortedMap<String, Gauge> getGauges() {
+    return _metricRegistry.getGauges();
+  }
+
+  /**
+   * Returns a map of all the gauges in the registry and their names which match the given filter.
+   * @param filter the metric filter to match
+   * @see {@link com.codahale.metrics.MetricFilter}
+   * @return all the gauges in the registry that match the given filter
+   */
+  @SuppressWarnings("rawtypes")
+  public SortedMap<String, Gauge> getGauges(MetricFilter filter) {
+    return _metricRegistry.getGauges(filter);
   }
 
   /**
