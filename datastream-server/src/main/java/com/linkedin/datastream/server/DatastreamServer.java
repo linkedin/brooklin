@@ -27,6 +27,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
+import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
@@ -170,6 +171,7 @@ public class DatastreamServer {
       _metricRegistry = new MetricRegistry();
 
       registerMetrics(_coordinator.getMetrics());
+      registerMetrics(DatastreamResources.getMetrics());
 
       _jmxReporter = JmxReporter.forRegistry(_metricRegistry).build();
     }
