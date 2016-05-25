@@ -1,7 +1,15 @@
 package com.linkedin.datastream.server.dms;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
@@ -25,6 +33,9 @@ public class BootstrapActionResources {
   private final DatastreamServer _datastreamServer;
   private final ErrorLogger _errorLogger;
 
+  private static final Counter CREATE_CALL = new Counter();
+  private static final Counter CALL_ERROR = new Counter();
+
   public BootstrapActionResources(DatastreamServer datastreamServer) {
     _datastreamServer = datastreamServer;
     _store = datastreamServer.getDatastreamStore();
@@ -41,15 +52,19 @@ public class BootstrapActionResources {
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
 
     LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
+    CREATE_CALL.inc();
 
     if (!bootstrapDatastream.hasName()) {
+      CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
     }
 
     if (!bootstrapDatastream.hasConnectorType()) {
+      CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
     }
     if (!bootstrapDatastream.hasSource()) {
+      CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
@@ -57,13 +72,25 @@ public class BootstrapActionResources {
       _coordinator.initializeDatastream(bootstrapDatastream);
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
     } catch (DatastreamAlreadyExistsException e) {
+      CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
           "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
     } catch (Exception e) {
+      CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }
 
     return bootstrapDatastream;
   }
+
+  public static Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "createCall"), CREATE_CALL);
+    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "callError"), CALL_ERROR);
+
+    return Collections.unmodifiableMap(metrics);
+  }
+
 }
