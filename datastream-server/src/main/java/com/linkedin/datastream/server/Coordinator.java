@@ -27,6 +27,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
@@ -141,6 +142,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
   private Map<String, Metric> _metrics = new HashMap<>();
+  private Counter _numRebalances = new Counter();
+  private Counter _numErrors = new Counter();
 
   public Coordinator(Properties config)
       throws DatastreamException {
@@ -290,6 +293,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onLiveInstancesChange() {
     _log.info("Coordinator::onLiveInstancesChange is called");
+    _numRebalances.inc();
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     _log.info("Coordinator::onLiveInstancesChange completed successfully");
   }
@@ -300,6 +304,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onDatastreamChange() {
     _log.info("Coordinator::onDatastreamChange is called");
+    _numRebalances.inc();
     // if there are new datastreams created, we need to trigger the topic creation logic
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
@@ -385,9 +390,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       try {
         assignmentChangeFuture.get();
       } catch (InterruptedException e) {
+        _numErrors.inc();
         _log.warn("onAssignmentChange call got interrupted", e);
         break;
       } catch (ExecutionException e) {
+        _numErrors.inc();
         _log.warn("onAssignmentChange call threw exception", e);
       }
     }
@@ -441,6 +448,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           // Unassign tasks with producers
           _eventProducerPool.unassignEventProducers(removedTasks);
         } catch (Exception ex) {
+          _numErrors.inc();
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
@@ -476,10 +484,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
         default:
           String errorMessage = String.format("Unknown event type %s.", event.getType());
+          _numErrors.inc();
           ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
           break;
       }
     } catch (Throwable e) {
+      _numErrors.inc();
       _log.error("ERROR: event + " + event + " failed.", e);
     }
 
@@ -527,6 +537,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     } catch (Exception e) {
+      _numErrors.inc();
       _log.error("Failed to update the destination of new datastreams.", e);
 
       // If there are any failure, we will need to schedule retry if
@@ -684,6 +695,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   @Override
   public Map<String, Metric> getMetrics() {
+    _metrics.put(buildMetricName("numRebalances"), _numRebalances);
+    _metrics.put(buildMetricName("numErrors"), _numErrors);
+
     return Collections.unmodifiableMap(_metrics);
   }
 
