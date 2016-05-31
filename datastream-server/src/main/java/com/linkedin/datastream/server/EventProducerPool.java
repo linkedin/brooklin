@@ -129,7 +129,8 @@ public class EventProducerPool {
   private List<EventProducer> createProducers(int poolSize, boolean customCheckpointing) {
     return IntStream.range(0, poolSize).mapToObj(i -> {
       // Each distinct destination has its own transport provider
-      TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
+      TransportProvider transport =
+          _transportProviderFactory.createTransportProvider(_transportProviderConfig);
       return new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
           this::onUnrecoverableError);
     }).collect(Collectors.toList());
@@ -150,7 +151,8 @@ public class EventProducerPool {
 
     _producerPool.get(customCheckpointing).remove(eventProducer);
 
-    TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
+    TransportProvider transport =
+        _transportProviderFactory.createTransportProvider(_transportProviderConfig);
     EventProducer newEventProducer =
         new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
             this::onUnrecoverableError);

@@ -42,6 +42,7 @@ import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -75,6 +76,8 @@ public class KafkaTransportProvider implements TransportProvider {
   private final ZkUtils _zkUtils;
   private final Duration _retention;
 
+  private final DynamicMetricsManager _dynamicMetricsManager;
+  private static final String NUM_EVENTS_METRIC_NAME = "numDataEvents";
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
@@ -110,17 +113,17 @@ public class KafkaTransportProvider implements TransportProvider {
     _producer = new KafkaProducer<>(props);
 
     // initialize metrics
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _eventWriteRate = new Meter();
     _eventByteWriteRate = new Meter();
     _eventTransportErrorRate = new Meter();
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(String destinationUri, DatastreamProducerRecord record,
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination, DatastreamProducerRecord record,
       byte[] key, byte[] payload)
       throws DatastreamException {
 
     Optional<Integer> partition = record.getPartition();
-    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
 
     if (partition.isPresent() && partition.get() >= 0) {
       return new ProducerRecord<>(destination.topicName(), partition.get(), key, payload);
@@ -192,7 +195,9 @@ public class KafkaTransportProvider implements TransportProvider {
       for (Pair<byte[], byte[]> event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          outgoing = convertToProducerRecord(destinationUri, record, event.getKey(), event.getValue());
+          KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
+          _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), NUM_EVENTS_METRIC_NAME, 1);
+          outgoing = convertToProducerRecord(destination, record, event.getKey(), event.getValue());
         } catch (Exception e) {
           String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
           LOG.error(errorMessage, e);
@@ -256,6 +261,18 @@ public class KafkaTransportProvider implements TransportProvider {
     metrics.put(buildMetricName("eventsWrittenPerSec"), _eventWriteRate);
     metrics.put(buildMetricName("eventBytesWrittenPerSec"), _eventByteWriteRate);
     metrics.put(buildMetricName("eventTransportErrorCount"), _eventTransportErrorRate);
+
+    /*
+     * For dynamic metrics captured by regular expression, since we do not have a reference to the actual Metric object,
+     * simply put null value into the map.
+     *
+     * For example, adding the following metric name:
+     *
+     * getDynamicMetricPrefixRegex() + "numEvents"
+     * will capture metrics with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
+     * where xxx is the topic name.
+     */
+    metrics.put(getDynamicMetricPrefixRegex() + "numEvents", null);
 
     return Collections.unmodifiableMap(metrics);
   }
