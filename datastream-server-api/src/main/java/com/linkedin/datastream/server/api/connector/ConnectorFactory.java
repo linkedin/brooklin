@@ -2,7 +2,6 @@ package com.linkedin.datastream.server.api.connector;
 
 import java.util.Properties;
 
-
 /**
  * Connector factory interface, Each connector should implement this which creates the connector instance.
  */
