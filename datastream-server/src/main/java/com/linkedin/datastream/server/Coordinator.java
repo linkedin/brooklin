@@ -147,8 +147,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     this(new CoordinatorConfig((config)));
   }
 
-  public Coordinator(CoordinatorConfig config)
-      throws DatastreamException {
+  public Coordinator(CoordinatorConfig config) throws DatastreamException {
     _config = config;
     _clusterName = _config.getCluster();
 
