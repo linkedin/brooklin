@@ -13,12 +13,34 @@ public interface MetricsAware {
 
   /**
    * Retrieve metrics
+   *
+   * For dynamic metrics to be captured by regular expression, since we do not have a reference to the actual Metric object,
+   * simply put null value into the map.
+   *
    * @return a mapping of metric name to metric
    */
   Map<String, Metric> getMetrics();
 
+  /**
+   * @return the metric name prepended with the caller's class name
+   */
   default String buildMetricName(String metricName) {
     return MetricRegistry.name(this.getClass(), metricName);
   }
 
+  /**
+   * Get a regular expression for all dynaminc metrics created within the class.
+   *
+   * For example, this regular expression should capture all topic-specific metrics emitted by KafkaTransportProvider
+   * with the given format: com.linkedin.datastream.kafka.KafkaTransportProvider.DYNAMIC_TOPIC_NAME.numDataEvents
+   *
+   * This regular expression purposely does not capture non topic-specific metrics. For example, non topic-specific
+   * metric emitted by KafkaTransportProvider with the format com.linkedin.datastream.kafka.KafkaTransportProvider.numDataEvents
+   * will not be captured.
+   *
+   * @return the regular expression to capture all dynamic metrics that will be created within the class
+   */
+  default String getDynamicMetricPrefixRegex() {
+    return this.getClass().getName() + "([-.\\w\\d]+)\\.";
+  }
 }
