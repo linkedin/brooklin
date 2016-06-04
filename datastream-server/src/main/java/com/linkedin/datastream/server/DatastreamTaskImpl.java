@@ -83,8 +83,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   public DatastreamTaskImpl(Datastream datastream, String id, List<Integer> partitions) {
-    Validate.isTrue(datastream != null, "null datastream");
-    Validate.isTrue(id != null, "null id");
+    Validate.notNull(datastream, "null datastream");
+    Validate.notNull(id, "null id");
     _datastreamName = datastream.getName();
     _connectorType = datastream.getConnectorType();
     _datastream = datastream;
@@ -295,7 +295,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @Override
   public String toString() {
-    // toString() is mainly for loggign purpose, feel free to modify the content/format
+    // toString() is mainly for logging purpose, feel free to modify the content/format
     return String.format("%s(%s), partitions=%s", getDatastreamTaskName(), _connectorType, _partitions);
   }
 

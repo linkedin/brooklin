@@ -47,11 +47,11 @@ public class TestServerHealth {
     return datastreamKafkaCluster;
   }
 
-  private static Properties getDummyConnectorProperties(boolean boostrap) {
+  private static Properties getDummyConnectorProperties(boolean bootstrap) {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, TestDatastreamServer.BROADCAST_STRATEGY);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
-    if (boostrap) {
+    if (bootstrap) {
       props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, TestDatastreamServer.DUMMY_BOOTSTRAP_CONNECTOR);
     }
     props.put("dummyProperty", "dummyValue");

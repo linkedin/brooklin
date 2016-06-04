@@ -107,8 +107,8 @@ public class DatastreamTestUtils {
    */
   public static Datastream[] createAndStoreDatastreams(ZkClient zkClient, String cluster, String connectorType,
       String... datastreamNames) throws DatastreamException {
-    Datastream[] datasteams = createDatastreams(connectorType, datastreamNames);
-    storeDatastreams(zkClient, cluster, datasteams);
-    return datasteams;
+    Datastream[] datastreams = createDatastreams(connectorType, datastreamNames);
+    storeDatastreams(zkClient, cluster, datastreams);
+    return datastreams;
   }
 }
