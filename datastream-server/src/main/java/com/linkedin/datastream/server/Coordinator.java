@@ -218,7 +218,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener {
       // call connector::start API
       connector.start();
 
-      _log.info("Coordiantor started");
+      _log.info("Coordinator started");
     }
 
     // now that instance is started, make sure it doesn't miss any assignment created during

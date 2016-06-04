@@ -34,8 +34,8 @@ public class HeartbeatConnector implements Connector {
   private static final String DEFAULT_HEARTBEAT_PERIOD_MS = "5000";
   private static final String CFG_HEARTBEAT_PERIOD = "heartbeatPeriodMs";
 
-  private static final String BROADCAST_CONNECTOR_TYPE = "hearbeatbc";
-  private static final String LOADBALANCING_CONNECTOR_TYPE = "hearbeatlb";
+  private static final String BROADCAST_CONNECTOR_TYPE = "heartbeatbc";
+  private static final String LOADBALANCING_CONNECTOR_TYPE = "heartbeatlb";
 
   private final int _hearbeatPeriodMs;
 

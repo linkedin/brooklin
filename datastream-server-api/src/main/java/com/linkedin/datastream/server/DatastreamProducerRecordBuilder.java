@@ -35,7 +35,7 @@ public class DatastreamProducerRecordBuilder {
    * events within the DatastreamProducerRecord will be sent to different partitions.
    */
   public void setPartition(int partition) {
-    Validate.isTrue(partition >= 0, "invalid partition number: " + String.valueOf(partition));
+    Validate.isTrue(partition >= 0, "invalid partition number: " + partition);
     _partition = Optional.of(partition);
   }
 
