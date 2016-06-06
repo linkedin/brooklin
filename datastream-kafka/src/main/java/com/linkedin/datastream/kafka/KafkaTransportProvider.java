@@ -34,6 +34,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import kafka.admin.AdminUtils;
@@ -68,6 +69,11 @@ public class KafkaTransportProvider implements TransportProvider {
   public static final String DEFAULT_REPLICATION_FACTOR = "1";
   public static final Duration DEFAULT_RETENTION = Duration.ofDays(3);
 
+  private static final String EVENTS_WRITTEN_TOTAL = "eventsWritten";
+  private static final String EVENTS_WRITTEN_PER_SECOND = "eventsWrittenPerSec";
+  private static final String EVENT_BYTES_WRITTEN_PER_SECOND = "eventBytesWrittenPerSec";
+  private static final String EVENT_TRANSPORT_ERROR_COUNT = "eventTransportErrorCount";
+
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
@@ -76,11 +82,11 @@ public class KafkaTransportProvider implements TransportProvider {
   private final ZkUtils _zkUtils;
   private final Duration _retention;
 
-  private final DynamicMetricsManager _dynamicMetricsManager;
-  private static final String NUM_EVENTS_METRIC_NAME = "numDataEvents";
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
-  private final Meter _eventTransportErrorRate;
+  private final Counter _eventTransportErrorCount;
+  private final Counter _eventsWrittenTotal;
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
@@ -116,7 +122,8 @@ public class KafkaTransportProvider implements TransportProvider {
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _eventWriteRate = new Meter();
     _eventByteWriteRate = new Meter();
-    _eventTransportErrorRate = new Meter();
+    _eventTransportErrorCount = new Counter();
+    _eventsWrittenTotal = new Counter();
   }
 
   private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination, DatastreamProducerRecord record,
@@ -185,6 +192,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
+    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
@@ -195,8 +203,6 @@ public class KafkaTransportProvider implements TransportProvider {
       for (Pair<byte[], byte[]> event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
-          _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), NUM_EVENTS_METRIC_NAME, 1);
           outgoing = convertToProducerRecord(destination, record, event.getKey(), event.getValue());
         } catch (Exception e) {
           String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
@@ -209,9 +215,18 @@ public class KafkaTransportProvider implements TransportProvider {
         _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
                 new DatastreamRecordMetadata(String.valueOf(metadata.offset()), metadata.topic(), metadata.partition()),
                 exception));
+        // Update topic-specific metrics and aggregate metrics
+        int numBytes = event.getKey().length + event.getValue().length;
+        _eventWriteRate.mark();
+        _eventByteWriteRate.mark(numBytes);
+        _eventsWrittenTotal.inc();
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENTS_WRITTEN_PER_SECOND, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTES_WRITTEN_PER_SECOND, numBytes);
+        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENTS_WRITTEN_TOTAL, 1);
       }
     } catch (Exception e) {
-      _eventTransportErrorRate.mark();
+      _eventTransportErrorCount.inc();
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENT_TRANSPORT_ERROR_COUNT, 1);
       String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
           + "failed with exception", record.getEvents(), destinationUri, _brokers);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
@@ -258,9 +273,10 @@ public class KafkaTransportProvider implements TransportProvider {
   public Map<String, Metric> getMetrics() {
     Map<String, Metric> metrics = new HashMap<>();
 
-    metrics.put(buildMetricName("eventsWrittenPerSec"), _eventWriteRate);
-    metrics.put(buildMetricName("eventBytesWrittenPerSec"), _eventByteWriteRate);
-    metrics.put(buildMetricName("eventTransportErrorCount"), _eventTransportErrorRate);
+    metrics.put(buildMetricName(EVENTS_WRITTEN_PER_SECOND), _eventWriteRate);
+    metrics.put(buildMetricName(EVENT_BYTES_WRITTEN_PER_SECOND), _eventByteWriteRate);
+    metrics.put(buildMetricName(EVENT_TRANSPORT_ERROR_COUNT), _eventTransportErrorCount);
+    metrics.put(buildMetricName(EVENTS_WRITTEN_TOTAL), _eventsWrittenTotal);
 
     /*
      * For dynamic metrics captured by regular expression, since we do not have a reference to the actual Metric object,
@@ -272,7 +288,11 @@ public class KafkaTransportProvider implements TransportProvider {
      * will capture metrics with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
      * where xxx is the topic name.
      */
-    metrics.put(getDynamicMetricPrefixRegex() + "numEvents", null);
+    metrics.put(getDynamicMetricPrefixRegex() + EVENTS_WRITTEN_PER_SECOND, null);
+    metrics.put(getDynamicMetricPrefixRegex() + EVENT_BYTES_WRITTEN_PER_SECOND, null);
+    metrics.put(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_COUNT, null);
+    metrics.put(getDynamicMetricPrefixRegex() + EVENTS_WRITTEN_TOTAL, null);
+
 
     return Collections.unmodifiableMap(metrics);
   }
