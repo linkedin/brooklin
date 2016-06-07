@@ -34,6 +34,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import kafka.admin.AdminUtils;
@@ -263,16 +264,16 @@ public class KafkaTransportProvider implements TransportProvider {
     metrics.put(buildMetricName("eventTransportErrorCount"), _eventTransportErrorRate);
 
     /*
-     * For dynamic metrics captured by regular expression, since we do not have a reference to the actual Metric object,
-     * simply put null value into the map.
+     * For dynamic metrics captured by regular expression, put an object corresponding to the type of metric that will be
+     * created dynamically.
      *
      * For example, adding the following metric name:
      *
-     * getDynamicMetricPrefixRegex() + "numEvents"
-     * will capture metrics with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
+     * metrics.put(getDynamicMetricPrefixRegex() + "numEvents", new Counter());
+     * will capture a counter metric with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
      * where xxx is the topic name.
      */
-    metrics.put(getDynamicMetricPrefixRegex() + "numEvents", null);
+    metrics.put(getDynamicMetricPrefixRegex() + "numEvents", new Counter());
 
     return Collections.unmodifiableMap(metrics);
   }

@@ -1,5 +1,6 @@
 package com.linkedin.datastream.common;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.SortedMap;
 
@@ -14,14 +15,17 @@ import com.codahale.metrics.Timer;
 
 
 /**
- * Read-only MetricRegistry wrapper that only exposes the accessor methods of MetricRegistry.
+ * Read-only MetricRegistry wrapper that only exposes the accessor methods of MetricRegistry. Also exposes the regular
+ * expressions for names of the dynamic metrics.
  */
 public class ReadOnlyMetricRegistry {
 
-  private MetricRegistry _metricRegistry;
+  private final MetricRegistry _metricRegistry;
+  private final Map<String, Metric> _dynamicMetrics;
 
-  public ReadOnlyMetricRegistry(MetricRegistry metricRegistry) {
+  public ReadOnlyMetricRegistry(MetricRegistry metricRegistry, Map<String, Metric> dynamicMetrics) {
     _metricRegistry = metricRegistry;
+    _dynamicMetrics = dynamicMetrics;
   }
 
   /**
@@ -122,5 +126,14 @@ public class ReadOnlyMetricRegistry {
    */
   public Map<String, Metric> getMetrics() {
     return _metricRegistry.getMetrics();
+  }
+
+  /**
+   * Returns a map where keys are regular expressions to match against dynamic metric names, and values are metric
+   * objects which indicate the type of metric that the dynamic metric will be when it is created.
+   * @return the dynamic metrics
+   */
+  public Map<String, Metric> getDynamicMetrics() {
+    return Collections.unmodifiableMap(_dynamicMetrics);
   }
 }
