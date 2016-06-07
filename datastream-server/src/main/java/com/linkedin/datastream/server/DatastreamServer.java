@@ -21,6 +21,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.common.ReadOnlyMetricRegistry;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -61,12 +62,13 @@ public class DatastreamServer {
 
   private Map<String, String> _bootstrapConnectors;
 
-  private static MetricRegistry _metricRegistry = new MetricRegistry();
+  private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
+  private static final Map<String, Metric> DYNAMIC_METRICS = new HashMap<>();
   private JmxReporter _jmxReporter;
 
   static {
     // Instantiate a dynamic metrics manager singleton object so that other components can emit metrics on the fly
-    DynamicMetricsManager.createInstance(_metricRegistry);
+    DynamicMetricsManager.createInstance(METRIC_REGISTRY);
   }
 
   public synchronized boolean isInitialized() {
@@ -82,7 +84,7 @@ public class DatastreamServer {
   }
 
   public ReadOnlyMetricRegistry getMetricRegistry() {
-    return new ReadOnlyMetricRegistry(_metricRegistry);
+    return new ReadOnlyMetricRegistry(METRIC_REGISTRY, DYNAMIC_METRICS);
   }
 
   public DatastreamStore getDatastreamStore() {
@@ -178,16 +180,18 @@ public class DatastreamServer {
     registerMetrics(DatastreamResources.getMetrics());
     registerMetrics(BootstrapActionResources.getMetrics());
 
-    _jmxReporter = JmxReporter.forRegistry(_metricRegistry).build();
+    _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
   }
 
   private void registerMetrics(Map<String, Metric> metrics) {
     Optional.of(metrics).ifPresent(m -> m.forEach((key, value) -> {
       try {
-        // Values may be null when keys are regular expressions (for dynamic metrics), in which case they are registered
+        // If the key is a regular expression, the metric is dynamic, in which case it should be registered
         // later, after the server starts. Only the "static" metrics need to be registered before the server starts.
-        if (value != null) {
-          _metricRegistry.register(key, value);
+        if (key.contains(MetricsAware.KEY_REGEX)) {
+          DYNAMIC_METRICS.put(key, value);
+        } else {
+          METRIC_REGISTRY.register(key, value);
         }
       } catch (IllegalArgumentException e) {
         LOG.error("Metric " + key + " has already been registered.", e);

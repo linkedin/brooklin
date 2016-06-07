@@ -12,6 +12,13 @@ import com.codahale.metrics.MetricRegistry;
 public interface MetricsAware {
 
   /**
+   * Captures any number of dashes (-), periods, alphanumeric characters, underscores (_), or digits, followed by a period.
+   * This is used to capture topic or partition specific metrics, i.e. TOPIC_NAME.numDataEvents, and is typically prefixed
+   * with an exact match on class name (see {@link #getDynamicMetricPrefixRegex()})
+   */
+  String KEY_REGEX = "([-.\\w\\d]+)\\.";
+
+  /**
    * Retrieve metrics
    *
    * For dynamic metrics to be captured by regular expression, since we do not have a reference to the actual Metric object,
@@ -29,7 +36,7 @@ public interface MetricsAware {
   }
 
   /**
-   * Get a regular expression for all dynaminc metrics created within the class.
+   * Get a regular expression for all dynamic metrics created within the class.
    *
    * For example, this regular expression should capture all topic-specific metrics emitted by KafkaTransportProvider
    * with the given format: com.linkedin.datastream.kafka.KafkaTransportProvider.DYNAMIC_TOPIC_NAME.numDataEvents
@@ -41,6 +48,6 @@ public interface MetricsAware {
    * @return the regular expression to capture all dynamic metrics that will be created within the class
    */
   default String getDynamicMetricPrefixRegex() {
-    return this.getClass().getName() + "([-.\\w\\d]+)\\.";
+    return this.getClass().getName() + KEY_REGEX;
   }
 }
