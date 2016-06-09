@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connectors.file;
+package com.linkedin.datastream.connectors.mysql;
 
 import java.util.Properties;
 
@@ -7,13 +7,13 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
-public class FileConnectorFactory implements ConnectorFactory {
+public class MysqlConnectorFactory implements ConnectorFactory {
   @Override
   public Connector createConnector(Properties config) {
     try {
-      return new FileConnector(config);
+      return new MysqlConnector(config);
     } catch (DatastreamException e) {
-      throw new RuntimeException("File connector instantiation failed with error", e);
+      throw new RuntimeException("Instantiating Mysql connector failed with exception", e);
     }
   }
 }
