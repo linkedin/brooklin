@@ -146,6 +146,15 @@ project(':datastream-file-connector') {
   }
 }
 
+project(':datastream-mysql-connector') {
+  dependencies {
+    compile project(':datastream-server-api')
+    compile "org.apache.avro:avro:$avroVersion"
+    compile "com.zendesk:open-replicator:1.4.2"
+    testCompile 'org.mockito:mockito-core:1.+'
+  }
+}
+
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
