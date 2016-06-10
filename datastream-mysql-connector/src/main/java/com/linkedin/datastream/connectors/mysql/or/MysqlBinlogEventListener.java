@@ -2,7 +2,6 @@ package com.linkedin.datastream.connectors.mysql.or;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +36,6 @@ import com.google.code.or.common.glossary.Row;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
-import com.linkedin.datastream.connectors.mysql.MysqlSource;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -48,19 +46,17 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
 
   // helper for debugging and logging
   private final Map<Integer, String> _eventTypeNames = new HashMap<>();
-  private static final String BINLOG_FILE_PREFIX = "mysql-bin";
   private static final String DEFAULT_SOURCE_ID = "None";
-  private final MysqlSource _source;
-  private final String _username;
-  private final String _password;
+
   private final DatastreamEventProducer _producer;
   private final DatastreamTask _datastreamTask;
+  private final TableInfoProvider _tableInfoProvider;
   private long _mostRecentSeenEventPosition;
   private long _timestampLastSeenEvent;
   private boolean _isBeginTxnSeen;
   private String _sourceId;
   private long _scn;
-  private int _currFileNum;
+  private String _currFileName;
 
   /** Track current table name as reported in bin logs. */
   private HashMap<Long, String> _currDBTableNamesInTransaction = new HashMap<>();
@@ -70,13 +66,12 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   /** Cache of the column metadata for all the tables that are processed by this event listener **/
   HashMap<String, List<ColumnInfo>> _columnMetadataCache = new HashMap<>();
 
-  public MysqlBinlogEventListener(MysqlSource source, DatastreamTask datastreamTask, String username, String password) {
+  public MysqlBinlogEventListener(DatastreamTask datastreamTask, TableInfoProvider tableInfoProvider) {
     initEventTypeNames();
-    _source = source;
-    _username = username;
-    _password = password;
+
     _datastreamTask = datastreamTask;
     _producer = _datastreamTask.getEventProducer();
+    _tableInfoProvider = tableInfoProvider;
   }
 
   private void initEventTypeNames() {
@@ -108,11 +103,6 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     _eventTypeNames.put(25, "DELETE_ROWS_EVENT");
     _eventTypeNames.put(26, "INCIDENT_EVENT");
     _eventTypeNames.put(27, "HEARTBEAT_LOG_EVENT");
-  }
-
-  public static int parseCurrentFileNumber(String fileName, String binlogFilePrefix) {
-    String fileNumStr = fileName.substring(fileName.lastIndexOf(binlogFilePrefix) + binlogFilePrefix.length() + 1);
-    return Integer.parseInt(fileNumStr);
   }
 
   @Override
@@ -203,7 +193,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
 
     if (currFullDBTableName == null || currFullDBTableName.isEmpty()) {
       String errMsg = "Got a call to processBinlogDataEvent with currFullDBTablename = " + currFullDBTableName
-          + " binlogEventHeader = " + binlogEventHeader + " _currFileNum = " + _currFileNum + " position = "
+          + " binlogEventHeader = " + binlogEventHeader + " _currFileName = " + _currFileName + " position = "
           + (int) binlogEventHeader.getPosition();
       LOG.error(errMsg);
       return;
@@ -211,10 +201,9 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
 
     String[] tableNameParts = currFullDBTableName.split("[.]");
     LOG.debug(
-        "File Number: " + _currFileNum + ", Position: " + (int) binlogEventHeader.getPosition() + ", SCN =" + _scn);
+        "File Number: " + _currFileName + ", Position: " + (int) binlogEventHeader.getPosition() + ", SCN =" + _scn);
 
-    MysqlQueryUtils queryUtils = null;
-    List<ColumnInfo> columnMetadata = getColumnList(tableNameParts[0], tableNameParts[1]);
+    List<ColumnInfo> columnMetadata = _tableInfoProvider.getColumnList(tableNameParts[0], tableNameParts[1]);
     ObjectMapper mapper = new ObjectMapper();
     for (int index = 0; index < rows.size(); index++) {
       Row row = rows.get(index);
@@ -228,24 +217,6 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       } catch (IOException e) {
         throw new RuntimeException("Error while serializing the columns", e);
       }
-    }
-  }
-
-  private List<ColumnInfo> getColumnList(String dbName, String tableName) {
-    // TODO We probably need to expire this cache regularly.
-    if (!_columnMetadataCache.containsKey(tableName)) {
-      try {
-        MysqlQueryUtils queryUtils = new MysqlQueryUtils(_source, _username, _password);
-        queryUtils.initializeConnection();
-        List<ColumnInfo> columnMetadata = queryUtils.getColumnList(dbName, tableName);
-        _columnMetadataCache.put(tableName, columnMetadata);
-        return columnMetadata;
-      } catch (SQLException e) {
-        //TODO retry?
-        throw new RuntimeException("Querying mysql threw an exception", e);
-      }
-    } else {
-      return _columnMetadataCache.get(tableName);
     }
   }
 
@@ -283,9 +254,9 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       DatastreamEvent datastreamEvent = new DatastreamEvent();
       datastreamEvent.payload = ByteBuffer.wrap(event.getBytes());
       datastreamEvent.key = null;
-      LOG.info("sending event " + event);
+      LOG.debug("sending event " + event);
       String checkpoint =
-          MysqlCheckpoint.createCheckpointString(_sourceId, _scn, _currFileNum, _mostRecentSeenEventPosition);
+          MysqlCheckpoint.createCheckpointString(_sourceId, _scn, _currFileName, _mostRecentSeenEventPosition);
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
       builder.addEvent(datastreamEvent);
       builder.setPartition(1);
@@ -325,9 +296,8 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     RotateEvent re = (RotateEvent) event;
     String fileName = re.getBinlogFileName().toString();
     // Current fileName now points to the new file. This gets checkpointed immediately after the next transaction.
-    _currFileNum = parseCurrentFileNumber(fileName, BINLOG_FILE_PREFIX);
-    LOG.info("File Rotated : New fileName: " + fileName + ", fileNum: " + _currFileNum + ", BINLOG_FILE_PREFIX: "
-        + BINLOG_FILE_PREFIX);
+    _currFileName = fileName;
+    LOG.info("File Rotated : New fileName: " + fileName + ", current fileName " + _currFileName);
   }
 
   private String getSourceId(BinlogEventV4 event) {
