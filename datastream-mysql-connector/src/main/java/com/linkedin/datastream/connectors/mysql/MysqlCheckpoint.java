@@ -13,12 +13,12 @@ public class MysqlCheckpoint {
 
   private final String _sourceIdStr;
   private final long _transactionId;
-  private final int _fileNum;
+  private final String _binlogFileName;
   private final long _binlogOffset;
   private final String _checkpointStr;
 
-  public static String createCheckpointString(String sourceIdStr, long transactionId, int fileNum, long binlogOffset) {
-    return String.join(DELIMITER, sourceIdStr, String.valueOf(transactionId), String.valueOf(fileNum),
+  public static String createCheckpointString(String sourceIdStr, long transactionId, String binlogFileName, long binlogOffset) {
+    return String.join(DELIMITER, sourceIdStr, String.valueOf(transactionId), binlogFileName,
         String.valueOf(binlogOffset));
   }
 
@@ -26,7 +26,7 @@ public class MysqlCheckpoint {
     String[] elements = checkpointStr.split(DELIMITER);
     _sourceIdStr = elements[0];
     _transactionId = Long.parseLong(elements[1]);
-    _fileNum = Integer.parseInt(elements[2]);
+    _binlogFileName = elements[2];
     _binlogOffset = Long.parseLong(elements[3]);
     _checkpointStr = checkpointStr;
   }
@@ -52,11 +52,8 @@ public class MysqlCheckpoint {
     return _transactionId;
   }
 
-  /**
-   * get the binlog file number
-   */
-  public int getBinlogFileNum() {
-    return _fileNum;
+  public String getBinlogFileName() {
+    return _binlogFileName;
   }
 
   /**
