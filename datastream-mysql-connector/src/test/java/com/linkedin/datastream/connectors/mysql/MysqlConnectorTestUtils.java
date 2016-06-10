@@ -41,7 +41,7 @@ public class MysqlConnectorTestUtils {
     Properties config = new Properties();
     config.put(MysqlConnector.CFG_MYSQL_USERNAME, TEST_USER);
     config.put(MysqlConnector.CFG_MYSQL_PASSWORD, TEST_PASS);
-    config.put(MysqlConnector.CFG_MYSQL_SERVERID, TEST_SERVERID);
+    config.put(MysqlConnector.CFG_MYSQL_SERVER_ID, TEST_SERVERID);
     return config;
   }
 
