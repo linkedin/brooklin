@@ -17,7 +17,8 @@ public class MysqlCheckpoint {
   private final long _binlogOffset;
   private final String _checkpointStr;
 
-  public static String createCheckpointString(String sourceIdStr, long transactionId, String binlogFileName, long binlogOffset) {
+  public static String createCheckpointString(String sourceIdStr, long transactionId, String binlogFileName,
+      long binlogOffset) {
     return String.join(DELIMITER, sourceIdStr, String.valueOf(transactionId), binlogFileName,
         String.valueOf(binlogOffset));
   }
@@ -61,5 +62,10 @@ public class MysqlCheckpoint {
    */
   public long getBinlogOffset() {
     return _binlogOffset;
+  }
+
+  @Override
+  public String toString() {
+    return createCheckpointString(_sourceIdStr, _transactionId, _binlogFileName, _binlogOffset);
   }
 }

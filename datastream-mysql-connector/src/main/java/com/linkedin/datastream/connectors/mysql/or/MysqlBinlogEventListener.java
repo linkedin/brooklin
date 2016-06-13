@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.mysql.or;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +32,9 @@ import com.google.code.or.common.glossary.Pair;
 import com.google.code.or.common.glossary.Row;
 
 import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
@@ -61,7 +61,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   /** Track current table name as reported in bin logs. */
   private HashMap<Long, String> _currDBTableNamesInTransaction = new HashMap<>();
 
-  private List<String> _eventsInTransaction = new ArrayList<>();
+  private List<DatastreamEvent> _eventsInTransaction = new ArrayList<>();
 
   /** Cache of the column metadata for all the tables that are processed by this event listener **/
   HashMap<String, List<ColumnInfo>> _columnMetadataCache = new HashMap<>();
@@ -112,7 +112,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       return;
     }
 
-    LOG.debug("Event Type = " + event.getHeader().getEventType() + " - " + _eventTypeNames.get(
+    LOG.info("Event Type = " + event.getHeader().getEventType() + " - " + _eventTypeNames.get(
         event.getHeader().getEventType()));
 
     LOG.trace("e: " + event);
@@ -128,9 +128,10 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       return;
     }
 
-    if (!_isBeginTxnSeen) {
+    if (event instanceof GtidEvent) {
       _sourceId = getSourceId(event);
       _scn = getScn(event);
+      LOG.info("Start of the transaction " + _scn);
       return;
     }
 
@@ -204,19 +205,55 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
         "File Number: " + _currFileName + ", Position: " + (int) binlogEventHeader.getPosition() + ", SCN =" + _scn);
 
     List<ColumnInfo> columnMetadata = _tableInfoProvider.getColumnList(tableNameParts[0], tableNameParts[1]);
-    ObjectMapper mapper = new ObjectMapper();
+
     for (int index = 0; index < rows.size(); index++) {
       Row row = rows.get(index);
+      HashMap<String, String> keyValues = new HashMap<>();
       HashMap<String, String> rowValues = new HashMap<>();
       List<Column> columns = row.getColumns();
       for (int columnIndex = 0; columnIndex < columns.size(); columnIndex++) {
-        rowValues.put(columnMetadata.get(columnIndex).getColumnName(), columns.get(columnIndex).toString());
+        ColumnInfo columnInfo = columnMetadata.get(columnIndex);
+        rowValues.put(columnInfo.getColumnName(), columns.get(columnIndex).toString());
+        if (columnInfo.isKey()) {
+          keyValues.put(columnInfo.getColumnName(), columns.get(columnIndex).toString());
+        }
       }
-      try {
-        _eventsInTransaction.add(mapper.writeValueAsString(rowValues));
-      } catch (IOException e) {
-        throw new RuntimeException("Error while serializing the columns", e);
-      }
+
+      _eventsInTransaction.add(buildDatastreamEvent(binlogEventType, String.format("%s:%s", _sourceId, _scn),
+          binlogEventHeader.getTimestamp(), tableNameParts[0], tableNameParts[1], JsonUtils.toJson(keyValues),
+          JsonUtils.toJson(rowValues)));
+    }
+  }
+
+  private DatastreamEvent buildDatastreamEvent(int binlogEventType, String gtid, long eventTimestamp, String dbName,
+      String tableName, String key, String value) {
+    Map<CharSequence, CharSequence> metadata = new HashMap<>();
+    metadata.put(DatastreamEventMetadata.OPCODE, getOpCode(binlogEventType).toString());
+    metadata.put("Gtid", gtid);
+    metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, String.valueOf(eventTimestamp));
+    metadata.put(DatastreamEventMetadata.DATABASE, dbName);
+    metadata.put(DatastreamEventMetadata.TABLE, tableName);
+
+    DatastreamEvent datastreamEvent = new DatastreamEvent();
+    datastreamEvent.payload = ByteBuffer.wrap(value.getBytes());
+    datastreamEvent.key = ByteBuffer.wrap(key.getBytes());
+    datastreamEvent.metadata = metadata;
+    return datastreamEvent;
+  }
+
+  private DatastreamEventMetadata.OpCode getOpCode(int binlogEventType) {
+    switch (binlogEventType) {
+      case UpdateRowsEvent.EVENT_TYPE:
+      case UpdateRowsEventV2.EVENT_TYPE:
+        return DatastreamEventMetadata.OpCode.UPDATE;
+      case DeleteRowsEvent.EVENT_TYPE:
+      case DeleteRowsEventV2.EVENT_TYPE:
+        return DatastreamEventMetadata.OpCode.DELETE;
+      case WriteRowsEvent.EVENT_TYPE:
+      case WriteRowsEventV2.EVENT_TYPE:
+        return DatastreamEventMetadata.OpCode.INSERT;
+      default:
+        throw new DatastreamRuntimeException("Unknown event of type " + binlogEventType);
     }
   }
 
@@ -250,25 +287,26 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   }
 
   private void endTransaction(BinlogEventV4 e) {
-    for (String event : _eventsInTransaction) {
-      DatastreamEvent datastreamEvent = new DatastreamEvent();
-      datastreamEvent.payload = ByteBuffer.wrap(event.getBytes());
-      datastreamEvent.key = null;
-      LOG.debug("sending event " + event);
+    LOG.info("Ending transaction " + _scn);
+    if (_eventsInTransaction.size() > 0) {
+      // Write events to the producer only if there are events in this transaction.
+      DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+      // TODO we need to support mysql connector that can write to multi partition destination.
+      builder.setPartition(0);
       String checkpoint =
           MysqlCheckpoint.createCheckpointString(_sourceId, _scn, _currFileName, _mostRecentSeenEventPosition);
-      DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-      builder.addEvent(datastreamEvent);
-      builder.setPartition(1);
       builder.setSourceCheckpoint(checkpoint);
+      _eventsInTransaction.forEach(builder::addEvent);
       _producer.send(builder.build(), (metadata, exception) -> {
         if (exception == null) {
           LOG.debug(String.format("Sending event succeeded, metadata:{%s}", metadata));
         } else {
+          // TODO we need to handle this by closing the producer and moving to the old checkpoint.
           LOG.error(String.format("Sending event failed, metadata:{%s}", metadata), exception);
         }
       });
     }
+
     resetTransactionData();
   }
 
@@ -341,6 +379,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   private boolean isEventIgnorable(BinlogEventV4 event) {
     // Beginning of Txn
     if (event instanceof FormatDescriptionEvent) {
+      _currFileName = ((FormatDescriptionEvent) event).getBinlogFilename();
       // this event provides information about the structure of the following events
       // this information is already processed and used by the Open Replicator
       LOG.info("FormatDescriptionEvent received(binlog rotated?).");

@@ -8,6 +8,7 @@ public class ColumnInfo {
   private final Long _charOctetLength;
   private final Long _numericPrecision;
   private final Long _numericScale;
+  private final boolean _isKey;
 
   public String getColumnName() {
     return _columnName;
@@ -33,15 +34,24 @@ public class ColumnInfo {
     return _numericScale;
   }
 
-  public ColumnInfo(String columnName, String dataType, Long charMaxLength, Long charOctetLength, Long numericPrecision,
-      Long numericScale) {
+  public ColumnInfo(String columnName, boolean isKey, String dataType, Long charMaxLength, Long charOctetLength,
+      Long numericPrecision, Long numericScale) {
     super();
-    this._columnName = columnName;
-    this._dataType = dataType;
-    this._charMaxLength = charMaxLength;
-    this._charOctetLength = charOctetLength;
-    this._numericPrecision = numericPrecision;
-    this._numericScale = numericScale;
+    _columnName = columnName;
+    _isKey = isKey;
+    _dataType = dataType;
+    _charMaxLength = charMaxLength;
+    _charOctetLength = charOctetLength;
+    _numericPrecision = numericPrecision;
+    _numericScale = numericScale;
+  }
+
+  public ColumnInfo(String columnName, boolean isKey) {
+    this(columnName, isKey, "", null, null, null, null);
+  }
+
+  public ColumnInfo(String columnName) {
+    this(columnName, false, "", null, null, null, null);
   }
 
   @Override
@@ -49,5 +59,9 @@ public class ColumnInfo {
     return "ColumnInfo [columnName=" + _columnName + ", dataType=" + _dataType + ", charMaxLength=" + _charMaxLength
         + ", charOctetLength=" + _charOctetLength + ", numericPrecision=" + _numericPrecision + ", numericScale="
         + _numericScale + "]";
+  }
+
+  public boolean isKey() {
+    return _isKey;
   }
 }
