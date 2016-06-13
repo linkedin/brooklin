@@ -16,6 +16,7 @@ import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.NetworkUtils;
 import com.linkedin.datastream.kafka.KafkaCluster;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class EmbeddedDatastreamCluster {
@@ -27,6 +28,8 @@ public class EmbeddedDatastreamCluster {
 
   // the zookeeper ports that are currently taken
   private final KafkaCluster _kafkaCluster;
+  private final String _zkAddress;
+  private EmbeddedZookeeper _zk = null;
 
   private int _numServers;
   private List<Integer> _datastreamPorts = new ArrayList<>();
@@ -34,9 +37,18 @@ public class EmbeddedDatastreamCluster {
   private List<DatastreamServer> _servers = new ArrayList<>();
 
   private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override,
-      KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts)
-      throws IOException {
+      KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts) throws IOException {
     _kafkaCluster = kafkaCluster;
+
+    // If the datastream cluster doesn't use the Kafka as transport, then we setup our own zookeeper otherwise
+    // use the kafka's zookeeper.
+    if (_kafkaCluster != null) {
+      _zkAddress = _kafkaCluster.getZkConnection();
+    } else {
+      _zk = new EmbeddedZookeeper();
+      _zkAddress = _zk.getConnection();
+    }
+
     _numServers = numServers;
     for (int i = 0; i < numServers; i++) {
       _servers.add(null);
@@ -46,14 +58,18 @@ public class EmbeddedDatastreamCluster {
         dmsPort = dmsPorts.get(i);
       }
       _datastreamPorts.add(dmsPort);
-      setupDatastreamProperties(i, _kafkaCluster.getZkConnection(), connectorProperties, override, kafkaCluster);
+      setupDatastreamProperties(i, _zkAddress, connectorProperties, override, kafkaCluster);
     }
   }
 
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
-      Map<String, Properties> connectorProperties, Properties override)
-      throws IllegalArgumentException, IOException, DatastreamException {
+      Map<String, Properties> connectorProperties, Properties override) throws IOException, DatastreamException {
     return newTestDatastreamCluster(kafkaCluster, connectorProperties, override, 1, null);
+  }
+
+  public static EmbeddedDatastreamCluster newTestDatastreamCluster(Map<String, Properties> connectorProperties,
+      Properties override) throws IOException, DatastreamException {
+    return newTestDatastreamCluster(null, connectorProperties, override);
   }
 
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
@@ -63,8 +79,8 @@ public class EmbeddedDatastreamCluster {
     return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, null);
   }
 
-  private void setupDatastreamProperties(int index, String zkConnectionString, Map<String, Properties> connectorProperties,
-      Properties override, KafkaCluster kafkaCluster) {
+  private void setupDatastreamProperties(int index, String zkConnectionString,
+      Map<String, Properties> connectorProperties, Properties override, KafkaCluster kafkaCluster) {
     String connectorTypes = connectorProperties.keySet().stream().collect(Collectors.joining(","));
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "DatastreamCluster");
@@ -74,13 +90,21 @@ public class EmbeddedDatastreamCluster {
     }
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(_datastreamPorts.get(index)));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, connectorTypes);
-    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
-    properties.put(String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
-        kafkaCluster.getBrokers());
-    properties.put(String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
-        kafkaCluster.getZkConnection());
+
+    if (_kafkaCluster != null) {
+      properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
+      properties.put(
+          String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
+          kafkaCluster.getBrokers());
+      properties.put(String.format("%s.kafka.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
+          kafkaCluster.getZkConnection());
+    } else {
+      properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY,
+          InMemoryTransportProviderFactory.class.getTypeName());
+    }
+
     properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-            "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
+        "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
     if (override != null) {
@@ -116,8 +140,7 @@ public class EmbeddedDatastreamCluster {
    */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
       Map<String, Properties> connectorProperties, Properties override, int numServers,
-      @Nullable List<Integer> dmsPorts)
-      throws IllegalArgumentException, IOException, DatastreamException {
+      @Nullable List<Integer> dmsPorts) throws IllegalArgumentException, IOException, DatastreamException {
 
     return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, dmsPorts);
   }
@@ -162,7 +185,7 @@ public class EmbeddedDatastreamCluster {
 
   public String getBrokerList() {
     if (_kafkaCluster == null) {
-      LOG.error("kafka cluster not started correctly");
+      LOG.error("This datastream cluster doesn't use kafka for transport");
       return null;
     }
 
@@ -170,28 +193,20 @@ public class EmbeddedDatastreamCluster {
   }
 
   public String getZkConnection() {
-    if (_kafkaCluster == null) {
-      LOG.error("failed to get zookeeper connection string. Zookeeper service not started correctly.");
-      return null;
-    }
-
-    return _kafkaCluster.getZkConnection();
+    return _zkAddress;
   }
 
-  private void prepareStartup()
-      throws IOException {
-    if (_kafkaCluster == null) {
-      LOG.error("failed to start up kafka cluster: kafka cluster is not initialized correctly.");
-      return;
+  private void prepareStartup() throws IOException {
+    if (_zk != null && !_zk.isStarted()) {
+      _zk.startup();
     }
 
-    if (!_kafkaCluster.isStarted()) {
+    if (_kafkaCluster != null && !_kafkaCluster.isStarted()) {
       _kafkaCluster.startup();
     }
   }
 
-  public void startupServer(int index)
-      throws IOException, DatastreamException {
+  public void startupServer(int index) throws IOException, DatastreamException {
     Validate.isTrue(index >= 0, "Server index out of bound: " + index);
     if (index < _servers.size() && _servers.get(index) != null) {
       LOG.warn(String.format("Server[%d] already exists, skipping.", index));
@@ -207,8 +222,7 @@ public class EmbeddedDatastreamCluster {
     LOG.info(String.format("DatastreamServer[%d] started.", index));
   }
 
-  public void startup()
-      throws IOException, DatastreamException {
+  public void startup() throws IOException, DatastreamException {
     int numServers = _numServers;
     for (int i = 0; i < numServers; i++) {
       startupServer(i);
@@ -239,6 +253,10 @@ public class EmbeddedDatastreamCluster {
 
     if (_kafkaCluster != null) {
       _kafkaCluster.shutdown();
+    }
+
+    if (_zk != null) {
+      _zk.shutdown();
     }
   }
 }
