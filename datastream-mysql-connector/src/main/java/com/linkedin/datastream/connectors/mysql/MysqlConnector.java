@@ -1,8 +1,7 @@
 package com.linkedin.datastream.connectors.mysql;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
+import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,13 +40,15 @@ public class MysqlConnector implements Connector {
 
   public enum SourceType {
     // Use binlog folder in the filesystem as a source for the connector to ingest events. This is used for testing.
-    FILESYSTEM,
+    MYSQLBINLOG,
 
-    // Use binlogs from Mysql server as the source for the connector to ingest events.
+    // Use Mysql server as the source for the connector to ingest events.
     MYSQLSERVER
   }
 
   private static final Logger LOG = LoggerFactory.getLogger(MysqlConnector.class);
+
+  public static final String CONNECTOR_TYPE = "mysql";
   public static final String CFG_MYSQL_USERNAME = "username";
   public static final String CFG_MYSQL_PASSWORD = "password";
   public static final String CFG_MYSQL_SERVER_ID = "serverId";
@@ -71,11 +72,17 @@ public class MysqlConnector implements Connector {
     _defaultUserName = config.getProperty(CFG_MYSQL_USERNAME);
     _defaultPassword = config.getProperty(CFG_MYSQL_PASSWORD);
     String strServerId = config.getProperty(CFG_MYSQL_SERVER_ID);
-    // TODO we should pick up the username and password from the datastream rather than the defaults.
-    if (_defaultUserName == null || _defaultPassword == null || strServerId == null) {
-      throw new DatastreamException("Missing mysql username, password, or serverId property.");
-    }
     _sourceType = SourceType.valueOf(config.getProperty(CFG_MYSQL_SOURCE_TYPE, DEFAULT_MYSQL_SOURCE_TYPE));
+
+    if (strServerId == null) {
+      throw new DatastreamRuntimeException("Missing serverId property.");
+    }
+
+    // TODO we should pick up the username and password from the datastream rather than the defaults.
+    if (_sourceType == SourceType.MYSQLSERVER && (_defaultUserName == null || _defaultPassword == null)) {
+      throw new DatastreamRuntimeException("Missing mysql username or password.");
+    }
+
     _defaultServerId = Integer.valueOf(strServerId);
     _mysqlProducers = new ConcurrentHashMap<>();
 
@@ -110,7 +117,7 @@ public class MysqlConnector implements Connector {
   }
 
   private MysqlReplicator createReplicator(DatastreamTask task) {
-    if (_sourceType == SourceType.FILESYSTEM) {
+    if (_sourceType == SourceType.MYSQLBINLOG) {
       return createReplicatorForBinLog(task);
     } else {
       return createReplicatorForMysqlServer(task);
@@ -121,34 +128,41 @@ public class MysqlConnector implements Connector {
     MysqlSource source = parseMysqlSource(task);
     String binlogFolder;
     try {
-      // We use the hostname part of the URI to describe the binlogFolder if the source type is filesystem.
-      binlogFolder = URLDecoder.decode(source.getHostName(), StandardCharsets.UTF_8.name());
-    } catch (UnsupportedEncodingException e) {
-      String msg = "Decoding the url threw an exception";
+      binlogFolder = new File(source.getBinlogFolderName()).getCanonicalPath();
+    } catch (IOException e) {
+      String msg =
+          String.format("Unable to find the canonical path for binlogFolder: %s", source.getBinlogFolderName());
       LOG.error(msg, e);
       throw new DatastreamRuntimeException(msg, e);
     }
 
+    LOG.info(
+        String.format("Creating mysql replicator for DB: %s table: %s and binlogFolder: %s", source.getDatabaseName(),
+            source.getTableName(), binlogFolder));
     MysqlSourceBinlogRowEventFilter rowEventFilter =
-        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.getTableName());
+        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.isAllTables(), source.getTableName());
     MysqlBinlogParser replicator = new MysqlBinlogParser(binlogFolder, rowEventFilter, new MysqlBinlogParserListener());
     replicator.setBinlogEventListener(
         new MysqlBinlogEventListener(task, InMemoryTableInfoProvider.getTableInfoProvider()));
+
     return replicator;
   }
 
   private MysqlReplicatorImpl createReplicatorForMysqlServer(DatastreamTask task) {
     MysqlSource source = parseMysqlSource(task);
 
+    LOG.info("Creating mysql replicator for DB: %s table: %s and mysql server: %s:%s", source.getDatabaseName(),
+        source.getTableName(), source.getHostName(), source.getPort());
+
     MysqlSourceBinlogRowEventFilter rowEventFilter =
-        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.getTableName());
+        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.isAllTables(), source.getTableName());
     MysqlBinlogParserListener parserListener = new MysqlBinlogParserListener();
 
     MysqlReplicatorImpl replicator =
         new MysqlReplicatorImpl(source, _defaultUserName, _defaultPassword, _defaultServerId, rowEventFilter,
             parserListener);
 
-    MysqlServerTableInfoProvider tableInfoProvider = null;
+    MysqlServerTableInfoProvider tableInfoProvider;
     try {
       tableInfoProvider = new MysqlServerTableInfoProvider(source, _defaultUserName, _defaultPassword);
     } catch (SQLException e) {
@@ -206,22 +220,23 @@ public class MysqlConnector implements Connector {
       for (DatastreamTask task : tasks) {
         MysqlReplicator replicator = _mysqlProducers.get(task);
         if (replicator == null) {
-          LOG.info("New task {%s} assigned to the current instance, Creating mysql producer for " + task.toString());
+          LOG.info(String.format("New task {%s} assigned to the current instance, Creating mysql producer for ",
+              task.toString()));
           replicator = createReplicator(task);
         }
 
-        startReplicator(replicator);
+        startReplicator(task, replicator);
       }
 
       stopReassignedTasks(tasks);
     }
   }
 
-  private void startReplicator(MysqlReplicator replicator) {
+  private void startReplicator(DatastreamTask task, MysqlReplicator replicator) {
     try {
       replicator.start();
     } catch (Exception e) {
-      String msg = String.format("Starting replicator {%s} failed with exception", replicator);
+      String msg = String.format("Starting replicator for datastream task {%s} failed with exception", task);
       LOG.error(msg, e);
       throw new DatastreamRuntimeException(msg, e);
     }
@@ -261,21 +276,42 @@ public class MysqlConnector implements Connector {
     LOG.info("validating datastream " + stream.toString());
     try {
       MysqlSource source = MysqlSource.createFromUri(stream.getSource().getConnectionString());
-      MysqlQueryUtils queryUtils =
-          new MysqlQueryUtils(source, getUserNameFromDatastream(stream), getPasswordFromDatastream(stream));
-      queryUtils.initializeConnection();
-      if (!queryUtils.checkTableExist(source.getDatabaseName(), source.getTableName())) {
-        throw new DatastreamValidationException(
-            String.format("Invalid datastream: Can't find table %s in db %s.", source.getDatabaseName(),
-                source.getTableName()));
+      if (source.getSourceType() != _sourceType) {
+        String msg = String.format("Connector can only support datastreams of source type: %s", _sourceType);
+        LOG.error(msg);
+        throw new DatastreamValidationException(msg);
       }
-      queryUtils.closeConnection();
+
+      if (_sourceType == SourceType.MYSQLSERVER) {
+        MysqlQueryUtils queryUtils =
+            new MysqlQueryUtils(source, getUserNameFromDatastream(stream), getPasswordFromDatastream(stream));
+        try {
+          queryUtils.initializeConnection();
+          if (!queryUtils.checkTableExist(source.getDatabaseName(), source.getTableName())) {
+            throw new DatastreamValidationException(
+                String.format("Invalid datastream: Can't find table %s in db %s.", source.getDatabaseName(),
+                    source.getTableName()));
+          }
+        } finally {
+          queryUtils.closeConnection();
+        }
+
+      } else {
+        File binlogFolder = new File(source.getBinlogFolderName());
+        if (!binlogFolder.exists()) {
+          String msg = String.format("BinlogFolder %s doesn't exist", binlogFolder.getAbsolutePath());
+          LOG.error(msg);
+          throw new DatastreamValidationException(msg);
+        }
+      }
+
+      if (stream.getSource().hasPartitions() && stream.getSource().getPartitions() != 1) {
+        String msg = "Mysql connector can only support single partition sources";
+        LOG.error(msg);
+        throw new DatastreamValidationException(msg);
+      }
     } catch (SourceNotValidException | SQLException e) {
       throw new DatastreamValidationException(e);
-    }
-    if (stream.getSource().hasPartitions() && stream.getSource().getPartitions() != 1) {
-      // we only allow partition number to be one in mysql
-      stream.getSource().setPartitions(1);
     }
   }
 

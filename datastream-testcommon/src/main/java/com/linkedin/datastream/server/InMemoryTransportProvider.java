@@ -1,8 +1,9 @@
 package com.linkedin.datastream.server;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +25,8 @@ public class InMemoryTransportProvider implements TransportProvider {
 
   private HashMap<String, Integer> _topics = new HashMap<>();
 
+  // Map of destination connection string to the list of events.
   private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new HashMap<>();
-
-  public static final String URI_FORMAT = "memory://%s";
 
   @Override
   public synchronized String createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
@@ -37,7 +37,7 @@ public class InMemoryTransportProvider implements TransportProvider {
       throw new TransportException(msg);
     }
     _topics.put(topicName, numberOfPartitions);
-    return String.format(URI_FORMAT, topicName);
+    return topicName;
   }
 
   @Override
@@ -51,28 +51,30 @@ public class InMemoryTransportProvider implements TransportProvider {
   }
 
   public static String getDestination(String topicName) {
-    return String.format(URI_FORMAT, topicName);
+    return topicName;
   }
 
   public static String getTopicName(String destination) {
-    return URI.create(destination).getPath().substring(1);
+    return destination;
   }
 
   @Override
-  public synchronized void send(String destination, DatastreamProducerRecord record, SendCallback onComplete)
+  public synchronized void send(String connectionString, DatastreamProducerRecord record, SendCallback onComplete)
       throws TransportException {
-    String topicName = getTopicName(destination);
+    String topicName = getTopicName(connectionString);
     if (!_topics.containsKey(topicName)) {
       String msg = String.format("Topic %s doesn't exist", topicName);
       LOG.error(msg);
       throw new TransportException(msg);
     }
 
-    if (!_recordsReceived.containsKey(destination)) {
-      _recordsReceived.put(destination, new ArrayList<>());
+    if (!_recordsReceived.containsKey(connectionString)) {
+      _recordsReceived.put(connectionString, new ArrayList<>());
     }
 
-    _recordsReceived.get(destination).add(record);
+    LOG.info(String.format("Adding record with %d events to topic %s", record.getEvents().size(), topicName));
+
+    _recordsReceived.get(connectionString).add(record);
   }
 
   @Override
@@ -95,5 +97,16 @@ public class InMemoryTransportProvider implements TransportProvider {
   @Override
   public Map<String, Metric> getMetrics() {
     return _metrics;
+  }
+
+  public long getTotalEventsReceived(String connectionString) {
+    long totalEventsReceived = _recordsReceived.getOrDefault(connectionString, Collections.emptyList())
+        .stream()
+        .map(DatastreamProducerRecord::getEvents)
+        .flatMap(Collection::stream)
+        .count();
+    LOG.info(
+        String.format("Total events received for the destination %s is %d", connectionString, totalEventsReceived));
+    return totalEventsReceived;
   }
 }

@@ -94,7 +94,7 @@ public final class JsonUtils {
     try {
       MAPPER.writeValue(out, object);
     } catch (IOException e) {
-      String errorMessage = "Failed to deserialize object: " + object;
+      String errorMessage = "Failed to serialize object: " + object;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
     return out.toString();
