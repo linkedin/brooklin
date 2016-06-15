@@ -29,6 +29,7 @@ import com.linkedin.restli.server.annotations.RestLiActions;
 @RestLiActions(name = "bootstrap", namespace = "com.linkedin.datastream.server.dms")
 public class BootstrapActionResources {
   private static final Logger LOG = LoggerFactory.getLogger(BootstrapActionResources.class);
+  private static final String CLASS_NAME = BootstrapActionResources.class.getSimpleName();
 
   private final DatastreamStore _store;
   private final Coordinator _coordinator;
@@ -94,9 +95,9 @@ public class BootstrapActionResources {
   public static Map<String, Metric> getMetrics() {
     Map<String, Metric> metrics = new HashMap<>();
 
-    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "createCall"), CREATE_CALL);
-    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "callError"), CALL_ERROR);
-    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "createCallLatency"), CREATE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatency"), CREATE_CALL_LATENCY);
 
     return Collections.unmodifiableMap(metrics);
   }
