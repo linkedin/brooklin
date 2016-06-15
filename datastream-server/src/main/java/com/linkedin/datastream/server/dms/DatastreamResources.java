@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -51,6 +53,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final Counter CREATE_CALL = new Counter();
   private static final Counter CALL_ERROR = new Counter();
 
+  private static final Histogram CREATE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
+  private static final Histogram DELETE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
+
   public DatastreamResources(DatastreamServer datastreamServer) {
     _store = datastreamServer.getDatastreamStore();
     _coordinator = datastreamServer.getCoordinator();
@@ -68,7 +73,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public UpdateResponse delete(String key) {
     LOG.info("Delete datastream called for datastream " + key);
     DELETE_CALL.inc();
+    long startTime = System.currentTimeMillis();
     _store.deleteDatastream(key);
+    DELETE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
     return new UpdateResponse(HttpStatus.S_200_OK);
   }
 
@@ -120,6 +127,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
     }
 
+    long startTime = System.currentTimeMillis();
+
     try {
       _coordinator.initializeDatastream(datastream);
     } catch (DatastreamValidationException e) {
@@ -138,6 +147,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           String.format("Failed to create Datastream %s", datastream), e);
     }
 
+    CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+
     return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
   }
 
@@ -150,6 +161,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     metrics.put(MetricRegistry.name(DatastreamResources.class, "getAllCall"), GET_ALL_CALL);
     metrics.put(MetricRegistry.name(DatastreamResources.class, "createCall"), CREATE_CALL);
     metrics.put(MetricRegistry.name(DatastreamResources.class, "callError"), CALL_ERROR);
+
+    metrics.put(MetricRegistry.name(DatastreamResources.class, "createCallLatency"), CREATE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(DatastreamResources.class, "deleteCallLatency"), DELETE_CALL_LATENCY);
 
     return Collections.unmodifiableMap(metrics);
   }

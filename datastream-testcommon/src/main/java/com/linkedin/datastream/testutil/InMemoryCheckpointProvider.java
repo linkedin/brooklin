@@ -7,6 +7,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Metric;
+
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -35,5 +37,10 @@ public class InMemoryCheckpointProvider implements CheckpointProvider {
       }
     }
     return ret;
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    return null;
   }
 }

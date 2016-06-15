@@ -2,9 +2,12 @@ package com.linkedin.datastream.connectors.file;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
@@ -43,12 +47,18 @@ public class FileConnector implements Connector {
   private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
+  private final Gauge<Integer> _numDatastreamTasks;
+  private int _numTasks = 0;
+
   public FileConnector(Properties config) throws DatastreamException {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 
     _numPartitions = Integer.parseInt(config.getProperty(CFG_NUM_PARTITIONS, "1"));
     _fileProcessors = new ConcurrentHashMap<>();
+
+    // initialize metrics
+    _numDatastreamTasks = () -> _numTasks;
   }
 
   @Override
@@ -93,6 +103,7 @@ public class FileConnector implements Connector {
 
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
+    Optional.ofNullable(tasks).ifPresent(t -> _numTasks = tasks.size());
     LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks));
     Set<DatastreamTask> unassigned = new HashSet<>(_fileProcessors.keySet());
     unassigned.removeAll(tasks);
@@ -131,6 +142,10 @@ public class FileConnector implements Connector {
 
   @Override
   public Map<String, Metric> getMetrics() {
-    return null;
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(buildMetricName("numDatastreamTasks"), _numDatastreamTasks);
+
+    return Collections.unmodifiableMap(metrics);
   }
 }

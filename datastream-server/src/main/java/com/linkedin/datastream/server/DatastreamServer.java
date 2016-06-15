@@ -194,7 +194,7 @@ public class DatastreamServer {
           METRIC_REGISTRY.register(key, value);
         }
       } catch (IllegalArgumentException e) {
-        LOG.error("Metric " + key + " has already been registered.", e);
+        LOG.warn("Metric " + key + " has already been registered.", e);
       }
     }));
   }
