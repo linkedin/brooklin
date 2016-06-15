@@ -3,13 +3,14 @@ package com.linkedin.datastream.server.providers;
 import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
  * Checkpoint provider
  */
-public interface CheckpointProvider {
+public interface CheckpointProvider extends MetricsAware {
 
   /**
    * Commit the checkpoints to the checkpoint store.

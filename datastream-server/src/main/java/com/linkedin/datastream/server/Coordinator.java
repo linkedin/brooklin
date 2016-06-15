@@ -210,6 +210,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
+    Optional.ofNullable(cpProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
+
     _eventProducerPool = new EventProducerPool(cpProvider, schemaRegistry, factory,
         coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
