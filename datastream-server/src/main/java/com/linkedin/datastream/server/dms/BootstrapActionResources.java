@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -35,6 +37,7 @@ public class BootstrapActionResources {
 
   private static final Counter CREATE_CALL = new Counter();
   private static final Counter CALL_ERROR = new Counter();
+  private static final Histogram CREATE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
 
   public BootstrapActionResources(DatastreamServer datastreamServer) {
     _datastreamServer = datastreamServer;
@@ -68,6 +71,8 @@ public class BootstrapActionResources {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
     }
 
+    long startTime = System.currentTimeMillis();
+
     try {
       _coordinator.initializeDatastream(bootstrapDatastream);
       _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
@@ -81,6 +86,8 @@ public class BootstrapActionResources {
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }
 
+    CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+
     return bootstrapDatastream;
   }
 
@@ -89,6 +96,7 @@ public class BootstrapActionResources {
 
     metrics.put(MetricRegistry.name(BootstrapActionResources.class, "createCall"), CREATE_CALL);
     metrics.put(MetricRegistry.name(BootstrapActionResources.class, "callError"), CALL_ERROR);
+    metrics.put(MetricRegistry.name(BootstrapActionResources.class, "createCallLatency"), CREATE_CALL_LATENCY);
 
     return Collections.unmodifiableMap(metrics);
   }

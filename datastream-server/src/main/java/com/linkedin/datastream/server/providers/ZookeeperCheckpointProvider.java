@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.providers;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +8,11 @@ import java.util.Map;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -18,8 +24,15 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private final ZkAdapter _zkAdapter;
 
+  private final Counter _numCheckpointCommits;
+  private final Histogram _checkpointCommitLatency;
+
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;
+
+    // Initialize metrics
+    _numCheckpointCommits = new Counter();
+    _checkpointCommitLatency = new Histogram(new ExponentiallyDecayingReservoir());
   }
 
   /**
@@ -30,9 +43,12 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   public void commit(Map<DatastreamTask, String> checkpoints) {
     LOG.info("Commit called with checkpoints " + checkpoints.toString());
     Validate.notNull(checkpoints, "Checkpoints should not be null");
-    for (DatastreamTask datastreamTask : checkpoints.keySet()) {
-      _zkAdapter.setDatastreamTaskStateForKey(datastreamTask, CHECKPOINT_KEY_NAME, checkpoints.get(datastreamTask));
-    }
+    long startTime = System.currentTimeMillis();
+    checkpoints.forEach((key, value) -> {
+      _zkAdapter.setDatastreamTaskStateForKey(key, CHECKPOINT_KEY_NAME, value);
+      _numCheckpointCommits.inc();
+    });
+    _checkpointCommitLatency.update(System.currentTimeMillis() - startTime);
   }
 
   /**
@@ -55,5 +71,15 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
     LOG.info("GetCommitted returning the last committed checkpoints " + checkpoints.toString());
     return checkpoints;
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(buildMetricName("numCheckpointCommits"), _numCheckpointCommits);
+    metrics.put(buildMetricName("checkpointCommitLatency"), _checkpointCommitLatency);
+
+    return Collections.unmodifiableMap(metrics);
   }
 }
