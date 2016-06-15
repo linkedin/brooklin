@@ -41,6 +41,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 @RestLiCollection(name = "datastream", namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
+  private static final String CLASS_NAME = DatastreamResources.class.getSimpleName();
 
   private final DatastreamStore _store;
   private final Coordinator _coordinator;
@@ -155,15 +156,15 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public static Map<String, Metric> getMetrics() {
     Map<String, Metric> metrics = new HashMap<>();
 
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "updateCall"), UPDATE_CALL);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "deleteCall"), DELETE_CALL);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "getCall"), GET_CALL);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "getAllCall"), GET_ALL_CALL);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "createCall"), CREATE_CALL);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "callError"), CALL_ERROR);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "updateCall"), UPDATE_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCall"), DELETE_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "getCall"), GET_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "getAllCall"), GET_ALL_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
 
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "createCallLatency"), CREATE_CALL_LATENCY);
-    metrics.put(MetricRegistry.name(DatastreamResources.class, "deleteCallLatency"), DELETE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatency"), CREATE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCallLatency"), DELETE_CALL_LATENCY);
 
     return Collections.unmodifiableMap(metrics);
   }
