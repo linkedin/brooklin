@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -85,11 +86,13 @@ class FileProcessor implements Runnable {
           event.metadata = new HashMap<>();
           //Registering a null schema just for testing using the MockSchemaRegistryProvider
           event.metadata.put("PayloadSchemaId", _producer.registerSchema(null, null));
+          long currentTimeMillis = System.currentTimeMillis();
+          event.metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, String.valueOf(currentTimeMillis));
           event.previous_payload = ByteBuffer.allocate(0);
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
           builder.addEvent(event);
-
+          builder.setEventsTimestamp(currentTimeMillis);
           // If the destination is user managed, we will use the key to decide the partition.
           if (!_task.isUserManagedDestination()) {
             builder.setPartition(0);

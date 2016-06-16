@@ -1,8 +1,10 @@
 package com.linkedin.datastream.server;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -12,6 +14,10 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
+
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
@@ -22,7 +28,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  * This class manages creation of EventProducers for tasks per connector.
  * The coordinator uses this to create producers before passing it on to the connectors
  */
-public class EventProducerPool {
+public class EventProducerPool implements MetricsAware {
   private static final Logger LOG = LoggerFactory.getLogger(EventProducerPool.class);
   private static final String DEFAULT_POOL_SIZE = "10";
   private final int _poolSize;
@@ -38,6 +44,8 @@ public class EventProducerPool {
   private final Random _random;
 
   public static final String POOL_SIZE = "poolSize";
+
+  private final Counter _unrecoverableErrors;
 
   public EventProducerPool(CheckpointProvider checkpointProvider, SchemaRegistryProvider schemaRegistryProvider,
       TransportProviderFactory transportProviderFactory, Properties transportProviderConfig,
@@ -59,6 +67,8 @@ public class EventProducerPool {
     _producerPool = new HashMap<>();
     _taskEventProducerMap = new HashMap<>();
     _random = new Random();
+
+    _unrecoverableErrors = new Counter();
   }
 
   /**
@@ -158,6 +168,8 @@ public class EventProducerPool {
             this::onUnrecoverableError);
 
     tasks.forEach(t -> assignEventProducerToTask(newEventProducer, t));
+
+    _unrecoverableErrors.inc();
   }
 
   private List<DatastreamTask> findTasksUsingEventProducer(EventProducer eventProducer) {
@@ -182,5 +194,15 @@ public class EventProducerPool {
     }
 
     _producerPool.clear();
+  }
+
+  @Override
+  public Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(buildMetricName("unrecoverableErrors"), _unrecoverableErrors);
+    Optional.ofNullable(EventProducer.getMetrics()).ifPresent(m -> metrics.putAll(m));
+
+    return Collections.unmodifiableMap(metrics);
   }
 }
