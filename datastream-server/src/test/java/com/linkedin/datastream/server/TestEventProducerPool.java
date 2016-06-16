@@ -101,6 +101,7 @@ public class TestEventProducerPool {
     builder.addEvent(event);
     builder.setPartition(partition);
     builder.setSourceCheckpoint("new dummy checkpoint");
+    builder.setEventsTimestamp(System.currentTimeMillis());
     return builder.build();
   }
 

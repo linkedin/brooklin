@@ -15,14 +15,18 @@ public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
   private final String _checkpoint;
   private final List<Pair<byte[], byte[]>> _events;
+  private final long _eventsTimestamp;
 
-  DatastreamProducerRecord(List<Pair<byte[], byte[]>> events, Optional<Integer> partition, String checkpoint) {
+  DatastreamProducerRecord(List<Pair<byte[], byte[]>> events, Optional<Integer> partition, String checkpoint,
+      long eventsTimestamp) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
+    Validate.isTrue(eventsTimestamp > 0, "events timestamp is invalid");
 
     _events = events;
     _partition = partition;
     _checkpoint = checkpoint;
+    _eventsTimestamp = eventsTimestamp;
   }
 
   /**
@@ -30,6 +34,13 @@ public class DatastreamProducerRecord {
    */
   public List<Pair<byte[], byte[]>> getEvents() {
     return Collections.unmodifiableList(_events);
+  }
+
+  /**
+   * @return timestamp in Epoch-millis when the events were created
+   */
+  public long getEventsTimestamp() {
+    return _eventsTimestamp;
   }
 
   /**

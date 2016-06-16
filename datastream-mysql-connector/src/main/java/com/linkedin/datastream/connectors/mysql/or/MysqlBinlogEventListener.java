@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -297,6 +298,19 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
           MysqlCheckpoint.createCheckpointString(_sourceId, _scn, _currFileName, _mostRecentSeenEventPosition);
       builder.setSourceCheckpoint(checkpoint);
       _eventsInTransaction.forEach(builder::addEvent);
+      // Get the timestamp of the first event in the transaction
+      Optional<Long> eventTimestamp = Optional.ofNullable(_eventsInTransaction.get(0))
+          .map(firstEvent -> firstEvent.metadata)
+          .map(metadata -> metadata.get(DatastreamEventMetadata.EVENT_TIMESTAMP))
+          .map(metaVal -> Long.valueOf(metaVal.toString()));
+      if (eventTimestamp.isPresent()) {
+        builder.setEventsTimestamp(eventTimestamp.get());
+      } else {
+        String errorMsg = "Datastream event " + _eventsInTransaction.get(0).toString() + " was missing event timestamp metadata.";
+        LOG.error(errorMsg);
+        throw new DatastreamRuntimeException(errorMsg);
+      }
+
       _producer.send(builder.build(), (metadata, exception) -> {
         if (exception == null) {
           LOG.debug(String.format("Sending event succeeded, metadata:{%s}", metadata));
