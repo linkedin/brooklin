@@ -79,13 +79,16 @@ public class TestDatastreamRestClient {
   private void setupServer()
       throws Exception {
     _embeddedZookeeper = new EmbeddedZookeeper();
-    String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
+    setupDatastreamServer(8080);
+  }
 
+  private void setupDatastreamServer(int port) throws DatastreamException {
+    String zkConnectionString = _embeddedZookeeper.getConnection();
     Properties properties = new Properties();
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_HTTP_PORT, "8080");
+    properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(port));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
@@ -108,6 +111,23 @@ public class TestDatastreamRestClient {
     Datastream datastream = generateDatastream(1);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
+    restClient.createDatastream(datastream);
+    Datastream createdDatastream = restClient.getDatastream(datastream.getName());
+    LOG.info("Created Datastream : " + createdDatastream);
+    datastream.setDestination(new DatastreamDestination());
+    // server might have already set the destination so we need to unset it for comparison
+    clearDatastreamDestination(Collections.singletonList(createdDatastream));
+    clearDynamicMetadata(Collections.singletonList(createdDatastream));
+    Assert.assertEquals(createdDatastream, datastream);
+  }
+
+  @Test
+  public void testCreateDatastreamToNonLeader()
+      throws DatastreamException, IOException, RemoteInvocationException {
+    setupDatastreamServer(8083);
+    Datastream datastream = generateDatastream(5);
+    LOG.info("Datastream : " + datastream);
+    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8083");
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.getDatastream(datastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);

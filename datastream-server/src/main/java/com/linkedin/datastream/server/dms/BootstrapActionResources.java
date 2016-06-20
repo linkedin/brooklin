@@ -18,6 +18,7 @@ import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.RestLiActions;
@@ -54,42 +55,46 @@ public class BootstrapActionResources {
    */
   @Action(name = "create")
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
-
-    LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
-    CREATE_CALL.inc();
-
-    if (!bootstrapDatastream.hasName()) {
-      CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
-    }
-
-    if (!bootstrapDatastream.hasConnectorType()) {
-      CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
-    }
-    if (!bootstrapDatastream.hasSource()) {
-      CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
-    }
-
-    long startTime = System.currentTimeMillis();
-
     try {
-      _coordinator.initializeDatastream(bootstrapDatastream);
-      _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
-    } catch (DatastreamAlreadyExistsException e) {
+      LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
+      CREATE_CALL.inc();
+
+      if (!bootstrapDatastream.hasName()) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            "Must specify name of Datastream!");
+      }
+
+      if (!bootstrapDatastream.hasConnectorType()) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
+      }
+      if (!bootstrapDatastream.hasSource()) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            "Must specify source of Datastream!");
+      }
+
+      long startTime = System.currentTimeMillis();
+
+      try {
+        _coordinator.initializeDatastream(bootstrapDatastream);
+        _store.createDatastream(bootstrapDatastream.getName(), bootstrapDatastream);
+      } catch (DatastreamAlreadyExistsException e) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
+            "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
+      }
+
+      CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+
+      return bootstrapDatastream;
+    } catch (RestLiServiceException e) {
       CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
-          "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
+      throw e;
     } catch (Exception e) {
       CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }
 
-    CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
-
-    return bootstrapDatastream;
+    return null;
   }
 
   public static Map<String, Metric> getMetrics() {
@@ -101,5 +106,4 @@ public class BootstrapActionResources {
 
     return Collections.unmodifiableMap(metrics);
   }
-
 }
