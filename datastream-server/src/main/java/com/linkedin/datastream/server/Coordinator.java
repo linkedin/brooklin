@@ -148,8 +148,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
 
-  public Coordinator(Properties config)
-      throws DatastreamException {
+  public Coordinator(Properties config) throws DatastreamException {
     this(new CoordinatorConfig((config)));
   }
 
@@ -675,8 +674,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param datastream datastream for validation
    * @return result of the validation
    */
-  public void initializeDatastream(Datastream datastream)
-      throws DatastreamValidationException {
+  public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
 
     ConnectorWrapper connector = _connectors.get(connectorType);
@@ -688,7 +686,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // TODO DDSDBUS-7840 need to pass the list of all datastreams. Right now there is no way to get list of all datastreams
     // if the current instance is not a leader.
-    connector.initializeDatastream(datastream, Collections.singletonList(datastream));
+    connector.initializeDatastream(datastream, Collections.emptyList());
     if (connector.hasError()) {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
