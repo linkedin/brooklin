@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Histogram;
@@ -72,85 +71,111 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public UpdateResponse delete(String key) {
-    LOG.info("Delete datastream called for datastream " + key);
-    DELETE_CALL.inc();
-    long startTime = System.currentTimeMillis();
-    _store.deleteDatastream(key);
-    DELETE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
-    return new UpdateResponse(HttpStatus.S_200_OK);
+    try {
+      LOG.info("Delete datastream called for datastream " + key);
+      DELETE_CALL.inc();
+      long startTime = System.currentTimeMillis();
+      _store.deleteDatastream(key);
+      DELETE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+      return new UpdateResponse(HttpStatus.S_200_OK);
+    } catch (Exception e) {
+      CALL_ERROR.inc();
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "delete datastream failed for datastream: " + key, e);
+    }
+
+    return null;
   }
 
   // Returning null will automatically trigger a 404 Not Found response
   @Override
   public Datastream get(String name) {
-    LOG.info(String.format("Get datastream called for datastream %s", name));
-    GET_CALL.inc();
-    return _store.getDatastream(name);
+    try {
+      LOG.info(String.format("Get datastream called for datastream %s", name));
+      GET_CALL.inc();
+      return _store.getDatastream(name);
+    } catch (Exception e) {
+      CALL_ERROR.inc();
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Get datastream failed for datastream: " + name, e);
+    }
+
+    return null;
   }
 
   @SuppressWarnings("deprecated")
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
-    LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
-    GET_ALL_CALL.inc();
-    return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
-        .map(_store::getDatastream)
-        .filter(stream -> stream != null)
-        .collect(Collectors.toList());
+    try {
+      LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
+      GET_ALL_CALL.inc();
+      return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
+          .map(_store::getDatastream)
+          .filter(stream -> stream != null)
+          .collect(Collectors.toList());
+    } catch (Exception e) {
+      CALL_ERROR.inc();
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Get all datastreams failed.", e);
+    }
+
+    return Collections.emptyList();
   }
 
   @Override
   public CreateResponse create(Datastream datastream) {
-
-    LOG.info(String.format("Create datastream called with datastream %s", datastream));
-    CREATE_CALL.inc();
-
-    // rest.li has done this mandatory field check in the latest version.
-    // Just in case we roll back to an earlier version, let's do the validation here anyway
-    if (!datastream.hasName()) {
-      CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
-    }
-    if (!datastream.hasConnectorType()) {
-      CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
-    }
-    if (!datastream.hasSource()) {
-      CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
-    }
-
-    if (!datastream.hasMetadata()) {
-      datastream.setMetadata(new StringMap());
-    }
-
-    if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
-      datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
-    }
-
-    long startTime = System.currentTimeMillis();
-
     try {
-      _coordinator.initializeDatastream(datastream);
-    } catch (DatastreamValidationException e) {
-      CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
-    }
+      LOG.info(String.format("Create datastream called with datastream %s", datastream));
+      CREATE_CALL.inc();
 
-    try {
-      _store.createDatastream(datastream.getName(), datastream);
-    } catch (DatastreamAlreadyExistsException e) {
-      CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream, e);
+      // rest.li has done this mandatory field check in the latest version.
+      // Just in case we roll back to an earlier version, let's do the validation here anyway
+      if (!datastream.hasName()) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
+      }
+      if (!datastream.hasConnectorType()) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
+      }
+      if (!datastream.hasSource()) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
+      }
+
+      if (!datastream.hasMetadata()) {
+        datastream.setMetadata(new StringMap());
+      }
+
+      if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
+        datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
+      }
+
+      long startTime = System.currentTimeMillis();
+
+      try {
+        _coordinator.initializeDatastream(datastream);
+      } catch (DatastreamValidationException e) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
+      }
+
+      try {
+        _store.createDatastream(datastream.getName(), datastream);
+      } catch (DatastreamAlreadyExistsException e) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream,
+            e);
+      }
+
+      CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+
+      return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (Exception e) {
       CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          String.format("Failed to create Datastream %s", datastream), e);
+      return _errorLogger.logAndGetResponse(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Failed to create datastream: " + datastream, e);
     }
-
-    CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
-
-    return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
   }
 
   public static Map<String, Metric> getMetrics() {

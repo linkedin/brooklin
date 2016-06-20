@@ -678,10 +678,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void initializeDatastream(Datastream datastream)
       throws DatastreamValidationException {
     String connectorType = datastream.getConnectorType();
-    List<Datastream> allDatastreams = _adapter.getAllDatastreams()
-        .stream()
-        .filter(d -> d.getConnectorType().equals(connectorType))
-        .collect(Collectors.toList());
 
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {
@@ -690,7 +686,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new DatastreamValidationException(errorMessage);
     }
 
-    connector.initializeDatastream(datastream, allDatastreams);
+    // TODO DDSDBUS-7840 need to pass the list of all datastreams. Right now there is no way to get list of all datastreams
+    // if the current instance is not a leader.
+    connector.initializeDatastream(datastream, Collections.singletonList(datastream));
     if (connector.hasError()) {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
