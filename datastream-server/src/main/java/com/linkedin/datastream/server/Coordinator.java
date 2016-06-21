@@ -214,6 +214,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventProducerPool = new EventProducerPool(cpProvider, schemaRegistry, factory,
         coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
+    Optional.ofNullable(_eventProducerPool.getMetrics()).ifPresent(m -> _metrics.putAll(m));
   }
 
   public void start() {

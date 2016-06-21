@@ -28,6 +28,7 @@ public class DatastreamProducerRecordBuilder {
   private String _sourceCheckpoint = "";
 
   private List<Pair<byte[], byte[]>> _events = new ArrayList<>();
+  private long _eventsTimestamp;
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. if the partition is not set, TransportProvider
@@ -79,12 +80,16 @@ public class DatastreamProducerRecordBuilder {
     _events.add(new Pair<>(datastreamEvent.key.array(), event));
   }
 
+  public void setEventsTimestamp(long eventsTimestamp) {
+    _eventsTimestamp = eventsTimestamp;
+  }
+
   /**
    * Build the DatastreamProducerRecord.
    * @return
    *   DatastreamProducerRecord that is created.
    */
   public DatastreamProducerRecord build() {
-    return new DatastreamProducerRecord(_events, _partition, _sourceCheckpoint);
+    return new DatastreamProducerRecord(_events, _partition, _sourceCheckpoint, _eventsTimestamp);
   }
 }

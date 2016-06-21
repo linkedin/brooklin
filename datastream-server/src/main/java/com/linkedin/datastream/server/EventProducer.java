@@ -19,6 +19,10 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
@@ -87,6 +91,12 @@ public class EventProducer {
   //  writer: assign/unassignTasks, flushAndCheckpoint
   // The lock pretects _safeCheckpoints and _pendingCheckpoints
   private ReentrantReadWriteLock _checkpointRWLock;
+
+  private static final Counter TOTAL_EVENTS_PRODUCED = new Counter();
+  private static final Counter EVENTS_PRODUCED_WITHIN_SLA = new Counter();
+  private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
+  private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
+  private final int _availabilityThresholdSlaMs;
 
   /**
    * Manages the periodic checkpointing operation.
@@ -166,6 +176,9 @@ public class EventProducer {
 
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
     _logger = LoggerFactory.getLogger(String.format("%s:%s", MODULE, _producerId));
+
+    _availabilityThresholdSlaMs =
+        Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
 
     _logger.info(String
         .format("Created event producer with customCheckpointing=%s, sendCallback=%s", customCheckpointing,
@@ -302,6 +315,12 @@ public class EventProducer {
         _onUnrecoverableError.accept(this);
       }
     } else {
+      // Report availability metrics
+      if (System.currentTimeMillis() - record.getEventsTimestamp() <= _availabilityThresholdSlaMs) {
+        EVENTS_PRODUCED_WITHIN_SLA.inc();
+      }
+      TOTAL_EVENTS_PRODUCED.inc();
+
       try {
         // read-lock is sufficient as messages in the same partition is expected to be acknowledged
         // in order by the transport such that we can allow concurrent acks of other tasks/partitions.
@@ -432,5 +451,15 @@ public class EventProducer {
   @Override
   public String toString() {
     return "EventProducer tasks=" + getTaskString();
+  }
+
+  public static Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+
+    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), "eventsProducedWithinSla"),
+        EVENTS_PRODUCED_WITHIN_SLA);
+    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), "totalEventsProduced"), TOTAL_EVENTS_PRODUCED);
+
+    return Collections.unmodifiableMap(metrics);
   }
 }

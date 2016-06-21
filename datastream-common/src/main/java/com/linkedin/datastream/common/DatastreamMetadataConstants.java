@@ -21,12 +21,12 @@ public class DatastreamMetadataConstants {
   public static final String OWNER_KEY = "owner";
 
   /**
-   * Timestamp in Epoch-milis when destination was created
+   * Timestamp in Epoch-millis when destination was created
    */
   public static final String DESTINATION_CREATION_MS = "destination.creation.ms";
 
   /**
-   * Duration in Epoch-milis before destination starts to delete messages
+   * Duration in Epoch-millis before destination starts to delete messages
    */
   public static final String DESTINATION_RETENION_MS = "destination.retention.ms";
 }

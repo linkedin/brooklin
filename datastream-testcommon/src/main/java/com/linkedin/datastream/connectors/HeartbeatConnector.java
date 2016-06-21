@@ -90,6 +90,7 @@ public class HeartbeatConnector implements Connector {
     builder.addEvent(event);
     builder.setPartition(partition);
     builder.setSourceCheckpoint(Integer.toString(eventIndex));
+    builder.setEventsTimestamp(System.currentTimeMillis());
     return builder.build();
   }
 
