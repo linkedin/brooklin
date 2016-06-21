@@ -51,15 +51,13 @@ public class TestDatastreamRestClient {
   private EmbeddedZookeeper _embeddedZookeeper;
 
   @BeforeTest
-  public void setUp()
-      throws Exception {
+  public void setUp() throws Exception {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
     setupServer();
   }
 
   @AfterTest
-  public void tearDown()
-      throws Exception {
+  public void tearDown() throws Exception {
     _datastreamServer.shutdown();
     _embeddedZookeeper.shutdown();
   }
@@ -76,8 +74,7 @@ public class TestDatastreamRestClient {
     return ds;
   }
 
-  private void setupServer()
-      throws Exception {
+  private void setupServer() throws Exception {
     _embeddedZookeeper = new EmbeddedZookeeper();
     _embeddedZookeeper.startup();
     setupDatastreamServer(8080);
@@ -106,14 +103,26 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateDatastream()
-      throws DatastreamException, IOException, RemoteInvocationException {
-    Datastream datastream = generateDatastream(1);
+  public void testCreateTwoDatastreams() throws DatastreamException, IOException, RemoteInvocationException {
+    Datastream datastream = generateDatastream(6);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.getDatastream(datastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
+
+    datastream.setDestination(new DatastreamDestination());
+    // server might have already set the destination so we need to unset it for comparison
+    clearDatastreamDestination(Collections.singletonList(createdDatastream));
+    clearDynamicMetadata(Collections.singletonList(createdDatastream));
+    Assert.assertEquals(createdDatastream, datastream);
+
+    datastream = generateDatastream(7);
+    LOG.info("Datastream : " + datastream);
+    restClient.createDatastream(datastream);
+    createdDatastream = restClient.getDatastream(datastream.getName());
+    LOG.info("Created Datastream : " + createdDatastream);
+
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
     clearDatastreamDestination(Collections.singletonList(createdDatastream));
@@ -122,8 +131,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateDatastreamToNonLeader()
-      throws DatastreamException, IOException, RemoteInvocationException {
+  public void testCreateDatastreamToNonLeader() throws DatastreamException, IOException, RemoteInvocationException {
     setupDatastreamServer(8083);
     Datastream datastream = generateDatastream(5);
     LOG.info("Datastream : " + datastream);
@@ -224,8 +232,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testDeleteDatastream()
-      throws DatastreamException {
+  public void testDeleteDatastream() throws DatastreamException {
     Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -235,8 +242,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateBootstrapDatastream()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testCreateBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
     Datastream bootstrapDatastream = generateDatastream(3);
     LOG.info("Bootstrap datastream : " + bootstrapDatastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
@@ -256,7 +262,6 @@ public class TestDatastreamRestClient {
     restClient.createBootstrapDatastream(bootstrapDatastream);
     restClient.createBootstrapDatastream(bootstrapDatastream);
   }
-
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
   public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound()
