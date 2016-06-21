@@ -685,6 +685,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new DatastreamValidationException(errorMessage);
     }
 
+    _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorType));
     // TODO DDSDBUS-7840 need to pass the list of all datastreams. Right now there is no way to get list of all datastreams
     // if the current instance is not a leader.
     connector.initializeDatastream(datastream, Collections.emptyList());
