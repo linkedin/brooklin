@@ -46,7 +46,7 @@ public class DynamicMetricsManager {
   public synchronized void createOrUpdateCounter(Class<?> clazz, String key, String metricName, long value) {
     validateArguments(clazz, key, metricName);
 
-    String fullMetricName = MetricRegistry.name(clazz, key, metricName);
+    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
     // create and register the metric if it does not exist
     Counter counter = _metricRegistry.getCounters().get(fullMetricName);
@@ -66,7 +66,7 @@ public class DynamicMetricsManager {
   public synchronized void createOrUpdateMeter(Class<?> clazz, String key, String metricName, long value) {
     validateArguments(clazz, key, metricName);
 
-    String fullMetricName = MetricRegistry.name(clazz, key, metricName);
+    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
     // create and register the metric if it does not exist
     Meter meter = _metricRegistry.getMeters().get(fullMetricName);
@@ -85,7 +85,7 @@ public class DynamicMetricsManager {
    */
   public synchronized void createOrUpdateHistogram(Class<?> clazz, String key, String metricName, long value) {
     validateArguments(clazz, key, metricName);
-    String fullMetricName = MetricRegistry.name(clazz, key, metricName);
+    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
     // create and register the metric if it does not exist
     Histogram histogram = _metricRegistry.getHistograms().get(fullMetricName);
