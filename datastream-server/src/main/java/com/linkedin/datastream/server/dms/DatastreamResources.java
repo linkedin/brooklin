@@ -1,5 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -74,14 +76,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info("Delete datastream called for datastream " + key);
       DELETE_CALL.inc();
-      long startTime = System.currentTimeMillis();
+      Instant startTime = Instant.now();
       _store.deleteDatastream(key);
-      DELETE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+      DELETE_CALL_LATENCY.update(Duration.between(startTime, Instant.now()).toMillis());
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
       CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "delete datastream failed for datastream: " + key, e);
+        "delete datastream failed for datastream: " + key, e);
     }
 
     return null;
@@ -97,7 +99,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       CALL_ERROR.inc();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Get datastream failed for datastream: " + name, e);
+        "Get datastream failed for datastream: " + name, e);
     }
 
     return null;
@@ -109,14 +111,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
       GET_ALL_CALL.inc();
-      return RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
-          .map(_store::getDatastream)
-          .filter(stream -> stream != null)
-          .collect(Collectors.toList());
+      List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
+        .filter(stream -> stream != null).collect(Collectors.toList());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Result collected for getAll: " + ret);
+      }
+      return ret;
     } catch (Exception e) {
       CALL_ERROR.inc();
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Get all datastreams failed.", e);
+      _errorLogger
+        .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
     }
 
     return Collections.emptyList();
@@ -126,6 +130,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public CreateResponse create(Datastream datastream) {
     try {
       LOG.info(String.format("Create datastream called with datastream %s", datastream));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Handling request on object: " + this.toString() + " thread: " + Thread.currentThread());
+      }
       CREATE_CALL.inc();
 
       // rest.li has done this mandatory field check in the latest version.
@@ -151,8 +158,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
       }
 
-      long startTime = System.currentTimeMillis();
+      Instant startTime = Instant.now();
 
+      LOG.debug("Done with preliminary check on the datastream. About to initialize it.");
       try {
         _coordinator.initializeDatastream(datastream);
       } catch (DatastreamValidationException e) {
@@ -160,21 +168,25 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
       }
 
+      LOG.debug("Successully initialize datastream to: " + datastream);
+      LOG.debug("Persist the datastream to zookeeper.");
       try {
         _store.createDatastream(datastream.getName(), datastream);
       } catch (DatastreamAlreadyExistsException e) {
         CALL_ERROR.inc();
-        return _errorLogger.logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream,
-            e);
+        return _errorLogger
+          .logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream, e);
       }
 
-      CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
-
+      Duration delta = Duration.between(startTime, Instant.now());
+      CREATE_CALL_LATENCY.update(delta.toMillis());
+      LOG.debug(
+        "Datastream persisted to zookeeper. Time taken for initialization and persistence: " + delta.toMillis() + "ms");
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (Exception e) {
       CALL_ERROR.inc();
-      return _errorLogger.logAndGetResponse(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Failed to create datastream: " + datastream, e);
+      return _errorLogger
+        .logAndGetResponse(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to create datastream: " + datastream, e);
     }
   }
 
