@@ -22,6 +22,7 @@ import com.codahale.metrics.Metric;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlBinlogEventListener;
 import com.linkedin.datastream.connectors.mysql.or.MysqlBinlogParser;
@@ -62,6 +63,7 @@ public class MysqlConnector implements Connector {
   private final String _defaultPassword;
   private final int _defaultServerId;
   private final SourceType _sourceType;
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   private ConcurrentHashMap<DatastreamTask, MysqlReplicator> _mysqlProducers;
 
@@ -82,6 +84,8 @@ public class MysqlConnector implements Connector {
     if (_sourceType == SourceType.MYSQLSERVER && (_defaultUserName == null || _defaultPassword == null)) {
       throw new DatastreamRuntimeException("Missing mysql username or password.");
     }
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     _defaultServerId = Integer.valueOf(strServerId);
     _mysqlProducers = new ConcurrentHashMap<>();
@@ -140,10 +144,11 @@ public class MysqlConnector implements Connector {
         String.format("Creating mysql replicator for DB: %s table: %s and binlogFolder: %s", source.getDatabaseName(),
             source.getTableName(), binlogFolder));
     MysqlSourceBinlogRowEventFilter rowEventFilter =
-        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.isAllTables(), source.getTableName());
+        new MysqlSourceBinlogRowEventFilter(task.getDatastreamTaskName(), source.getDatabaseName(),
+            source.isAllTables(), source.getTableName(), _dynamicMetricsManager);
     MysqlBinlogParser replicator = new MysqlBinlogParser(binlogFolder, rowEventFilter, new MysqlBinlogParserListener());
     replicator.setBinlogEventListener(
-        new MysqlBinlogEventListener(task, InMemoryTableInfoProvider.getTableInfoProvider()));
+        new MysqlBinlogEventListener(task, InMemoryTableInfoProvider.getTableInfoProvider(), _dynamicMetricsManager));
 
     return replicator;
   }
@@ -155,9 +160,9 @@ public class MysqlConnector implements Connector {
         source.getTableName(), source.getHostName(), source.getPort());
 
     MysqlSourceBinlogRowEventFilter rowEventFilter =
-        new MysqlSourceBinlogRowEventFilter(source.getDatabaseName(), source.isAllTables(), source.getTableName());
+        new MysqlSourceBinlogRowEventFilter(task.getDatastreamTaskName(), source.getDatabaseName(),
+            source.isAllTables(), source.getTableName(), _dynamicMetricsManager);
     MysqlBinlogParserListener parserListener = new MysqlBinlogParserListener();
-
     MysqlReplicatorImpl replicator =
         new MysqlReplicatorImpl(source, _defaultUserName, _defaultPassword, _defaultServerId, rowEventFilter,
             parserListener);
@@ -171,7 +176,7 @@ public class MysqlConnector implements Connector {
       throw new DatastreamRuntimeException(msg, e);
     }
 
-    replicator.setBinlogEventListener(new MysqlBinlogEventListener(task, tableInfoProvider));
+    replicator.setBinlogEventListener(new MysqlBinlogEventListener(task, tableInfoProvider, _dynamicMetricsManager));
     _mysqlProducers.put(task, replicator);
 
     MysqlQueryUtils queryUtils = new MysqlQueryUtils(source, _defaultUserName, _defaultPassword);
@@ -295,7 +300,6 @@ public class MysqlConnector implements Connector {
         } finally {
           queryUtils.closeConnection();
         }
-
       } else {
         File binlogFolder = new File(source.getBinlogFolderName());
         if (!binlogFolder.exists()) {
@@ -320,7 +324,8 @@ public class MysqlConnector implements Connector {
     Map<String, Metric> metrics = new HashMap<>();
 
     metrics.put(buildMetricName("numDatastreamTasks"), _numDatastreamTasks);
-
+    Optional.of(MysqlBinlogEventListener.getMetrics()).ifPresent(metrics::putAll);
+    Optional.of(MysqlSourceBinlogRowEventFilter.getMetrics()).ifPresent(metrics::putAll);
     return Collections.unmodifiableMap(metrics);
   }
 }

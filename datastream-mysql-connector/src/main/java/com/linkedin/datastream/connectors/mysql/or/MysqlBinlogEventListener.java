@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.mysql.or;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
 import com.google.code.or.binlog.BinlogEventListener;
 import com.google.code.or.binlog.BinlogEventV4;
 import com.google.code.or.binlog.BinlogEventV4Header;
@@ -34,7 +37,9 @@ import com.google.code.or.common.glossary.Row;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
@@ -43,6 +48,9 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 public class MysqlBinlogEventListener implements BinlogEventListener {
   private static final Logger LOG = LoggerFactory.getLogger(MysqlBinlogEventListener.class);
+  private static final String PROCESSED_EVENT_COUNT = "processedEvent";
+  private static final String PROCESSED_TXNS_COUNT = "processedTxns";
+  private static final String CLASSNAME = MysqlBinlogEventListener.class.getSimpleName();
 
   // helper for debugging and logging
   private final Map<Integer, String> _eventTypeNames = new HashMap<>();
@@ -51,6 +59,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   private final DatastreamEventProducer _producer;
   private final DatastreamTask _datastreamTask;
   private final TableInfoProvider _tableInfoProvider;
+  private final DynamicMetricsManager _dynamicMetricsManager;
   private long _mostRecentSeenEventPosition;
   private long _timestampLastSeenEvent;
   private boolean _isBeginTxnSeen;
@@ -66,12 +75,14 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   /** Cache of the column metadata for all the tables that are processed by this event listener **/
   HashMap<String, List<ColumnInfo>> _columnMetadataCache = new HashMap<>();
 
-  public MysqlBinlogEventListener(DatastreamTask datastreamTask, TableInfoProvider tableInfoProvider) {
+  public MysqlBinlogEventListener(DatastreamTask datastreamTask, TableInfoProvider tableInfoProvider,
+      DynamicMetricsManager dynamicMetricsManager) {
     initEventTypeNames();
 
     _datastreamTask = datastreamTask;
     _producer = _datastreamTask.getEventProducer();
     _tableInfoProvider = tableInfoProvider;
+    _dynamicMetricsManager = dynamicMetricsManager;
   }
 
   private void initEventTypeNames() {
@@ -289,6 +300,10 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   private void endTransaction(BinlogEventV4 e) {
     LOG.info("Ending transaction " + _scn);
     if (_eventsInTransaction.size() > 0) {
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+          PROCESSED_EVENT_COUNT, _eventsInTransaction.size());
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+          PROCESSED_TXNS_COUNT, 1);
       // Write events to the producer only if there are events in this transaction.
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
       // TODO we need to support mysql connector that can write to multi partition destination.
@@ -413,5 +428,12 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       }
     }
     return false;
+  }
+
+  public static Map<String, Metric> getMetrics() {
+    Map<String, Metric> metrics = new HashMap<>();
+    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_COUNT, new Counter());
+    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_COUNT, new Counter());
+    return Collections.unmodifiableMap(metrics);
   }
 }
