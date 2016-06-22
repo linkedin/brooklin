@@ -14,6 +14,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -54,6 +57,10 @@ public class TestCoordinator {
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
+
+  static {
+    DynamicMetricsManager.createInstance(new MetricRegistry());
+  }
 
   private Coordinator createCoordinator(String zkAddr, String cluster)
       throws Exception {
