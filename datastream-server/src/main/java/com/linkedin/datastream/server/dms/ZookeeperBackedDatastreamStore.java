@@ -1,20 +1,18 @@
 package com.linkedin.datastream.server.dms;
 
+import java.util.stream.Stream;
+
+import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.zk.KeyBuilder;
-import org.apache.commons.lang.Validate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
@@ -23,20 +21,16 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
   private final ZkClient _zkClient;
   private final String _rootPath;
-  // Cache of the datastream key list
-  private volatile List<String> _datastreamList = Collections.emptyList();
+  private final CachedDatastreamReader _datastreamCache;
 
-  public ZookeeperBackedDatastreamStore(ZkClient zkClient, String cluster) {
+  public ZookeeperBackedDatastreamStore(CachedDatastreamReader datastreamCache, ZkClient zkClient, String cluster) {
     assert zkClient != null;
     assert cluster != null;
+    assert datastreamCache != null;
 
+    _datastreamCache = datastreamCache;
     _zkClient = zkClient;
     _rootPath = KeyBuilder.datastreams(cluster);
-
-    // Be notified of changes to the children list in order to cache it. The listener creates a copy of the list
-    // because other listeners could potentially get access to it and modify its contents.
-    _zkClient.subscribeChildChanges(_rootPath, (parentPath, currentChildren) ->
-        _datastreamList = currentChildren.stream().collect(Collectors.toCollection(() -> new ArrayList<>(currentChildren.size()))));
   }
 
   private String getZnodePath(String key) {
@@ -68,7 +62,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
    */
   @Override
   public Stream<String> getAllDatastreams() {
-    return _datastreamList.stream().sorted();
+    return _datastreamCache.getAllDatastreamNames().stream().sorted();
   }
 
   @Override

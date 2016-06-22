@@ -27,6 +27,7 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
@@ -117,19 +118,14 @@ public class ZkAdapter {
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedTaskListProvider _assignmentList = null;
 
+  private final CachedDatastreamReader _datastreamCache;
+
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
 
-  public ZkAdapter(String zkServers, String cluster) {
-    this(zkServers, cluster, ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-  }
-
-  public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout) {
-    this(zkServers, cluster, sessionTimeout, connectionTimeout, null);
-  }
-
   public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout,
-      ZkAdapterListener listener) {
+      ZkAdapterListener listener, CachedDatastreamReader datastreamCache) {
+    _datastreamCache = datastreamCache;
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeout = sessionTimeout;
@@ -179,16 +175,6 @@ public class ZkAdapter {
       }
     }
     // isLeader will be reinitialized when we reconnect
-  }
-
-  /**
-   * test hook to simulate instance crash or GC, without cleaning up zookeeper
-   */
-  public void forceDisconnect() {
-    if (_zkclient != null) {
-      _zkclient.close();
-      _zkclient = null;
-    }
   }
 
   /**
@@ -340,31 +326,6 @@ public class ZkAdapter {
       }
       joinLeaderElection();
     }
-  }
-
-  /**
-   * read all datastreams defined by Datastream Management Service. This method should only
-   * be called by the Coordinator leader.
-   *
-   * @return list of Datastreams
-   */
-  public List<Datastream> getAllDatastreams() {
-    if (_datastreamList == null) {
-      // TODO: looks like it is possible to see this warning before the leader election finishes
-      _log.warn("Instance " + _instanceName + " is not the leader but it is accessing the datastream list");
-    }
-
-    List<String> datastreamNames = _datastreamList.getDatastreamNames();
-    List<Datastream> result = new ArrayList<>();
-
-    for (String streamNode : datastreamNames) {
-      String path = KeyBuilder.datastream(_cluster, streamNode);
-      String content = _zkclient.ensureReadData(path);
-      Datastream stream = DatastreamUtils.fromJSON(content);
-      result.add(stream);
-    }
-
-    return result;
   }
 
   public boolean updateDatastream(Datastream datastream) {
@@ -876,7 +837,6 @@ public class ZkAdapter {
    * ZkBackedDMSDatastreamList
    */
   public class ZkBackedDMSDatastreamList implements IZkChildListener {
-    private List<String> _datastreams = new ArrayList<>();
     private String _path;
 
     /**
@@ -888,7 +848,6 @@ public class ZkAdapter {
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
       _log.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
-      _datastreams = _zkclient.getChildren(_path, true);
     }
 
     public void close() {
@@ -900,16 +859,12 @@ public class ZkAdapter {
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
       _log.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
           + "parentPath %s,children %s", parentPath, currentChildren));
-      _datastreams = currentChildren;
       if (_listener != null) {
         _listener.onDatastreamChange();
       }
     }
-
-    public List<String> getDatastreamNames() {
-      return _datastreams;
-    }
   }
+
 
   /**
    * ZkBackedLiveInstanceListProvider is only used by the current leader instance. It provides a cached

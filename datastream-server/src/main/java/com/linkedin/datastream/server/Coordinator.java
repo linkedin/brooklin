@@ -107,6 +107,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
+  private final CachedDatastreamReader _datastreamCache;
   private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
@@ -148,16 +149,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
 
-  public Coordinator(Properties config) throws DatastreamException {
-    this(new CoordinatorConfig((config)));
+  public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
+    this(datastreamCache, new CoordinatorConfig(config));
   }
 
-  public Coordinator(CoordinatorConfig config) throws DatastreamException {
+  public Coordinator(CachedDatastreamReader datastreamCache, CoordinatorConfig config) throws DatastreamException {
+    _datastreamCache = datastreamCache;
     _config = config;
     _clusterName = _config.getCluster();
 
     _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getZkSessionTimeout(),
-        _config.getZkConnectionTimeout(), this);
+        _config.getZkConnectionTimeout(), this, datastreamCache);
     _adapter.setListener(this);
 
     _eventQueue = new CoordinatorEventBlockingQueue();
@@ -166,7 +168,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
-    // Creating a separate threadpool for making the onAssignmentChange calls to the connector
+    // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
         config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
@@ -514,7 +516,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     leaderDoAssignmentScheduled.set(false);
 
     // Get the list of all datastreams
-    List<Datastream> newDatastreams = _adapter.getAllDatastreams();
+    List<Datastream> newDatastreams = _datastreamCache.getAllDatastreams(true);
 
     // do nothing if there is zero datastreams
     if (newDatastreams.isEmpty()) {
@@ -560,7 +562,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // with a valid target. If there is no target, we cannot assign them to the connectors
     // because connectors do not have access to the producers and event collectors and
     // will assume any assigned tasks are ready to collect events.
-    List<Datastream> allStreams = _adapter.getAllDatastreams()
+    List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
         .stream()
         .filter(datastream -> datastream.getDestination() != null)
         .collect(Collectors.toList());
@@ -686,9 +688,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorType));
-    // TODO DDSDBUS-7840 need to pass the list of all datastreams. Right now there is no way to get list of all datastreams
-    // if the current instance is not a leader.
-    connector.initializeDatastream(datastream, Collections.emptyList());
+    connector.initializeDatastream(datastream, _datastreamCache.getAllDatastreams());
     if (connector.hasError()) {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));

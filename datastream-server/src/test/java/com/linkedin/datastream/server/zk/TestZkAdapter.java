@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -20,6 +19,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
+
 public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
@@ -29,7 +29,7 @@ public class TestZkAdapter {
 
   @BeforeMethod
   public void setup() throws IOException {
-    // each embeddedzookeeper should be on different port
+    // each embedded zookeeper should be on different port
     // so the tests can run in parallel
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
@@ -50,7 +50,7 @@ public class TestZkAdapter {
     //
     ZkAdapter[] adapters = new ZkAdapter[10];
     for (int i = 0; i < 10; i++) {
-      adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+      adapters[i] = createZkAdapter(testCluster);
       adapters[i].connect();
     }
 
@@ -70,14 +70,19 @@ public class TestZkAdapter {
     }
   }
 
+  private ZkAdapter createZkAdapter(String testCluster) {
+    return new ZkAdapter(_zkConnectionString, testCluster, ZkClient.DEFAULT_SESSION_TIMEOUT,
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null, null);
+  }
+
   @Test
   public void testSmoke() throws Exception {
     String testCluster = "test_adapter_smoke";
 
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
 
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     // verify the zookeeper path exists for the two live instance nodes
@@ -100,10 +105,10 @@ public class TestZkAdapter {
     //
     // start two ZkAdapters, which is corresponding to two Coordinator instances
     //
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
+    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000, null, null);
     adapter1.connect();
 
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
+    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000, null, null);
     adapter2.connect();
 
     //
@@ -128,7 +133,7 @@ public class TestZkAdapter {
     //
     adapter2.disconnect();
     // now a new client goes online
-    ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000);
+    ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster, 1000, 15000, null, null);
     adapter3.connect();
 
     //
@@ -148,7 +153,7 @@ public class TestZkAdapter {
     ZkAdapter[] adapters = new ZkAdapter[concurrencyLevel];
 
     for (int i = 0; i < concurrencyLevel; i++) {
-      adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+      adapters[i] = createZkAdapter(testCluster);
       adapters[i].connect();
     }
 
@@ -185,31 +190,9 @@ public class TestZkAdapter {
     // clean up
     //
     for (int i = 0; i < concurrencyLevel; i++) {
-      adapters[i] = new ZkAdapter(_zkConnectionString, testCluster);
+      adapters[i] = createZkAdapter(testCluster);
       adapters[i].disconnect();
     }
-  }
-
-  @Test
-  public void testZkBasedDatastreamList() throws Exception {
-    String testCluster = "testZkBasedDatastreamList";
-
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
-
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
-    adapter1.connect();
-
-    // create new datastreams in zookeeper
-    zkClient.create(KeyBuilder.datastream(testCluster, "stream1"), "stream1", CreateMode.PERSISTENT);
-
-    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 1, 100, ZK_WAIT_IN_MS));
-
-    // create new datastreams in zookeeper
-    zkClient.create(KeyBuilder.datastream(testCluster, "stream2"), "stream1", CreateMode.PERSISTENT);
-    Assert.assertTrue(PollUtils.poll(() -> adapter1.getAllDatastreams().size() == 2, 100, ZK_WAIT_IN_MS));
-
-    adapter1.disconnect();
-    zkClient.close();
   }
 
   private void validateConnectorTask(String cluster, String connectorType, String task, ZkClient zkClient) {
@@ -226,7 +209,7 @@ public class TestZkAdapter {
     String testCluster = "testUpdateInstanceAssignment";
     String connectorType = "connectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
-    ZkAdapter adapter = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter = createZkAdapter(testCluster);
     adapter.connect();
 
     // Create all the Datastreams to be referenced by the tasks
@@ -302,7 +285,7 @@ public class TestZkAdapter {
     String testCluster = "testUpdateInstanceAssignment";
     String connectorType = "connectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
-    ZkAdapter adapter = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter = createZkAdapter(testCluster);
     adapter.connect();
 
     List<DatastreamTask> tasks = new ArrayList<>();
@@ -374,7 +357,7 @@ public class TestZkAdapter {
     String testCluster = "testTaskAquireRelease";
     String connectorType = "connectorType";
 
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
@@ -393,7 +376,7 @@ public class TestZkAdapter {
     // Acquire twice should succeed
     Assert.assertTrue(expectException(task::acquire, false));
 
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     // Acquire from instance2 should fail
@@ -418,7 +401,7 @@ public class TestZkAdapter {
     String testCluster = "testTaskAquireReleaseOwnerUncleanShutdown";
     String connectorType = "connectorType";
 
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
@@ -433,7 +416,7 @@ public class TestZkAdapter {
 
     Assert.assertTrue(expectException(task::acquire, false));
 
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     LOG.info("Acquire from instance2 should fail");
@@ -456,7 +439,7 @@ public class TestZkAdapter {
     String testCluster = "testTaskAquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
 
-    ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
@@ -472,7 +455,7 @@ public class TestZkAdapter {
     LOG.info("Acquire from instance1 should succeed");
     Assert.assertTrue(expectException(task::acquire, false));
 
-    ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     LOG.info("Acquire from instance2 should fail");

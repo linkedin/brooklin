@@ -11,6 +11,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.TestDestinationManager;
@@ -35,7 +36,8 @@ public class TestZookeeperCheckpointProvider {
 
   @Test
   public void testCommitAndReadCheckpoints() {
-    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster");
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     Map<DatastreamTask, String> checkpoints = new HashMap<>();
@@ -58,7 +60,8 @@ public class TestZookeeperCheckpointProvider {
 
   @Test
   public void testReadCommitedShouldIncludeDatastreamTasksWhoseCheckpointsAreNotCommitted() {
-    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster");
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     Map<DatastreamTask, String> checkpoints = new HashMap<>();
