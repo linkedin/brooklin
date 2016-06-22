@@ -206,11 +206,11 @@ public class TestLoadbalancingStrategy {
     }
 
     assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-    Assert.assertEquals(assignment.values().stream().mapToInt(ts -> ts.size()).sum(), numPending);
+    Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), numPending);
 
     // Complete all
     tasks.forEach(t -> t.setStatus(DatastreamTaskStatus.complete()));
     assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-    Assert.assertEquals(assignment.values().stream().mapToInt(ts -> ts.size()).sum(), 0);
+    Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), 0);
   }
 }

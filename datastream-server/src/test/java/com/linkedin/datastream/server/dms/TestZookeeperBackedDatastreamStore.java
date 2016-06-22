@@ -12,6 +12,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
@@ -23,11 +24,13 @@ public class TestZookeeperBackedDatastreamStore {
 
   @BeforeMethod
   public void setup() throws IOException {
+    String clusterName = "testcluster";
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(_zkConnectionString);
-    _store = new ZookeeperBackedDatastreamStore(_zkClient, "testcluster");
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(_zkClient, clusterName);
+    _store = new ZookeeperBackedDatastreamStore(datastreamCache, _zkClient, clusterName);
   }
 
   @AfterMethod

@@ -6,6 +6,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
@@ -90,7 +91,8 @@ public class DatastreamTestUtils {
   public static void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams) throws DatastreamException {
     for (Datastream datastream : datastreams) {
       zkClient.ensurePath(KeyBuilder.datastreams(cluster));
-      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(zkClient, cluster);
+      CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
+      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
       dsStore.createDatastream(datastream.getName(), datastream);
     }
   }

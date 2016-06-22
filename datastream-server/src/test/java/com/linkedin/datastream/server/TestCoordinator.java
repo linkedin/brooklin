@@ -73,20 +73,20 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
         "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
 
-    return new Coordinator(props);
+    ZkClient client = new ZkClient(zkAddr);
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(client, cluster);
+    return new Coordinator(datastreamCache, props);
   }
 
   @BeforeMethod
-  public void setup()
-      throws IOException {
+  public void setup() throws IOException {
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
   }
 
   @AfterMethod
-  public void teardown()
-      throws IOException {
+  public void teardown() throws IOException {
     _embeddedZookeeper.shutdown();
   }
 
@@ -166,8 +166,7 @@ public class TestCoordinator {
   // This test is disabled because there are still some issues around saving the state. This should be fixed as part of
   // Scenario #3.
   @Test
-  public void testConnectorStateSetAndGet()
-      throws Exception {
+  public void testConnectorStateSetAndGet() throws Exception {
     String testCluster = "testConnectorStateSetAndGet";
     String testConectorType = "testConnectorType";
 
@@ -258,8 +257,7 @@ public class TestCoordinator {
 
   // verify that connector znodes are created as soon as Coordinator instance is started
   @Test
-  public void testConnectorZkNodes()
-      throws Exception {
+  public void testConnectorZkNodes() throws Exception {
     String testCluster = "testConnectorZkNodes";
     String testConectorType = "testConnectorType";
 
@@ -293,8 +291,7 @@ public class TestCoordinator {
    * @throws Exception
    */
   @Test
-  public void testCoordinationWithBroadcastStrategy()
-      throws Exception {
+  public void testCoordinationWithBroadcastStrategy() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
@@ -354,8 +351,7 @@ public class TestCoordinator {
   // using onAssignmentChange, so that the connector would not start producing events for this
   // datastream when there is no target to accept it.
   @Test
-  public void testUnassignableStreams()
-      throws Exception {
+  public void testUnassignableStreams() throws Exception {
 
     String testCluster = "testUnassignableStreams";
     String connectorType1 = "unassignable";
@@ -449,8 +445,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinationMultipleConnectorTypesForBroadcastStrategy()
-      throws Exception {
+  public void testCoordinationMultipleConnectorTypesForBroadcastStrategy() throws Exception {
     String testCluster = "testCoordinationMultipleConnectors";
 
     String connectorType1 = "connectorType1";
@@ -525,8 +520,7 @@ public class TestCoordinator {
   // will get a unique instance name
   //
   @Test(enabled = false)
-  public void testStressLargeNumberOfLiveInstances()
-      throws Exception {
+  public void testStressLargeNumberOfLiveInstances() throws Exception {
     int concurrencyLevel = 100;
     String testCluster = "testStressUniqueInstanceNames";
     ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
@@ -572,8 +566,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testStressLargeNumberOfDatastreams()
-      throws Exception {
+  public void testStressLargeNumberOfDatastreams() throws Exception {
 
     int concurrencyLevel = 10;
 
@@ -625,8 +618,7 @@ public class TestCoordinator {
   // will be moved from existing live instance to the new live instance
   //
   @Test
-  public void testSimpleAssignmentReassignWithNewInstances()
-      throws Exception {
+  public void testSimpleAssignmentReassignWithNewInstances() throws Exception {
     String testCluster = "testSimpleAssignmentReassignWithNewInstances";
     String testConnectoryType = "testConnectoryType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -700,8 +692,7 @@ public class TestCoordinator {
   // Verify that when instance dies, the assigned tasks will be re-assigned to remaining live instances
   //
   @Test
-  public void testSimpleAssignmentReassignAfterDeath()
-      throws Exception {
+  public void testSimpleAssignmentReassignAfterDeath() throws Exception {
     String testCluster = "testSimpleAssignmentReassignAfterDeath";
     String testConnectoryType = "testConnectoryType";
     String datastreamName = "datastream";
@@ -779,8 +770,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testBroadcastAssignmentReassignAfterDeath()
-      throws Exception {
+  public void testBroadcastAssignmentReassignAfterDeath() throws Exception {
     String testCluster = "testBroadcastAssignmentReassignAfterDeath";
     String testConnectoryType = "testConnectoryType";
     String datastreamName = "datastream";
@@ -861,8 +851,7 @@ public class TestCoordinator {
   // the assignment will be taken over by the new leader.
   //
   @Test
-  public void testSimpleAssignmentReassignAfterLeaderDeath()
-      throws Exception {
+  public void testSimpleAssignmentReassignAfterLeaderDeath() throws Exception {
     String testCluster = "testSimpleAssignmentReassignAfterLeaderDeath";
     String testConnectoryType = "testConnectoryType";
     String datastreamName = "datastream";
@@ -966,8 +955,7 @@ public class TestCoordinator {
   // this test covers the scenario when multiple instances die at the same time
   //
   @Test
-  public void testMultipleInstanceDeath()
-      throws Exception {
+  public void testMultipleInstanceDeath() throws Exception {
     String testCluster = "testMultipleInstanceDeath";
     String testConnectoryType = "testConnectoryType";
     String datastreamName = "datastream";
@@ -1038,8 +1026,7 @@ public class TestCoordinator {
   // Put it in another word, this is how Kafka consumer rebalancing works.
   //
   @Test
-  public void testSimpleAssignmentRebalancing()
-      throws Exception {
+  public void testSimpleAssignmentRebalancing() throws Exception {
     String testCluster = "testSimpleAssignmentRebalancing";
     String testConnectoryType = "testConnectoryType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -1105,8 +1092,7 @@ public class TestCoordinator {
   // strategies, BroadcastStrategy and SimpleStrategy respectively.
   //
   @Test
-  public void testSimpleAssignmentStrategyIndependent()
-      throws Exception {
+  public void testSimpleAssignmentStrategyIndependent() throws Exception {
     String testCluster = "testSimpleAssignmentStrategy";
     String connectoryType1 = "ConnectoryType1";
     String connectoryType2 = "ConnectoryType2";
@@ -1201,8 +1187,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinatorErrorHandling()
-      throws Exception {
+  public void testCoordinatorErrorHandling() throws Exception {
     String testCluster = "testCoordinatorErrorHandling";
     String connectoryType1 = "ConnectoryType1";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -1266,8 +1251,7 @@ public class TestCoordinator {
     }
   }
 
-  private TestSetup createTestCoordinator()
-      throws Exception {
+  private TestSetup createTestCoordinator() throws Exception {
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     datastreamKafkaCluster.startup();
@@ -1308,8 +1292,7 @@ public class TestCoordinator {
    * @throws Exception
    */
   @Test
-  public void testCreateDatastreamHappyPath()
-      throws Exception {
+  public void testCreateDatastreamHappyPath() throws Exception {
     TestSetup setup = createTestCoordinator();
 
     // Check retention when it's specific in topicConfig
@@ -1317,7 +1300,8 @@ public class TestCoordinator {
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    stream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
+    stream.getMetadata()
+        .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
     CreateResponse response = setup._resource.create(stream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
@@ -1328,8 +1312,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCreateDatastreamHappyPathDefaultRetention()
-      throws Exception {
+  public void testCreateDatastreamHappyPathDefaultRetention() throws Exception {
     TestSetup setup = createTestCoordinator();
 
     // Check default retention when no topicConfig is specified
