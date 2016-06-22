@@ -21,10 +21,9 @@ public class DynamicMetricsManager {
   }
 
   public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry) {
-    if (_instance != null) {
-      throw new IllegalStateException("DynamicMetricsManager already instantiated.");
+    if (_instance == null) {
+      _instance = new DynamicMetricsManager(metricRegistry);
     }
-    _instance = new DynamicMetricsManager(metricRegistry);
     return _instance;
   }
 
