@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -87,7 +88,7 @@ public interface DatastreamTask {
   /**
    * @return the list of datastreams for which this task is producing events for.
    */
-  List<String> getDatastreams();
+  List<Datastream> getDatastreams();
 
   /**
    * A connector must acquire a task before starting to process it. This ensures no

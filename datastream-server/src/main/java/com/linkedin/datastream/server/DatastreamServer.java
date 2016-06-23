@@ -150,18 +150,22 @@ public class DatastreamServer {
 
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
     coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.length);
-    _coordinator = new Coordinator(coordinatorConfig);
+
+
+    LOG.info("Setting up DMS endpoint server.");
+    ZkClient zkClient =
+        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+            coordinatorConfig.getZkConnectionTimeout());
+
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
+    _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
     LOG.info("Loading connectors.");
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr, verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
     }
 
-    LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient =
-        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
-            coordinatorConfig.getZkConnectionTimeout());
-    _datastreamStore = new ZookeeperBackedDatastreamStore(zkClient, coordinatorConfig.getCluster());
+    _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
     int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
     _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
         "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");

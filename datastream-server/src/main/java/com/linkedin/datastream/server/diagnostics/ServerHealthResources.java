@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.diagnostics.ConnectorHealth;
 import com.linkedin.datastream.diagnostics.ConnectorHealthArray;
 import com.linkedin.datastream.diagnostics.ServerHealth;
@@ -75,6 +76,7 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
       TaskHealth taskHealth = new TaskHealth();
       taskHealth.setDatastreams(task.getDatastreams().toString());
       taskHealth.setDatastreams(task.getDatastreams().stream()
+          .map(Datastream::getName)
           .collect(Collectors.joining(",")));
 
       if (task.getDatastreamDestination() != null) {

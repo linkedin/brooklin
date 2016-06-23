@@ -127,11 +127,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   @JsonIgnore
-  public Datastream getDatastream() {
-    return _datastream;
-  }
-
-  @JsonIgnore
   public String getDatastreamTaskName() {
     return _id.equals("") ? _datastreamName : _datastreamName + "_" + _id;
   }
@@ -178,8 +173,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @JsonIgnore
   @Override
-  public List<String> getDatastreams() {
-    return Collections.singletonList(_datastreamName);
+  public List<Datastream> getDatastreams() {
+    return Collections.singletonList(_datastream);
   }
 
   @Override

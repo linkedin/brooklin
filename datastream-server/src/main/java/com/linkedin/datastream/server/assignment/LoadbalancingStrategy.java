@@ -59,8 +59,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     }
 
     LOG.info(String.format("Datastreams: %s, instances: %s, currentAssignment: %s, NewAssignment: %s",
-        datastreams.stream().map(x -> x.getName()).collect(Collectors.toList()),
-        instances, currentAssignment, assignment));
+        datastreams.stream().map(x -> x.getName()).collect(Collectors.toList()), instances, currentAssignment,
+        assignment));
 
     return assignment;
   }
@@ -90,7 +90,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
     for (Datastream datastream : datastreams) {
       Set<DatastreamTask> tasksForDatastream = currentlyAssignedDatastreamTasks.stream()
-          .filter(x -> x.getDatastreams().stream().anyMatch(y -> y.equals(datastream.getName())))
+          .filter(
+              x -> x.getDatastreams().stream().map(Datastream::getName).anyMatch(y -> y.contains(datastream.getName())))
           .collect(Collectors.toSet());
 
       // If there are no datastream tasks that are currently assigned for this datastream.
@@ -98,9 +99,9 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
         tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);
       } else {
         // Filter out any COMPLETE tasks
-        tasksForDatastream = tasksForDatastream.stream().filter(
-                t -> t.getStatus() == null || t.getStatus().getCode() != DatastreamTaskStatus.Code.COMPLETE)
-                .collect(Collectors.toSet());
+        tasksForDatastream = tasksForDatastream.stream()
+            .filter(t -> t.getStatus() == null || t.getStatus().getCode() != DatastreamTaskStatus.Code.COMPLETE)
+            .collect(Collectors.toSet());
       }
 
       allTasks.addAll(tasksForDatastream);
@@ -114,7 +115,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
       numberOfDatastreamPartitions = datastream.getSource().getPartitions();
     }
-    int tasksPerDatastream = maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
+    int tasksPerDatastream =
+        maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();
     for (int index = 0; index < tasksPerDatastream; index++) {
       tasks.add(new DatastreamTaskImpl(datastream, Integer.toString(index),
