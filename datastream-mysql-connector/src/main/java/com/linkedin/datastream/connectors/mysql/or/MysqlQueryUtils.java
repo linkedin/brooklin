@@ -100,16 +100,18 @@ public class MysqlQueryUtils {
     reinit();
   }
 
-  private void initMysqlConn() throws SQLException {
+  public static Connection initMysqlConn(String hostName, int port, String username, String password)
+      throws SQLException {
+
     StringBuilder urlStr = new StringBuilder();
 
-    urlStr.append("jdbc:mysql://" + _source.getHostName());
-    urlStr.append(":" + _source.getPort());
+    urlStr.append("jdbc:mysql://" + hostName);
+    urlStr.append(":" + port);
 
-    urlStr.append("?user=").append(_username);
+    urlStr.append("?user=").append(username);
 
-    if (!StringUtils.isBlank(_password)) {
-      urlStr.append("&password=").append(_password);
+    if (!StringUtils.isBlank(password)) {
+      urlStr.append("&password=").append(password);
     }
 
     try {
@@ -117,7 +119,7 @@ public class MysqlQueryUtils {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    _conn = DriverManager.getConnection(urlStr.toString());
+    return DriverManager.getConnection(urlStr.toString());
   }
 
   public void closeConnection() throws SQLException {
@@ -356,7 +358,7 @@ public class MysqlQueryUtils {
       _conn = null;
     }
 
-    initMysqlConn();
+    _conn = initMysqlConn(_source.getHostName(), _source.getPort(), _username, _password);
   }
 
   public List<ColumnInfo> getColumnList(String dbName, String tableName) throws SQLException {
@@ -426,6 +428,16 @@ public class MysqlQueryUtils {
     } finally {
       rs.close();
       stmt.close();
+    }
+  }
+
+  public static boolean checkTableExists(MysqlSource source, String userName, String password) throws SQLException {
+    MysqlQueryUtils queryUtils = new MysqlQueryUtils(source, userName, password);
+    try {
+      queryUtils.initializeConnection();
+      return queryUtils.checkTableExist(source.getDatabaseName(), source.getTableName());
+    } finally {
+      queryUtils.closeConnection();
     }
   }
 

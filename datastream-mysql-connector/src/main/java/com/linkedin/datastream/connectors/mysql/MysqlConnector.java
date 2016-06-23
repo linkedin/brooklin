@@ -71,18 +71,13 @@ public class MysqlConnector implements Connector {
   private int _numTasks = 0;
 
   public MysqlConnector(Properties config) throws DatastreamException {
-    _defaultUserName = config.getProperty(CFG_MYSQL_USERNAME);
-    _defaultPassword = config.getProperty(CFG_MYSQL_PASSWORD);
+    _defaultUserName = config.getProperty(CFG_MYSQL_USERNAME, "");
+    _defaultPassword = config.getProperty(CFG_MYSQL_PASSWORD, "");
     String strServerId = config.getProperty(CFG_MYSQL_SERVER_ID);
     _sourceType = SourceType.valueOf(config.getProperty(CFG_MYSQL_SOURCE_TYPE, DEFAULT_MYSQL_SOURCE_TYPE));
 
     if (strServerId == null) {
       throw new DatastreamRuntimeException("Missing serverId property.");
-    }
-
-    // TODO we should pick up the username and password from the datastream rather than the defaults.
-    if (_sourceType == SourceType.MYSQLSERVER && (_defaultUserName == null || _defaultPassword == null)) {
-      throw new DatastreamRuntimeException("Missing mysql username or password.");
     }
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -163,13 +158,16 @@ public class MysqlConnector implements Connector {
         new MysqlSourceBinlogRowEventFilter(task.getDatastreamTaskName(), source.getDatabaseName(),
             source.isAllTables(), source.getTableName(), _dynamicMetricsManager);
     MysqlBinlogParserListener parserListener = new MysqlBinlogParserListener();
+    Datastream ds = task.getDatastreams().get(0);
+    String username = getUserNameFromDatastream(ds);
+    String password = getPasswordFromDatastream(ds);
     MysqlReplicatorImpl replicator =
-        new MysqlReplicatorImpl(source, _defaultUserName, _defaultPassword, _defaultServerId, rowEventFilter,
-            parserListener);
+        new MysqlReplicatorImpl(source, username, password, _defaultServerId,
+            rowEventFilter, parserListener);
 
     MysqlServerTableInfoProvider tableInfoProvider;
     try {
-      tableInfoProvider = new MysqlServerTableInfoProvider(source, _defaultUserName, _defaultPassword);
+      tableInfoProvider = new MysqlServerTableInfoProvider(source, username, password);
     } catch (SQLException e) {
       String msg = String.format("Unable to instantiate the table info provider for the source {%s}", source);
       LOG.error(msg, e);
@@ -179,11 +177,11 @@ public class MysqlConnector implements Connector {
     replicator.setBinlogEventListener(new MysqlBinlogEventListener(task, tableInfoProvider, _dynamicMetricsManager));
     _mysqlProducers.put(task, replicator);
 
-    MysqlQueryUtils queryUtils = new MysqlQueryUtils(source, _defaultUserName, _defaultPassword);
-
+    MysqlQueryUtils queryUtils = new MysqlQueryUtils(source, username, password);
     MysqlCheckpoint checkpoint = fetchMysqlCheckpoint(task);
     String binlogFileName;
     long position;
+
     if (checkpoint == null) {
       // start from the latest position if no checkpoint found
       MysqlQueryUtils.BinlogPosition binlogPosition;
@@ -194,6 +192,7 @@ public class MysqlConnector implements Connector {
         LOG.error(msg, e);
         throw new DatastreamRuntimeException(msg, e);
       }
+
       binlogFileName = binlogPosition.getFileName();
       position = binlogPosition.getPosition();
     } else {
@@ -288,17 +287,11 @@ public class MysqlConnector implements Connector {
       }
 
       if (_sourceType == SourceType.MYSQLSERVER) {
-        MysqlQueryUtils queryUtils =
-            new MysqlQueryUtils(source, getUserNameFromDatastream(stream), getPasswordFromDatastream(stream));
-        try {
-          queryUtils.initializeConnection();
-          if (!queryUtils.checkTableExist(source.getDatabaseName(), source.getTableName())) {
-            throw new DatastreamValidationException(
-                String.format("Invalid datastream: Can't find table %s in db %s.", source.getDatabaseName(),
-                    source.getTableName()));
-          }
-        } finally {
-          queryUtils.closeConnection();
+        if (!MysqlQueryUtils.checkTableExists(source, getUserNameFromDatastream(stream),
+            getPasswordFromDatastream(stream))) {
+          throw new DatastreamValidationException(
+              String.format("Invalid datastream: Can't find table %s in db %s.", source.getTableName(),
+                  source.getDatabaseName()));
         }
       } else {
         File binlogFolder = new File(source.getBinlogFolderName());
@@ -315,7 +308,9 @@ public class MysqlConnector implements Connector {
         throw new DatastreamValidationException(msg);
       }
     } catch (SourceNotValidException | SQLException e) {
-      throw new DatastreamValidationException(e);
+      String msg = String.format("InitializeDatastream threw exception for datastream %s", stream);
+      LOG.error(msg, e);
+      throw new DatastreamValidationException(msg, e);
     }
   }
 
