@@ -52,7 +52,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 /**
  *
  * Coordinator is the object that bridges the ZooKeeper with Connector implementations. There is one instance
- * of Coordinator for each deployable DatastreamService instance. The Cooridnator can connect multiple connectors,
+ * of Coordinator for each deployable DatastreamService instance. The Coordinator can connect multiple connectors,
  * but each of them must belong to different type. The Coordinator calls the Connector.getConnectorType() to
  * inspect the type of the connectors to make sure that there is only one connector for each type.
  *
@@ -175,19 +175,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     String transportFactory = config.getTransportProviderFactory();
-    TransportProviderFactory factory;
-    factory = ReflectionUtils.createInstance(transportFactory);
+    TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
 
     if (factory == null) {
-      String errorMessage = "failed to create transport provider factory: " + transportFactory;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
+          "failed to create transport provider factory: " + transportFactory, null);
     }
 
     _transportProvider =
         factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
     if (_transportProvider == null) {
-      String errorMessage = "failed to create transport provider, factory: " + transportFactory;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
+          "failed to create transport provider, factory: " + transportFactory, null);
     }
 
     Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
@@ -195,11 +194,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
     SchemaRegistryProvider schemaRegistry = null;
     if (schemaRegistryFactoryType != null) {
-      SchemaRegistryProviderFactory schemaRegistryFactory;
-      schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
+      SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
       if (schemaRegistryFactory == null) {
-        String errorMessage = "failed to create schema registry factory: " + schemaRegistryFactoryType;
-        ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
+            "failed to create schema registry factory: " + schemaRegistryFactoryType, null);
       }
 
       schemaRegistry = schemaRegistryFactory.createSchemaRegistryProvider(
