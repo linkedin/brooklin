@@ -20,12 +20,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -69,7 +72,7 @@ public class EventProducer {
   // the transport (via onSendCallback) and are safe to be committed to
   // the checkpoint provider. We instantiate it as a concurrentHashMap
   // because we expose safeCheckpoints by reference such that connectors
-  // can be accessing the checkpoints while event procuder mutates them,
+  // can be accessing the checkpoints while event producer mutates them,
   // which is safe but can cause ConcurrentModificationException since
   // there is no synchronization between them. This is only be a problem
   // for CUSTOM checkpoint policy as DATASTREAM policy users only access
@@ -89,12 +92,16 @@ public class EventProducer {
   // This lock synchronizes various operations of the producer:
   //  readers: getSafeCheckpoints, onSendCallback
   //  writer: assign/unassignTasks, flushAndCheckpoint
-  // The lock pretects _safeCheckpoints and _pendingCheckpoints
+  // The lock protects _safeCheckpoints and _pendingCheckpoints
   private ReentrantReadWriteLock _checkpointRWLock;
 
+  private final DynamicMetricsManager _dynamicMetricsManager;
   private static final Counter TOTAL_EVENTS_PRODUCED = new Counter();
   private static final Counter EVENTS_PRODUCED_WITHIN_SLA = new Counter();
+  private static Long _sourceToDestinationLatencyMs = 0L;
+  private static final Gauge<Long> EVENTS_LATENCY = () -> _sourceToDestinationLatencyMs;
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
+  private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private final int _availabilityThresholdSlaMs;
 
@@ -126,7 +133,7 @@ public class EventProducer {
       // Final checkpointing
       doCheckpoint();
 
-      _logger.info("Checkpoint handler is shutdown.");
+      _logger.info("Checkpoint handler is shut down.");
     }
 
     private void doCheckpoint() {
@@ -183,6 +190,8 @@ public class EventProducer {
     _logger.info(String
         .format("Created event producer with customCheckpointing=%s, sendCallback=%s", customCheckpointing,
             onUnrecoverableError != null));
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
   }
 
   public int getProducerId() {
@@ -316,10 +325,19 @@ public class EventProducer {
       }
     } else {
       // Report availability metrics
-      if (System.currentTimeMillis() - record.getEventsTimestamp() <= _availabilityThresholdSlaMs) {
-        EVENTS_PRODUCED_WITHIN_SLA.inc();
+      synchronized (_sourceToDestinationLatencyMs) {
+        _sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsTimestamp();
+        if (_sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
+          EVENTS_PRODUCED_WITHIN_SLA.inc();
+        } else {
+          _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
+          _logger.warn(
+              String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d millseconds",
+                  _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(), metadata.getPartition(),
+                  _availabilityThresholdSlaMs));
+        }
+        TOTAL_EVENTS_PRODUCED.inc();
       }
-      TOTAL_EVENTS_PRODUCED.inc();
 
       try {
         // read-lock is sufficient as messages in the same partition is expected to be acknowledged
@@ -352,7 +370,7 @@ public class EventProducer {
    * Flush the pending unset events in the transport and commit the acknowledged
    * checkpoints (via onSendCallback) with checkpoint provider afterwards.
    *
-   * The method is maded synchronized to prevent concurrent execution by:
+   * The method is synchronized to prevent concurrent execution by:
    *  - unassignTask
    *  - CheckpointHandler
    *  - external flush request
@@ -426,7 +444,7 @@ public class EventProducer {
   }
 
   /**
-   * shutdown should only be called when all tasks associated with it are out of mission.
+   * Shutdown should only be called when all tasks associated with it are out of mission.
    * It is the responsibility of the {@link EventProducerPool} to ensure this.
    */
   public void shutdown() {
@@ -459,6 +477,8 @@ public class EventProducer {
     metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), "eventsProducedWithinSla"),
         EVENTS_PRODUCED_WITHIN_SLA);
     metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), "totalEventsProduced"), TOTAL_EVENTS_PRODUCED);
+    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), "eventsLatency"), EVENTS_LATENCY);
+    metrics.put(EventProducer.class.getSimpleName() + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA, new Counter());
 
     return Collections.unmodifiableMap(metrics);
   }
