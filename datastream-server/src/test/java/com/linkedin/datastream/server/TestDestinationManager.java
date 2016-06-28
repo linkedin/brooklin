@@ -54,8 +54,8 @@ public class TestDestinationManager {
 
   public static TransportProvider createTransport() throws Exception {
     TransportProvider transport = mock(TransportProvider.class);
-    doAnswer(invocation -> "transport://" + invocation.getArguments()[0]).when(transport).createTopic(
-            anyString(), anyInt(), anyObject());
+    doAnswer(invocation -> "transport://" + invocation.getArguments()[0]).when(transport).createTopic(anyString(),
+        anyInt(), anyObject());
     doReturn(RETENTION).when(transport).getRetention(anyString());
     return transport;
   }
@@ -199,5 +199,26 @@ public class TestDestinationManager {
 
     String retentionMs = stream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
     Assert.assertEquals(retentionMs, String.valueOf(RETENTION.toMillis()));
+  }
+
+  @Test
+  public void testSameSourceDiffConnectorShouldNotReuse()
+      throws Exception {
+    DestinationManager destinationManager = new DestinationManager(true, createTransport());
+
+    Datastream stream1 = generateDatastream(1);
+    destinationManager.populateDatastreamDestination(Collections.singletonList(stream1));
+
+    // create another datastream with the same source but different connector type
+    Datastream stream2 = generateDatastream(1);
+    stream2.setConnectorType("Foobar");
+
+    List<Datastream> datastreams = new ArrayList<>();
+    datastreams.add(stream1);
+    datastreams.add(stream2);
+    destinationManager.populateDatastreamDestination(datastreams);
+
+    Assert.assertNotEquals(stream1.getDestination().getConnectionString(),
+        stream2.getDestination().getConnectionString());
   }
 }
