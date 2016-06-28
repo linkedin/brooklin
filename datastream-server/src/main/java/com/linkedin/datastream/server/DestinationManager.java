@@ -71,8 +71,9 @@ public class DestinationManager {
       }
 
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
-      if (topicReuse && sourceStreamMapping.containsKey(datastream.getSource())) {
-        Datastream existingStream = sourceStreamMapping.get(datastream.getSource());
+      Datastream existingStream = sourceStreamMapping.getOrDefault(datastream.getSource(), null);
+      if (topicReuse && existingStream != null &&
+          existingStream.getConnectorType().equals(datastream.getConnectorType())) {
         DatastreamDestination destination = existingStream.getDestination();
         LOG.info(String.format("Datastream %s has same source as existing datastream, Setting the destination %s",
             datastream.getName(), destination));
