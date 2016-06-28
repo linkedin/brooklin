@@ -3,6 +3,7 @@ package com.linkedin.datastream.connectors.mysql;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
@@ -13,7 +14,7 @@ public class MysqlConnectorFactory implements ConnectorFactory {
     try {
       return new MysqlConnector(config);
     } catch (DatastreamException e) {
-      throw new RuntimeException("Instantiating Mysql connector failed with exception", e);
+      throw new DatastreamRuntimeException("Instantiating Mysql connector failed with exception", e);
     }
   }
 }

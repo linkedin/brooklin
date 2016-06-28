@@ -32,7 +32,7 @@ public final class PollUtils {
    */
   public static <T> boolean poll(Predicate<T> cond, long periodMs, long timeoutMs, T arg) {
     long elapsedMs = 0;
-    if (periodMs > timeoutMs) {
+    if (timeoutMs > 0 && periodMs > timeoutMs) {
       return false;
     }
     while (true) {
@@ -45,7 +45,7 @@ public final class PollUtils {
         break;
       }
       elapsedMs += periodMs;
-      if (elapsedMs >= timeoutMs) {
+      if (timeoutMs > 0 && elapsedMs >= timeoutMs) {
         break;
       }
     }
