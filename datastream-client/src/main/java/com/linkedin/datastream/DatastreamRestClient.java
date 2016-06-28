@@ -75,10 +75,9 @@ public class DatastreamRestClient {
     } catch (RemoteInvocationException e) {
       if (e instanceof RestLiResponseException
           && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
-        LOG.error(String.format("Datastream {%s} is not found", datastreamName), e);
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
-
         String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
         LOG.error(errorMessage, e);
         throw new DatastreamRuntimeException(errorMessage, e);
