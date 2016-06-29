@@ -132,7 +132,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<ConnectorWrapper, AssignmentStrategy> _strategies = new HashMap<>();
 
   // Connector types which has custom checkpointing enabled.
-  private Set<String> _customCheckpointingConnectorTypes = new HashSet<>();
+  private Set<String> _customCheckpointingConnectors = new HashSet<>();
 
   // mapping from connector type to connector instance
   private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
@@ -189,7 +189,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "failed to create transport provider, factory: " + transportFactory, null);
     }
 
-    Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
+    Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(_metrics::putAll);
 
     String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
     SchemaRegistryProvider schemaRegistry = null;
@@ -440,7 +440,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       _eventProducerPool.assignEventProducers(connectorType, addedTasks, removedTasks,
-          _customCheckpointingConnectorTypes.contains(connectorType));
+          _customCheckpointingConnectors.contains(connectorType));
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
@@ -569,10 +569,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
 
     for (Datastream ds : allStreams) {
-      Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.getOrDefault(ds.getConnectorType(), null);
+      Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.getOrDefault(ds.getConnectorName(), null);
       if (streams == null) {
         streams = new HashMap<>();
-        streamsByConnectorType.put(ds.getConnectorType(), streams);
+        streamsByConnectorType.put(ds.getConnectorName(), streams);
       }
 
       // Only keep the datastreams with unique destinations
@@ -642,18 +642,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
    * connector per connector type.
    *
-   * @param connectorType type of the connector.
+   * @param connectorName of the connector.
    * @param connector a connector that implements the Connector interface
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to the zookeeper.
    */
-  public void addConnector(String connectorType, Connector connector, AssignmentStrategy strategy,
+  public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
       boolean customCheckpointing) {
-    _log.info("Add new connector of type " + connectorType + " to coordinator");
+    _log.info("Add new connector of type " + connectorName + " to coordinator");
 
-    if (_connectors.containsKey(connectorType)) {
-      String err = "A connector of type " + connectorType + " already exists.";
+    if (_connectors.containsKey(connectorName)) {
+      String err = "A connector of type " + connectorName + " already exists.";
       _log.error(err);
       throw new IllegalArgumentException(err);
     }
@@ -661,11 +661,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional<Map<String, Metric>> connectorMetrics = Optional.ofNullable(connector.getMetrics());
     connectorMetrics.ifPresent(m -> _metrics.putAll(m));
 
-    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorType, connector);
-    _connectors.put(connectorType, connectorWrapper);
+    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
+    _connectors.put(connectorName, connectorWrapper);
     _strategies.put(connectorWrapper, strategy);
     if (customCheckpointing) {
-      _customCheckpointingConnectorTypes.add(connectorType);
+      _customCheckpointingConnectors.add(connectorName);
     }
   }
 
@@ -676,7 +676,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @return result of the validation
    */
   public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
-    String connectorType = datastream.getConnectorType();
+    String connectorType = datastream.getConnectorName();
 
     ConnectorWrapper connector = _connectors.get(connectorType);
     if (connector == null) {

@@ -39,7 +39,7 @@ public class MysqlSnapshotConnector implements Connector {
 
   private static final Logger LOG = LoggerFactory.getLogger(MysqlSnapshotConnector.class);
 
-  public static final String CONNECTOR_TYPE = "mysqlsnapshot";
+  public static final String CONNECTOR_NAME = "mysqlsnapshot";
   private static final String CFG_NUM_THREADS = "numThreads";
   private static final String DEFAULT_NUM_THREADS = "10";
   private static final String CFG_BUFFER_SIZE = "bufferSize";

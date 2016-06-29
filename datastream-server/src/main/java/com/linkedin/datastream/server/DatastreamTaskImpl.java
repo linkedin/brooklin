@@ -86,7 +86,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     Validate.notNull(datastream, "null datastream");
     Validate.notNull(id, "null id");
     _datastreamName = datastream.getName();
-    _connectorType = datastream.getConnectorType();
+    _connectorType = datastream.getConnectorName();
     _datastream = datastream;
     _id = id;
     _partitions = new ArrayList<>();

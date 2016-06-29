@@ -29,7 +29,7 @@ public final class DatastreamUtils {
     Validate.notNull(datastream, "invalid datastream");
     Validate.notNull(datastream.getSource(), "invalid datastream source");
     Validate.notNull(datastream.getName(), "invalid datastream name");
-    Validate.notNull(datastream.getConnectorType(), "invalid datastream connector type");
+    Validate.notNull(datastream.getConnectorName(), "invalid datastream connector type");
   }
 
   /**

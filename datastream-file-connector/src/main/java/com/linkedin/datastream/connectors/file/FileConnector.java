@@ -37,7 +37,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  */
 public class FileConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
-  public static final String CONNECTOR_TYPE = "file";
+  public static final String CONNECTOR_NAME = "file";
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
   public static final String CFG_NUM_PARTITIONS = "numPartitions";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";

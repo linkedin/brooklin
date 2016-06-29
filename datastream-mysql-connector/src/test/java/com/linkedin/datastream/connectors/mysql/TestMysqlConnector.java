@@ -232,7 +232,7 @@ public class TestMysqlConnector {
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithMysqlConnector(Properties override)
       throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
-    connectorProperties.put(MysqlConnector.CONNECTOR_TYPE, buildMysqlConnectorProperties());
+    connectorProperties.put(MysqlConnector.CONNECTOR_NAME, buildMysqlConnectorProperties());
     return EmbeddedDatastreamCluster.newTestDatastreamCluster(connectorProperties, override);
   }
 
@@ -250,7 +250,7 @@ public class TestMysqlConnector {
 
     MysqlSource source = new MysqlSource(binlogFolder, databaseName, tableName);
     Datastream mysqlDatastream =
-        DatastreamTestUtils.createDatastream(MysqlConnector.CONNECTOR_TYPE, datastreamName, source.toString());
+        DatastreamTestUtils.createDatastream(MysqlConnector.CONNECTOR_NAME, datastreamName, source.toString());
 
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.createDatastream(mysqlDatastream);
