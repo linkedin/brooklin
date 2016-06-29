@@ -2,9 +2,9 @@ package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -29,7 +29,7 @@ public class TestBroadcastStrategy {
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
     }
@@ -52,8 +52,9 @@ public class TestBroadcastStrategy {
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances),
+        Optional.ofNullable(assignment));
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
@@ -69,11 +70,11 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, Optional.empty());
 
     datastreams.remove(0);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, Optional.ofNullable(assignment));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -88,13 +89,13 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, Optional.empty());
 
     List<Datastream> newDatastreams = new ArrayList<>(datastreams);
     Datastream newDatastream = generateDatastreams("newds", 1).get(0);
     newDatastreams.add(newDatastream);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, Optional.ofNullable(assignment));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -112,10 +113,10 @@ public class TestBroadcastStrategy {
     String instance4 = "instance4";
     List<Datastream> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, Optional.empty());
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, Optional.ofNullable(assignment));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {

@@ -12,7 +12,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -36,10 +39,10 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
+      Optional<Map<String, Set<DatastreamTask>>> currentAssignment) {
 
     // if there are no live instances, return empty assignment
-    if (instances.size() == 0) {
+    if (instances.isEmpty()) {
       return new HashMap<>();
     }
 
@@ -66,27 +69,17 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   }
 
   private List<Datastream> sortDatastreams(List<Datastream> datastreams) {
-    Map<String, Datastream> m = new HashMap<>();
-    List<String> keys = new ArrayList<>();
-    datastreams.forEach(ds -> {
-      m.put(ds.getName(), ds);
-      keys.add(ds.getName());
-    });
-
-    Collections.sort(keys);
-
-    List<Datastream> result = new ArrayList<>();
-    keys.forEach(k -> result.add(m.get(k)));
-
-    return result;
+    SortedMap<String, Datastream> sortedMap = new TreeMap<>();
+    datastreams.forEach(ds -> sortedMap.put(ds.getName(), ds));
+    return new ArrayList<>(sortedMap.values());
   }
 
   private List<DatastreamTask> getDatastreamTasks(List<Datastream> datastreams,
-      Map<String, Set<DatastreamTask>> currentAssignment, int maxTasksPerDatastream) {
+      Optional<Map<String, Set<DatastreamTask>>> currentAssignment, int maxTasksPerDatastream) {
     Set<DatastreamTask> allTasks = new HashSet<>();
 
     List<DatastreamTask> currentlyAssignedDatastreamTasks = new ArrayList<>();
-    currentAssignment.values().forEach(currentlyAssignedDatastreamTasks::addAll);
+    currentAssignment.ifPresent(c -> c.values().forEach(currentlyAssignedDatastreamTasks::addAll));
 
     for (Datastream datastream : datastreams) {
       Set<DatastreamTask> tasksForDatastream = currentlyAssignedDatastreamTasks.stream()
