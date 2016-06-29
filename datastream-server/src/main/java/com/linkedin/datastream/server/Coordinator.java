@@ -558,33 +558,31 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
 
+    // The inner map is used to dedup Datastreams with the same destination
+    Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
+
     // get all streams that are assignable. Assignable datastreams are the ones
     // with a valid target. If there is no target, we cannot assign them to the connectors
     // because connectors do not have access to the producers and event collectors and
     // will assume any assigned tasks are ready to collect events.
-    List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
+    _datastreamCache.getAllDatastreams()
         .stream()
         .filter(datastream -> datastream.getDestination() != null)
-        .collect(Collectors.toList());
+        .forEach(ds -> {
+          Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.get(ds.getConnectorType());
+          if (streams == null) {
+            streams = new HashMap<>();
+            streamsByConnectorType.put(ds.getConnectorType(), streams);
+          }
 
-    // The inner map is used to dedup Datastreams with the same destination
-    Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
-
-    for (Datastream ds : allStreams) {
-      Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.getOrDefault(ds.getConnectorType(), null);
-      if (streams == null) {
-        streams = new HashMap<>();
-        streamsByConnectorType.put(ds.getConnectorType(), streams);
-      }
-
-      // Only keep the datastreams with unique destinations
-      if (!streams.containsKey(ds.getDestination())) {
-        streams.put(ds.getDestination(), ds);
-      }
-    }
+          // Only keep the datastreams with unique destinations
+          if (!streams.containsKey(ds.getDestination())) {
+            streams.put(ds.getDestination(), ds);
+          }
+        });
 
     // Map between Instance and the tasks
-    Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
+    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
     Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
     _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
@@ -596,17 +594,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // Get the list of tasks per instance for the given connectortype
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, currentAssignment);
+          strategy.assign(datastreamsPerConnectorType, liveInstances, Optional.ofNullable(currentAssignment));
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
-        if (!assigmentsByInstance.containsKey(instance)) {
-          assigmentsByInstance.put(instance, new ArrayList<>());
+        if (!assignmentsByInstance.containsKey(instance)) {
+          assignmentsByInstance.put(instance, new ArrayList<>());
         }
         // Add the tasks for this connector type to the instance
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
           ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
-          assigmentsByInstance.get(instance).add(task);
+          assignmentsByInstance.get(instance).add(task);
         });
       }
     }
@@ -616,11 +614,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // it failed to create or delete znodes), we will do our best to continue the current process
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
-    for (Map.Entry<String, List<DatastreamTask>> entry : assigmentsByInstance.entrySet()) {
+    for (Map.Entry<String, List<DatastreamTask>> entry : assignmentsByInstance.entrySet()) {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
-    _log.info("handleLeaderDoAssignment: new assignment: " + assigmentsByInstance);
+    _log.info("handleLeaderDoAssignment: new assignment: " + assignmentsByInstance);
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {

@@ -64,12 +64,9 @@ public class KafkaTransportProvider implements TransportProvider {
   private static final String EVENT_WRITE_RATE = "eventWriteRate";
   private static final String EVENT_BYTE_WRITE_RATE = "eventByteWriteRate";
   private static final String EVENT_TRANSPORT_ERROR_COUNT = "eventTransportErrorCount";
-
+  private static final String AGGREGATE = "aggregate";
   private final DynamicMetricsManager _dynamicMetricsManager;
-  private final Meter _eventWriteRate;
-  private final Meter _eventByteWriteRate;
-  private final Counter _eventTransportErrorCount;
-  private final Counter _eventsWrittenTotal;
+
 
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
@@ -103,10 +100,6 @@ public class KafkaTransportProvider implements TransportProvider {
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _eventWriteRate = new Meter();
-    _eventByteWriteRate = new Meter();
-    _eventTransportErrorCount = new Counter();
-    _eventsWrittenTotal = new Counter();
   }
 
   private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination, DatastreamProducerRecord record,
@@ -192,23 +185,22 @@ public class KafkaTransportProvider implements TransportProvider {
           LOG.error(errorMessage, e);
           throw new DatastreamRuntimeException(errorMessage, e);
         }
-        _eventWriteRate.mark();
-        _eventByteWriteRate.mark(event.getKey().length + event.getValue().length);
 
         _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
                 new DatastreamRecordMetadata(String.valueOf(metadata.offset()), metadata.topic(), metadata.partition()),
                 exception));
         // Update topic-specific metrics and aggregate metrics
         int numBytes = event.getKey().length + event.getValue().length;
-        _eventWriteRate.mark();
-        _eventByteWriteRate.mark(numBytes);
-        _eventsWrittenTotal.inc();
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_WRITE_RATE, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENTS_WRITTEN_TOTAL, 1);
+
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENTS_WRITTEN_TOTAL, 1);
       }
     } catch (Exception e) {
-      _eventTransportErrorCount.inc();
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENT_TRANSPORT_ERROR_COUNT, 1);
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENT_TRANSPORT_ERROR_COUNT, 1);
       String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
           + "failed with exception", record.getEvents(), destinationUri, _brokers);
@@ -255,12 +247,6 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public Map<String, Metric> getMetrics() {
     Map<String, Metric> metrics = new HashMap<>();
-
-    metrics.put(buildMetricName(EVENT_WRITE_RATE), _eventWriteRate);
-    metrics.put(buildMetricName(EVENT_BYTE_WRITE_RATE), _eventByteWriteRate);
-    metrics.put(buildMetricName(EVENT_TRANSPORT_ERROR_COUNT), _eventTransportErrorCount);
-    metrics.put(buildMetricName(EVENTS_WRITTEN_TOTAL), _eventsWrittenTotal);
-
     /*
      * For dynamic metrics captured by regular expression, put an object corresponding to the type of metric that will be
      * created dynamically.

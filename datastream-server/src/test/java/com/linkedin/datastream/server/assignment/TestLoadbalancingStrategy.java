@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.testng.Assert;
@@ -56,7 +57,7 @@ public class TestLoadbalancingStrategy {
     datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
     }
@@ -69,7 +70,7 @@ public class TestLoadbalancingStrategy {
     datastreams.forEach(x -> x.getSource().setPartitions(2));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     List<String> sortedInstances = Arrays.asList(instances);
     Collections.sort(sortedInstances);
@@ -87,7 +88,7 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -96,7 +97,7 @@ public class TestLoadbalancingStrategy {
 
     String[] newInstances = new String[] { "instance1", "instance2" };
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+        strategy.assign(datastreams, Arrays.asList(newInstances), Optional.ofNullable(assignment));
 
     Assert.assertEquals(newAssignment.get(newInstances[0]).size(), 3);
     Assert.assertEquals(newAssignment.get(newInstances[1]).size(), 3);
@@ -110,7 +111,7 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -119,7 +120,7 @@ public class TestLoadbalancingStrategy {
 
     String[] newInstances = new String[] { "instance1", "instance2", "instance3", "instance4" };
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+        strategy.assign(datastreams, Arrays.asList(newInstances), Optional.ofNullable(assignment));
 
     for (String instance : newInstances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 1);
@@ -134,7 +135,7 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -148,7 +149,7 @@ public class TestLoadbalancingStrategy {
     });
 
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(instances), assignment);
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.ofNullable(assignment));
 
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 4);
@@ -163,7 +164,7 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 4);
@@ -174,7 +175,7 @@ public class TestLoadbalancingStrategy {
     datastreams.remove(1);
 
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(instances), assignment);
+        strategy.assign(datastreams, Arrays.asList(instances), Optional.ofNullable(assignment));
 
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 2);
@@ -188,7 +189,7 @@ public class TestLoadbalancingStrategy {
     datastreams.forEach(x -> x.getSource().setPartitions(12));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-            strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+            strategy.assign(datastreams, Arrays.asList(instances), Optional.empty());
 
     List<DatastreamTask> tasks = new ArrayList<>();
 
@@ -205,12 +206,12 @@ public class TestLoadbalancingStrategy {
       tasks.get(i).setStatus(DatastreamTaskStatus.complete());
     }
 
-    assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    assignment = strategy.assign(datastreams, Arrays.asList(instances), Optional.ofNullable(assignment));
     Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), numPending);
 
     // Complete all
     tasks.forEach(t -> t.setStatus(DatastreamTaskStatus.complete()));
-    assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    assignment = strategy.assign(datastreams, Arrays.asList(instances), Optional.ofNullable(assignment));
     Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), 0);
   }
 }

@@ -26,7 +26,7 @@ import java.util.UUID;
 /**
  * DatastreamTask is the minimum assignable element of a Datastream. It is mainly used to partition the datastream
  * defined by Datastream. For example, the user can define an instance of Datastream for an Oracle bootstrap
- * connector, but this logical datastream can be splitted to a number of DatastreamTask instances, each is tied
+ * connector, but this logical datastream can be split to a number of DatastreamTask instances, each is tied
  * to one partition. This way, each instance of DatastreamTask can be assigned independently, which in turn can
  * result in bigger output and better concurrent IO.
  *
@@ -34,7 +34,7 @@ import java.util.UUID;
  * Datastream object, DatastreamTask also contains a key-value store Properties. This allows the assignment
  * strategy to attach extra parameters.
  *
- * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in zookeeper
+ * <p>DatastreamTask has a unique name called _datastreamTaskName. This is used as the znode name in zookeeper
  * This should be unique for each instance of DatastreamTask, especially in the case when a Datastream is
  * split into multiple DatastreamTasks. This is because we will have a state associated with each DatastreamTask.
  *
