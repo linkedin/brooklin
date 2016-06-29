@@ -10,7 +10,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class MysqlConnectorFactory implements ConnectorFactory {
   @Override
-  public Connector createConnector(Properties config) {
+  public Connector createConnector(String connectorName, Properties config) {
     try {
       return new MysqlConnector(config);
     } catch (DatastreamException e) {

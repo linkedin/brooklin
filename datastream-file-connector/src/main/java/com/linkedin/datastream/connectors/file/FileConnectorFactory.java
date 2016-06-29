@@ -9,7 +9,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class FileConnectorFactory implements ConnectorFactory {
   @Override
-  public Connector createConnector(Properties config) {
+  public Connector createConnector(String connectorName, Properties config) {
     try {
       return new FileConnector(config);
     } catch (DatastreamException e) {
