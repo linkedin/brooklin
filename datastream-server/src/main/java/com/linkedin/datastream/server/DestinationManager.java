@@ -73,7 +73,7 @@ public class DestinationManager {
       // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
       Datastream existingStream = sourceStreamMapping.getOrDefault(datastream.getSource(), null);
       if (topicReuse && existingStream != null &&
-          existingStream.getConnectorType().equals(datastream.getConnectorType())) {
+          existingStream.getConnectorName().equals(datastream.getConnectorName())) {
         DatastreamDestination destination = existingStream.getDestination();
         LOG.info(String.format("Datastream %s has same source as existing datastream, Setting the destination %s",
             datastream.getName(), destination));
@@ -162,7 +162,7 @@ public class DestinationManager {
     // Replace / with _ and strip out all non-alphanumeric chars
     path = path.replace("/", "_").replaceAll(REGEX_NON_ALPHA, "");
     // Include the connector type and random UUID
-    return String.join("_", datastream.getConnectorType(), path, UUID.randomUUID().toString());
+    return String.join("_", datastream.getConnectorName(), path, UUID.randomUUID().toString());
   }
 
   /**

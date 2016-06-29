@@ -49,7 +49,7 @@ public class DatastreamTestUtils {
   public static Datastream createDatastream(String connectorType, String datastreamName, String source) {
     Datastream ds = new Datastream();
     ds.setName(datastreamName);
-    ds.setConnectorType(connectorType);
+    ds.setConnectorName(connectorType);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(source);
     StringMap metadata = new StringMap();
@@ -70,7 +70,7 @@ public class DatastreamTestUtils {
       String destination, int destinationPartitions) {
     Datastream ds = new Datastream();
     ds.setName(datastreamName);
-    ds.setConnectorType(connectorType);
+    ds.setConnectorName(connectorType);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(source);
     ds.setDestination(new DatastreamDestination());

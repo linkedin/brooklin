@@ -49,7 +49,7 @@ public class MysqlConnector implements Connector {
 
   private static final Logger LOG = LoggerFactory.getLogger(MysqlConnector.class);
 
-  public static final String CONNECTOR_TYPE = "mysql";
+  public static final String CONNECTOR_NAME = "mysql";
   public static final String CFG_MYSQL_USERNAME = "username";
   public static final String CFG_MYSQL_PASSWORD = "password";
   public static final String CFG_MYSQL_SERVER_ID = "serverId";

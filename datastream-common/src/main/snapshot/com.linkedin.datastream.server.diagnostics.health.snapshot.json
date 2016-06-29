@@ -43,9 +43,9 @@
     "namespace" : "com.linkedin.datastream.diagnostics",
     "doc" : "Datastream connector health",
     "fields" : [ {
-      "name" : "connectorType",
+      "name" : "connectorName",
       "type" : "string",
-      "doc" : "type of the connector."
+      "doc" : "name of the connector."
     }, {
       "name" : "strategy",
       "type" : "string",

@@ -39,7 +39,7 @@ public class TestDestinationManager {
   public static Datastream generateDatastream(int seed, boolean withDestination) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
-    ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
+    ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString("DummySource_" + seed);
     ds.setDestination(new DatastreamDestination());
@@ -211,7 +211,7 @@ public class TestDestinationManager {
 
     // create another datastream with the same source but different connector type
     Datastream stream2 = generateDatastream(1);
-    stream2.setConnectorType("Foobar");
+    stream2.setConnectorName("Foobar");
 
     List<Datastream> datastreams = new ArrayList<>();
     datastreams.add(stream1);

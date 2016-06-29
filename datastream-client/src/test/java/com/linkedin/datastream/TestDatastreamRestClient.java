@@ -46,7 +46,7 @@ public class TestDatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
-  private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
+  private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
   private DatastreamServer _datastreamServer;
   private EmbeddedZookeeper _embeddedZookeeper;
 
@@ -65,7 +65,7 @@ public class TestDatastreamRestClient {
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
-    ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
+    ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(String.format("%s://%s", DummyConnector.CONNECTOR_TYPE, "DummySource"));
     StringMap metadata = new StringMap();
@@ -86,7 +86,7 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(port));
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_TYPES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
         + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
@@ -250,7 +250,7 @@ public class TestDatastreamRestClient {
     Datastream createdDatastream = restClient.getDatastream(bootstrapDatastream.getName());
     LOG.info("Created Datastream : " + createdDatastream);
     Assert.assertEquals(bootstrapDatastream.getName(), createdDatastream.getName());
-    Assert.assertEquals(bootstrapDatastream.getConnectorType(), createdDatastream.getConnectorType());
+    Assert.assertEquals(bootstrapDatastream.getConnectorName(), createdDatastream.getConnectorName());
   }
 
   @Test(expectedExceptions = DatastreamAlreadyExistsException.class)

@@ -62,7 +62,7 @@ public class MysqlConnectorTestUtils {
   public static Datastream createDatastream(String connString, Integer partitions) {
     Datastream stream = new Datastream();
     stream.setName("datastream_" + connString);
-    stream.setConnectorType("Mysql");
+    stream.setConnectorName("Mysql");
     DatastreamSource source = new DatastreamSource();
     source.setConnectionString(connString);
     stream.setSource(source);

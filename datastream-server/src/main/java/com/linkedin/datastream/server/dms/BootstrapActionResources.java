@@ -64,7 +64,7 @@ public class BootstrapActionResources {
             "Must specify name of Datastream!");
       }
 
-      if (!bootstrapDatastream.hasConnectorType()) {
+      if (!bootstrapDatastream.hasConnectorName()) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
       }
       if (!bootstrapDatastream.hasSource()) {

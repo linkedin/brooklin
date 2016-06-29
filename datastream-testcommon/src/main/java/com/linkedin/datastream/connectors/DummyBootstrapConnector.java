@@ -19,7 +19,7 @@ public class DummyBootstrapConnector implements Connector {
 
   private Properties _properties;
 
-  public static final String CONNECTOR_TYPE = "DummyConnectorBootstrap";
+  public static final String CONNECTOR_NAME = "DummyConnectorBootstrap";
 
   public DummyBootstrapConnector(Properties properties) throws Exception {
     _properties = properties;

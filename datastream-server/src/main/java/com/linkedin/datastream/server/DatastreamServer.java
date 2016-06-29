@@ -41,7 +41,7 @@ import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 public class DatastreamServer {
 
   public static final String CONFIG_PREFIX = "datastream.server.";
-  public static final String CONFIG_CONNECTOR_TYPES = CONFIG_PREFIX + "connectorTypes";
+  public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
@@ -142,7 +142,7 @@ public class DatastreamServer {
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
 
-    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES).split(",");
+    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",");
     if (connectorTypes.length == 0) {
       String errorMessage = "No connectors specified in connectorTypes";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);

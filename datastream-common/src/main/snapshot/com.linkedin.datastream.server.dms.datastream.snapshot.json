@@ -37,9 +37,9 @@
       "type" : "string",
       "doc" : "Name of the Datastream."
     }, {
-      "name" : "connectorType",
+      "name" : "connectorName",
       "type" : "string",
-      "doc" : "Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc.."
+      "doc" : "Name of the connector to be used for reading the change capture events from the source, e.g. Oracle, Espresso, OracleBootstrap, EspressoBootstrap, Mysql etc.."
     }, {
       "name" : "source",
       "type" : "DatastreamSource",

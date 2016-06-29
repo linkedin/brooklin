@@ -47,7 +47,7 @@ public class TestZookeeperBackedDatastreamStore {
     DatastreamSource datastreamSource = new DatastreamSource();
     datastreamSource.setConnectionString(source);
     Datastream ds =
-        new Datastream().setName(name).setConnectorType(connectorType).setSource(datastreamSource)
+        new Datastream().setName(name).setConnectorName(connectorType).setSource(datastreamSource)
             .setMetadata(metadata);
     return ds;
   }

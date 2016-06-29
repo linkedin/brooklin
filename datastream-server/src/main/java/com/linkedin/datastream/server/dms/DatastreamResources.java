@@ -141,7 +141,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         CALL_ERROR.inc();
         return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
       }
-      if (!datastream.hasConnectorType()) {
+      if (!datastream.hasConnectorName()) {
         CALL_ERROR.inc();
         return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
       }

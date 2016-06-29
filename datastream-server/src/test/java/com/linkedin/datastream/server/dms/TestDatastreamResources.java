@@ -44,7 +44,7 @@ public class TestDatastreamResources {
       ds.setName("name_" + seed);
     }
     if (!missingFields.contains("connectorType")) {
-      ds.setConnectorType(DummyConnector.CONNECTOR_TYPE);
+      ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
     }
     if (!missingFields.contains("source")) {
       ds.setSource(new DatastreamSource());
@@ -143,7 +143,7 @@ public class TestDatastreamResources {
   public void testCreateInvalidDatastream() {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     Datastream datastream1 = generateDatastream(6);
-    datastream1.setConnectorType("InvalidConnectorName");
+    datastream1.setConnectorName("InvalidConnectorName");
     CreateResponse response = resource.create(datastream1);
     Assert.assertNotNull(response.getError());
     Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
