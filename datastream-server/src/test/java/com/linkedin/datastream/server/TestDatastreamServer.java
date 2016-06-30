@@ -51,8 +51,8 @@ public class TestDatastreamServer {
   public static final String LOADBALANCING_STRATEGY = LoadbalancingStrategy.class.getTypeName();
   public static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
-  public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_TYPE;
-  public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_TYPE;
+  public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
+  public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_NAME;
 
   private EmbeddedDatastreamCluster _datastreamCluster;
 
@@ -539,10 +539,10 @@ public class TestDatastreamServer {
     testFile.deleteOnExit();
     Datastream fileDatastream1;
     if (destinationTopic != null) {
-      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
+      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_NAME, "file_" + testFile.getName(),
           testFile.getAbsolutePath(), destinationTopic, destinationPartitions);
     } else {
-      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_TYPE, "file_" + testFile.getName(),
+      fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_NAME, "file_" + testFile.getName(),
           testFile.getAbsolutePath());
     }
 

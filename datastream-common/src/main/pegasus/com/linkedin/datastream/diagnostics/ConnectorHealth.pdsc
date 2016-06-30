@@ -5,8 +5,8 @@
   "doc": "Datastream connector health",
   "fields": [
     {
-      "name": "connectorType",
-      "doc": "type of the connector.",
+      "name": "connectorName",
+      "doc": "name of the connector.",
       "type": "string"
     },
     {

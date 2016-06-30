@@ -10,8 +10,8 @@
       "type": "string"
     },
     {
-      "name": "connectorType",
-      "doc": "Type of the connector to be used for reading the change capture events from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap, Mysql-Change etc..",
+      "name": "connectorName",
+      "doc": "Name of the connector to be used for reading the change capture events from the source, e.g. Oracle, Espresso, OracleBootstrap, EspressoBootstrap, Mysql etc..",
       "type": "string"
     },
     {

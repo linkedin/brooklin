@@ -55,7 +55,7 @@ public class TestEventProducer {
   private Datastream createDatastream() {
     Datastream datastream = new Datastream();
     datastream.setName("dummy datastream");
-    datastream.setConnectorType("EspressoConnector");
+    datastream.setConnectorName("EspressoConnector");
     datastream.setSource(new DatastreamSource());
     datastream.getSource().setConnectionString("espresso://dummyDB/dummyTable");
     StringMap metadata = new StringMap();

@@ -58,10 +58,10 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
         .distinct()
         .collect(Collectors.toList());
 
-    for (String connectorType : connectors) {
+    for (String connectorName : connectors) {
       ConnectorHealth connectorHealth = new ConnectorHealth();
-      connectorHealth.setConnectorType(connectorType);
-      connectorHealth.setTasks(buildTasksHealthForConnectorType(connectorType));
+      connectorHealth.setConnectorName(connectorName);
+      connectorHealth.setTasks(buildTasksHealthForConnectorType(connectorName));
       allConnectorsHealth.add(connectorHealth);
     }
 

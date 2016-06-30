@@ -21,7 +21,7 @@ public class TestDatastreamTask {
 
     Assert.assertEquals(task2.getDatastreamName(), stream.getName());
     Assert.assertTrue(task2.getDatastreamTaskName().contains(stream.getName()));
-    Assert.assertEquals(task2.getConnectorType(), stream.getConnectorType());
+    Assert.assertEquals(task2.getConnectorType(), stream.getConnectorName());
   }
 
   @Test

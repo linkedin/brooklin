@@ -41,7 +41,7 @@ import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 public class DatastreamServer {
 
   public static final String CONFIG_PREFIX = "datastream.server.";
-  public static final String CONFIG_CONNECTOR_TYPES = CONFIG_PREFIX + "connectorTypes";
+  public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
@@ -91,13 +91,13 @@ public class DatastreamServer {
     return _datastreamStore;
   }
 
-  private void initializeConnector(String connectorStr, Properties connectorProperties) {
-    LOG.info("Starting to load connector: " + connectorStr);
+  private void initializeConnector(String connectorName, Properties connectorProperties) {
+    LOG.info("Starting to load connector: " + connectorName);
 
     // For each connector type defined in the config, load one instance from that class
     String className = connectorProperties.getProperty(CONFIG_CONNECTOR_FACTORY_CLASS_NAME, "");
     if (StringUtils.isBlank(className)) {
-      String errorMessage = "Factory className is empty for connector " + connectorStr;
+      String errorMessage = "Factory className is empty for connector " + connectorName;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
@@ -107,12 +107,12 @@ public class DatastreamServer {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
 
-    Connector connectorInstance = connectorFactoryInstance.createConnector(connectorProperties);
+    Connector connectorInstance = connectorFactoryInstance.createConnector(connectorName, connectorProperties);
 
     // Read the bootstrap connector type for the connector if there is one
     String bootstrapConnector = connectorProperties.getProperty(CONFIG_CONNECTOR_BOOTSTRAP_TYPE, "");
     if (!bootstrapConnector.isEmpty()) {
-      _bootstrapConnectors.put(connectorStr, bootstrapConnector);
+      _bootstrapConnectors.put(connectorName, bootstrapConnector);
     }
 
     // Read the assignment strategy from the config; if not found, use default strategy
@@ -128,9 +128,9 @@ public class DatastreamServer {
 
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
-    _coordinator.addConnector(connectorStr, connectorInstance, assignmentStrategyInstance, customCheckpointing);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategyInstance, customCheckpointing);
 
-    LOG.info("Connector loaded successfully. Type: " + connectorStr);
+    LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
 
   public DatastreamServer(Properties properties) throws DatastreamException {
@@ -142,7 +142,7 @@ public class DatastreamServer {
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
 
-    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_TYPES).split(",");
+    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",");
     if (connectorTypes.length == 0) {
       String errorMessage = "No connectors specified in connectorTypes";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
