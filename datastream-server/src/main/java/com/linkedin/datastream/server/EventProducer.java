@@ -178,11 +178,11 @@ public class EventProducer {
     _safeCheckpoints = new ConcurrentHashMap<>();
     _onUnrecoverableError = onUnrecoverableError;
 
-    // Start checkpoint handler
-    _checkpointHandler = new CheckpointHandler(config);
-
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
     _logger = LoggerFactory.getLogger(String.format("%s:%s", MODULE, _producerId));
+
+    // Start checkpoint handler
+    _checkpointHandler = new CheckpointHandler(config);
 
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));

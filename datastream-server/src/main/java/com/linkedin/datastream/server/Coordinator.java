@@ -676,17 +676,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @return result of the validation
    */
   public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
-    String connectorType = datastream.getConnectorName();
+    String connectorName = datastream.getConnectorName();
 
-    ConnectorWrapper connector = _connectors.get(connectorType);
+    ConnectorWrapper connector = _connectors.get(connectorName);
     if (connector == null) {
-      String errorMessage = "Invalid connector type: " + connectorType;
+      String errorMessage = "Invalid connector: " + connectorName;
       _log.error(errorMessage);
       throw new DatastreamValidationException(errorMessage);
     }
 
-    _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorType));
-    connector.initializeDatastream(datastream, _datastreamCache.getAllDatastreams());
+    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams().stream()
+          .filter(d -> d.getConnectorName().equals(connectorName)).collect(Collectors.toList());
+
+    _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
+    connector.initializeDatastream(datastream, allDatastreams);
     if (connector.hasError()) {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
