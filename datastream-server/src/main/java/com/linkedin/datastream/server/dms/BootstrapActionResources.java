@@ -1,15 +1,17 @@
 package com.linkedin.datastream.server.dms;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.ExponentiallyDecayingReservoir;
-import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -39,7 +41,8 @@ public class BootstrapActionResources {
 
   private static final Counter CREATE_CALL = new Counter();
   private static final Counter CALL_ERROR = new Counter();
-  private static final Histogram CREATE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
+  private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
+  private static final Gauge<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
 
   public BootstrapActionResources(DatastreamServer datastreamServer) {
     _datastreamServer = datastreamServer;
@@ -72,7 +75,7 @@ public class BootstrapActionResources {
             "Must specify source of Datastream!");
       }
 
-      long startTime = System.currentTimeMillis();
+      Instant startTime = Instant.now();
 
       try {
         _coordinator.initializeDatastream(bootstrapDatastream);
@@ -82,7 +85,7 @@ public class BootstrapActionResources {
             "Failed to create bootstrap datastream: " + bootstrapDatastream, e);
       }
 
-      CREATE_CALL_LATENCY.update(System.currentTimeMillis() - startTime);
+      _createCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
 
       return bootstrapDatastream;
     } catch (RestLiServiceException e) {
@@ -102,7 +105,7 @@ public class BootstrapActionResources {
 
     metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
     metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatency"), CREATE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatencyMs"), CREATE_CALL_LATENCY_MS);
 
     return Collections.unmodifiableMap(metrics);
   }
