@@ -6,14 +6,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.ExponentiallyDecayingReservoir;
-import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -55,8 +55,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final Counter CREATE_CALL = new Counter();
   private static final Counter CALL_ERROR = new Counter();
 
-  private static final Histogram CREATE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
-  private static final Histogram DELETE_CALL_LATENCY = new Histogram(new ExponentiallyDecayingReservoir());
+  private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
+  private static AtomicLong _deleteCallLatencyMs = new AtomicLong(0L);
+  private static final Gauge<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
+  private static final Gauge<Long> DELETE_CALL_LATENCY_MS = () -> _deleteCallLatencyMs.get();
 
   public DatastreamResources(DatastreamServer datastreamServer) {
     _store = datastreamServer.getDatastreamStore();
@@ -78,7 +80,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       DELETE_CALL.inc();
       Instant startTime = Instant.now();
       _store.deleteDatastream(key);
-      DELETE_CALL_LATENCY.update(Duration.between(startTime, Instant.now()).toMillis());
+      _deleteCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
+
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
       CALL_ERROR.inc();
@@ -179,7 +182,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
 
       Duration delta = Duration.between(startTime, Instant.now());
-      CREATE_CALL_LATENCY.update(delta.toMillis());
+      _createCallLatencyMs.set(delta.toMillis());
+
       LOG.debug(
         "Datastream persisted to zookeeper. Time taken for initialization and persistence: " + delta.toMillis() + "ms");
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
@@ -200,8 +204,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
     metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
 
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatency"), CREATE_CALL_LATENCY);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCallLatency"), DELETE_CALL_LATENCY);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatencyMs"), CREATE_CALL_LATENCY_MS);
+    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCallLatencyMs"), DELETE_CALL_LATENCY_MS);
 
     return Collections.unmodifiableMap(metrics);
   }
