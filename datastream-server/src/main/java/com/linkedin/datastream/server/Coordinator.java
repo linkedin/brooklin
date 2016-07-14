@@ -40,8 +40,6 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProviderFactory;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -191,27 +189,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(_metrics::putAll);
 
-    String schemaRegistryFactoryType = config.getSchemaRegistryProviderFactory();
-    SchemaRegistryProvider schemaRegistry = null;
-    if (schemaRegistryFactoryType != null) {
-      SchemaRegistryProviderFactory schemaRegistryFactory = ReflectionUtils.createInstance(schemaRegistryFactoryType);
-      if (schemaRegistryFactory == null) {
-        ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
-            "failed to create schema registry factory: " + schemaRegistryFactoryType, null);
-      }
-
-      schemaRegistry = schemaRegistryFactory.createSchemaRegistryProvider(
-          coordinatorProperties.getDomainProperties(SCHEMA_REGISTRY_CONFIG_DOMAIN));
-    } else {
-      _log.info("Schema registry factory is not set, So schema registry provider won't be available for connectors");
-    }
-
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
     Optional.ofNullable(cpProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
 
-    _eventProducerPool = new EventProducerPool(cpProvider, schemaRegistry, factory,
+    _eventProducerPool = new EventProducerPool(cpProvider, factory,
         coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
     Optional.ofNullable(_eventProducerPool.getMetrics()).ifPresent(m -> _metrics.putAll(m));
@@ -685,8 +668,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new DatastreamValidationException(errorMessage);
     }
 
-    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams().stream()
-          .filter(d -> d.getConnectorName().equals(connectorName)).collect(Collectors.toList());
+    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams()
+        .stream()
+        .filter(d -> d.getConnectorName().equals(connectorName))
+        .collect(Collectors.toList());
 
     _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
     connector.initializeDatastream(datastream, allDatastreams);
