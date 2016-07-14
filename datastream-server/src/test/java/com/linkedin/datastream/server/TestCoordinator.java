@@ -70,9 +70,6 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
-    props.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-        "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
-
     ZkClient client = new ZkClient(zkAddr);
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(client, cluster);
     return new Coordinator(datastreamCache, props);

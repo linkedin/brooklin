@@ -103,9 +103,6 @@ public class EmbeddedDatastreamCluster {
           InMemoryTransportProviderFactory.class.getTypeName());
     }
 
-    properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-        "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
-
     properties.putAll(getDomainConnectorProperties(connectorProperties));
     if (override != null) {
       properties.putAll(override);

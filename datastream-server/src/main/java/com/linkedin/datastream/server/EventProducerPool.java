@@ -18,7 +18,6 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.MetricsAware;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -37,7 +36,6 @@ public class EventProducerPool implements MetricsAware {
 
   private final Map<Boolean, List<EventProducer>> _producerPool;
   private final CheckpointProvider _checkpointProvider;
-  private final SchemaRegistryProvider _schemaRegistryProvider;
   private final TransportProviderFactory _transportProviderFactory;
   private final Properties _transportProviderConfig;
   private final Properties _eventProducerConfig;
@@ -47,18 +45,15 @@ public class EventProducerPool implements MetricsAware {
 
   private final Counter _unrecoverableErrors;
 
-  public EventProducerPool(CheckpointProvider checkpointProvider, SchemaRegistryProvider schemaRegistryProvider,
-      TransportProviderFactory transportProviderFactory, Properties transportProviderConfig,
-      Properties eventProducerConfig) {
+  public EventProducerPool(CheckpointProvider checkpointProvider, TransportProviderFactory transportProviderFactory,
+      Properties transportProviderConfig, Properties eventProducerConfig) {
 
     Validate.notNull(checkpointProvider, "null checkpoint provider");
-    Validate.notNull(schemaRegistryProvider, "null schema registry provider");
     Validate.notNull(transportProviderFactory, "null transport provider factory");
     Validate.notNull(transportProviderConfig, "null transport provider config");
     Validate.notNull(eventProducerConfig, "null event producer config");
 
     _checkpointProvider = checkpointProvider;
-    _schemaRegistryProvider = schemaRegistryProvider;
     _transportProviderFactory = transportProviderFactory;
     _transportProviderConfig = transportProviderConfig;
     _eventProducerConfig = eventProducerConfig;
@@ -118,8 +113,7 @@ public class EventProducerPool implements MetricsAware {
     DatastreamEventProducerImpl datastreamEventProducer = (DatastreamEventProducerImpl) task.getEventProducer();
 
     if (datastreamEventProducer == null) {
-      ((DatastreamTaskImpl) task).setEventProducer(
-          new DatastreamEventProducerImpl(task, _schemaRegistryProvider, eventProducer));
+      ((DatastreamTaskImpl) task).setEventProducer(new DatastreamEventProducerImpl(task, eventProducer));
     } else {
       datastreamEventProducer.resetEventProducer(eventProducer);
     }
@@ -139,8 +133,7 @@ public class EventProducerPool implements MetricsAware {
   private List<EventProducer> createProducers(int poolSize, boolean customCheckpointing) {
     return IntStream.range(0, poolSize).mapToObj(i -> {
       // Each distinct destination has its own transport provider
-      TransportProvider transport =
-          _transportProviderFactory.createTransportProvider(_transportProviderConfig);
+      TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
       return new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
           this::onUnrecoverableError);
     }).collect(Collectors.toList());
@@ -161,8 +154,7 @@ public class EventProducerPool implements MetricsAware {
 
     _producerPool.get(customCheckpointing).remove(eventProducer);
 
-    TransportProvider transport =
-        _transportProviderFactory.createTransportProvider(_transportProviderConfig);
+    TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
     EventProducer newEventProducer =
         new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
             this::onUnrecoverableError);

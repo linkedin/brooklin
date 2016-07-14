@@ -32,7 +32,6 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
-import com.linkedin.datastream.server.CoordinatorConfig;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -96,8 +95,6 @@ public class TestDatastreamRestClient {
         + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     // DummyConnector will verify this value being correctly set
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue");
-    properties.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-        "com.linkedin.datastream.server.MockSchemaRegistryProviderFactory");
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }
