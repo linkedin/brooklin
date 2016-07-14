@@ -9,13 +9,13 @@ import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import static org.mockito.Mockito.mock;
+
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.server.api.schemaregistry.SchemaRegistryProvider;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests to validate Message Pool producer
@@ -27,28 +27,23 @@ public class TestEventProducerPool {
   public void setup(boolean throwOnSend) throws Exception {
     CheckpointProvider checkpointProvider = mock(CheckpointProvider.class);
     TransportProviderFactory factory = new DummyTransportProviderFactory(throwOnSend);
-    SchemaRegistryProvider schemaReg = mock(SchemaRegistryProvider.class);
     Properties transportConfig = new Properties();
     Properties producerConfig = new Properties();
-    _eventProducerPool = new EventProducerPool(checkpointProvider, schemaReg,
-            factory, transportConfig, producerConfig);
+    _eventProducerPool = new EventProducerPool(checkpointProvider, factory, transportConfig, producerConfig);
   }
 
-
-
   @AfterMethod
-    public void cleanup() {
+  public void cleanup() {
     if (_eventProducerPool != null) {
       _eventProducerPool.shutdown();
     }
   }
 
-  @Test
   /**
    * Validates if producers are created  when the pool is empty
    */
-  public void testEmptyPool()
-      throws Exception {
+  @Test
+  public void testEmptyPool() throws Exception {
     setup(false);
     List<DatastreamTask> connectorTasks = new ArrayList<>();
     String connectorType = "connectortype";
@@ -65,14 +60,14 @@ public class TestEventProducerPool {
   }
 
   @Test
-  public void testEventProducerPoolCreatesNewProducerOnUnrecoverableError()
-      throws Exception {
+  public void testEventProducerPoolCreatesNewProducerOnUnrecoverableError() throws Exception {
 
     List<DatastreamRecordMetadata> metadata = new ArrayList<>();
     List<Exception> exceptions = new ArrayList<>();
     setup(true);
     DatastreamTaskImpl task = new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true));
-    _eventProducerPool.assignEventProducers(task.getConnectorType(), Collections.singletonList(task), new ArrayList<>(), false);
+    _eventProducerPool.assignEventProducers(task.getConnectorType(), Collections.singletonList(task), new ArrayList<>(),
+        false);
     Assert.assertNotNull(task.getEventProducer());
     DatastreamEventProducerImpl oldDatastreamEventProducer = (DatastreamEventProducerImpl) task.getEventProducer();
     EventProducer oldEventProducer = oldDatastreamEventProducer.getEventProducer();
@@ -105,12 +100,11 @@ public class TestEventProducerPool {
     return builder.build();
   }
 
-  @Test
   /**
    * Validates that producers are not shared across connector types
    */
-  public void testProducersNotSharedForDifferentConnectorTypes()
-      throws Exception {
+  @Test
+  public void testProducersNotSharedForDifferentConnectorTypes() throws Exception {
     setup(false);
     // Create tasks for a different connector type
     List<DatastreamTask> connector1tasks = new ArrayList<>();
@@ -128,8 +122,7 @@ public class TestEventProducerPool {
     _eventProducerPool.assignEventProducers(connectorType2, connector2tasks, new ArrayList<>(), false);
 
     // Check that the producers are not shared
-    connector1tasks
-        .stream()
+    connector1tasks.stream()
         .map(DatastreamTask::getEventProducer)
         .anyMatch(p -> connector2tasks.stream().anyMatch(x -> x.getEventProducer().equals(p)));
   }

@@ -113,8 +113,6 @@ public class TestDatastreamServer {
     connectorProperties.get(FILE_CONNECTOR)
         .put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
     Properties override = new Properties();
-    override.put(CoordinatorConfig.CONFIG_SCHEMA_REGISTRY_PROVIDER_FACTORY,
-        MockSchemaRegistryProviderFactory.class.getTypeName());
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
             override, numServers, null);
@@ -516,9 +514,7 @@ public class TestDatastreamServer {
           DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
           String eventValue = new String(datastreamEvent.payload.array());
           DatastreamUtils.processEventMetadata(datastreamEvent);
-          String schemaId = datastreamEvent.metadata.get("PayloadSchemaId").toString();
-          LOG.info(String.format("Datastream: %s, Schema Id: %s", datastream, schemaId));
-          Assert.assertEquals(schemaId, MockSchemaRegistryProvider.MOCK_SCHEMA_ID);
+          LOG.info(String.format("Datastream: %s", datastream));
           eventsReceived.add(eventValue);
           numberOfMessages[0]++;
           return numberOfMessages[0] < totalEvents;
