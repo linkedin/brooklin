@@ -6,9 +6,9 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
-public class HeartbeatConnectorFactory implements ConnectorFactory {
+public class TestEventProducingConnectorFactory implements ConnectorFactory {
   @Override
   public Connector createConnector(String connectorName, Properties config) {
-    return new HeartbeatConnector(config);
+    return new TestEventProducingConnector(config);
   }
 }
