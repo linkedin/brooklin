@@ -44,7 +44,7 @@ subprojects {
   targetCompatibility = '1.8'
 
   checkstyle {
-    configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
+    configFile = file("${project.rootDir}/checkstyle/checkstyle.xml")
     sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
     toolVersion = "6.7"
     ignoreFailures = false
@@ -191,6 +191,16 @@ project(':datastream-testcommon') {
     compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+  }
+}
+
+
+
+project(':datastream-tools') {
+  dependencies {
+    compile project(':datastream-common')
+    compile project(':datastream-client')
+    compile "commons-cli:commons-cli:$commonsCliVersion"
   }
 }
 
