@@ -11,6 +11,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Metric;
@@ -34,6 +36,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.RetryStrategy;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.kafka.KafkaTransportProvider;
@@ -54,6 +57,7 @@ public class TestCoordinator {
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
   private static final int WAIT_DURATION_FOR_ZK = 1000;
   private static final int WAIT_TIMEOUT_MS = 30000;
+  private static final ScheduledExecutorService SCHEDULER = new ScheduledThreadPoolExecutor(10);
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -223,27 +227,31 @@ public class TestCoordinator {
     // verify that the counter value for the connector is 1 because the onAssignmentChange
     // should be called once
     //
-    PollUtils.poll(() -> taskNames.size() == 1, 500, 30000);
+    RetryStrategy<?> retryStrategy = new RetryStrategy.TimeoutRetryStrategy(SCHEDULER, Duration.ofMillis(500), Duration.ofSeconds(30));
+
+    retryStrategy.until("Check size", () -> taskNames.size() == 1).get();
     String name1 = (String) taskNames.toArray()[0];
     String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name1, "counter");
-    Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream1CounterPath));
+    retryStrategy.until("Path exists", () -> zkClient.exists(datastream1CounterPath)).get();
     Assert.assertEquals(zkClient.readData(datastream1CounterPath), "1");
+
     //
     // add a second datastream named datastream2
     //
     String datastreamName2 = "datastream2";
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConectorType, datastreamName2);
-    PollUtils.poll(() -> taskNames.size() == 2, 500, 30000);
+    retryStrategy.until("Check size again", () -> taskNames.size() == 2).get();
+
     String name2 = (String) taskNames.toArray()[1];
     String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, name2, "counter");
-    Assert.assertTrue(PollUtils.poll((path) -> zkClient.exists(path), 500, 30000, datastream2CounterPath));
+    retryStrategy.until("Path exists again", () -> zkClient.exists(datastream2CounterPath)).get();
     //
     // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
     //
     //    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
     //    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
     //
-    Thread.sleep(1000 * 60);
+//    Thread.sleep(1000 * 60);
 
     //
     // clean up
