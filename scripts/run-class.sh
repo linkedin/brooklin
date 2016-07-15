@@ -31,6 +31,12 @@ do
   CLASSPATH=$CLASSPATH:$file
 done
 
+
+for file in $base_dir/datastream-tools/build/libs//datastream-tools*.jar;
+do
+  CLASSPATH=$CLASSPATH:$file
+done
+
 for file in $base_dir/datastream-file-connector/build/libs//datastream-file-connector*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
