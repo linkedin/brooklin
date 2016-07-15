@@ -19,6 +19,7 @@ public class DummyConnector implements Connector {
 
   public static final String VALID_DUMMY_SOURCE = "DummyConnector://DummySource";
   public static final String CONNECTOR_TYPE = "DummyConnector";
+  public static final int NUM_PARTITIONS = 4;
 
   private Properties _properties;
 
@@ -52,6 +53,7 @@ public class DummyConnector implements Connector {
     if (!stream.getSource().getConnectionString().equals(VALID_DUMMY_SOURCE)) {
       throw new DatastreamValidationException("Invalid source (" + stream.getSource() + ") in datastream.");
     }
+    stream.getSource().setPartitions(NUM_PARTITIONS);
   }
 
   @Override

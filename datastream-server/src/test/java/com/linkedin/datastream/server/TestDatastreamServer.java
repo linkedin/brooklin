@@ -24,10 +24,12 @@ import kafka.utils.ZkUtils;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
@@ -37,6 +39,7 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.zk.KeyBuilder;
@@ -496,6 +499,41 @@ public class TestDatastreamServer {
 
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+  }
+
+  @Test
+  public void testBYOT() throws Exception {
+    int numberOfPartitions = 4;
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    int totalEvents = 40;
+    _datastreamCluster.startup();
+    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Datastream fileDatastream1 = createFileDatastream(fileName1);
+
+    // Create the topic before-hand
+    TransportProvider transport = ReflectionUtils.getField(
+        _datastreamCluster.getAllDatastreamServers().get(0).getCoordinator(), "_transportProvider");
+
+    String topicName = "testBYOT";
+    String connectionString = transport.getDestination(topicName);
+    transport.createTopic(connectionString, numberOfPartitions, new Properties());
+
+    // Bring in the destination
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString(connectionString);
+    destination.setPartitions(numberOfPartitions);
+
+    Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
+    FileUtils.writeLines(new File(fileName1), eventsWritten1);
+
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, totalEvents);
+
+    LOG.info("Events Received " + eventsReceived1);
+    LOG.info("Events Written to file " + eventsWritten1);
+
+    Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+
+    _datastreamCluster.shutdown();
   }
 
   private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents)

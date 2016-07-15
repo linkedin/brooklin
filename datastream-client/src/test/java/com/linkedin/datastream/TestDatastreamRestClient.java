@@ -70,6 +70,7 @@ public class TestDatastreamRestClient {
     ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(String.format("%s://%s", DummyConnector.CONNECTOR_TYPE, "DummySource"));
+    ds.getSource().setPartitions(DummyConnector.NUM_PARTITIONS);
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
