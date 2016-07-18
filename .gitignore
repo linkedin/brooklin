@@ -9,5 +9,6 @@ build/
 datastream.ipr
 datastream.iws
 out/
+logs/
 mainGeneratedRest/
 mainGeneratedDataTemplate/

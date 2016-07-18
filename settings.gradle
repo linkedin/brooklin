@@ -7,4 +7,5 @@ include 'datastream-utils'
 include 'datastream-kafka'
 include 'datastream-file-connector'
 include 'datastream-mysql-connector'
+include 'datastream-tools'
 

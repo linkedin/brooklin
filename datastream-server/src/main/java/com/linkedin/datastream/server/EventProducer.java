@@ -208,6 +208,7 @@ public class EventProducer {
   }
 
   private Map<Integer, String> loadCheckpoints(DatastreamTask task) {
+    _logger.info("loadCheckpoints called for task: " + task);
     Map<DatastreamTask, String> committed = _checkpointProvider.getCommitted(Collections.singletonList(task));
 
     // Instruct jackson to convert string keys to integer
@@ -216,6 +217,7 @@ public class EventProducer {
         };
 
     String cpString = committed.get(task);
+
     ConcurrentHashMap<Integer, String> cpMap;
     if (!StringUtils.isBlank(cpString)) {
       // Deserialize checkpoints from persisted JSON
@@ -230,6 +232,7 @@ public class EventProducer {
       task.getPartitions().forEach(partition -> cpMap.put(partition, INVALID_CHECKPOINT));
     }
 
+    _logger.info("checkpoint map for task: " + task + " is " + cpMap);
     return cpMap;
   }
 

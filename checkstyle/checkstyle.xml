@@ -193,7 +193,7 @@ LinkedIn Java style.
 
   <!-- Read checker suppressions from a file -->
   <module name="SuppressionFilter">
-    <property name="file" value="config/checkstyle/suppressions.xml"/>
+    <property name="file" value="checkstyle/suppressions.xml"/>
   </module>
   <!-- Allow Checkstyle warnings to be suppressed using trailing comments -->
   <module name="SuppressWithNearbyCommentFilter"/>
