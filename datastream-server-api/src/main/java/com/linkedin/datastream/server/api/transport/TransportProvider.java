@@ -1,9 +1,9 @@
 package com.linkedin.datastream.server.api.transport;
 
-import com.linkedin.datastream.common.MetricsAware;
 import java.time.Duration;
 import java.util.Properties;
 
+import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 
@@ -12,25 +12,28 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
  * to plug the different transport mechanisms (Kafka, kinesis, etc..) to Datastream
  */
 public interface TransportProvider extends MetricsAware {
+  /**
+   * Get the destination Uri given a topic Name.
+   * @param topicName Name of the topic
+   * @return Destination Uri that can be used to address the topic.
+   */
+  String getDestination(String topicName);
 
   /**
    * Create a topic with specified number of configurations.
-   * @param topicName Name of the topic to be created.
+   * @param destination Datastream destination that needs to be created.
    * @param numberOfPartitions Number of partitions in the topic.
    * @param topicConfig Configuration to use to create the topic.
-   * @return Destination uri for the topic that is created.
    * @throws TransportException if the topic creation fails.
    */
-  String createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
-      throws TransportException;
+  void createTopic(String destination, int numberOfPartitions, Properties topicConfig) throws TransportException;
 
   /**
    * Drop the topic with the topic name
    * @param destination Destination uri.
    * @throws TransportException if the topic deletion fails.
    */
-  void dropTopic(String destination)
-      throws TransportException;
+  void dropTopic(String destination) throws TransportException;
 
   /**
    * Send the DatastreamEvent to the topic.
@@ -39,22 +42,19 @@ public interface TransportProvider extends MetricsAware {
    * @param onComplete call back that needs to called when the send completes.
    * @throws TransportException if the send fails.
    */
-  void send(String destination, DatastreamProducerRecord record, SendCallback onComplete)
-      throws TransportException;
+  void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) throws TransportException;
 
   /**
    * Closes the transport provider and its corresponding producer.
    * @throws TransportException if the close fails.
    */
-  void close()
-      throws TransportException;
+  void close() throws TransportException;
 
   /**
    * Flush to make sure that the current set of events that are in the buffer gets flushed to the server.
    * @throws TransportException if the flush fails.
    */
-  void flush()
-      throws TransportException;
+  void flush() throws TransportException;
 
   /**
    * Query the retention duration of a specific destination.
@@ -62,5 +62,4 @@ public interface TransportProvider extends MetricsAware {
    * @return retention duration
    */
   Duration getRetention(String destination);
-
 }

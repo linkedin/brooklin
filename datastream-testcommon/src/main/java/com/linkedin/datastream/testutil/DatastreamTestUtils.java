@@ -32,7 +32,8 @@ public class DatastreamTestUtils {
     Integer counter = 0;
     String ts = String.valueOf(System.currentTimeMillis());
     for (String datastreamName : datastreamNames) {
-      Datastream datastream = createDatastream(connectorType, datastreamName, "sampleSource-" + ts + counter);
+      Datastream datastream = createDatastream(connectorType, datastreamName, "sampleSource-" + ts + counter,
+          "sampleDestination-" + ts + counter, 1);
       datastreams.add(datastream);
       ++counter;
     }
