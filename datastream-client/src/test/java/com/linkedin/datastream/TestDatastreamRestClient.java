@@ -174,6 +174,7 @@ public class TestDatastreamRestClient {
   private void clearDatastreamDestination(Collection<Datastream> datastreams) {
     for (Datastream datastream : datastreams) {
       datastream.setDestination(new DatastreamDestination());
+      datastream.removeStatus();
     }
   }
 

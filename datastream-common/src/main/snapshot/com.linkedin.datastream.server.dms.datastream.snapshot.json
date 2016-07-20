@@ -14,6 +14,11 @@
       "doc" : "Number of partitions in the source."
     } ]
   }, {
+    "type" : "enum",
+    "name" : "DatastreamStatus",
+    "namespace" : "com.linkedin.datastream.common",
+    "symbols" : [ "INITIALIZING", "READY" ]
+  }, {
     "type" : "record",
     "name" : "DatastreamDestination",
     "namespace" : "com.linkedin.datastream.common",
@@ -44,6 +49,14 @@
       "name" : "source",
       "type" : "DatastreamSource",
       "doc" : "Source that connector can use to connect to the data store and consume the data."
+    }, {
+      "name" : "Status",
+      "type" : "DatastreamStatus",
+      "doc" : "Status of the datastream",
+      "symbolDocs" : {
+        "READY" : "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption.",
+        "INITIALIZING" : "Datastream is created, but not initialized yet."
+      }
     }, {
       "name" : "destination",
       "type" : "DatastreamDestination",

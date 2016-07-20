@@ -36,6 +36,16 @@
       }
     },
     {
+      "type" : {
+       "type" : "enum",
+       "name" : "DatastreamStatus",
+       "symbols" : [ "INITIALIZING", "READY" ]
+      },
+      "name" : "Status",
+      "doc" : "Status of the datastream",
+      "symbolDocs" : { "INITIALIZING":"Datastream is created, but not initialized yet.", "READY": "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption."}
+    },
+    {
       "name": "destination",
       "doc": "Datastream destination string that the transport provider will use to send the events",
       "type": {
