@@ -123,18 +123,25 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
-    Validate.notNull(topicName, "topicName should not be null");
+  public String getDestination(String topicName) {
+    return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
+  }
+
+  @Override
+  public void createTopic(String destination, int numberOfPartitions, Properties topicConfig) {
+    Validate.notNull(destination, "destination should not be null");
     Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-    LOG.info(String.format("Creating topic with name %s partitions=%d with properties %s", topicName,
+    LOG.info(String.format("Creating topic with name %s partitions=%d with properties %s", destination,
         numberOfPartitions, topicConfig));
 
     // Add default retention if no topic-level retention is specified
     if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
       topicConfig.put(TOPIC_RETENTION_MS, String.valueOf(_retention.toMillis()));
     }
+
+    String topicName = getTopicName(destination);
 
     try {
       // Create only if it doesn't exist.
@@ -147,8 +154,6 @@ public class KafkaTransportProvider implements TransportProvider {
       LOG.error(String.format("Creating topic %s failed with exception %s ", topicName, e));
       throw e;
     }
-
-    return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
   }
 
   private String getTopicName(String destination) {

@@ -91,7 +91,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _id = id;
     _partitions = new ArrayList<>();
     if (partitions != null && partitions.size() > 0) {
-        _partitions.addAll(partitions);
+      _partitions.addAll(partitions);
     } else {
       // Add [0, N) if source has N partitions
       // Or add a default partition 0 otherwise
@@ -134,7 +134,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public boolean isUserManagedDestination() {
-    String userManaged = _datastream.getMetadata().getOrDefault(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "false");
+    String userManaged =
+        _datastream.getMetadata().getOrDefault(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "false");
     return Boolean.parseBoolean(userManaged);
   }
 
@@ -192,7 +193,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
       throw e;
     }
   }
-
 
   @Override
   public void release() {
@@ -278,14 +278,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
       return false;
     }
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
-    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id)
-        && Objects.equals(_datastreamName, task._datastreamName) && Objects.equals(_datastream, task._datastream)
-        && Objects.equals(_properties, task._properties) && Objects.equals(_partitions, task._partitions);
+    return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects.equals(
+        _datastreamName, task._datastreamName) && Objects.equals(_partitions, task._partitions);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _datastreamName, _datastream, _properties, _partitions);
+    return Objects.hash(_connectorType, _id, _datastreamName, _partitions);
   }
 
   @Override

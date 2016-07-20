@@ -13,6 +13,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.dms.BootstrapRequestBuilders;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
@@ -103,8 +104,7 @@ public class DatastreamRestClient {
     final long startTimeMs = System.currentTimeMillis();
     while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
       Datastream ds = getDatastream(datastreamName);
-      if (ds.hasDestination() && ds.getDestination().hasConnectionString() &&
-          !ds.getDestination().getConnectionString().isEmpty()) {
+      if (ds.hasStatus() && ds.getStatus() == DatastreamStatus.READY) {
         return ds;
       }
       Thread.sleep(pollIntervalMs);

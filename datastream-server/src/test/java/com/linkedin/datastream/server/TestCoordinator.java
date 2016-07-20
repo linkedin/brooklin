@@ -389,7 +389,7 @@ public class TestCoordinator {
         }
       }
       return null;
-    }).when(destinationManager).populateDatastreamDestination(any());
+    }).when(destinationManager).populateDatastreamDestination(any(), any());
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams1);
@@ -412,7 +412,7 @@ public class TestCoordinator {
         setDatastreamDestination(stream);
       }
       return null;
-    }).when(destinationManager).populateDatastreamDestination(any());
+    }).when(destinationManager).populateDatastreamDestination(any(), any());
 
     //
     // trigger the datastream change event

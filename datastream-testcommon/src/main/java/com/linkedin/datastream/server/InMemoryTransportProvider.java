@@ -29,7 +29,7 @@ public class InMemoryTransportProvider implements TransportProvider {
   private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new HashMap<>();
 
   @Override
-  public synchronized String createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
+  public synchronized void createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
       throws TransportException {
     if (_topics.containsKey(topicName)) {
       String msg = String.format("Topic %s already exists", topicName);
@@ -37,7 +37,6 @@ public class InMemoryTransportProvider implements TransportProvider {
       throw new TransportException(msg);
     }
     _topics.put(topicName, numberOfPartitions);
-    return topicName;
   }
 
   @Override
@@ -50,7 +49,7 @@ public class InMemoryTransportProvider implements TransportProvider {
     }
   }
 
-  public static String getDestination(String topicName) {
+  public String getDestination(String topicName) {
     return topicName;
   }
 
