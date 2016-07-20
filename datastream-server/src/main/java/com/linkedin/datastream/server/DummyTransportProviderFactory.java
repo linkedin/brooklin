@@ -30,8 +30,12 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
   public TransportProvider createTransportProvider(Properties config) {
     return new TransportProvider() {
       @Override
-      public String createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
+      public String getDestination(String topicName) {
         return topicName;
+      }
+
+      @Override
+      public void createTopic(String topicName, int numberOfPartitions, Properties topicConfig) {
       }
 
       @Override

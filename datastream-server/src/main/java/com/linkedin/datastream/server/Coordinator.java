@@ -506,11 +506,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     try {
-      // populateDatastreamDestination first dedups the datastreams with
-      // the same source and only create destination for the unique ones.
-      _destinationManager.populateDatastreamDestination(newDatastreams);
+      for (Datastream ds : newDatastreams) {
+        _destinationManager.createTopic(ds);
+      }
 
-      // Update the znodes after destinations have been populated
+      // NOTE: Create topic populates the datastream metadata with the creation time and retention.
+      // Update the znodes after these metadata entries have been populated
       for (Datastream stream : newDatastreams) {
         if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
           _log.error(String.format("Failed to update datastream destination for datastream %s, "
@@ -679,6 +680,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
       _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
     }
+
+    _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
   }
 
   @Override

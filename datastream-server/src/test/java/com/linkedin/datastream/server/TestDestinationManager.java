@@ -9,6 +9,10 @@ import java.util.UUID;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -16,17 +20,6 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
-
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 
 public class TestDestinationManager {
@@ -54,8 +47,8 @@ public class TestDestinationManager {
 
   public static TransportProvider createTransport() throws Exception {
     TransportProvider transport = mock(TransportProvider.class);
-    doAnswer(invocation -> "transport://" + invocation.getArguments()[0]).when(transport).createTopic(anyString(),
-        anyInt(), anyObject());
+    doAnswer(invocation -> "transport://" + invocation.getArguments()[0]).when(transport).getDestination(anyString());
+
     doReturn(RETENTION).when(transport).getRetention(anyString());
     return transport;
   }
@@ -66,7 +59,7 @@ public class TestDestinationManager {
     datastream.getSource().setConnectionString("connector:/no-authority/cluster/db/table/partition");
     TransportProvider transport = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
+    targetManager.populateDatastreamDestination(datastream, Collections.emptyList());
     String destination = datastream.getDestination().getConnectionString();
     Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
     Assert.assertTrue(destination.contains("noauthority"));
@@ -83,7 +76,7 @@ public class TestDestinationManager {
     datastream.getSource().setConnectionString("connector://authority/cluster/@/table/*");
     TransportProvider transport = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(Collections.singletonList(datastream));
+    targetManager.populateDatastreamDestination(datastream, Collections.emptyList());
     String destination = datastream.getDestination().getConnectionString();
     Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
     Assert.assertTrue(destination.contains("authority"));
@@ -96,73 +89,36 @@ public class TestDestinationManager {
 
   @Test
   public void testPopulateDatastreamDestinationUsesExistingTargetWhenSourceIsSame() throws Exception {
+    TransportProvider transport = createTransport();
+    DestinationManager targetManager = new DestinationManager(true, transport);
+
     List<Datastream> datastreams = new ArrayList<>();
     for (int index = 0; index < 10; index++) {
-      datastreams.add(generateDatastream(index));
+      Datastream newds = generateDatastream(index);
+      targetManager.populateDatastreamDestination(newds, datastreams);
+      datastreams.add(newds);
     }
 
     Datastream newDatastream = generateDatastream(11);
-    datastreams.add(newDatastream);
     newDatastream.setSource(datastreams.get(0).getSource());
+    targetManager.populateDatastreamDestination(newDatastream, datastreams);
 
-    TransportProvider transport = createTransport();
-    DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(datastreams);
+    datastreams.add(newDatastream);
     Assert.assertEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
   }
 
   @Test
-  public void testPopulateDatastreamDestinationCallsCreateTopicWhenSourceIsSameButTopicReuseIsSetFalse()
-      throws Exception {
-    List<Datastream> datastreams = new ArrayList<>();
-    for (int index = 0; index < 10; index++) {
-      datastreams.add(generateDatastream(index));
-    }
-
-    // Make 10 and 11 share the same source
-    Datastream newDatastream = generateDatastream(11);
-    // Disable destination reuse
-    newDatastream.getMetadata().put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, "false");
-    datastreams.add(newDatastream);
-    newDatastream.setSource(datastreams.get(0).getSource());
-
-    TransportProvider transport = createTransport();
-    DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(datastreams);
-
-    // We should expect 11 topic creations for the 11 datastreams
-    verify(transport, times(11)).createTopic(anyString(), anyInt(), any());
-    Assert.assertNotEquals(newDatastream.getDestination(), datastreams.get(0).getDestination());
-  }
-
-  @Test
-  public void testPopulateDatastreamDestinationCallsCreateTopicOnlyWhenDatastreamWithNewSource()
-      throws Exception {
-    List<Datastream> datastreams = new ArrayList<>();
-    for (int index = 0; index < 10; index++) {
-      datastreams.add(generateDatastream(index));
-    }
-
-    // Make 1 and 2 share the same source ==> 9 distinct sources
-    datastreams.get(2).setSource(datastreams.get(1).getSource());
-
-    TransportProvider transport = createTransport();
-    DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(datastreams);
-
-    verify(transport, times(9)).createTopic(anyString(), anyInt(), any());
-  }
-
-  @Test
   public void testDeleteDatastreamDestinationShouldCallDropTopicWhenThereAreNoReferences() throws Exception {
-    List<Datastream> datastreams = new ArrayList<>();
-    for (int index = 0; index < 10; index++) {
-      datastreams.add(generateDatastream(index));
-    }
-
     TransportProvider transportProvider = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transportProvider);
-    targetManager.populateDatastreamDestination(datastreams);
+
+    List<Datastream> datastreams = new ArrayList<>();
+    for (int index = 0; index < 10; index++) {
+      Datastream newds = generateDatastream(index);
+      targetManager.populateDatastreamDestination(newds, datastreams);
+      datastreams.add(newds);
+    }
+
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
     verify(transportProvider, times(1)).dropTopic(eq(datastreams.get(1).getDestination().getConnectionString()));
@@ -170,15 +126,19 @@ public class TestDestinationManager {
 
   @Test
   public void testDeleteDatastreamDestinationShouldNotCallDropTopicWhenThereAreReferences() throws Exception {
-    List<Datastream> datastreams = new ArrayList<>();
-    for (int index = 0; index < 10; index++) {
-      datastreams.add(generateDatastream(index));
-    }
-
     TransportProvider transportProvider = createTransport();
     DestinationManager targetManager = new DestinationManager(true, transportProvider);
-    targetManager.populateDatastreamDestination(datastreams);
-    datastreams.get(0).setDestination(datastreams.get(1).getDestination());
+
+    List<Datastream> datastreams = new ArrayList<>();
+
+    Datastream newds = generateDatastream(0);
+    targetManager.populateDatastreamDestination(newds, datastreams);
+    datastreams.add(newds);
+    newds = generateDatastream(1);
+
+    newds.setSource(datastreams.get(0).getSource());
+    targetManager.populateDatastreamDestination(newds, datastreams);
+    datastreams.add(newds);
 
     targetManager.deleteDatastreamDestination(datastreams.get(1), datastreams);
 
@@ -191,7 +151,8 @@ public class TestDestinationManager {
 
     // Allow DestinationManager set up creationTime
     Datastream stream = generateDatastream(1);
-    destinationManager.populateDatastreamDestination(Collections.singletonList(stream));
+    destinationManager.populateDatastreamDestination(stream, Collections.emptyList());
+    destinationManager.createTopic(stream);
 
     // Make sure both timestamps are set
     Assert.assertNotNull(stream.getMetadata().getOrDefault(DatastreamMetadataConstants.DESTINATION_CREATION_MS, null));
@@ -202,12 +163,11 @@ public class TestDestinationManager {
   }
 
   @Test
-  public void testSameSourceDiffConnectorShouldNotReuse()
-      throws Exception {
+  public void testSameSourceDiffConnectorShouldNotReuse() throws Exception {
     DestinationManager destinationManager = new DestinationManager(true, createTransport());
 
     Datastream stream1 = generateDatastream(1);
-    destinationManager.populateDatastreamDestination(Collections.singletonList(stream1));
+    destinationManager.populateDatastreamDestination(stream1, Collections.emptyList());
 
     // create another datastream with the same source but different connector type
     Datastream stream2 = generateDatastream(1);
@@ -215,8 +175,7 @@ public class TestDestinationManager {
 
     List<Datastream> datastreams = new ArrayList<>();
     datastreams.add(stream1);
-    datastreams.add(stream2);
-    destinationManager.populateDatastreamDestination(datastreams);
+    destinationManager.populateDatastreamDestination(stream2, datastreams);
 
     Assert.assertNotEquals(stream1.getDestination().getConnectionString(),
         stream2.getDestination().getConnectionString());

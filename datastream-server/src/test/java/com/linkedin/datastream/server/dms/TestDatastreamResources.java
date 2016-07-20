@@ -1,5 +1,18 @@
 package com.linkedin.datastream.server.dms;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -11,17 +24,6 @@ import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import org.testng.Assert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
 
 
 /**
@@ -83,13 +85,17 @@ public class TestDatastreamResources {
     Assert.assertNull(ds);
 
     Datastream datastreamToCreate = generateDatastream(0);
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    datastreamToCreate.getDestination().setConnectionString("testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+
     CreateResponse response = resource1.create(datastreamToCreate);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     ds = resource2.get("name_0");
     Assert.assertNotNull(ds);
-    datastreamToCreate.setDestination(new DatastreamDestination());
+
     Assert.assertEquals(ds, datastreamToCreate);
   }
 
@@ -165,8 +171,7 @@ public class TestDatastreamResources {
     return stream;
   }
 
-  private List<Datastream> createDataStreams(DatastreamResources resource, String preffix, int count)
-      throws Exception {
+  private List<Datastream> createDataStreams(DatastreamResources resource, String preffix, int count) throws Exception {
     return IntStream.range(0, count).mapToObj(n -> createDatastream(resource, preffix, n)).collect(Collectors.toList());
   }
 
