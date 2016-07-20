@@ -1,6 +1,7 @@
 package com.linkedin.datastream;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -46,6 +47,8 @@ public class TestDatastreamRestClient {
 
   private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
+  private static final long WAIT_TIMEOUT_MS = Duration.ofMinutes(3).toMillis();
+
   private DatastreamServer _datastreamServer;
   private EmbeddedZookeeper _embeddedZookeeper;
 
@@ -100,12 +103,13 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateTwoDatastreams() throws DatastreamException, IOException, RemoteInvocationException {
+  public void testCreateTwoDatastreams()
+      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
     Datastream datastream = generateDatastream(6);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080");
     restClient.createDatastream(datastream);
-    Datastream createdDatastream = restClient.getDatastream(datastream.getName());
+    Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
     LOG.info("Created Datastream : " + createdDatastream);
 
     datastream.setDestination(new DatastreamDestination());
@@ -117,7 +121,7 @@ public class TestDatastreamRestClient {
     datastream = generateDatastream(7);
     LOG.info("Datastream : " + datastream);
     restClient.createDatastream(datastream);
-    createdDatastream = restClient.getDatastream(datastream.getName());
+    createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
     LOG.info("Created Datastream : " + createdDatastream);
 
     datastream.setDestination(new DatastreamDestination());
@@ -128,13 +132,14 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateDatastreamToNonLeader() throws DatastreamException, IOException, RemoteInvocationException {
+  public void testCreateDatastreamToNonLeader()
+      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
     setupDatastreamServer(8083);
     Datastream datastream = generateDatastream(5);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8083");
     restClient.createDatastream(datastream);
-    Datastream createdDatastream = restClient.getDatastream(datastream.getName());
+    Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
     LOG.info("Created Datastream : " + createdDatastream);
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
@@ -187,7 +192,7 @@ public class TestDatastreamRestClient {
   public void testGetAllDatastreams()
       throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
     List<Datastream> datastreams =
-        IntStream.range(100, 110).mapToObj(i -> generateDatastream(i)).collect(Collectors.toList());
+        IntStream.range(100, 110).mapToObj(TestDatastreamRestClient::generateDatastream).collect(Collectors.toList());
     LOG.info("Datastreams : " + datastreams);
     DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:8080/");
 
