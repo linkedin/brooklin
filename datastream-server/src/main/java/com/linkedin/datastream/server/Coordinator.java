@@ -33,6 +33,7 @@ import com.codahale.metrics.Metric;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.MetricsAware;
@@ -510,9 +511,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _destinationManager.createTopic(ds);
       }
 
-      // NOTE: Create topic populates the datastream metadata with the creation time and retention.
-      // Update the znodes after these metadata entries have been populated
       for (Datastream stream : newDatastreams) {
+        // Set the datastream status as ready for use (both producing and consumption)
+        stream.setStatus(DatastreamStatus.READY);
         if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
           _log.error(String.format("Failed to update datastream destination for datastream %s, "
               + "This datastream will not be scheduled for producing events ", stream.getName()));
@@ -660,8 +661,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @return result of the validation
    */
   public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
+    datastream.setStatus(DatastreamStatus.INITIALIZING);
     String connectorName = datastream.getConnectorName();
-
     ConnectorWrapper connector = _connectors.get(connectorName);
     if (connector == null) {
       String errorMessage = "Invalid connector: " + connectorName;
