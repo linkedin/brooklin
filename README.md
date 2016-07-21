@@ -31,6 +31,11 @@ You can release the datastream binaries into local maven repository by running
 ./gradlew publishToMavenLocal
 ```
 
+You can build the datastream tar ball by running
+```shell
+./gradlew releaseTarGz
+```
+
 ### Developing using Idea
 
 You can use intellij for developing datastream. You can build the intellij project files by running
