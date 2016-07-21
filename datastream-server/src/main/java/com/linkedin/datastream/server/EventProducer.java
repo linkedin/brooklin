@@ -395,7 +395,7 @@ public class EventProducer {
     // Step 1: flush the transport to gather ACKs
     try {
       // Flush can and must be done without holding writer-lock which is needed by onSendCallback
-      _logger.info(String.format("Staring transport flush, tasks = [%s].", tasks));
+      _logger.info(String.format("Starting transport flush, tasks = [%s].", tasks));
       _transportProvider.flush();
       _logger.info("Transport has been successfully flushed.");
     } catch (Exception e) {

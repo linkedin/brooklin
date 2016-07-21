@@ -1,12 +1,12 @@
 package com.linkedin.datastream.server;
 
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang.Validate;
@@ -154,27 +154,10 @@ public class DestinationManager {
     return connectionString;
   }
 
-  /**
-   * Example 1:
-   *  [source] connector://cluster/db/table/partition
-   *  [destination] connector_cluster_db_table_partition
-   *
-   * Example 2:
-   *  [source] connector://cluster/db/table/*
-   *  [destination] connector_cluster_db_table_
-   */
   private String getTopicName(Datastream datastream) {
-    URI sourceUri = URI.create(datastream.getSource().getConnectionString());
-    String path;
-    if (sourceUri.getAuthority() != null) {
-      path = sourceUri.getAuthority() + sourceUri.getPath();
-    } else {
-      path = sourceUri.getPath().substring(1); // strip leading slash
-    }
-    // Replace / with _ and strip out all non-alphanumeric chars
-    path = path.replace("/", "_").replaceAll(REGEX_NON_ALPHA, "");
-    // Include the connector type and random UUID
-    return String.join("_", datastream.getConnectorName(), path, UUID.randomUUID().toString());
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy_MM_dd_HH_mm_ss");
+    String currentTime = formatter.format(LocalDateTime.now());
+    return String.format("%s_%s", datastream.getName(), currentTime);
   }
 
   /**
