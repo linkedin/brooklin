@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -231,6 +232,9 @@ public class TestDatastreamServer {
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.deleteDatastream(fileDatastream1.getName());
     FileUtils.forceDelete(new File(fileName1));
+
+    // Adding a second sleep so that the new datastream will have a unique destination.
+    Thread.sleep(Duration.ofSeconds(1).toMillis());
 
     LOG.info("Creating the datastream after deletion");
     Datastream fileDatastream2 = createFileDatastream(fileName1);
