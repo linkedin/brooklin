@@ -17,6 +17,7 @@ package com.linkedin.datastream.tools;
  * under the License.
  */
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,11 +29,13 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 
@@ -58,25 +61,35 @@ public class DatastreamRestClientCli {
   }
 
   private static void printDatastreams(List<Datastream> streams) {
-    streams.stream().forEach(s -> System.out.println(JsonUtils.toJson(s)));
+    ObjectMapper mapper = new ObjectMapper();
+
+    streams.stream().forEach(s -> {
+      try {
+        System.out.println(mapper.defaultPrettyPrintingWriter().writeValueAsString(s));
+      } catch (IOException e) {
+        throw new DatastreamRuntimeException(e);
+      }
+    });
   }
 
   public static void main(String[] args) throws Exception {
     Options options = new Options();
+    options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_OPERATION, OptionConstants.OPT_LONG_OPERATION,
+        OptionConstants.OPT_ARG_OPERATION, true, OptionConstants.OPT_DESC_OPERATION));
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_MGMT_URI, OptionConstants.OPT_LONG_MGMT_URI,
         OptionConstants.OPT_ARG_MGMT_URI, true, OptionConstants.OPT_DESC_MGMT_URI));
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_DATASTREAM_NAME, OptionConstants.OPT_LONG_DATASTREAM_NAME,
-            OptionConstants.OPT_ARG_DATASTREAM_NAME, true, OptionConstants.OPT_DESC_DATASTREAM_NAME));
+            OptionConstants.OPT_ARG_DATASTREAM_NAME, false, OptionConstants.OPT_DESC_DATASTREAM_NAME));
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_NUM_PARTITION, OptionConstants.OPT_LONG_NUM_PARTITION,
-            OptionConstants.OPT_ARG_NUM_PARTITION, true, OptionConstants.OPT_DESC_NUM_PARTITION));
+            OptionConstants.OPT_ARG_NUM_PARTITION, false, OptionConstants.OPT_DESC_NUM_PARTITION));
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_CONNECTOR_NAME, OptionConstants.OPT_LONG_CONNECTOR_NAME,
-            OptionConstants.OPT_ARG_CONNECTOR_NAME, true, OptionConstants.OPT_DESC_CONNECTOR_NAME));
+            OptionConstants.OPT_ARG_CONNECTOR_NAME, false, OptionConstants.OPT_DESC_CONNECTOR_NAME));
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_SOURCE_URI, OptionConstants.OPT_LONG_SOURCE_URI,
-            OptionConstants.OPT_ARG_SOURCE_URI, true, OptionConstants.OPT_DESC_SOURCE_URI));
+            OptionConstants.OPT_ARG_SOURCE_URI, false, OptionConstants.OPT_DESC_SOURCE_URI));
 
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_METADATA, OptionConstants.OPT_LONG_METADATA,
         OptionConstants.OPT_ARG_METADATA, false, OptionConstants.OPT_DESC_METADATA));
@@ -84,11 +97,6 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_HELP, OptionConstants.OPT_LONG_HELP, null, false,
             OptionConstants.OPT_DESC_HELP));
-
-    if (args.length == 0) {
-      printHelp(options);
-      return;
-    }
 
     CommandLineParser parser = new BasicParser();
     CommandLine cmd;
@@ -105,37 +113,35 @@ public class DatastreamRestClientCli {
       return;
     }
 
-    if (cmd.getArgs().length == 0) {
-      System.out.println("Missing operation: choose from create, read, readall, delete");
-      return;
-    }
-
-    Operation op = Operation.valueOf(cmd.getArgs()[0].toUpperCase());
-
+    Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
-    String datastreamName = cmd.getOptionValue(OptionConstants.OPT_SHORT_DATASTREAM_NAME);
     DatastreamRestClient datastreamRestClient = null;
     try {
       datastreamRestClient = new DatastreamRestClient(dmsUri);
       switch (op) {
-        case READ:
+        case READ: {
+          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           Datastream stream = datastreamRestClient.getDatastream(datastreamName);
           printDatastreams(Collections.singletonList(stream));
           return;
+        }
         case READALL:
           printDatastreams(datastreamRestClient.getAllDatastreams());
           return;
-        case DELETE:
+        case DELETE: {
+          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
           System.out.println("Success");
           return;
-        case CREATE:
-          String sourceUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_SOURCE_URI);
-          String connectorName = cmd.getOptionValue(OptionConstants.OPT_SHORT_CONNECTOR_NAME);
-          int partitions = Integer.parseInt(cmd.getOptionValue(OptionConstants.OPT_SHORT_NUM_PARTITION));
+        }
+        case CREATE: {
+          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          String sourceUri = getOptionValue(cmd, OptionConstants.OPT_SHORT_SOURCE_URI, options);
+          String connectorName = getOptionValue(cmd, OptionConstants.OPT_SHORT_CONNECTOR_NAME, options);
+          int partitions = Integer.parseInt(getOptionValue(cmd, OptionConstants.OPT_SHORT_NUM_PARTITION, options));
           Map<String, String> metadata = new HashMap<>();
           if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
-            metadata = JsonUtils.fromJson(cmd.getOptionValue(OptionConstants.OPT_SHORT_METADATA),
+            metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
                 new TypeReference<Map<String, String>>() {
                 });
           }
@@ -156,6 +162,7 @@ public class DatastreamRestClientCli {
               (int) Duration.ofSeconds(10).toMillis());
           System.out.printf("Initialized %s datastream: %s\n", connectorName, completeDatastream);
           break;
+        }
         default:
           // do nothing
       }
@@ -164,5 +171,14 @@ public class DatastreamRestClientCli {
         datastreamRestClient.shutdown();
       }
     }
+  }
+
+  private static String getOptionValue(CommandLine cmd, String optionName, Options options) {
+    if (!cmd.hasOption(optionName)) {
+      printHelp(options);
+      throw new DatastreamRuntimeException(String.format("Required option: %s is not passed ", optionName));
+    }
+
+    return cmd.getOptionValue(optionName);
   }
 }
