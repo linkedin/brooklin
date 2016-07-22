@@ -4,13 +4,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -52,7 +52,7 @@ public class TestEventProducingConnector implements Connector {
 
   private int _messageSize;
   private long _sleepBetweenSendMs;
-  private Set<DatastreamTask> _tasksAssigned = new HashSet<>();
+  private Map<DatastreamTask, Future<?>> _tasksAssigned = new HashMap<>();
 
   public TestEventProducingConnector(Properties props) {
     VerifiableProperties config = new VerifiableProperties(props);
@@ -85,16 +85,27 @@ public class TestEventProducingConnector implements Connector {
 
   @Override
   public void onAssignmentChange(List<DatastreamTask> tasks) {
-    LOG.info(String.format("onAssignmentChange called with tasks %s", tasks));
-    // TODO handle task un-assignment due to datastream deletes
+    LOG.info(String.format("onAssignmentChange called with tasks %s, existing assignment %s", tasks,
+        _tasksAssigned.keySet()));
     for (DatastreamTask task : tasks) {
-      if (_tasksAssigned.contains(task)) {
+      if (_tasksAssigned.containsKey(task)) {
         continue;
       }
 
-      _executor.submit((Runnable) () -> executeTask(task));
-      _tasksAssigned.add(task);
+      Future<?> future = _executor.submit((Runnable) () -> executeTask(task));
+
+      _tasksAssigned.put(task, future);
     }
+
+    _tasksAssigned.entrySet().stream().filter(x -> !tasks.contains(x.getKey())).forEach((x) -> {
+      LOG.info(String.format("Task %s is reassigned from the current instance, cancelling the producer", x.getKey()));
+      x.getValue().cancel(true);
+      while (!x.getValue().isDone()) {
+        Thread.yield();
+      }
+
+      LOG.info(String.format("Producer corresponding to the task %s has been stopped", x.getKey()));
+    });
   }
 
   private void executeTask(DatastreamTask task) {
