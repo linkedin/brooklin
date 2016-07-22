@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
@@ -669,9 +671,8 @@ public class ZkAdapter {
    * @return
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
-    String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-            datastreamTask.getDatastreamTaskName(), key);
+    String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
+        datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
   }
 
@@ -682,9 +683,8 @@ public class ZkAdapter {
    * @param value
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
-    String path =
-        KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
-                datastreamTask.getDatastreamTaskName(), key);
+    String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
+        datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
     _zkclient.writeData(path, value);
   }
@@ -709,9 +709,10 @@ public class ZkAdapter {
 
       for (String instance : deadInstances) {
         String path = KeyBuilder.instance(_cluster, instance);
+        _log.info("Deleting zk path recursively: " + path);
         if (!_zkclient.deleteRecursive(path)) {
           // Ignore such failure for now
-          _log.warn("Failed to remove assignment: " + path);
+          _log.warn("Failed to remove zk path: " + path);
         }
 
         if (_liveTaskMap.containsKey(instance)) {
@@ -720,17 +721,27 @@ public class ZkAdapter {
       }
     }
 
-    Set<DatastreamTask> deadTasks = new HashSet<>();
-    previousAssignment.values().forEach(assn -> deadTasks.addAll(assn));
-    _liveTaskMap.values().forEach(assn -> deadTasks.removeAll(assn));
+    _log.info(String.format("previous assignment %s, current assignment: %s", previousAssignment, _liveTaskMap));
+    Set<String> liveTasks = _liveTaskMap.values()
+        .stream()
+        .flatMap(Collection::stream)
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toSet());
 
-    if (deadTasks.size() > 0) {
-      _log.info("Cleaning up deprecated connector tasks: " + deadTasks);
-      for (DatastreamTask task : deadTasks) {
-        String path = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
-        if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
-          // Ignore such failure for now
-          _log.warn("Failed to remove connector task: " + path);
+    List<String> connectors = _zkclient.getChildren(KeyBuilder.connectors(_cluster));
+    for (String connector : connectors) {
+      Set<String> deadTasks = new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
+      deadTasks.removeAll(liveTasks);
+
+      if (deadTasks.size() > 0) {
+        _log.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
+        for (String task : deadTasks) {
+          _log.info("Trying to delete task" + task);
+          String path = KeyBuilder.connectorTask(_cluster, connector, task);
+          if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
+            // Ignore such failure for now
+            _log.warn("Failed to remove connector task: " + path);
+          }
         }
       }
     }
@@ -778,8 +789,9 @@ public class ZkAdapter {
       _zkclient.createEphemeral(lockPath, _instanceName);
       _log.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
-      String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s",
-          _instanceName, task, timeoutMs, owner);
+      String msg =
+          String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task, timeoutMs,
+              owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_log, msg, null);
     }
   }
@@ -865,7 +877,6 @@ public class ZkAdapter {
     }
   }
 
-
   /**
    * ZkBackedLiveInstanceListProvider is only used by the current leader instance. It provides a cached
    * list of current live instances, by watching the live instances tree in zookeeper. The watched path
@@ -917,10 +928,11 @@ public class ZkAdapter {
 
     @Override
     public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _log.info(String.format("ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
+      _log.info(String.format(
+          "ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
               + "parentPath %s,children %s", parentPath, currentChildren));
 
-      _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));;
+      _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
 
       if (_listener != null) {
         _listener.onLiveInstancesChange();
