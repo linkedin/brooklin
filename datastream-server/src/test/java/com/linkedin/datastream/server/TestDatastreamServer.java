@@ -38,8 +38,8 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
-import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
+import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
+import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
@@ -49,16 +49,15 @@ import com.linkedin.datastream.testutil.TestUtils;
 public class TestDatastreamServer {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
 
-  public static final String LOADBALANCING_STRATEGY = LoadbalancingStrategy.class.getTypeName();
-  public static final String BROADCAST_STRATEGY = BroadcastStrategy.class.getTypeName();
+  public static final String LOAD_BALANCING_STRATEGY_FACTORY = LoadbalancingStrategyFactory.class.getTypeName();
+  public static final String BROADCAST_STRATEGY_FACTORY = BroadcastStrategyFactory.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
   public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_NAME;
 
   private EmbeddedDatastreamCluster _datastreamCluster;
 
-  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap()
-      throws Exception {
+  public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
@@ -75,7 +74,7 @@ public class TestDatastreamServer {
 
   private static Properties getBootstrapConnectorProperties() {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
     return props;
   }
@@ -92,7 +91,7 @@ public class TestDatastreamServer {
 
   private static Properties getDummyConnectorProperties(boolean bootstrap) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
     if (bootstrap) {
       props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
@@ -107,8 +106,7 @@ public class TestDatastreamServer {
   }
 
   private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers, String strategy,
-      int numDestinationPartitions)
-      throws IOException, DatastreamException {
+      int numDestinationPartitions) throws IOException, DatastreamException {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(FILE_CONNECTOR, getTestConnectorProperties(strategy));
     connectorProperties.get(FILE_CONNECTOR)
@@ -121,18 +119,17 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testDatastreamServerBasics()
-      throws Exception {
+  public void testDatastreamServerBasics() throws Exception {
     initializeTestDatastreamServerWithDummyConnector(null);
     initializeTestDatastreamServerWithBootstrap();
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY_FACTORY);
   }
 
   @Test
-  public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents()
-      throws Exception {
+  public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents() throws Exception {
     int numberOfPartitions = 5;
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    _datastreamCluster =
+        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
     String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
@@ -168,11 +165,11 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testUserManagedDestination()
-      throws Exception {
+  public void testUserManagedDestination() throws Exception {
     int numberOfPartitions = 2;
     String destinationTopic = "userManaged_" + UUID.randomUUID().toString();
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    _datastreamCluster =
+        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
     String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
@@ -199,10 +196,10 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testDeleteDatastreamAndRecreateDatastream()
-      throws Exception {
+  public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
     int numberOfPartitions = 5;
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY, numberOfPartitions);
+    _datastreamCluster =
+        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
 
@@ -260,9 +257,8 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDownOneDatastreamSimpleStrategy()
-      throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
+  public void testNodeDownOneDatastreamSimpleStrategy() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOAD_BALANCING_STRATEGY_FACTORY);
     _datastreamCluster.startup();
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -330,9 +326,8 @@ public class TestDatastreamServer {
   }
 
   @Test
-  public void testNodeDownOneDatastreamBroadcastStrategy()
-      throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY);
+  public void testNodeDownOneDatastreamBroadcastStrategy() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY_FACTORY);
     _datastreamCluster.startup();
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -418,9 +413,8 @@ public class TestDatastreamServer {
   // Test is flaky, Need to deflake before enabling it.
   // This test doesn't fail often, Need to run this quite a few times before enabling it
   @Test(enabled = false)
-  public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy()
-      throws Exception {
-    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOADBALANCING_STRATEGY);
+  public void testNodeUpRebalanceTwoDatastreamsSimpleStrategy() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, LOAD_BALANCING_STRATEGY_FACTORY);
     _datastreamCluster.startupServer(0);
 
     List<DatastreamServer> servers = _datastreamCluster.getAllDatastreamServers();
@@ -502,8 +496,7 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
   }
 
-  private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents)
-      throws Exception {
+  private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {
     return readFileDatastreamEvents(datastream, 0, totalEvents);
   }
 
@@ -527,8 +520,7 @@ public class TestDatastreamServer {
     return eventsReceived;
   }
 
-  private Datastream createFileDatastream(String fileName)
-      throws IOException, DatastreamException {
+  private Datastream createFileDatastream(String fileName) throws IOException, DatastreamException {
     return createFileDatastream(fileName, null, -1);
   }
 
@@ -569,7 +561,7 @@ public class TestDatastreamServer {
 
   private Properties getTestConnectorProperties(String strategy) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, strategy);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, strategy);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
     return props;
   }

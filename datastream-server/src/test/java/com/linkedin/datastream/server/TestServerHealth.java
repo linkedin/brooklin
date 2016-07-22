@@ -49,7 +49,8 @@ public class TestServerHealth {
 
   private static Properties getDummyConnectorProperties(boolean bootstrap) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, TestDatastreamServer.BROADCAST_STRATEGY);
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
+        TestDatastreamServer.BROADCAST_STRATEGY_FACTORY);
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
     if (bootstrap) {
       props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, TestDatastreamServer.DUMMY_BOOTSTRAP_CONNECTOR);

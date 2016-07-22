@@ -1,7 +1,8 @@
 package com.linkedin.datastream.server.assignment;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.server.AssignmentStrategy;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.DatastreamTaskStatus;
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Creates the datastreamTasks only for the new datastreams. The number of tasks created for datastream is
- * min(NumberOfPartitionsInDatastream, numberOfInstances * PARTITIONING_FACTOR).
+ * min(NumberOfPartitionsInDatastream, numberOfInstances * OVER_PARTITIONING_FACTOR).
  * These datastreamTasks are sorted by the datastreamName.
  * These tasks are then redistributed across all the instances equally.
  *
@@ -32,7 +34,26 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadbalancingStrategy.class.getName());
 
-  private static final int PARTITIONING_FACTOR = 2;
+  public static final int DEFAULT_OVER_PARTITIONING_FACTOR = 2;
+  public static final String CFG_OVER_PARTITIONING_FACTOR = "overPartitioningFactor";
+
+  public static final String CFG_MIN_TASKS = "TasksPerDatastream";
+  public static final int DEFAULT_MIN_TASKS = -1;
+
+
+  // If the instances are down while the assignment is happening. We need to ensure that at least min tasks are created
+  private final int minTasks;
+  private final int overPartitioningFactor;
+
+  public LoadbalancingStrategy() {
+    this(new Properties());
+  }
+
+  public LoadbalancingStrategy(Properties properties) {
+    VerifiableProperties props = new VerifiableProperties(properties);
+    overPartitioningFactor = props.getInt(CFG_OVER_PARTITIONING_FACTOR, DEFAULT_OVER_PARTITIONING_FACTOR);
+    minTasks = props.getInt(CFG_MIN_TASKS, DEFAULT_MIN_TASKS);
+  }
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
@@ -43,7 +64,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       return new HashMap<>();
     }
 
-    int maxTasksPerDatastream = instances.size() * PARTITIONING_FACTOR;
+    int maxTasksPerDatastream = Math.max(instances.size() * overPartitioningFactor, minTasks);
     datastreams = sortDatastreams(datastreams);
     List<DatastreamTask> datastreamTasks = getDatastreamTasks(datastreams, currentAssignment, maxTasksPerDatastream);
     Collections.sort(instances);
