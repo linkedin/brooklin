@@ -62,7 +62,7 @@ public class TestEventProducingConnector implements Connector {
     _executor = Executors.newFixedThreadPool(numProducerThreads);
     _randomValueGenerator = new RandomValueGenerator(System.currentTimeMillis());
     try {
-      _hostName = InetAddress.getLocalHost().getCanonicalHostName();
+      _hostName = InetAddress.getLocalHost().getHostName();
     } catch (UnknownHostException e) {
       LOG.error("getLocalhost threw an exception", e);
       throw new DatastreamRuntimeException(e);
@@ -100,12 +100,11 @@ public class TestEventProducingConnector implements Connector {
   private void executeTask(DatastreamTask task) {
     try {
       Datastream datastream = task.getDatastreams().get(0);
-      int partitions = datastream.getDestination().getPartitions();
       int messageSize = _messageSize;
       long sleepBetweenSendMs = _sleepBetweenSendMs;
-      String checkpoint = task.getCheckpoints().getOrDefault(0, "0");
+      String checkpoint = task.getCheckpoints().getOrDefault(task.getPartitions().get(0), "0");
 
-      long index = Long.parseLong(StringUtils.isBlank(checkpoint) ? "0" : checkpoint);
+      long index = Long.parseLong(StringUtils.isBlank(checkpoint) ? "0" : checkpoint) + 1;
 
       LOG.info("Checkpoint string = " + checkpoint + " index = " + index);
 
@@ -120,7 +119,7 @@ public class TestEventProducingConnector implements Connector {
       }
 
       while (true) {
-        for (int partition = 0; partition < partitions; partition++) {
+        for (int partition : task.getPartitions()) {
           DatastreamProducerRecord record = createDatastreamEvent(index, messageSize, partition);
           task.getEventProducer().send(record, (metadata, exception) -> {
             if (exception != null) {
@@ -148,11 +147,13 @@ public class TestEventProducingConnector implements Connector {
     DatastreamEvent event = new DatastreamEvent();
     event.key = ByteBuffer.wrap(String.valueOf(eventIndex).getBytes());
     String randomString = _randomValueGenerator.getNextString(messageSize, messageSize);
-    String payload = String.format("TestEvent_%s_%d_%s", _hostName, eventIndex, randomString);
+    String payload =
+        String.format("TestEvent for partition:%d from host:%s with event index: %d text: %s", partition, _hostName,
+            eventIndex, randomString);
     event.payload = ByteBuffer.wrap(payload.getBytes());
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(event);
-    builder.setPartition(0);
+    builder.setPartition(partition);
     builder.setSourceCheckpoint(String.valueOf(eventIndex));
     builder.setEventsTimestamp(System.currentTimeMillis());
     return builder.build();

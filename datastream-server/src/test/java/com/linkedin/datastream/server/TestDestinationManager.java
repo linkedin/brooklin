@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -61,30 +60,7 @@ public class TestDestinationManager {
     DestinationManager targetManager = new DestinationManager(true, transport);
     targetManager.populateDatastreamDestination(datastream, Collections.emptyList());
     String destination = datastream.getDestination().getConnectionString();
-    Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
-    Assert.assertTrue(destination.contains("noauthority"));
-    Assert.assertTrue(destination.contains("cluster"));
-    Assert.assertTrue(destination.contains("db"));
-    Assert.assertTrue(destination.contains("table"));
-    Assert.assertTrue(destination.contains("partition"));
-    UUID.fromString(destination.substring(destination.lastIndexOf("_") + 1));
-  }
-
-  @Test
-  public void testSourceWithNonAlphaChars() throws Exception {
-    Datastream datastream = generateDatastream(0);
-    datastream.getSource().setConnectionString("connector://authority/cluster/@/table/*");
-    TransportProvider transport = createTransport();
-    DestinationManager targetManager = new DestinationManager(true, transport);
-    targetManager.populateDatastreamDestination(datastream, Collections.emptyList());
-    String destination = datastream.getDestination().getConnectionString();
-    Assert.assertTrue(destination.contains(DummyConnector.CONNECTOR_TYPE));
-    Assert.assertTrue(destination.contains("authority"));
-    Assert.assertTrue(destination.contains("cluster"));
-    Assert.assertTrue(destination.contains("table"));
-    Assert.assertTrue(!destination.contains("*"));
-    Assert.assertTrue(!destination.contains("@"));
-    UUID.fromString(destination.substring(destination.lastIndexOf("_") + 1));
+    Assert.assertTrue(destination.contains(datastream.getName()));
   }
 
   @Test
@@ -170,7 +146,7 @@ public class TestDestinationManager {
     destinationManager.populateDatastreamDestination(stream1, Collections.emptyList());
 
     // create another datastream with the same source but different connector type
-    Datastream stream2 = generateDatastream(1);
+    Datastream stream2 = generateDatastream(2);
     stream2.setConnectorName("Foobar");
 
     List<Datastream> datastreams = new ArrayList<>();
