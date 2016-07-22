@@ -35,6 +35,7 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
+import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.r2.RemoteInvocationException;
 
@@ -98,6 +99,10 @@ public class TestDatastreamRestClient {
         + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     // DummyConnector will verify this value being correctly set
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue");
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
+        + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BroadcastStrategyFactory.class.getTypeName());
+    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "."
+        + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BroadcastStrategyFactory.class.getTypeName());
     _datastreamServer = new DatastreamServer(properties);
     _datastreamServer.startup();
   }

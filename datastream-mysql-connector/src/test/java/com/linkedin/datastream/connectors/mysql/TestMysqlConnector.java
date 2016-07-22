@@ -33,7 +33,7 @@ import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.InMemoryTransportProvider;
 import com.linkedin.datastream.server.InMemoryTransportProviderFactory;
-import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
+import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
@@ -89,8 +89,9 @@ public class TestMysqlConnector {
 
     List<DatastreamEvent> events = getEventsFromRecord(record1);
     LOG.info("Events from record1 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.INSERT.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.INSERT.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
 
     // Validate the record2
@@ -103,8 +104,9 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record2);
     LOG.info("Events from record2 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.INSERT.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.INSERT.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
 
     // Validate the record3
@@ -123,10 +125,7 @@ public class TestMysqlConnector {
   }
 
   private List<DatastreamEvent> getEventsFromRecord(DatastreamProducerRecord record) {
-    return record.getEvents()
-        .stream()
-        .map(x -> decodePayload(x.getValue()))
-        .collect(Collectors.toList());
+    return record.getEvents().stream().map(x -> decodePayload(x.getValue())).collect(Collectors.toList());
   }
 
   private DatastreamEvent decodePayload(byte[] value) {
@@ -168,8 +167,9 @@ public class TestMysqlConnector {
 
     List<DatastreamEvent> events = getEventsFromRecord(record1);
     LOG.info("Events from record1 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.INSERT.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.INSERT.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
 
     // Validate the record2
@@ -182,8 +182,9 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record2);
     LOG.info("Events from record2 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.INSERT.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.INSERT.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
 
     // Validate the record3
@@ -196,8 +197,9 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record3);
     LOG.info("Events from record3 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.INSERT.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.INSERT.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE2_NAME));
 
     // Validate the record4
@@ -210,8 +212,9 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record4);
     LOG.info("Events from record4 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.UPDATE.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.UPDATE.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
 
     // Validate the record5
@@ -224,8 +227,9 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record5);
     LOG.info("Events from record5 " + events);
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.DELETE.toString()));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
+            DatastreamEventMetadata.OpCode.DELETE.toString()));
     events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE2_NAME));
   }
 
@@ -238,7 +242,8 @@ public class TestMysqlConnector {
 
   private static Properties buildMysqlConnectorProperties() {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, LoadbalancingStrategy.class.getTypeName());
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
+        LoadbalancingStrategyFactory.class.getTypeName());
     props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, MysqlConnectorFactory.class.getTypeName());
     props.put(MysqlConnector.CFG_MYSQL_SOURCE_TYPE, SourceType.MYSQLBINLOG.toString());
     props.put(MysqlConnector.CFG_MYSQL_SERVER_ID, String.valueOf(101));

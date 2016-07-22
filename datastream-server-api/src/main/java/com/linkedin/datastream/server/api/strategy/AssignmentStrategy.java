@@ -1,10 +1,11 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.api.strategy;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.DatastreamTask;
 
 
 public interface AssignmentStrategy {

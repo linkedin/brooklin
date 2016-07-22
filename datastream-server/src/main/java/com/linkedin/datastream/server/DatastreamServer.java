@@ -28,6 +28,8 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
+import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
+import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.dms.BootstrapActionResources;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
@@ -48,8 +50,9 @@ public class DatastreamServer {
   public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = CoordinatorConfig.CONFIG_TRANSPORT_PROVIDER_FACTORY;
   public static final String CONFIG_CONNECTOR_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
-  public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY = "assignmentStrategy";
+  public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
+  public static final String STRATEGY_DOMAIN = "strategy";
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
@@ -94,6 +97,8 @@ public class DatastreamServer {
   private void initializeConnector(String connectorName, Properties connectorProperties) {
     LOG.info("Starting to load connector: " + connectorName);
 
+    VerifiableProperties connectorProps = new VerifiableProperties(connectorProperties);
+
     // For each connector type defined in the config, load one instance from that class
     String className = connectorProperties.getProperty(CONFIG_CONNECTOR_FACTORY_CLASS_NAME, "");
     if (StringUtils.isBlank(className)) {
@@ -116,19 +121,23 @@ public class DatastreamServer {
     }
 
     // Read the assignment strategy from the config; if not found, use default strategy
-    AssignmentStrategy assignmentStrategyInstance = null;
-    String strategy = connectorProperties.getProperty(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY, "");
-    if (!strategy.isEmpty()) {
-      assignmentStrategyInstance = ReflectionUtils.createInstance(strategy);
-      if (assignmentStrategyInstance == null) {
-        String errorMessage = "Invalid strategy class: " + strategy;
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
-      }
+    AssignmentStrategyFactory assignmentStrategyFactoryInstance = null;
+    String strategyFactory = connectorProperties.getProperty(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, "");
+    if (!strategyFactory.isEmpty()) {
+      assignmentStrategyFactoryInstance = ReflectionUtils.createInstance(strategyFactory);
     }
+
+    if (assignmentStrategyFactoryInstance == null) {
+      String errorMessage = "Invalid strategy factory class: " + strategyFactory;
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+    }
+
+    Properties strategyProps = connectorProps.getDomainProperties(STRATEGY_DOMAIN);
+    AssignmentStrategy assignmentStrategy = assignmentStrategyFactoryInstance.createStrategy(strategyProps);
 
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategyInstance, customCheckpointing);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
