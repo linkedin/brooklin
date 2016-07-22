@@ -110,7 +110,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
-  public static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "datastream.server.schemaRegistry";
   public static final String TRANSPORT_PROVIDER_CONFIG_DOMAIN = "datastream.server.transportProvider";
   public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "datastream.server.eventProducer";
 

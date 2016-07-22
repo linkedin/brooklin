@@ -1327,6 +1327,42 @@ public class TestCoordinator {
     setup._datastreamKafkaCluster.shutdown();
   }
 
+  /**
+   * This is a BYOT test case where the Coordinator is expected to throw
+   * if the client is trying to bring a destination with less partitions
+   * than the source.
+   */
+  @Test
+  public void testDestinationPartitionsValidationForBYOT()
+      throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    // Happy path
+    String datastreamName = "TestDatastream";
+    Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    DatastreamDestination dest = new DatastreamDestination();
+    dest.setConnectionString("Somewhere");
+    dest.setPartitions(DummyConnector.NUM_PARTITIONS + 4);
+    CreateResponse response = setup._resource.create(stream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Unhappy path
+    datastreamName = "TestDatastream1";
+    stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    dest = new DatastreamDestination();
+    dest.setConnectionString("Somewhere");
+    dest.setPartitions(DummyConnector.NUM_PARTITIONS - 1);
+    stream.setDestination(dest);
+    response = setup._resource.create(stream);
+    Assert.assertNotNull(response.getError());
+    Assert.assertNotEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    setup._datastreamKafkaCluster.shutdown();
+  }
+
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)

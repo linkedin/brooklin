@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -53,6 +54,15 @@ public class DestinationManager {
 
     if (datastream.hasDestination() && datastream.getDestination().hasConnectionString() &&
         !datastream.getDestination().getConnectionString().isEmpty()) {
+      // BYOT: validate the destination partition count against the source partitions
+      if (datastream.getDestination().getPartitions() < datastream.getSource().getPartitions()) {
+        String errMsg = String.format(
+            "BYOT destination has less partitions than source, src=%d, dst=%d, datastream=%s",
+            datastream.getSource().getPartitions(), datastream.getDestination().getPartitions(), datastream);
+        LOG.error(errMsg);
+        throw new DatastreamRuntimeException(errMsg);
+      }
+
       return;
     }
 
