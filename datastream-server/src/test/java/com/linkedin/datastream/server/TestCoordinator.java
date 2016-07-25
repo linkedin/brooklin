@@ -52,8 +52,8 @@ import com.linkedin.restli.server.CreateResponse;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
-  private static final int WAIT_DURATION_FOR_ZK = 1000;
-  private static final int WAIT_TIMEOUT_MS = 30000;
+  private static final long WAIT_DURATION_FOR_ZK_MS = Duration.ofMinutes(1).toMillis();
+  private static final long WAIT_TIMEOUT_MS = Duration.ofMinutes(5).toMillis();
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -524,7 +524,7 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     // the duration of each live instance thread, make sure it is long enough to verify the result
-    int duration = WAIT_DURATION_FOR_ZK * 5;
+    long duration = Duration.ofSeconds(10).toMillis();
 
     for (int i = 0; i < concurrencyLevel; i++) {
       Runnable task = () -> {
@@ -725,8 +725,8 @@ public class TestCoordinator {
     //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream2");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream1", "datastream3");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK_MS, "datastream0", "datastream2");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK_MS, "datastream1", "datastream3");
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -803,8 +803,8 @@ public class TestCoordinator {
     //
     // verify assignment, instance1: [datastream0, datastream1], instance2:[datastream0, datastream1]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream1");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream1");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK_MS, "datastream0", "datastream1");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK_MS, "datastream0", "datastream1");
 
     List<DatastreamTask> tasks2 = new ArrayList<>(connector2.getTasks());
 
@@ -886,9 +886,9 @@ public class TestCoordinator {
     //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream3");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream1", "datastream4");
-    assertConnectorAssignment(connector3, WAIT_DURATION_FOR_ZK * 2, "datastream2", "datastream5");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK_MS, "datastream0", "datastream3");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK_MS, "datastream1", "datastream4");
+    assertConnectorAssignment(connector3, WAIT_DURATION_FOR_ZK_MS, "datastream2", "datastream5");
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -1222,7 +1222,7 @@ public class TestCoordinator {
     for (int i = 2; i < 12; i++) {
       DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream" + i);
     }
-    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_DURATION_FOR_ZK * 5);
+    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_DURATION_FOR_ZK_MS);
     int childrenCount = zkClient.countChildren(errorPath);
     Assert.assertTrue(childrenCount <= 10);
 
@@ -1329,10 +1329,10 @@ public class TestCoordinator {
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
-  private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)
+  private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, String... datastreamNames)
       throws InterruptedException {
 
-    final int interval = timeoutMs < 100 ? timeoutMs : 100;
+    final long interval = timeoutMs < 100 ? timeoutMs : 100;
 
     boolean result =
         PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
