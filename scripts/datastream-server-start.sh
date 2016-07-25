@@ -2,7 +2,7 @@
 
 if [ $# -lt 1 ];
 then
-	echo "USAGE: $0 [-daemon] server.properties [--override property=value]*"
+	echo "USAGE: $0 [-daemon] server1.properties [--override property=value]*"
 	exit 1
 fi
 base_dir=$(dirname $0)

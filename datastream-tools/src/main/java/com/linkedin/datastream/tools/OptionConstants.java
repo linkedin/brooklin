@@ -7,6 +7,11 @@ public class OptionConstants {
   public static final String OPT_ARG_MGMT_URI = "MANAGEMENT_URI";
   public static final String OPT_DESC_MGMT_URI = "Management service rest endpoint uri";
 
+  public static final String OPT_SHORT_OPERATION = "o";
+  public static final String OPT_LONG_OPERATION = "operation";
+  public static final String OPT_ARG_OPERATION = "DATASTREAM_OPERATION";
+  public static final String OPT_DESC_OPERATION = "Operation to perform accepted values [CREATE, READ, DELETE, READALL]";
+
   public static final String OPT_SHORT_DATASTREAM_NAME = "d";
   public static final String OPT_LONG_DATASTREAM_NAME = "datastream";
   public static final String OPT_ARG_DATASTREAM_NAME = "DATASTREAM_NAME";
