@@ -5,6 +5,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -77,6 +78,7 @@ public class DatastreamTestUtils {
     ds.setDestination(new DatastreamDestination());
     ds.getDestination().setConnectionString(destination);
     ds.getDestination().setPartitions(destinationPartitions);
+    ds.setStatus(DatastreamStatus.INITIALIZING);
     StringMap metadata = new StringMap();
     ds.setMetadata(metadata);
     return ds;

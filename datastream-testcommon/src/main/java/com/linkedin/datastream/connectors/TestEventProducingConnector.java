@@ -134,10 +134,10 @@ public class TestEventProducingConnector implements Connector {
           DatastreamProducerRecord record = createDatastreamEvent(index, messageSize, partition);
           task.getEventProducer().send(record, (metadata, exception) -> {
             if (exception != null) {
+              LOG.info("metadata is " + metadata.toString());
               LOG.error("Send failed for event " + metadata.getCheckpoint(), exception);
             }
           });
-
           try {
             Thread.sleep(sleepBetweenSendMs);
           } catch (InterruptedException e) {
@@ -150,7 +150,7 @@ public class TestEventProducingConnector implements Connector {
         index++;
       }
     } catch (Exception ex) {
-      LOG.error("Event producer threw exception ", ex);
+      LOG.error("Producer thread threw exception, Stopping event producer for task " + task, ex);
     }
   }
 
