@@ -728,7 +728,7 @@ public class ZkAdapter {
         .map(DatastreamTask::getDatastreamTaskName)
         .collect(Collectors.toSet());
 
-    List<String> connectors = _zkclient.getChildren(KeyBuilder.connectors(_cluster));
+    List<String> connectors = getConnectors();
     for (String connector : connectors) {
       Set<String> deadTasks = new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
       deadTasks.removeAll(liveTasks);
@@ -745,6 +745,16 @@ public class ZkAdapter {
         }
       }
     }
+  }
+
+  private List<String> getConnectors() {
+
+    String connectorsPath = KeyBuilder.connectors(_cluster);
+    if (_zkclient.exists(connectorsPath)) {
+      return _zkclient.getChildren(connectorsPath);
+    }
+
+    return Collections.emptyList();
   }
 
   private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {

@@ -58,7 +58,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
-
+    LOG.info(String.format("Assign called with datastreams: %s, instances: %s, currentAssignment: %s", datastreams,
+        instances, currentAssignment));
     // if there are no live instances, return empty assignment
     if (instances.size() == 0) {
       return new HashMap<>();

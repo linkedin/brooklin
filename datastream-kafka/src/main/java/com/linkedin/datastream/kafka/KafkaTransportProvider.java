@@ -201,7 +201,7 @@ public class KafkaTransportProvider implements TransportProvider {
         _eventByteWriteRate.mark(event.getKey().length + event.getValue().length);
 
         _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
-                new DatastreamRecordMetadata(String.valueOf(metadata.offset()), metadata.topic(), metadata.partition()),
+                new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()),
                 exception));
         // Update topic-specific metrics and aggregate metrics
         int numBytes = event.getKey().length + event.getValue().length;
