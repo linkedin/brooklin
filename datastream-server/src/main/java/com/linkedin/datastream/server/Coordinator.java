@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.Validate;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,13 +124,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
+  AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
+
+  // make sure the scheduled retries are not duplicated
   AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
 
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
-  // mapping from connector instance to associated assignment strategy
-  private final Map<ConnectorWrapper, AssignmentStrategy> _strategies = new HashMap<>();
+  // mapping from connector name to associated assignment strategy
+  private final Map<String, AssignmentStrategy> _strategies = new HashMap<>();
 
   // Connector types which has custom checkpointing enabled.
   private Set<String> _customCheckpointingConnectors = new HashSet<>();
@@ -326,7 +330,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("START: Coordinator::handleAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: "
         + assignment);
 
-    // all datastreamtask for all connector types
+    // all datastream tasks for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
     assignment.forEach(ds -> {
 
@@ -495,46 +499,51 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // detect the target of a datastream when it is first added. We do not handle the case at this point
   // when the datastream definition can be updated in DSM.
   private void handleDatastreamAddOrDelete() {
+    boolean shouldRetry = false;
     // Allow further retry scheduling
-    leaderDoAssignmentScheduled.set(false);
+    leaderDatastreamAddOrDeleteEventScheduled.set(false);
 
     // Get the list of all datastreams
     List<Datastream> newDatastreams = _datastreamCache.getAllDatastreams(true);
 
-    // do nothing if there is zero datastreams
+    // do nothing if there are zero datastreams
     if (newDatastreams.isEmpty()) {
       _log.warn("Received a new datastream event, but there were no datastreams");
       return;
     }
 
-    try {
-      for (Datastream ds : newDatastreams) {
-        _destinationManager.createTopic(ds);
-      }
+    for (Datastream ds : newDatastreams) {
+      if (ds.getStatus() != DatastreamStatus.READY) {
+        try {
+          _destinationManager.createTopic(ds);
 
-      for (Datastream stream : newDatastreams) {
-        // Set the datastream status as ready for use (both producing and consumption)
-        stream.setStatus(DatastreamStatus.READY);
-        if (stream.hasDestination() && !_adapter.updateDatastream(stream)) {
-          _log.error(String.format("Failed to update datastream destination for datastream %s, "
-              + "This datastream will not be scheduled for producing events ", stream.getName()));
-          throw new DatastreamException("Failed to update datastream destination for datastream" + stream.getName());
+          // Set the datastream status as ready for use (both producing and consumption)
+          ds.setStatus(DatastreamStatus.READY);
+          if (!_adapter.updateDatastream(ds)) {
+            _log.warn(String.format("Failed to update datastream: %s after initializing, "
+                + "This datastream will not be scheduled for producing events ", ds.getName()));
+            shouldRetry = true;
+          }
+        } catch (Exception e) {
+          _log.warn("Failed to update the destination of new datastream %s " + ds, e);
+          shouldRetry = true;
         }
       }
+    }
 
-      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    } catch (Exception e) {
-      _log.error("Failed to update the destination of new datastreams.", e);
+    if (shouldRetry) {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
-      if (leaderDoAssignmentScheduled.compareAndSet(false, true)) {
+      if (leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
             _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
       }
     }
+
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
   private void handleLeaderDoAssignment() {
@@ -548,7 +557,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // will assume any assigned tasks are ready to collect events.
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
         .stream()
-        .filter(datastream -> datastream.getDestination() != null)
+        .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY)
         .collect(Collectors.toList());
 
     // The inner map is used to dedup Datastreams with the same destination
@@ -568,29 +577,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     // Map between Instance and the tasks
-    Map<String, List<DatastreamTask>> assigmentsByInstance = new HashMap<>();
+    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
     Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
     _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
 
     for (String connectorType : streamsByConnectorType.keySet()) {
-      AssignmentStrategy strategy = _strategies.get(_connectors.get(connectorType));
+      AssignmentStrategy strategy = _strategies.get(connectorType);
       List<Datastream> datastreamsPerConnectorType =
           new ArrayList<>(streamsByConnectorType.get(connectorType).values());
 
-      // Get the list of tasks per instance for the given connectortype
+      // Get the list of tasks per instance for the given connector type
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
           strategy.assign(datastreamsPerConnectorType, liveInstances, currentAssignment);
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
-        if (!assigmentsByInstance.containsKey(instance)) {
-          assigmentsByInstance.put(instance, new ArrayList<>());
+        if (!assignmentsByInstance.containsKey(instance)) {
+          assignmentsByInstance.put(instance, new ArrayList<>());
         }
         // Add the tasks for this connector type to the instance
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
           ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
-          assigmentsByInstance.get(instance).add(task);
+          assignmentsByInstance.get(instance).add(task);
         });
       }
     }
@@ -600,11 +609,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // it failed to create or delete znodes), we will do our best to continue the current process
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
-    for (Map.Entry<String, List<DatastreamTask>> entry : assigmentsByInstance.entrySet()) {
+    for (Map.Entry<String, List<DatastreamTask>> entry : assignmentsByInstance.entrySet()) {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
-    _log.info("handleLeaderDoAssignment: new assignment: " + assigmentsByInstance);
+    _log.info("handleLeaderDoAssignment: new assignment: " + assignmentsByInstance);
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
@@ -636,7 +645,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
       boolean customCheckpointing) {
-    _log.info("Add new connector of type " + connectorName + " to coordinator");
+
+    Validate.notNull(strategy, "strategy cannot be null");
+    Validate.notEmpty(connectorName, "connectorName cannot be empty");
+    Validate.notNull(connector, "Connector cannot be null");
+
+    _log.info(String.format("Add new connector of type %s, strategy %s with custom checkpointing %s to coordinator",
+        connectorName, strategy.getClass().getTypeName(), customCheckpointing));
 
     if (_connectors.containsKey(connectorName)) {
       String err = "A connector of type " + connectorName + " already exists.";
@@ -649,7 +664,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
     _connectors.put(connectorName, connectorWrapper);
-    _strategies.put(connectorWrapper, strategy);
+    _strategies.put(connectorName, strategy);
     if (customCheckpointing) {
       _customCheckpointingConnectors.add(connectorName);
     }

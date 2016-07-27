@@ -47,10 +47,7 @@ public class DatastreamRestClientCli {
 
   private static void printHelp(Options options) {
     HelpFormatter formatter = new HelpFormatter();
-    formatter.printHelp("DatastreamRestClientCmd",
-        "Console app to manage datastreams. Available operations: read, readall, "
-            + "create, delete Example usage: ./datastream-rest-client.sh read --dms localhost:32211 -n datastream -e",
-        options, "", true);
+    formatter.printHelp("DatastreamRestClientCmd", "Console app to manage datastreams.", options, "", true);
   }
 
   private enum Operation {

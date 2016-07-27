@@ -13,9 +13,6 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
-
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +23,8 @@ import org.testng.annotations.Test;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -52,7 +51,7 @@ import com.linkedin.restli.server.CreateResponse;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
-  private static final int WAIT_DURATION_FOR_ZK = 1000;
+  private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
   private static final int WAIT_TIMEOUT_MS = 30000;
 
   EmbeddedZookeeper _embeddedZookeeper;
@@ -62,8 +61,7 @@ public class TestCoordinator {
     DynamicMetricsManager.createInstance(new MetricRegistry());
   }
 
-  private Coordinator createCoordinator(String zkAddr, String cluster)
-      throws Exception {
+  private Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
@@ -524,7 +522,7 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     // the duration of each live instance thread, make sure it is long enough to verify the result
-    int duration = WAIT_DURATION_FOR_ZK * 5;
+    long duration = WAIT_DURATION_FOR_ZK;
 
     for (int i = 0; i < concurrencyLevel; i++) {
       Runnable task = () -> {
@@ -652,6 +650,8 @@ public class TestCoordinator {
     instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false);
     instance2.start();
 
+
+
     //
     // verify new assignment. instance1 : [datastream0], instance2: [datastream1]
     //
@@ -722,11 +722,15 @@ public class TestCoordinator {
 
     LOG.info("Verify that the datastrems are assigned across two connectors");
 
+    waitTillAssignmentIsComplete(connector1, connector2, 4, WAIT_TIMEOUT_MS);
     //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream2");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream1", "datastream3");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK, "datastream0", "datastream2");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK, "datastream1", "datastream3");
+
+    LOG.info("Tasks assigned to instance1: " + connector1.getTasks().toString());
+    LOG.info("Tasks assigned to instance2: " + connector2.getTasks().toString());
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -740,7 +744,7 @@ public class TestCoordinator {
     instance2.stop();
     deleteLiveInstanceNode(zkClient, testCluster, instance2);
 
-    LOG.info("verify that the four datastrems are assigned to the instance1");
+    LOG.info("verify that the four datastreams are assigned to the instance1");
 
     //
     // verify all 4 datastreams are assigned to instance1
@@ -765,6 +769,8 @@ public class TestCoordinator {
     instance1.stop();
     zkClient.close();
   }
+
+
 
   @Test
   public void testBroadcastAssignmentReassignAfterDeath() throws Exception {
@@ -803,8 +809,8 @@ public class TestCoordinator {
     //
     // verify assignment, instance1: [datastream0, datastream1], instance2:[datastream0, datastream1]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream1");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream1");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK, "datastream0", "datastream1");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK, "datastream0", "datastream1");
 
     List<DatastreamTask> tasks2 = new ArrayList<>(connector2.getTasks());
 
@@ -886,9 +892,9 @@ public class TestCoordinator {
     //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
-    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK * 2, "datastream0", "datastream3");
-    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK * 2, "datastream1", "datastream4");
-    assertConnectorAssignment(connector3, WAIT_DURATION_FOR_ZK * 2, "datastream2", "datastream5");
+    assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK, "datastream0", "datastream3");
+    assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK, "datastream1", "datastream4");
+    assertConnectorAssignment(connector3, WAIT_DURATION_FOR_ZK, "datastream2", "datastream5");
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -1222,7 +1228,7 @@ public class TestCoordinator {
     for (int i = 2; i < 12; i++) {
       DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream" + i);
     }
-    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_DURATION_FOR_ZK * 5);
+    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_DURATION_FOR_ZK);
     int childrenCount = zkClient.countChildren(errorPath);
     Assert.assertTrue(childrenCount <= 10);
 
@@ -1329,10 +1335,10 @@ public class TestCoordinator {
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
-  private void assertConnectorAssignment(TestHookConnector connector, int timeoutMs, String... datastreamNames)
+  private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, String... datastreamNames)
       throws InterruptedException {
 
-    final int interval = timeoutMs < 100 ? timeoutMs : 100;
+    final long interval = timeoutMs < 100 ? timeoutMs : 100;
 
     boolean result =
         PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
@@ -1342,6 +1348,20 @@ public class TestCoordinator {
             connector.getTasks(), result));
 
     Assert.assertTrue(result);
+  }
+
+  private void waitTillAssignmentIsComplete(TestHookConnector connector1, TestHookConnector connector2,
+      int totalTasks, long timeoutMs) {
+
+    final long interval = timeoutMs < 100 ? timeoutMs : 100;
+
+    PollUtils.poll(() -> {
+      HashSet<DatastreamTask> tasks1 = new HashSet<>(connector1.getTasks());
+      tasks1.addAll(connector2.getTasks());
+      return tasks1.size() == totalTasks;
+
+    }, interval, timeoutMs);
+
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
