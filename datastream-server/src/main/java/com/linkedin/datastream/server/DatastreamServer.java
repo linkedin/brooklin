@@ -1,9 +1,11 @@
 package com.linkedin.datastream.server;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -14,6 +16,10 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
@@ -36,6 +42,7 @@ import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
+
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
  * for all datastream services including the rest api service, the coordinator and so on.
@@ -45,6 +52,7 @@ public class DatastreamServer {
   public static final String CONFIG_PREFIX = "datastream.server.";
   public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
+  public static final String CONFIG_CSV_METRICS_DIR = CONFIG_PREFIX + "csvMetricsDir";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
   public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = CoordinatorConfig.CONFIG_TRANSPORT_PROVIDER_FACTORY;
@@ -62,6 +70,7 @@ public class DatastreamServer {
   private DatastreamNettyStandaloneLauncher _nettyLauncher;
   private boolean _isInitialized = false;
   private boolean _isStarted = false;
+  private String _csvMetricsDir;
 
   private Map<String, String> _bootstrapConnectors;
 
@@ -160,24 +169,26 @@ public class DatastreamServer {
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
     coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.length);
 
-
     LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient =
-        new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
-            coordinatorConfig.getZkConnectionTimeout());
+    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+        coordinatorConfig.getZkConnectionTimeout());
 
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
     _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
     LOG.info("Loading connectors.");
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
-      initializeConnector(connectorStr, verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
+      initializeConnector(connectorStr,
+          verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
-    int httpPort = verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
+    int httpPort =
+        verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
     _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
         "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
+
+    _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
 
     verifiableProperties.verify();
 
@@ -194,6 +205,22 @@ public class DatastreamServer {
     registerMetrics(BootstrapActionResources.getMetrics());
 
     _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
+
+    if (StringUtils.isNotEmpty(_csvMetricsDir)) {
+      LOG.info("Starting CsvReporter in " + _csvMetricsDir);
+      File csvDir = new File(_csvMetricsDir);
+      if (!csvDir.exists()) {
+        LOG.info(String.format("csvMetricsDir %s doesn't exist, creating it.", _csvMetricsDir));
+        csvDir.mkdirs();
+      }
+
+      final CsvReporter reporter = CsvReporter.forRegistry(METRIC_REGISTRY)
+          .formatFor(Locale.US)
+          .convertRatesTo(SECONDS)
+          .convertDurationsTo(MILLISECONDS)
+          .build(csvDir);
+      reporter.start(1, MINUTES);
+    }
   }
 
   private void registerMetrics(Map<String, Metric> metrics) {
@@ -277,8 +304,7 @@ public class DatastreamServer {
     LOG.info("Main thread is exiting...");
   }
 
-  private static Properties getServerProperties(String[] args)
-      throws IOException {
+  private static Properties getServerProperties(String[] args) throws IOException {
 
     if (args.length == 0) {
       System.err.println(
