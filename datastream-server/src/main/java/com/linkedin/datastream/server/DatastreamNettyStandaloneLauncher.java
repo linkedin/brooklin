@@ -2,12 +2,14 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collection;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.parseq.Engine;
 import com.linkedin.parseq.EngineBuilder;
 import com.linkedin.r2.filter.FilterChains;
@@ -16,9 +18,9 @@ import com.linkedin.r2.transport.http.server.HttpNettyServerFactory;
 import com.linkedin.r2.transport.http.server.HttpServer;
 import com.linkedin.restli.docgen.DefaultDocumentationRequestHandler;
 import com.linkedin.restli.server.DelegatingTransportDispatcher;
+import com.linkedin.restli.server.ErrorResponseFormat;
 import com.linkedin.restli.server.RestLiConfig;
 import com.linkedin.restli.server.RestLiServer;
-import com.linkedin.restli.server.resources.ResourceFactory;
 
 
 /**
@@ -31,25 +33,27 @@ public class DatastreamNettyStandaloneLauncher {
   private final int _port;
   private final int _threadPoolSize;
   private final int _parseqThreadPoolSize;
-  private final String[] _packages;
+  private final Collection<String> _packages;
   private final HttpServer _server;
 
-  public DatastreamNettyStandaloneLauncher(int httpPort, ResourceFactory resourceFactory, String... packages) {
+  public DatastreamNettyStandaloneLauncher(int httpPort, DatastreamResourceFactory resourceFactory) {
     this(httpPort, HttpNettyServerFactory.DEFAULT_THREAD_POOL_SIZE, Runtime.getRuntime().availableProcessors() + 1,
-        resourceFactory, packages);
+        resourceFactory);
   }
 
   public DatastreamNettyStandaloneLauncher(int port, int threadPoolSize, int parseqThreadPoolSize,
-      ResourceFactory resourceFactory, String... packages) {
+      DatastreamResourceFactory resourceFactory) {
     _port = port;
     _threadPoolSize = threadPoolSize;
     _parseqThreadPoolSize = parseqThreadPoolSize;
-    _packages = packages;
+    _packages = resourceFactory.getRestPackages();
 
     final RestLiConfig config = new RestLiConfig();
     config.setDocumentationRequestHandler(new DefaultDocumentationRequestHandler());
     config.setServerNodeUri(URI.create("/"));
     config.addResourcePackageNames(_packages);
+    config.setErrorResponseFormat(ErrorResponseFormat.FULL);
+    LOG.info("Restli resource packages: " + _packages);
 
     LOG.info("Netty parseqThreadPoolSize: " + parseqThreadPoolSize);
     final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(parseqThreadPoolSize);
