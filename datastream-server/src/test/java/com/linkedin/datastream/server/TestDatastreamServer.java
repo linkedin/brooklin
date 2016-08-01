@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,9 +41,16 @@ import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
+import com.linkedin.datastream.server.diagnostics.DummyRequestBuilders;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
+import com.linkedin.r2.transport.common.Client;
+import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
+import com.linkedin.r2.transport.http.client.HttpClientFactory;
+import com.linkedin.restli.client.ActionRequest;
+import com.linkedin.restli.client.ResponseFuture;
+import com.linkedin.restli.client.RestClient;
 
 
 @Test(singleThreaded = true)
@@ -494,6 +502,22 @@ public class TestDatastreamServer {
 
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
+  }
+
+  @Test
+  public void testConnectorRestliEndpoints() throws Exception {
+    EmbeddedDatastreamCluster cluster = initializeTestDatastreamServerWithDummyConnector(null);
+    cluster.startup();
+
+    DummyRequestBuilders builders = new DummyRequestBuilders();
+    String msg = "Test test";
+    ActionRequest<String> request = builders.actionEcho().messageParam(msg).build();
+    HttpClientFactory facotry = new HttpClientFactory();
+    final Client r2Client = new TransportClientAdapter(facotry.getClient(Collections.<String, String>emptyMap()));
+    RestClient restClient = new RestClient(r2Client, "http://localhost:" + cluster.getPrimaryDatastreamPort() + "/");
+    ResponseFuture<String> response = restClient.sendRequest(request);
+    String reply = response.getResponse().getEntity();
+    Assert.assertEquals(reply, msg);
   }
 
   private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {

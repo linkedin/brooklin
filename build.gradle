@@ -180,6 +180,9 @@ project(':datastream-kafka') {
 }
 
 project(':datastream-testcommon') {
+//  ext.apiProject = project(':datastream-common')
+//  pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.connectors'])
+
   dependencies {
     compile project(':datastream-server-api')
     compile project(':datastream-common')

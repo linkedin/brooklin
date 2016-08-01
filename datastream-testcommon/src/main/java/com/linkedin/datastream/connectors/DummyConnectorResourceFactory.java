@@ -14,6 +14,7 @@ public class DummyConnectorResourceFactory implements ResourceFactory {
 
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public <R> R create(Class<R> resourceClass) {
     return (R) new DummyConnectorResources();
