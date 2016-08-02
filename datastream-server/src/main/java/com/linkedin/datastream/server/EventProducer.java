@@ -326,8 +326,8 @@ public class EventProducer {
       EVENTS_PRODUCED_WITHIN_SLA.inc();
     } else {
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
-      _logger.warn(
-          String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d millseconds",
+      _logger.debug(
+          String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
               _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(), metadata.getPartition(),
               _availabilityThresholdSlaMs));
     }
