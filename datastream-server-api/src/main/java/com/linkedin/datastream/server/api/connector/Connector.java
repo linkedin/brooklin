@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.api.connector;
 import java.util.List;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRestHandler;
 import com.linkedin.datastream.common.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
@@ -44,4 +45,14 @@ public interface Connector extends MetricsAware {
    */
   void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) throws DatastreamValidationException;
 
+  /**
+   * Provide a list of REST handler instances. The handlers will be registered
+   * with the REST framework (ie. Rest.li) and used by REST server to handle
+   * matching REST calls.
+   *
+   * @return list of REST handler instances
+   */
+  default List<DatastreamRestHandler> getRestHandlers() {
+    return null;
+  }
 }
