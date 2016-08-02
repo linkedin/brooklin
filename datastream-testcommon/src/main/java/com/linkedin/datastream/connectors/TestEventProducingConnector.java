@@ -11,6 +11,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -97,12 +98,17 @@ public class TestEventProducingConnector implements Connector {
       _tasksAssigned.put(task, future);
     }
 
-    _tasksAssigned.entrySet().stream().filter(x -> !tasks.contains(x.getKey())).forEach((x) -> {
+    List<Map.Entry<DatastreamTask, Future<?>>> tasksToRemove =
+        _tasksAssigned.entrySet().stream().filter(x -> !tasks.contains(x.getKey())).collect(Collectors.toList());
+
+    tasksToRemove.forEach((x) -> {
       LOG.info(String.format("Task %s is reassigned from the current instance, cancelling the producer", x.getKey()));
       x.getValue().cancel(true);
       while (!x.getValue().isDone()) {
         Thread.yield();
       }
+
+      _tasksAssigned.remove(x.getKey());
 
       LOG.info(String.format("Producer corresponding to the task %s has been stopped", x.getKey()));
     });
@@ -110,6 +116,7 @@ public class TestEventProducingConnector implements Connector {
 
   private void executeTask(DatastreamTask task) {
     try {
+      LOG.info("Starting the producer for task " + task);
       Datastream datastream = task.getDatastreams().get(0);
       int messageSize = _messageSize;
       long sleepBetweenSendMs = _sleepBetweenSendMs;
