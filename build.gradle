@@ -239,6 +239,7 @@ project(':datastream-client') {
 
     compile "com.linkedin.pegasus:restli-client:$pegasusVersion"
     compile "com.linkedin.pegasus:r2-netty:$pegasusVersion"
+    compile "com.linkedin.pegasus:d2:$pegasusVersion"
     compile "org.apache.avro:avro:$avroVersion"
 
     compile project(':datastream-common')

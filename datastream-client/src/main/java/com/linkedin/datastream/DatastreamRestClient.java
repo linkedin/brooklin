@@ -2,6 +2,7 @@ package com.linkedin.datastream;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang3.StringUtils;
@@ -9,12 +10,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.common.callback.FutureCallback;
+import com.linkedin.common.util.None;
+import com.linkedin.d2.balancer.D2Client;
+import com.linkedin.d2.balancer.D2ClientBuilder;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.server.dms.BootstrapRequestBuilders;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
@@ -39,8 +44,9 @@ import com.linkedin.restli.common.IdResponse;
  * Datastream REST Client
  */
 public class DatastreamRestClient {
-
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
+  private static final long TIMEOUT_MS = 10000;
+
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
   private final BootstrapRequestBuilders _bootstrapBuilders;
@@ -54,6 +60,37 @@ public class DatastreamRestClient {
     _httpClient = new HttpClientFactory();
     final Client r2Client = new TransportClientAdapter(_httpClient.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
+
+    LOG.info(String.format("Successfully created Datastream REST client, server=%s", dsmUri));
+  }
+
+  public DatastreamRestClient(String zkAddr, String clusterName) {
+    Validate.notEmpty(zkAddr, "invalid ZooKeeper address");
+    Validate.notEmpty(clusterName, "invalid cluster name");
+
+    _httpClient = null;
+
+    String basePath = String.format("/%s/d2", clusterName);
+    D2Client d2Client = new D2ClientBuilder()
+        .setZkHosts(zkAddr)
+        .setBasePath(basePath)
+        .build();
+
+    try {
+      FutureCallback<None> future = new FutureCallback<>();
+      d2Client.start(future);
+      future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+      _restClient = new RestClient(d2Client, "d2://");
+    } catch (Exception e) {
+      String errMsg = String.format("Failed to start D2 client, zk=%s, cluster=%s", zkAddr, clusterName);
+      LOG.error(errMsg, e);
+      throw new DatastreamRuntimeException(errMsg, e);
+    }
+
+    _builders = new DatastreamRequestBuilders();
+    _bootstrapBuilders = new BootstrapRequestBuilders();
+
+    LOG.info(String.format("Successfully created Datastream REST client, zk=%s, cluster=%s", zkAddr, clusterName));
   }
 
   /**
@@ -238,7 +275,7 @@ public class DatastreamRestClient {
    * Shutdown the DatastreamRestClient
    */
   public void shutdown() {
-    _restClient.shutdown(new FutureCallback<>());
-    _httpClient.shutdown(new FutureCallback<>());
+    RestliUtils.callAsyncAndWait((f) -> _restClient.shutdown(f), "shutdown Restli client", TIMEOUT_MS, LOG);
+    RestliUtils.callAsyncAndWait((f) -> _httpClient.shutdown(f), "shutdown HTTP client", TIMEOUT_MS, LOG);
   }
 }
