@@ -751,4 +751,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     String result = sb.toString();
     return result.substring(0, result.length() - 1);
   }
+
+  public boolean isLeader() {
+    return _adapter.isLeader();
+  }
 }

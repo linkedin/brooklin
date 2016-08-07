@@ -261,6 +261,7 @@ project(':datastream-server') {
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+    compile "com.linkedin.pegasus:d2:$pegasusVersion"
 
     compile project(':datastream-server-api')
     compile project(':datastream-common')
