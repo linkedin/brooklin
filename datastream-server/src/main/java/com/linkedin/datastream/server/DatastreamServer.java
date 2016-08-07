@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -36,6 +38,7 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
+import com.linkedin.datastream.server.d2.DatastreamD2Manager;
 import com.linkedin.datastream.server.dms.BootstrapActionResources;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
@@ -61,6 +64,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
   public static final String STRATEGY_DOMAIN = "strategy";
+  public static final String D2_DOMAIN = CONFIG_PREFIX + "d2";
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
@@ -71,12 +75,15 @@ public class DatastreamServer {
   private boolean _isInitialized = false;
   private boolean _isStarted = false;
   private String _csvMetricsDir;
+  private int _dmsHttpPort = -1;
 
   private Map<String, String> _bootstrapConnectors;
 
   private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
   private static final Map<String, Metric> DYNAMIC_METRICS = new HashMap<>();
   private JmxReporter _jmxReporter;
+
+  private DatastreamD2Manager _d2Manager;
 
   static {
     // Instantiate a dynamic metrics manager singleton object so that other components can emit metrics on the fly
@@ -183,9 +190,9 @@ public class DatastreamServer {
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
-    int httpPort =
+    _dmsHttpPort =
         verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
+    _nettyLauncher = new DatastreamNettyStandaloneLauncher(_dmsHttpPort, new DatastreamResourceFactory(this),
         "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
 
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
@@ -194,9 +201,34 @@ public class DatastreamServer {
 
     initializeMetrics();
 
+    initializeDiscovery(coordinatorConfig, verifiableProperties.getDomainProperties(D2_DOMAIN));
+
     _isInitialized = true;
 
     LOG.info("DatastreamServer initialized successfully.");
+  }
+
+  private void initializeDiscovery(CoordinatorConfig coordinatorConfig, Properties d2Config) {
+    if (d2Config == null
+        || !d2Config.containsKey("enabled")
+        || !d2Config.getProperty("enabled").equals("true")) {
+      LOG.info("Dynamic discovery (D2) is not enabled");
+      return;
+    }
+
+    try {
+      String serverUri = InetAddress.getLocalHost().getCanonicalHostName() + ":" + _dmsHttpPort;
+
+      // RestliServer.RootResources is a map of endpoint to the resource descriptor
+      // which we can use to populate the service endpoints for D2 registration.
+      Map<String, String> svcEndpoints = _nettyLauncher.getRestliServer().getRootResources()
+          .entrySet().stream().collect(Collectors.toMap(e -> e.getValue().getName(), e -> e.getKey()));
+
+      _d2Manager = new DatastreamD2Manager(coordinatorConfig.getZkAddress(),
+          _coordinator.getClusterName(), serverUri, () -> _coordinator.isLeader(), d2Config, svcEndpoints);
+    } catch (Exception e) {
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to start D2 manager.", e);
+    }
   }
 
   private void initializeMetrics() {
@@ -258,14 +290,25 @@ public class DatastreamServer {
       String errorMessage = "Failed to start netty.";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, ex);
     }
+
+    if (_d2Manager != null) {
+      _d2Manager.start();
+    }
   }
 
   public synchronized void shutdown() {
+    if (_d2Manager != null) {
+      _d2Manager.shutdown();
+      _d2Manager = null;
+    }
+
     if (_coordinator != null) {
       _coordinator.stop();
       _coordinator = null;
     }
+
     _datastreamStore = null;
+
     if (_nettyLauncher != null) {
       try {
         _nettyLauncher.stop();
@@ -278,6 +321,7 @@ public class DatastreamServer {
     if (_jmxReporter != null) {
       _jmxReporter.stop();
     }
+
     _isInitialized = false;
     _isStarted = false;
   }
@@ -322,5 +366,9 @@ public class DatastreamServer {
     }
 
     return props;
+  }
+
+  public int getDmsHttpPort() {
+    return _dmsHttpPort;
   }
 }

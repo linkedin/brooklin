@@ -33,6 +33,7 @@ public class DatastreamNettyStandaloneLauncher {
   private final int _parseqThreadPoolSize;
   private final String[] _packages;
   private final HttpServer _server;
+  private final RestLiServer _restliServer;
 
   public DatastreamNettyStandaloneLauncher(int httpPort, ResourceFactory resourceFactory, String... packages) {
     this(httpPort, HttpNettyServerFactory.DEFAULT_THREAD_POOL_SIZE, Runtime.getRuntime().availableProcessors() + 1,
@@ -58,8 +59,8 @@ public class DatastreamNettyStandaloneLauncher {
         .setTimerScheduler(scheduler)
         .build();
 
-    final RestLiServer restServer = new RestLiServer(config, resourceFactory, engine);
-    final TransportDispatcher dispatcher = new DelegatingTransportDispatcher(restServer);
+    _restliServer = new RestLiServer(config, resourceFactory, engine);
+    final TransportDispatcher dispatcher = new DelegatingTransportDispatcher(_restliServer);
     LOG.info("Netty threadPoolSize: " + threadPoolSize);
     _server = new HttpNettyServerFactory(FilterChains.empty()).createServer(_port, threadPoolSize, dispatcher);
   }
@@ -80,5 +81,9 @@ public class DatastreamNettyStandaloneLauncher {
    */
   public void stop() throws IOException {
     _server.stop();
+  }
+
+  public RestLiServer getRestliServer() {
+    return _restliServer;
   }
 }
