@@ -143,9 +143,9 @@ public class EventProducer {
 
     private void doCheckpoint() {
       try {
-        _logger.info(String.format("Checkpoint handler started, tasks = [%s].", getTaskString()));
+        _logger.debug(String.format("Checkpoint handler started, tasks = [%s].", getTaskString()));
         EventProducer.this.flushAndCheckpoint();
-        _logger.info("Checkpoint handler finished.");
+        _logger.info("Checkpointing completed.");
       } catch (Exception e) {
         // We need to handle catch all exceptions otherwise executor suppresses future runs.
         _logger.error(
@@ -192,8 +192,8 @@ public class EventProducer {
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
 
-    _logger.info(String
-        .format("Created event producer with customCheckpointing=%s, sendCallback=%s", customCheckpointing,
+    _logger.info(
+        String.format("Created event producer with customCheckpointing=%s, sendCallback=%s", customCheckpointing,
             onUnrecoverableError != null));
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -320,20 +320,24 @@ public class EventProducer {
   }
 
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamTask task, DatastreamProducerRecord record) {
-    // Report availability metrics
-    _sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsTimestamp();
-    if (_sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-      EVENTS_PRODUCED_WITHIN_SLA.inc();
-    } else {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
-      _logger.debug(
-          String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
-              _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(), metadata.getPartition(),
-              _availabilityThresholdSlaMs));
+    if (record.getEventsTimestamp() > 0) {
+      // Report availability metrics
+      _sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsTimestamp();
+      if (_sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
+        EVENTS_PRODUCED_WITHIN_SLA.inc();
+      } else {
+        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
+            1);
+        _logger.debug(
+            String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
+                _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(),
+                metadata.getPartition(), _availabilityThresholdSlaMs));
+      }
     }
-    TOTAL_EVENTS_PRODUCED.inc();
 
-    EVENT_PRODUCE_RATE.mark(record.getEvents().size());
+    int numberOfEvents = record.getEvents().size();
+    TOTAL_EVENTS_PRODUCED.inc(numberOfEvents);
+    EVENT_PRODUCE_RATE.mark(numberOfEvents);
     record.getEvents().forEach(e -> EVENT_BYTES_PRODUCE_RATE.mark(e.getKey().length + e.getValue().length));
   }
 
@@ -395,7 +399,7 @@ public class EventProducer {
     // Step 1: flush the transport to gather ACKs
     try {
       // Flush can and must be done without holding writer-lock which is needed by onSendCallback
-      _logger.info(String.format("Starting transport flush, tasks = [%s].", tasks));
+      _logger.debug(String.format("Starting transport flush, tasks = [%s].", tasks));
       _transportProvider.flush();
       _logger.info("Transport has been successfully flushed.");
     } catch (Exception e) {
@@ -429,7 +433,7 @@ public class EventProducer {
     // Step 3: commit the serialized checkpoints to checkpoint provider
     try {
       // Commit can be safely performed outside of critical section
-      _logger.info(String.format("Start committing checkpoints = %s, tasks = [%s].", committed, tasks));
+      _logger.debug(String.format("Start committing checkpoints = %s, tasks = [%s].", committed, tasks));
       _checkpointProvider.commit(committed);
       _logger.info("Checkpoints have been successfully committed");
     } catch (Exception e) {
@@ -498,7 +502,8 @@ public class EventProducer {
         EVENT_BYTES_PRODUCE_RATE);
     metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventProduceRate"),
         EVENT_PRODUCE_RATE);
-    metrics.put(EventProducer.class.getSimpleName() + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA, new Counter());
+    metrics.put(EventProducer.class.getSimpleName() + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA,
+        new Counter());
 
     return Collections.unmodifiableMap(metrics);
   }
