@@ -1,6 +1,6 @@
 package com.linkedin.datastream.tools;
 
-public class OptionConstants {
+class OptionConstants {
 
   public static final String OPT_SHORT_MGMT_URI = "u";
   public static final String OPT_LONG_MGMT_URI = "uri";

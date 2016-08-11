@@ -41,15 +41,6 @@ import com.linkedin.datastream.common.JsonUtils;
 
 
 public class DatastreamRestClientCli {
-
-  private DatastreamRestClientCli() {
-  }
-
-  private static void printHelp(Options options) {
-    HelpFormatter formatter = new HelpFormatter();
-    formatter.printHelp("DatastreamRestClientCmd", "Console app to manage datastreams.", options, "", true);
-  }
-
   private enum Operation {
     CREATE,
     READ,
@@ -57,19 +48,15 @@ public class DatastreamRestClientCli {
     READALL
   }
 
-  private static void printDatastreams(List<Datastream> streams) {
-    ObjectMapper mapper = new ObjectMapper();
-
-    streams.stream().forEach(s -> {
-      try {
-        System.out.println(mapper.defaultPrettyPrintingWriter().writeValueAsString(s));
-      } catch (IOException e) {
-        throw new DatastreamRuntimeException(e);
-      }
-    });
+  private DatastreamRestClientCli() {
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void printHelp(Options options) {
+    HelpFormatter formatter = new HelpFormatter();
+    formatter.printHelp("DatastreamRestClientCmd", "Console app to manage datastreams.", options, "", true);
+  }
+
+  public static Options createOptions() {
     Options options = new Options();
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_OPERATION, OptionConstants.OPT_LONG_OPERATION,
         OptionConstants.OPT_ARG_OPERATION, true, OptionConstants.OPT_DESC_OPERATION));
@@ -91,20 +78,26 @@ public class DatastreamRestClientCli {
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_METADATA, OptionConstants.OPT_LONG_METADATA,
         OptionConstants.OPT_ARG_METADATA, false, OptionConstants.OPT_DESC_METADATA));
 
-    options.addOption(
-        OptionUtils.createOption(OptionConstants.OPT_SHORT_HELP, OptionConstants.OPT_LONG_HELP, null, false,
-            OptionConstants.OPT_DESC_HELP));
+    options.addOption(OptionUtils
+            .createOption(OptionConstants.OPT_SHORT_HELP, OptionConstants.OPT_LONG_HELP, null, false,
+                OptionConstants.OPT_DESC_HELP));
 
-    CommandLineParser parser = new BasicParser();
-    CommandLine cmd;
-    try {
-      cmd = parser.parse(options, args);
-    } catch (Exception e) {
-      System.out.println("Failed to parse the arguments. " + e.getMessage());
-      printHelp(options);
-      return;
-    }
+    return options;
+  }
 
+  private static void printDatastreams(List<Datastream> streams) {
+    ObjectMapper mapper = new ObjectMapper();
+
+    streams.stream().forEach(s -> {
+      try {
+        System.out.println(mapper.defaultPrettyPrintingWriter().writeValueAsString(s));
+      } catch (IOException e) {
+        throw new DatastreamRuntimeException(e);
+      }
+    });
+  }
+
+  public static void execute(Options options, CommandLine cmd) throws InterruptedException {
     if (cmd.hasOption(OptionConstants.OPT_SHORT_HELP)) {
       printHelp(options);
       return;
@@ -168,6 +161,21 @@ public class DatastreamRestClientCli {
         datastreamRestClient.shutdown();
       }
     }
+  }
+
+  public static void main(String[] args) throws Exception {
+    Options options = createOptions();
+    CommandLineParser parser = new BasicParser();
+    CommandLine cmd;
+    try {
+      cmd = parser.parse(options, args);
+    } catch (Exception e) {
+      System.out.println("Failed to parse the arguments. " + e.getMessage());
+      printHelp(options);
+      return;
+    }
+
+    execute(options, cmd);
   }
 
   private static String getOptionValue(CommandLine cmd, String optionName, Options options) {

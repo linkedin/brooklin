@@ -8,4 +8,4 @@ include 'datastream-kafka'
 include 'datastream-file-connector'
 include 'datastream-mysql-connector'
 include 'datastream-tools'
-
+include 'scripts'
