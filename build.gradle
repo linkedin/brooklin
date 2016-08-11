@@ -194,9 +194,15 @@ project(':datastream-testcommon') {
   }
 }
 
-
-
 project(':datastream-tools') {
+  dependencies {
+    compile project(':datastream-common')
+    compile project(':datastream-client')
+    compile "commons-cli:commons-cli:$commonsCliVersion"
+  }
+}
+
+project(':scripts') {
   dependencies {
     compile project(':datastream-common')
     compile project(':datastream-client')
@@ -229,7 +235,6 @@ project(':datastream-tools') {
     from(project(':datastream-kafka').configurations.runtime) { into("libs/") }
     duplicatesStrategy 'exclude'
   }
-
 }
 
 project(':datastream-client') {
