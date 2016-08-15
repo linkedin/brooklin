@@ -93,7 +93,7 @@ public class FileConnector implements Connector {
     // Ensure the processors have actually stopped
     for (DatastreamTask task : unassigned) {
       FileProcessor processor = _fileProcessors.get(task);
-      if (!PollUtils.poll(() -> processor.isStopped(), 200, SHUTDOWN_TIMEOUT_MS)) {
+      if (!PollUtils.poll(processor::isStopped, 200, SHUTDOWN_TIMEOUT_MS)) {
         throw new RuntimeException("Failed to stop processor for " + task);
       }
       _fileProcessors.remove(task);

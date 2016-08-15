@@ -1,5 +1,6 @@
 package com.linkedin.datastream.kafka;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
@@ -10,6 +11,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.I0Itec.zkclient.ZkConnection;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -24,6 +26,7 @@ import kafka.admin.AdminUtils;
 import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
 
+import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DynamicMetricsManager;
@@ -109,17 +112,35 @@ public class KafkaTransportProvider implements TransportProvider {
     _eventsWrittenTotal = new Counter();
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination, DatastreamProducerRecord record,
-      byte[] key, byte[] payload)
-      throws DatastreamException {
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination,
+      DatastreamProducerRecord record, Object key, Object payload) throws DatastreamException {
 
     Optional<Integer> partition = record.getPartition();
 
+    byte[] keyValue = key == null ? new byte[0] : convertToByteArray(key);
+    byte[] payloadValue = payload == null ? new byte[0] : convertToByteArray(payload);
+
     if (partition.isPresent() && partition.get() >= 0) {
-      return new ProducerRecord<>(destination.topicName(), partition.get(), key, payload);
+      return new ProducerRecord<>(destination.topicName(), partition.get(), keyValue, payloadValue);
     } else {
-      return new ProducerRecord<>(destination.topicName(), key, payload);
+      return new ProducerRecord<>(destination.topicName(), keyValue, payloadValue);
     }
+  }
+
+  private byte[] convertToByteArray(Object value) {
+    if (value instanceof IndexedRecord) {
+      IndexedRecord payloadRecord = (IndexedRecord) value;
+      try {
+        return AvroUtils.encodeAvroIndexedRecord(payloadRecord.getSchema(), payloadRecord);
+      } catch (IOException e) {
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to encode event in Avro, event=" + payloadRecord,
+            e);
+      }
+    } else if (value instanceof String) {
+      return ((String) value).getBytes();
+    }
+
+    throw new DatastreamRuntimeException("Transport provider supports payloads of type String or AvroRecords");
   }
 
   @Override
@@ -133,8 +154,9 @@ public class KafkaTransportProvider implements TransportProvider {
     Validate.notNull(topicConfig, "topicConfig should not be null");
 
     int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-    LOG.info(String.format("Creating topic with name %s partitions=%d with properties %s", destination,
-        numberOfPartitions, topicConfig));
+    LOG.info(
+        String.format("Creating topic with name %s partitions=%d with properties %s", destination, numberOfPartitions,
+            topicConfig));
 
     // Add default retention if no topic-level retention is specified
     if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
@@ -185,10 +207,9 @@ public class KafkaTransportProvider implements TransportProvider {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
 
-
       LOG.debug("Sending Datastream event record: " + record);
 
-      for (Pair<byte[], byte[]> event : record.getEvents()) {
+      for (Pair<Object, Object> event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
           outgoing = convertToProducerRecord(destination, record, event.getKey(), event.getValue());
@@ -198,25 +219,27 @@ public class KafkaTransportProvider implements TransportProvider {
           throw new DatastreamRuntimeException(errorMessage, e);
         }
         _eventWriteRate.mark();
-        _eventByteWriteRate.mark(event.getKey().length + event.getValue().length);
+        _eventByteWriteRate.mark(outgoing.key().length + outgoing.value().length);
 
         _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
-                new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()),
-                exception));
+            new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()), exception));
         // Update topic-specific metrics and aggregate metrics
-        int numBytes = event.getKey().length + event.getValue().length;
+        int numBytes = outgoing.key().length + outgoing.value().length;
         _eventWriteRate.mark();
         _eventByteWriteRate.mark(numBytes);
         _eventsWrittenTotal.inc();
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_WRITE_RATE, 1);
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE,
+            numBytes);
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENTS_WRITTEN_TOTAL, 1);
       }
     } catch (Exception e) {
       _eventTransportErrorCount.inc();
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(), EVENT_TRANSPORT_ERROR_COUNT, 1);
-      String errorMessage = String.format("Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s "
-          + "failed with exception", record.getEvents(), destinationUri, _brokers);
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), destination.topicName(),
+          EVENT_TRANSPORT_ERROR_COUNT, 1);
+      String errorMessage = String.format(
+          "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s " + "failed with exception",
+          record.getEvents(), destinationUri, _brokers);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
