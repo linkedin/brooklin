@@ -320,14 +320,17 @@ public class EventProducer {
   }
 
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamTask task, DatastreamProducerRecord record) {
+    // Treat all events within this record equally (assume same timestamp)
+    int numberOfEvents = record.getEvents().size();
+
     if (record.getEventsTimestamp() > 0) {
       // Report availability metrics
       _sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsTimestamp();
       if (_sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-        EVENTS_PRODUCED_WITHIN_SLA.inc();
+        EVENTS_PRODUCED_WITHIN_SLA.inc(numberOfEvents);
       } else {
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
-            1);
+            numberOfEvents);
         _logger.debug(
             String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
                 _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(),
@@ -335,7 +338,6 @@ public class EventProducer {
       }
     }
 
-    int numberOfEvents = record.getEvents().size();
     TOTAL_EVENTS_PRODUCED.inc(numberOfEvents);
     EVENT_PRODUCE_RATE.mark(numberOfEvents);
     record.getEvents().forEach(e -> EVENT_BYTES_PRODUCE_RATE.mark(e.getKey().length + e.getValue().length));
