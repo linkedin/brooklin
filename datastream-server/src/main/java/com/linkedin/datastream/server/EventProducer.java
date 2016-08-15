@@ -99,7 +99,6 @@ public class EventProducer {
   private final DynamicMetricsManager _dynamicMetricsManager;
   private static final Counter TOTAL_EVENTS_PRODUCED = new Counter();
   private static final Counter EVENTS_PRODUCED_WITHIN_SLA = new Counter();
-  private static final Meter EVENT_BYTES_PRODUCE_RATE = new Meter();
   private static final Meter EVENT_PRODUCE_RATE = new Meter();
   private static Long _sourceToDestinationLatencyMs = 0L;
   private static final Gauge<Long> EVENTS_LATENCY_MS = () -> _sourceToDestinationLatencyMs;
@@ -241,7 +240,7 @@ public class EventProducer {
     Validate.notNull(record.getEvents(), "null event payload.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
 
-    for (Pair<byte[], byte[]> event : record.getEvents()) {
+    for (Pair<Object, Object> event : record.getEvents()) {
       Validate.notNull(event, "null event");
       Validate.notNull(event.getKey(), "null key");
       Validate.notNull(event.getValue(), "null value");
@@ -340,7 +339,6 @@ public class EventProducer {
 
     TOTAL_EVENTS_PRODUCED.inc(numberOfEvents);
     EVENT_PRODUCE_RATE.mark(numberOfEvents);
-    record.getEvents().forEach(e -> EVENT_BYTES_PRODUCE_RATE.mark(e.getKey().length + e.getValue().length));
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
@@ -500,8 +498,6 @@ public class EventProducer {
         TOTAL_EVENTS_PRODUCED);
     metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventsLatencyMs"),
         EVENTS_LATENCY_MS);
-    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventByteProduceRate"),
-        EVENT_BYTES_PRODUCE_RATE);
     metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventProduceRate"),
         EVENT_PRODUCE_RATE);
     metrics.put(EventProducer.class.getSimpleName() + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA,

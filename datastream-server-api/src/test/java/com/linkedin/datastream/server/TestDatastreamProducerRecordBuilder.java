@@ -7,15 +7,13 @@ import java.util.HashMap;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
 
 
 public class TestDatastreamProducerRecordBuilder {
 
   @Test
-  public void testBuilderWithAddDatastreamEventAndValidateFields()
-      throws IOException {
+  public void testBuilderWithAddDatastreamEventAndValidateFields() throws IOException {
     String sourceCheckpoint = "checkpoint";
     int partition = 0;
     long timestamp = System.currentTimeMillis();
@@ -31,10 +29,8 @@ public class TestDatastreamProducerRecordBuilder {
 
     DatastreamProducerRecord record = builder.build();
     Assert.assertEquals(record.getEvents().size(), 2);
-    Assert.assertEquals(record.getEvents().get(0).getValue(),
-        AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event1));
-    Assert.assertEquals(record.getEvents().get(1).getValue(),
-        AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, event2));
+    Assert.assertEquals(record.getEvents().get(0).getValue(), event1);
+    Assert.assertEquals(record.getEvents().get(1).getValue(), event2);
     Assert.assertEquals(record.getPartition().get().intValue(), partition);
     Assert.assertEquals(record.getCheckpoint(), sourceCheckpoint);
     Assert.assertEquals(record.getEventsTimestamp(), timestamp);

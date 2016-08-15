@@ -17,13 +17,10 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.mysql.MysqlConnector.SourceType;
 import com.linkedin.datastream.connectors.mysql.or.ColumnInfo;
@@ -125,17 +122,7 @@ public class TestMysqlConnector {
   }
 
   private List<DatastreamEvent> getEventsFromRecord(DatastreamProducerRecord record) {
-    return record.getEvents().stream().map(x -> decodePayload(x.getValue())).collect(Collectors.toList());
-  }
-
-  private DatastreamEvent decodePayload(byte[] value) {
-    try {
-      DatastreamEvent event = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.SCHEMA$, value, null);
-      DatastreamUtils.processEventMetadata(event);
-      return event;
-    } catch (IOException e) {
-      throw new DatastreamRuntimeException("Error while decoding event");
-    }
+    return record.getEvents().stream().map(x -> (DatastreamEvent) x.getValue()).collect(Collectors.toList());
   }
 
   @Test
