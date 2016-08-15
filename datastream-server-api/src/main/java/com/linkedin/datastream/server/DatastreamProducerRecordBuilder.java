@@ -1,8 +1,8 @@
 package com.linkedin.datastream.server;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
@@ -11,10 +11,7 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
-import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.ErrorLogger;
 
 
 /**
@@ -27,7 +24,7 @@ public class DatastreamProducerRecordBuilder {
   private Optional<Integer> _partition = Optional.empty();
   private String _sourceCheckpoint = "";
 
-  private List<Pair<byte[], byte[]>> _events = new ArrayList<>();
+  private List<Pair<Object, Object>> _events = new ArrayList<>();
   private long _eventsTimestamp;
 
   /**
@@ -51,7 +48,7 @@ public class DatastreamProducerRecordBuilder {
   /**
    * Add the event with key and value to the DatatreamProducerRecord. Datastream producer record can have multiple events.
    */
-  public void addEvent(byte[] key, byte[] value) {
+  public void addEvent(Object key, Object value) {
     key = key == null ? new byte[0] : key;
     value = value == null ? new byte[0] : value;
     _events.add(new Pair<>(key, value));
@@ -68,16 +65,10 @@ public class DatastreamProducerRecordBuilder {
     datastreamEvent.metadata = datastreamEvent.metadata == null ? new HashMap<>() : datastreamEvent.metadata;
     datastreamEvent.key = datastreamEvent.key == null ? ByteBuffer.allocate(0) : datastreamEvent.key;
     datastreamEvent.payload = datastreamEvent.payload == null ? ByteBuffer.allocate(0) : datastreamEvent.payload;
-    datastreamEvent.previous_payload = datastreamEvent.previous_payload == null ? ByteBuffer.allocate(0) : datastreamEvent.previous_payload;
+    datastreamEvent.previous_payload =
+        datastreamEvent.previous_payload == null ? ByteBuffer.allocate(0) : datastreamEvent.previous_payload;
 
-    byte[] event = null;
-    try {
-      event = AvroUtils.encodeAvroSpecificRecord(DatastreamEvent.class, datastreamEvent);
-    } catch (IOException e) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to encode event in Avro, event=" + datastreamEvent, e);
-    }
-
-    _events.add(new Pair<>(datastreamEvent.key.array(), event));
+    _events.add(new Pair<>(Base64.getEncoder().encodeToString(datastreamEvent.key.array()), datastreamEvent));
   }
 
   public void setEventsTimestamp(long eventsTimestamp) {

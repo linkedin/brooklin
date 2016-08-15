@@ -7,6 +7,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
@@ -46,8 +47,14 @@ public class AvroUtils {
    * @return encoded bytes
    * @throws IOException
    */
-  public static byte[] encodeAvroGenericRecord(Schema schema, GenericRecord record) throws IOException {
-    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(schema);
+  public static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record) throws IOException {
+    DatumWriter<IndexedRecord> datumWriter;
+
+    if (record instanceof GenericRecord) {
+      datumWriter = new GenericDatumWriter<>(schema);
+    } else {
+      datumWriter = new SpecificDatumWriter<>(schema);
+    }
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     BinaryEncoder binaryEncoder = new BinaryEncoder(outputStream);
     datumWriter.write(record, binaryEncoder);
@@ -112,8 +119,7 @@ public class AvroUtils {
    * @return decoded instance of T
    * @throws IOException
    */
-  public static <T> T decodeAvroGenericRecord(Schema schema, byte[] bytes, T reuse)
-      throws IOException {
+  public static <T> T decodeAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
     BinaryDecoder binDecoder = DecoderFactory.defaultFactory().createBinaryDecoder(bytes, null);
     GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
     return reader.read(reuse, binDecoder);

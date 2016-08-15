@@ -14,10 +14,10 @@ import org.apache.commons.lang.Validate;
 public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
   private final String _checkpoint;
-  private final List<Pair<byte[], byte[]>> _events;
+  private final List<Pair<Object, Object>> _events;
   private final long _eventsTimestamp;
 
-  DatastreamProducerRecord(List<Pair<byte[], byte[]>> events, Optional<Integer> partition, String checkpoint,
+  DatastreamProducerRecord(List<Pair<Object, Object>> events, Optional<Integer> partition, String checkpoint,
       long eventsTimestamp) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
@@ -32,7 +32,7 @@ public class DatastreamProducerRecord {
   /**
    * @return all events in the event record
    */
-  public List<Pair<byte[], byte[]>> getEvents() {
+  public List<Pair<Object, Object>> getEvents() {
     return Collections.unmodifiableList(_events);
   }
 

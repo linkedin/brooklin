@@ -185,8 +185,8 @@ public class TestDatastreamServer {
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
 
-    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 4);
-    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 6);
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 5);
+    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 5);
     eventsReceived1.addAll(eventsReceived2);
 
     LOG.info("Events Received " + eventsReceived1);
