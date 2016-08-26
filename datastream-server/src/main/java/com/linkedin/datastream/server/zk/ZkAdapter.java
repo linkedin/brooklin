@@ -421,9 +421,12 @@ public class ZkAdapter {
 
     String dsPath = KeyBuilder.datastream(_cluster, dsName);
     if (!_zkclient.exists(dsPath)) {
-      // FIXME: we should do some error handling
+      // There are certain corner cases where we end up with datastream tasks without corresponding datastreams.
+      // This happens when the datastream tasks are not cleaned up properly after the datastream is deleted.
+      // One such scenario - when the cluster is brought down immediately after the datastream is deleted.
+      // When we encounter such zombie tasks, We just log a warning, and in the next reassignment will cleanup the zombie tasks.
       String errorMessage = String.format("Missing Datastream in ZooKeeper for task={%s} instance=%s", task, instance);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+      _log.warn(errorMessage);
     }
     String dsContent = _zkclient.ensureReadData(dsPath);
     Datastream stream = DatastreamUtils.fromJSON(dsContent);
