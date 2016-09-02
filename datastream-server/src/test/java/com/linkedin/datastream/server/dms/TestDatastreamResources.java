@@ -111,7 +111,6 @@ public class TestDatastreamResources {
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     missingFields.add("target");
-    missingFields.add("metadata");
     Datastream allRequiredFields = generateDatastream(2, missingFields);
     response = resource.create(allRequiredFields);
     Assert.assertNull(response.getError());
@@ -136,6 +135,20 @@ public class TestDatastreamResources {
     missingFields.add("source");
     Datastream noSource = generateDatastream(5, missingFields);
     response = resource.create(noSource);
+    Assert.assertNotNull(response.getError());
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+
+    missingFields.clear();
+    missingFields.add("metadata");
+    Datastream noMetadata = generateDatastream(6, missingFields);
+    response = resource.create(noMetadata);
+    Assert.assertNotNull(response.getError());
+    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+
+    missingFields.clear();
+    Datastream noOwner = generateDatastream(6, missingFields);
+    noOwner.getMetadata().remove("owner");
+    response = resource.create(noOwner);
     Assert.assertNotNull(response.getError());
     Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
 
