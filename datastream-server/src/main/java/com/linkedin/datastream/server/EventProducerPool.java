@@ -135,7 +135,7 @@ public class EventProducerPool implements MetricsAware {
       // Each distinct destination has its own transport provider
       TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
       return new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
-          this::onUnrecoverableError);
+          this::onUnrecoverableError, 0);
     }).collect(Collectors.toList());
   }
 
@@ -147,8 +147,9 @@ public class EventProducerPool implements MetricsAware {
 
     List<DatastreamTask> tasks = findTasksUsingEventProducer(eventProducer);
 
-    LOG.warn(String.format("Producer-%d failed with unrecoverable error, shutting down the producer "
-        + ", creating a new producer and assigning them to the tasks %s", eventProducer.getProducerId(), tasks));
+    LOG.warn(String.format("Producer-%d (%s) failed with unrecoverable error, creating a new producer and assigning"
+        + " it to existing tasks %s. Bad producer will be shutdown.", eventProducer.getProducerId(), eventProducer,
+        tasks));
 
     boolean customCheckpointing = eventProducer.getCheckpointPolicy() == EventProducer.CheckpointPolicy.CUSTOM;
 
@@ -157,7 +158,7 @@ public class EventProducerPool implements MetricsAware {
     TransportProvider transport = _transportProviderFactory.createTransportProvider(_transportProviderConfig);
     EventProducer newEventProducer =
         new EventProducer(transport, _checkpointProvider, _eventProducerConfig, customCheckpointing,
-            this::onUnrecoverableError);
+            this::onUnrecoverableError, eventProducer.getGeneration() + 1);
 
     tasks.forEach(t -> assignEventProducerToTask(newEventProducer, t));
 

@@ -142,7 +142,7 @@ public class TestEventProducer {
     _config = new Properties();
     _config.put(EventProducer.CHECKPOINT_PERIOD_MS, "50");
 
-    _producer = new EventProducer(_transport, _cpProvider, _config, customCheckpointing, onUnrecoverableError);
+    _producer = new EventProducer(_transport, _cpProvider, _config, customCheckpointing, onUnrecoverableError, 0);
     _tasks.forEach(t -> _producer.assignTask(t));
   }
 
@@ -285,7 +285,7 @@ public class TestEventProducer {
     _producer.shutdown();
 
     // Create a new producer
-    _producer = new EventProducer(_transport, _cpProvider, _config, false, null);
+    _producer = new EventProducer(_transport, _cpProvider, _config, false, null, 0);
 
     _tasks.forEach(t -> _producer.assignTask(t));
     // Expect saved checkpoint to match that of the last event

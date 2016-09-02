@@ -10,7 +10,8 @@ public class SendFailedException extends Exception {
 
   private Map<DatastreamTask, Map<Integer, String>> _checkpoints;
 
-  public SendFailedException(Map<DatastreamTask, Map<Integer, String>> checkpoints) {
+  public SendFailedException(Map<DatastreamTask, Map<Integer, String>> checkpoints, Exception exception) {
+    super(exception);
     _checkpoints = checkpoints;
   }
 
