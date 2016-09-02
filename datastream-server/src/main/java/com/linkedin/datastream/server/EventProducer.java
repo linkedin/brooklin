@@ -109,6 +109,13 @@ public class EventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private final int _availabilityThresholdSlaMs;
 
+  // EventProcuer is torn down and recreated when there is an send error.
+  // As the producer -> task assignment is not atomic among all the tasks
+  // sharing the producer, one task might still be using the bad producer.
+  // This generation field help us tell whether a failed producer operation
+  // occurred on a bad one or the new incarnation.
+  private final int _generation;
+
   /**
    * Manages the periodic checkpointing operation.
    */
@@ -168,7 +175,7 @@ public class EventProducer {
    * @param onUnrecoverableError callback to be triggered when there is unrecoverable errors from the transport
    */
   public EventProducer(TransportProvider transportProvider, CheckpointProvider checkpointProvider, Properties config,
-      boolean customCheckpointing, Consumer<EventProducer> onUnrecoverableError) {
+      boolean customCheckpointing, Consumer<EventProducer> onUnrecoverableError, int generation) {
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
     Validate.notNull(config, "null config");
@@ -181,9 +188,10 @@ public class EventProducer {
     _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
     _safeCheckpoints = new ConcurrentHashMap<>();
     _onUnrecoverableError = onUnrecoverableError;
+    _generation = generation;
 
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
-    _logger = LoggerFactory.getLogger(String.format("%s:%s", MODULE, _producerId));
+    _logger = LoggerFactory.getLogger(String.format("%s:%s:%d", MODULE, _producerId, _generation));
 
     // Start checkpoint handler
     _checkpointHandler = new CheckpointHandler(config);
@@ -348,7 +356,7 @@ public class EventProducer {
 
     // Notify the eventProducerPool first which will recreate a new event producer
     if (exception != null) {
-      sendFailedException = new SendFailedException(_safeCheckpoints);
+      sendFailedException = new SendFailedException(_safeCheckpoints, exception);
 
       if (_onUnrecoverableError != null) {
         _onUnrecoverableError.accept(this);
@@ -486,7 +494,11 @@ public class EventProducer {
 
   @Override
   public String toString() {
-    return "EventProducer tasks=" + getTaskString();
+    return String.format("EventProducer gen=%d, tasks=", _generation, getTaskString());
+  }
+
+  int getGeneration() {
+    return _generation;
   }
 
   public static Map<String, Metric> getMetrics() {

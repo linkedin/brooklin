@@ -7,11 +7,15 @@ import java.util.Properties;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
+import com.codahale.metrics.MetricRegistry;
 
 import static org.mockito.Mockito.mock;
 
 import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -23,6 +27,11 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 public class TestEventProducerPool {
 
   private EventProducerPool _eventProducerPool;
+
+  @BeforeTest
+  public void init() {
+    DynamicMetricsManager.createInstance(new MetricRegistry());
+  }
 
   public void setup(boolean throwOnSend) throws Exception {
     CheckpointProvider checkpointProvider = mock(CheckpointProvider.class);
@@ -85,6 +94,8 @@ public class TestEventProducerPool {
     Assert.assertNotEquals(oldEventProducer, newDatastreamEventProducer.getEventProducer());
     Assert.assertEquals(metadata.size(), 1);
     Assert.assertEquals(exceptions.size(), 1);
+    Assert.assertNotNull(exceptions.get(0).getCause());
+    Assert.assertEquals(newDatastreamEventProducer.getEventProducer().getGeneration(), 1);
   }
 
   private DatastreamProducerRecord createEventRecord(Integer partition) {
