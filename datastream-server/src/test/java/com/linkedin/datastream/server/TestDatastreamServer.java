@@ -285,7 +285,7 @@ public class TestDatastreamServer {
 
     // Ensure 1st instance was assigned the task
     String cluster =
-        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -358,7 +358,7 @@ public class TestDatastreamServer {
 
     // Ensure both instances were assigned the task
     String cluster =
-        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -448,7 +448,7 @@ public class TestDatastreamServer {
 
     // Ensure 1st instance was assigned both tasks
     String cluster =
-        _datastreamCluster.getPrimaryDatastreamServerProperties().getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance1 = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
@@ -506,7 +506,7 @@ public class TestDatastreamServer {
         KafkaDestination.parseKafkaDestinationUri(datastream.getDestination().getConnectionString());
     final int[] numberOfMessages = {0};
     List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getBrokerList(),
+    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getKafkaCluster().getBrokers(),
         (key, value) -> {
           DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
           String eventValue = new String(datastreamEvent.payload.array());
