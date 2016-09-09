@@ -32,6 +32,7 @@ public class EmbeddedDatastreamCluster {
   private EmbeddedZookeeper _zk = null;
 
   private int _numServers;
+
   private List<Integer> _datastreamPorts = new ArrayList<>();
   private List<Properties> _datastreamServerProperties = new ArrayList<>();
   private List<DatastreamServer> _servers = new ArrayList<>();
@@ -142,20 +143,20 @@ public class EmbeddedDatastreamCluster {
     return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, dmsPorts);
   }
 
-  /**
-   * Get the datastream server config for the primary datastream server
-   * Configs for different servers in the cluster only differ by http port
-   * number.
-   */
-  public Properties getPrimaryDatastreamServerProperties() {
-    return _datastreamServerProperties.get(0);
+  public KafkaCluster getKafkaCluster() {
+    return _kafkaCluster;
   }
 
-  /**
-   * Get the http port for the primary datastream server
-   */
-  public int getPrimaryDatastreamPort() {
-    return _datastreamPorts.get(0);
+  public int getNumServers() {
+    return _numServers;
+  }
+
+  public List<Integer> getDatastreamPorts() {
+    return _datastreamPorts;
+  }
+
+  public List<Properties> getDatastreamServerProperties() {
+    return _datastreamServerProperties;
   }
 
   /**
@@ -178,15 +179,6 @@ public class EmbeddedDatastreamCluster {
 
   public List<DatastreamServer> getAllDatastreamServers() {
     return Collections.unmodifiableList(_servers);
-  }
-
-  public String getBrokerList() {
-    if (_kafkaCluster == null) {
-      LOG.error("This datastream cluster doesn't use kafka for transport");
-      return null;
-    }
-
-    return _kafkaCluster.getBrokers();
   }
 
   public String getZkConnection() {
