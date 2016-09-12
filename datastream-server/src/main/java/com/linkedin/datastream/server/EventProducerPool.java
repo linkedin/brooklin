@@ -82,7 +82,9 @@ public class EventProducerPool implements MetricsAware {
     Validate.notEmpty(connectorType);
 
     if (!_producerPool.containsKey(customCheckpointing)) {
-      _producerPool.put(customCheckpointing, createProducers(_poolSize / 2, customCheckpointing));
+      // The minimal size of a chuck must be >= 1
+      int chuckSize = Math.max(_poolSize / 2, 1);
+      _producerPool.put(customCheckpointing, createProducers(chuckSize, customCheckpointing));
     }
 
     List<EventProducer> producers = _producerPool.get(customCheckpointing);
