@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.ReflectionUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,6 +55,31 @@ public class TestEventProducerPool {
   @Test
   public void testEmptyPool() throws Exception {
     setup(false);
+    List<DatastreamTask> connectorTasks = new ArrayList<>();
+    String connectorType = "connectortype";
+    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
+    connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2, true)));
+
+    _eventProducerPool.assignEventProducers(connectorType, connectorTasks, new ArrayList<>(), false);
+
+    // All the tasks that were passed in have a corresponding producer
+    connectorTasks.forEach(task -> Assert.assertNotNull(task.getEventProducer()));
+
+    // The producers are unique for different tasks
+    Assert.assertNotEquals(connectorTasks.get(0).getEventProducer(), connectorTasks.get(1).getEventProducer());
+  }
+
+  /**
+   * Validates if producers are created when pool size is set to 1
+   * See DDSDBUS-8318
+   */
+  @Test
+  public void testPoolOfSizeOne() throws Exception {
+    setup(false);
+
+    // Force size to be 1
+    ReflectionUtils.setField(_eventProducerPool, "_poolSize", 1);
+
     List<DatastreamTask> connectorTasks = new ArrayList<>();
     String connectorType = "connectortype";
     connectorTasks.add(new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1, true)));
