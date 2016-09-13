@@ -201,10 +201,7 @@ project(':datastream-tools') {
     compile project(':datastream-common')
     compile project(':datastream-client')
     compile project(':datastream-server')
-    compile project(':datastream-mysql-connector')
-    compile project(':datastream-file-connector')
     compile project(':datastream-testcommon')
-    compile project(':datastream-kafka')
     compile "commons-cli:commons-cli:$commonsCliVersion"
   }
 
