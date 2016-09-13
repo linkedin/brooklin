@@ -157,6 +157,11 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         datastream.setMetadata(new StringMap());
       }
 
+      if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY)) {
+        CALL_ERROR.inc();
+        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify owner of Datastream!");
+      }
+
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
         datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
       }

@@ -1,11 +1,7 @@
 package com.linkedin.datastream.testutil;
 
 import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.*;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -55,6 +51,7 @@ public class DatastreamTestUtils {
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(source);
     StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
     ds.setMetadata(metadata);
     return ds;
   }
@@ -80,6 +77,7 @@ public class DatastreamTestUtils {
     ds.getDestination().setPartitions(destinationPartitions);
     ds.setStatus(DatastreamStatus.INITIALIZING);
     StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
     ds.setMetadata(metadata);
     return ds;
   }
