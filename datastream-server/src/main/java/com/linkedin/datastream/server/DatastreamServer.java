@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.ThreadTerminationMonitor;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -200,6 +201,7 @@ public class DatastreamServer {
   }
 
   private void initializeMetrics() {
+    registerMetrics(ThreadTerminationMonitor.getMetrics());
     registerMetrics(_coordinator.getMetrics());
     registerMetrics(DatastreamResources.getMetrics());
     registerMetrics(BootstrapActionResources.getMetrics());
