@@ -60,6 +60,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
+
   public static final String STRATEGY_DOMAIN = "strategy";
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
@@ -71,6 +72,7 @@ public class DatastreamServer {
   private boolean _isInitialized = false;
   private boolean _isStarted = false;
   private String _csvMetricsDir;
+  private DatastreamResourceFactory _resourceFactory;
 
   private Map<String, String> _bootstrapConnectors;
 
@@ -148,6 +150,8 @@ public class DatastreamServer {
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
     _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing);
 
+    _resourceFactory.addRestHandlers(connectorInstance.getRestHandlers());
+
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
 
@@ -173,6 +177,8 @@ public class DatastreamServer {
     ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
         coordinatorConfig.getZkConnectionTimeout());
 
+    _resourceFactory = new DatastreamResourceFactory(this);
+
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
     _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
     LOG.info("Loading connectors.");
@@ -182,11 +188,14 @@ public class DatastreamServer {
           verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
     }
 
+    // Add DMS and server Rest.li resources
+    _resourceFactory.addRestPackage("com.linkedin.datastream.server.dms");
+    _resourceFactory.addRestPackage("com.linkedin.datastream.server.diagnostics");
+
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
     int httpPort =
         verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
-        "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
+    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, _resourceFactory);
 
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
 

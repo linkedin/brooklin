@@ -3,4 +3,8 @@
     "-//Puppy Crawl//DTD Suppressions 1.1//EN"
     "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 <suppressions>
+    <suppress files="DummyRequestBuilders\.java" checks="[a-zA-Z0-9]*"/>
+    <suppress files="DummyBuilders\.java" checks="[a-zA-Z0-9]*"/>
+    <suppress files="DummyDoEchoBuilder\.java" checks="[a-zA-Z0-9]*"/>
+    <suppress files="DummyDoEchoRequestBuilder\.java" checks="[a-zA-Z0-9]*"/>
 </suppressions>
