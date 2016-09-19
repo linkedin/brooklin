@@ -5,6 +5,7 @@ import org.apache.commons.lang.Validate;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 
@@ -32,6 +33,25 @@ public class DynamicMetricsManager {
       throw new IllegalStateException("DynamicMetricsManager has not yet been instantiated.");
     }
     return _instance;
+  }
+
+  /**
+   * Register the metric for the specified key/metricName pair by the given value; if it has
+   * already been registered, do nothing
+   * @param clazz the class containing the metric
+   * @param key the key (i.e. topic or partition) for the metric
+   * @param metricName the metric name
+   * @param metric the metric to be registered
+   */
+  public synchronized void registerMetric(Class<?> clazz, String key, String metricName, Metric metric) {
+    validateArguments(clazz, key, metricName);
+
+    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
+
+    // create and register the metric if it does not exist
+    if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
+      _metricRegistry.register(fullMetricName, metric);
+    }
   }
 
   /**
