@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -13,7 +14,6 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -21,8 +21,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -32,7 +30,6 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.kafka.KafkaTransportProvider;
@@ -340,96 +337,6 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  // This test verify the code path that a datastream is only assignable after it has a valid
-  // destination setup. That is, if a datastream is defined for a connector but DestinationManager
-  // failed to populate its destination, we will not actually pass this datastream to the connector
-  // using onAssignmentChange, so that the connector would not start producing events for this
-  // datastream when there is no target to accept it.
-  @Test
-  public void testUnassignableStreams() throws Exception {
-
-    String testCluster = "testUnassignableStreams";
-    String connectorType1 = "unassignable";
-    String connectorType2 = "assignable";
-
-    //
-    // create two connectors
-    //
-    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType1);
-    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
-
-    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-    DestinationManager destinationManager = mock(DestinationManager.class);
-    // Hijack the destinationManager to selectively populate destinations
-    ReflectionUtils.setField(instance1, "_destinationManager", destinationManager);
-
-    instance1.addConnector(connectorType1, connector1, new BroadcastStrategy(), false);
-    instance1.addConnector(connectorType2, connector2, new BroadcastStrategy(), false);
-    instance1.start();
-
-    //
-    // create 2 new datastreams, 1 for each type
-    //
-    LOG.info("create 2 new datastreams, 1 for each type");
-    Datastream[] streams1 = DatastreamTestUtils.createDatastreams(connectorType1, "datastream1");
-    Datastream[] streams2 = DatastreamTestUtils.createDatastreams(connectorType2, "datastream2");
-
-    // Stub for populateDatastreamDestination to set destination on datastream2
-    LOG.info("Set destination only for datastream2, leave it unassigned for datastream1");
-    Mockito.doAnswer(invocation -> {
-      Object[] args = invocation.getArguments();
-      @SuppressWarnings("unchecked")
-      List<Datastream> streams = (List<Datastream>) args[0];
-      for (Datastream stream : streams) {
-        // Populate Destination only for datastream2
-        if (stream.getName().equals("datastream2")) {
-          setDatastreamDestination(stream);
-        }
-      }
-      return null;
-    }).when(destinationManager).populateDatastreamDestination(any(), any());
-
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
-    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams1);
-    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, streams2);
-
-    //
-    // verify only connector2 has assignment
-    //
-    LOG.info("verify only connector2 has assignment");
-    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS);
-    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream2");
-
-    LOG.info("enable destination for all datastreams including datastream1");
-    // Stub for populateDatastreamDestination to set destination on all datastreams
-    Mockito.doAnswer(invocation -> {
-      Object[] args = invocation.getArguments();
-      @SuppressWarnings("unchecked")
-      List<Datastream> streams = (List<Datastream>) args[0];
-      for (Datastream stream : streams) {
-        setDatastreamDestination(stream);
-      }
-      return null;
-    }).when(destinationManager).populateDatastreamDestination(any(), any());
-
-    //
-    // trigger the datastream change event
-    //
-    instance1.onDatastreamChange();
-
-    //
-    // verify both connectors have 1 assignment.
-    //
-    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1");
-    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream2");
-
-    //
-    // clean up
-    //
-    zkClient.close();
-    instance1.stop();
-  }
-
   private void setDatastreamDestination(Datastream stream) {
     if (stream.getDestination() == null) {
       stream.setDestination(new DatastreamDestination());
@@ -482,10 +389,10 @@ public class TestCoordinator {
     // verify both live instances have tasks assigned for connector type 1 only
     //
     assertConnectorAssignment(connector11, WAIT_TIMEOUT_MS, "datastream1");
-    assertConnectorAssignment(connector12, WAIT_TIMEOUT_MS);
+    Assert.assertTrue(connector12.getTasks().isEmpty());
 
     assertConnectorAssignment(connector21, WAIT_TIMEOUT_MS, "datastream1");
-    assertConnectorAssignment(connector22, WAIT_TIMEOUT_MS);
+    Assert.assertTrue(connector22.getTasks().isEmpty());
 
     LOG.info("Create a datastream of connectorType2");
 
@@ -673,7 +580,7 @@ public class TestCoordinator {
     //
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1");
-    assertConnectorAssignment(connector3, WAIT_TIMEOUT_MS);
+    Assert.assertTrue(connector3.getTasks().isEmpty());
 
     //
     // clean up
@@ -1371,12 +1278,9 @@ public class TestCoordinator {
       return false;
     }
 
-    boolean result = true;
-    for (DatastreamTask task : assignment) {
-      Assert.assertNotNull(task.getEventProducer());
-    }
-
-    return result;
+    Set<String> nameSet = new HashSet<>(Arrays.asList(datastreamNames));
+    return assignment.stream().anyMatch(t -> !nameSet.contains(t.getDatastreams().get(0)) ||
+        t.getEventProducer() == null);
   }
 
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {
