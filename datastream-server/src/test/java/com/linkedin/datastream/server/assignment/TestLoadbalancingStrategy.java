@@ -21,7 +21,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.server.DatastreamTaskStatus;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
@@ -201,39 +200,5 @@ public class TestLoadbalancingStrategy {
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 2);
     }
-  }
-
-  @Test
-  public void testFilteringCompleteTasks() {
-    String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
-    LoadbalancingStrategy strategy = new LoadbalancingStrategy();
-    Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-
-    List<DatastreamTask> tasks = new ArrayList<>();
-
-    assignment.values().forEach(tasks::addAll);
-
-    ZkAdapter adapter = createMockAdapter();
-    tasks.stream().forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
-
-    // At least two tasks should be created
-    Assert.assertTrue(tasks.size() >= 2);
-
-    int numPending = tasks.size();
-    for (int i = 0; i < tasks.size(); i += 2, numPending--) {
-      tasks.get(i).setStatus(DatastreamTaskStatus.complete());
-    }
-
-    assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-    Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), numPending);
-
-    // Complete all
-    tasks.forEach(t -> t.setStatus(DatastreamTaskStatus.complete()));
-    assignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-    Assert.assertEquals(assignment.values().stream().mapToInt(Set::size).sum(), 0);
   }
 }

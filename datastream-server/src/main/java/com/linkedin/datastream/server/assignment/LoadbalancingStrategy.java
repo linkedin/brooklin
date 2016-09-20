@@ -5,7 +5,6 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.server.DatastreamTaskStatus;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,9 +25,6 @@ import org.slf4j.LoggerFactory;
  * min(NumberOfPartitionsInDatastream, numberOfInstances * OVER_PARTITIONING_FACTOR).
  * These datastreamTasks are sorted by the datastreamName.
  * These tasks are then redistributed across all the instances equally.
- *
- * The strategy skips all tasks whose status is
- * {@link com.linkedin.datastream.server.DatastreamTaskStatus.Code#COMPLETE}.
  */
 public class LoadbalancingStrategy implements AssignmentStrategy {
 
@@ -119,11 +115,6 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       // If there are no datastream tasks that are currently assigned for this datastream.
       if (tasksForDatastream.isEmpty()) {
         tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);
-      } else {
-        // Filter out any COMPLETE tasks
-        tasksForDatastream = tasksForDatastream.stream()
-            .filter(t -> t.getStatus() == null || t.getStatus().getCode() != DatastreamTaskStatus.Code.COMPLETE)
-            .collect(Collectors.toSet());
       }
 
       allTasks.addAll(tasksForDatastream);
