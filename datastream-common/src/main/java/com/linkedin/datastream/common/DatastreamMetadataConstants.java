@@ -29,4 +29,15 @@ public class DatastreamMetadataConstants {
    * Duration in Epoch-millis before destination starts to delete messages
    */
   public static final String DESTINATION_RETENION_MS = "destination.retention.ms";
+
+  /**
+   * Schema registry URI for Kafka
+   */
+  public static final String KAFKA_SCHEMA_REGISTRY_URI = "kafkaSchemaRegistry.uri";
+
+  /**
+   * Mode (cached, inmemory) for Kafka schema registry
+   */
+  public static final String KAFKA_SCHEMA_REGISTRY_MODE = "kafkaSchemaRegistry.mode";
+
 }
