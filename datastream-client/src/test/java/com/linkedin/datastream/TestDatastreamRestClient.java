@@ -191,6 +191,7 @@ public class TestDatastreamRestClient {
     for (Datastream stream : datastreams) {
       stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_CREATION_MS);
       stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
+      stream.getMetadata().remove(DatastreamMetadataConstants.CREATION_MS);
     }
   }
 

@@ -29,4 +29,9 @@ public class DatastreamMetadataConstants {
    * Duration in Epoch-millis before destination starts to delete messages
    */
   public static final String DESTINATION_RETENION_MS = "destination.retention.ms";
+
+  /**
+   * Timestamp of datastream creation in epoch-milis
+   */
+  public static final String CREATION_MS = "creation.ms";
 }
