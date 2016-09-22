@@ -21,6 +21,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -30,6 +31,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.kafka.KafkaTransportProvider;
@@ -1135,7 +1137,7 @@ public class TestCoordinator {
     for (int i = 2; i < 12; i++) {
       DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectoryType1, "datastream" + i);
     }
-    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_DURATION_FOR_ZK);
+    PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_TIMEOUT_MS);
     int childrenCount = zkClient.countChildren(errorPath);
     Assert.assertTrue(childrenCount <= 10);
 
@@ -1144,6 +1146,74 @@ public class TestCoordinator {
     //
     zkClient.close();
     instance1.stop();
+  }
+
+  private void doTestTaskAssignmentAfterDestinationDedup(String testName, boolean compat) throws Exception {
+    String testCluster = testName;
+    String connectorName = "TestConnector";
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorName);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(), false);
+    coordinator.start();
+
+    // Create 1st datastream
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    Datastream stream1 = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testName, connectorName, "stream54321")[0];
+    Assert.assertTrue(stream1.getMetadata().containsKey(DatastreamMetadataConstants.CREATION_MS));
+
+    // Wait for first assignment is done
+    Assert.assertTrue(PollUtils.poll(() -> connector.getTasks().size() == 1, 50, WAIT_TIMEOUT_MS));
+
+    Counter numRebals = ReflectionUtils.getField(coordinator, "_numRebalances");
+    Assert.assertNotNull(numRebals);
+
+    long numAssign1 = numRebals.getCount();
+    DatastreamTask task1 = connector.getTasks().get(0);
+
+    if (compat) {
+      // Remove timestamp for compat mode testing
+      CachedDatastreamReader reader = ReflectionUtils.getField(coordinator, "_datastreamCache");
+      Assert.assertNotNull(reader);
+      reader.getDatastream(stream1.getName()).getMetadata().remove(DatastreamMetadataConstants.CREATION_MS);
+    }
+
+    // Create 2nd datastream with name alphabetically "smaller" than 1st datastream and same destination
+    Datastream stream2 = stream1.clone();
+    stream2.setName("stream12345");
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, stream2);
+
+    // Wait for new assignment is done
+    Assert.assertTrue(PollUtils.poll(() -> (numRebals.getCount() > numAssign1), 50, WAIT_TIMEOUT_MS));
+
+    // Make sure connector still has only one task
+    Assert.assertEquals(connector.getTasks().size(), 1);
+
+    Assert.assertEquals(connector.getTasks().get(0), task1);
+  }
+
+  /**
+   * Test the scenario where a newer datastream shares the destination as an existing
+   * datastream but the name of the new datastream is alphabetically "smaller" than
+   * the existing datastream. In this case, the existing datastream should be chosen
+   * for task assignment after de-dup, thus without resulting in new tasks created.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testTaskAssignmentAfterDestinationDedup() throws Exception {
+    doTestTaskAssignmentAfterDestinationDedup("testTaskAssignmentAfterDestinationDedup", false);
+  }
+
+  /**
+   * Test the same scenario as testTaskAssignmentAfterDestinationDedup but ensure
+   * compatibility with existing datastreams without the timestamp in metadata.
+   * In which case, the datastream without timestamp metadata is the older one.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testTaskAssignmentAfterDestinationDedupCompat() throws Exception {
+    doTestTaskAssignmentAfterDestinationDedup("testTaskAssignmentAfterDestinationDedupCompat", true);
   }
 
   private class TestSetup {
