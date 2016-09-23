@@ -7,6 +7,7 @@ import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -78,6 +79,7 @@ public class DatastreamTestUtils {
     ds.setStatus(DatastreamStatus.INITIALIZING);
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
+    metadata.put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
     ds.setMetadata(metadata);
     return ds;
   }

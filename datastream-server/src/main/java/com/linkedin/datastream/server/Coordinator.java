@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,6 +35,7 @@ import com.codahale.metrics.Metric;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
@@ -546,18 +548,35 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
+  // Compare two datastreams based on creation timestamp ("" is smaller)
+  private static int compareCreationMs(Datastream d1, Datastream d2) {
+    String ts1 = d1.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "");
+    String ts2 = d2.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "");
+    return ts1.compareTo(ts2);
+  }
+
   private void handleLeaderDoAssignment() {
 
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
 
-    // get all streams that are assignable. Assignable datastreams are the ones
-    // with a valid target. If there is no target, we cannot assign them to the connectors
-    // because connectors do not have access to the producers and event collectors and
-    // will assume any assigned tasks are ready to collect events.
+    // Get all streams that are assignable. Assignable datastreams are the ones:
+    //  1) has a valid destination
+    //  2) status is READY
+    //
+    // TODO: currently datastreams are sorted based on the creation timestamp
+    //       before de-duping. This avoid creating duplicate tasks for a newer
+    //       datastream sharing destination with an existing datastream but
+    //       name appears before the older datastream because of alphabetic
+    //       ordering from zookeper. We might need to consider a long-term
+    //       solution.
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
         .stream()
-        .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY)
+        .filter(datastream -> datastream.hasStatus()
+            && datastream.getStatus() == DatastreamStatus.READY
+            && datastream.hasDestination()
+            && datastream.getDestination().hasConnectionString())
+        .sorted((d1, d2) -> compareCreationMs(d1, d2))
         .collect(Collectors.toList());
 
     // The inner map is used to dedup Datastreams with the same destination
@@ -573,8 +592,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Only keep the datastreams with unique destinations
       if (!streams.containsKey(ds.getDestination())) {
         streams.put(ds.getDestination(), ds);
+      } else {
+        _log.debug(String.format("Datastream %s is de-duped by %s", ds, streams.get(ds.getDestination())));
       }
     }
+
+    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: " + streamsByConnectorType);
 
     // Map between Instance and the tasks
     Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
@@ -691,13 +714,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
 
-    _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
-    connector.initializeDatastream(datastream, allDatastreams);
-    if (connector.hasError()) {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_RETRIES, 1);
-      _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(connector.getLastError()));
+    try {
+      _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
+      connector.initializeDatastream(datastream, allDatastreams);
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
+      throw e;
     }
 
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
     _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
   }
 
