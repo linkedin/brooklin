@@ -10,8 +10,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -39,8 +39,8 @@ public class BootstrapActionResources {
   private final DatastreamServer _datastreamServer;
   private final ErrorLogger _errorLogger;
 
-  private static final Counter CREATE_CALL = new Counter();
-  private static final Counter CALL_ERROR = new Counter();
+  private static final Meter CREATE_CALL = new Meter();
+  private static final Meter CALL_ERROR = new Meter();
   private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
   private static final Gauge<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
 
@@ -60,7 +60,7 @@ public class BootstrapActionResources {
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
     try {
       LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
-      CREATE_CALL.inc();
+      CREATE_CALL.mark();
 
       if (!bootstrapDatastream.hasName()) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
@@ -89,10 +89,10 @@ public class BootstrapActionResources {
 
       return bootstrapDatastream;
     } catch (RestLiServiceException e) {
-      CALL_ERROR.inc();
+      CALL_ERROR.mark();
       throw e;
     } catch (Exception e) {
-      CALL_ERROR.inc();
+      CALL_ERROR.mark();
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }

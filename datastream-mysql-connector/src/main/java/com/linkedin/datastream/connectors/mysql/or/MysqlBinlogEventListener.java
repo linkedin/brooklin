@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.google.code.or.binlog.BinlogEventListener;
 import com.google.code.or.binlog.BinlogEventV4;
@@ -49,8 +49,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 public class MysqlBinlogEventListener implements BinlogEventListener {
   private static final Logger LOG = LoggerFactory.getLogger(MysqlBinlogEventListener.class);
-  private static final String PROCESSED_EVENT_COUNT = "processedEvent";
-  private static final String PROCESSED_TXNS_COUNT = "processedTxns";
+  private static final String PROCESSED_EVENT_RATE = "processedEvent";
+  private static final String PROCESSED_TXNS_RATE = "processedTxns";
   private static final String CLASSNAME = MysqlBinlogEventListener.class.getSimpleName();
 
   // helper for debugging and logging
@@ -301,10 +301,10 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   private void endTransaction(BinlogEventV4 e) {
     LOG.info("Ending transaction " + _scn);
     if (_eventsInTransaction.size() > 0) {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
-          PROCESSED_EVENT_COUNT, _eventsInTransaction.size());
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
-          PROCESSED_TXNS_COUNT, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+          PROCESSED_EVENT_RATE, _eventsInTransaction.size());
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+          PROCESSED_TXNS_RATE, 1);
       // Write events to the producer only if there are events in this transaction.
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
       // TODO we need to support mysql connector that can write to multi partition destination.
@@ -446,8 +446,8 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
 
   public static Map<String, Metric> getMetrics() {
     Map<String, Metric> metrics = new HashMap<>();
-    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_COUNT, new Counter());
-    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_COUNT, new Counter());
+    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_RATE, new Meter());
+    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_RATE, new Meter());
     return Collections.unmodifiableMap(metrics);
   }
 }

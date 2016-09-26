@@ -4,17 +4,17 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 
 
 public class TestThreadTerminationMonitor {
 
-  private Counter counter;
+  private Meter meter;
 
   @BeforeTest
   public void prepare() {
-    counter = (Counter) ThreadTerminationMonitor.getMetrics().values().iterator().next();
-    Assert.assertEquals(0, counter.getCount());
+    meter = (Meter) ThreadTerminationMonitor.getMetrics().values().iterator().next();
+    Assert.assertEquals(0, meter.getCount());
   }
 
   @Test
@@ -23,7 +23,7 @@ public class TestThreadTerminationMonitor {
     Thread thread = new Thread(() -> {
     });
     thread.join();
-    Assert.assertEquals(0, counter.getCount());
+    Assert.assertEquals(0, meter.getCount());
   }
 
   @Test
@@ -34,6 +34,6 @@ public class TestThreadTerminationMonitor {
     });
     thread.start();
     thread.join();
-    Assert.assertEquals(1, counter.getCount());
+    Assert.assertEquals(1, meter.getCount());
   }
 }
