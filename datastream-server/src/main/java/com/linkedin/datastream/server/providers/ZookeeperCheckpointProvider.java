@@ -9,9 +9,9 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.server.DatastreamTask;
@@ -24,14 +24,14 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private final ZkAdapter _zkAdapter;
 
-  private final Counter _numCheckpointCommits;
+  private final Meter _numCheckpointCommits;
   private final Histogram _checkpointCommitLatency;
 
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;
 
     // Initialize metrics
-    _numCheckpointCommits = new Counter();
+    _numCheckpointCommits = new Meter();
     _checkpointCommitLatency = new Histogram(new ExponentiallyDecayingReservoir());
   }
 
@@ -46,8 +46,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
     long startTime = System.currentTimeMillis();
     checkpoints.forEach((key, value) -> {
       _zkAdapter.setDatastreamTaskStateForKey(key, CHECKPOINT_KEY_NAME, value);
-      _numCheckpointCommits.inc();
     });
+    _numCheckpointCommits.mark(checkpoints.size());
     _checkpointCommitLatency.update(System.currentTimeMillis() - startTime);
   }
 

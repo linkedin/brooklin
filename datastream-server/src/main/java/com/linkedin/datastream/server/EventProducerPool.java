@@ -14,7 +14,7 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.MetricsAware;
@@ -43,7 +43,7 @@ public class EventProducerPool implements MetricsAware {
 
   public static final String POOL_SIZE = "poolSize";
 
-  private final Counter _unrecoverableErrors;
+  private final Meter _unrecoverableErrors;
 
   public EventProducerPool(CheckpointProvider checkpointProvider, TransportProviderFactory transportProviderFactory,
       Properties transportProviderConfig, Properties eventProducerConfig) {
@@ -63,7 +63,7 @@ public class EventProducerPool implements MetricsAware {
     _taskEventProducerMap = new HashMap<>();
     _random = new Random();
 
-    _unrecoverableErrors = new Counter();
+    _unrecoverableErrors = new Meter();
   }
 
   /**
@@ -164,7 +164,7 @@ public class EventProducerPool implements MetricsAware {
 
     tasks.forEach(t -> assignEventProducerToTask(newEventProducer, t));
 
-    _unrecoverableErrors.inc();
+    _unrecoverableErrors.mark();
   }
 
   private List<DatastreamTask> findTasksUsingEventProducer(EventProducer eventProducer) {
