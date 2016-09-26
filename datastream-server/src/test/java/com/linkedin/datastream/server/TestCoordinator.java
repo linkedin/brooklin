@@ -21,7 +21,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
@@ -1164,7 +1164,7 @@ public class TestCoordinator {
     // Wait for first assignment is done
     Assert.assertTrue(PollUtils.poll(() -> connector.getTasks().size() == 1, 50, WAIT_TIMEOUT_MS));
 
-    Counter numRebals = ReflectionUtils.getField(coordinator, "_numRebalances");
+    Meter numRebals = ReflectionUtils.getField(coordinator, "_numRebalances");
     Assert.assertNotNull(numRebals);
 
     long numAssign1 = numRebals.getCount();

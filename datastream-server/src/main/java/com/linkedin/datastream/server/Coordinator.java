@@ -29,7 +29,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
@@ -150,7 +150,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
   private final Map<String, Metric> _metrics = new HashMap<>();
-  private Counter _numRebalances = new Counter();
+  private Meter _numRebalances = new Meter();
   private final DynamicMetricsManager _dynamicMetricsManager;
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
@@ -480,7 +480,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
       }
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "handleEvent-" + event.getType(), NUM_ERRORS, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleEvent-" + event.getType(), NUM_ERRORS, 1);
       _log.error("ERROR: event + " + event + " failed.", e);
     }
 
@@ -534,7 +534,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (shouldRetry) {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
@@ -641,13 +641,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
       _adapter.cleanupDeadInstanceAssignments(currentAssignment);
-      _numRebalances.inc();
+      _numRebalances.mark();
     }
 
     // schedule retry if failure
     if (!succeeded && !leaderDoAssignmentScheduled.get()) {
       _log.info("Schedule retry for leader assigning tasks");
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "handleLeaderDoAssignment", NUM_RETRIES, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleLeaderDoAssignment", NUM_RETRIES, 1);
       leaderDoAssignmentScheduled.set(true);
       _executor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
@@ -718,7 +718,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
       connector.initializeDatastream(datastream, allDatastreams);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
       throw e;
     }
 
@@ -731,8 +731,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.put(buildMetricName("numRebalances"), _numRebalances);
 
     // dynamic metrics for capturing various errors
-    _metrics.put(getDynamicMetricPrefixRegex() + NUM_ERRORS, new Counter());
-    _metrics.put(getDynamicMetricPrefixRegex() + NUM_RETRIES, new Counter());
+    _metrics.put(getDynamicMetricPrefixRegex() + NUM_ERRORS, new Meter());
+    _metrics.put(getDynamicMetricPrefixRegex() + NUM_RETRIES, new Meter());
 
     return Collections.unmodifiableMap(_metrics);
   }
