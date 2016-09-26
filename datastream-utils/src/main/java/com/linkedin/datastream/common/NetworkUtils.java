@@ -2,6 +2,7 @@ package com.linkedin.datastream.common;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.URI;
 
 
 /**
@@ -24,6 +25,19 @@ public class NetworkUtils {
       }
     } catch (IOException e) {
       throw new IllegalStateException("Cannot find available port: " + e.getMessage(), e);
+    }
+  }
+
+  public static boolean isValidUri(String uri) {
+    if (uri == null || uri.isEmpty()) {
+      return false;
+    }
+
+    try {
+      URI.create(uri);
+      return true;
+    } catch (Exception e) {
+      return false;
     }
   }
 }

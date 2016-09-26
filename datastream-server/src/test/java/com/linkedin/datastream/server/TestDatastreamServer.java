@@ -496,6 +496,22 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
   }
 
+  @Test
+  public void testD2() throws Exception {
+    Properties d2Props = new Properties();
+    d2Props.put(DatastreamServer.D2_DOMAIN + ".enabled", "true");
+    EmbeddedDatastreamCluster cluster = initializeTestDatastreamServerWithDummyConnector(d2Props);
+    cluster.startup();
+
+    try {
+      DatastreamRestClient restClient = new DatastreamRestClient(cluster.getZkConnection(),
+          cluster.getPrimaryDatastreamServer().getCoordinator().getClusterName());
+      restClient.getAllDatastreams();
+    } catch (Exception e) {
+      Assert.fail();
+    }
+  }
+
   private List<String> readFileDatastreamEvents(Datastream datastream, int totalEvents) throws Exception {
     return readFileDatastreamEvents(datastream, 0, totalEvents);
   }
