@@ -343,9 +343,9 @@ public class EventProducer {
                 _sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(),
                 metadata.getPartition(), _availabilityThresholdSlaMs));
       }
+      TOTAL_EVENTS_PRODUCED.inc(numberOfEvents);
     }
 
-    TOTAL_EVENTS_PRODUCED.inc(numberOfEvents);
     EVENT_PRODUCE_RATE.mark(numberOfEvents);
   }
 
