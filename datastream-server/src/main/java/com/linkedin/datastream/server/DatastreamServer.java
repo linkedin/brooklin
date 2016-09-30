@@ -50,7 +50,7 @@ import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
  */
 public class DatastreamServer {
 
-  public static final String CONFIG_PREFIX = "datastream.server.";
+  public static final String CONFIG_PREFIX = "brooklin.server.";
   public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";
   public static final String CONFIG_CSV_METRICS_DIR = CONFIG_PREFIX + "csvMetricsDir";
