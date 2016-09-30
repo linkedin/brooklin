@@ -17,7 +17,7 @@ public final class CoordinatorConfig {
   private final String _transportProviderFactory;
   private final boolean _reuseExistingDestination;
 
-  private static final String PREFIX = "datastream.server.coordinator.";
+  private static final String PREFIX = "brooklin.server.coordinator.";
   public static final String CONFIG_CLUSTER = PREFIX + "cluster";
   public static final String CONFIG_ZK_ADDRESS = PREFIX + "zkAddress";
   public static final String CONFIG_ZK_SESSION_TIMEOUT = PREFIX + "zkSessionTimeout";
