@@ -1349,8 +1349,8 @@ public class TestCoordinator {
     }
 
     Set<String> nameSet = new HashSet<>(Arrays.asList(datastreamNames));
-    return assignment.stream().anyMatch(t -> !nameSet.contains(t.getDatastreams().get(0)) ||
-        t.getEventProducer() == null);
+    return assignment.stream().allMatch(t -> nameSet.contains(t.getDatastreams().get(0).getName()) &&
+        t.getEventProducer() != null);
   }
 
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {

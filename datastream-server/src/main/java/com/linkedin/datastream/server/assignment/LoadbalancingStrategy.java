@@ -62,8 +62,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     }
 
     int maxTasksPerDatastream = Math.max(instances.size() * overPartitioningFactor, minTasks);
-    datastreams = sortDatastreams(datastreams);
     List<DatastreamTask> datastreamTasks = getDatastreamTasks(datastreams, currentAssignment, maxTasksPerDatastream);
+    Collections.sort(datastreamTasks, (a, b) -> a.getDatastreamTaskName().compareTo(b.getDatastreamTaskName()));
     Collections.sort(instances);
 
     Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
@@ -81,22 +81,6 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
         assignment));
 
     return assignment;
-  }
-
-  private List<Datastream> sortDatastreams(List<Datastream> datastreams) {
-    Map<String, Datastream> m = new HashMap<>();
-    List<String> keys = new ArrayList<>();
-    datastreams.forEach(ds -> {
-      m.put(ds.getName(), ds);
-      keys.add(ds.getName());
-    });
-
-    Collections.sort(keys);
-
-    List<Datastream> result = new ArrayList<>();
-    keys.forEach(k -> result.add(m.get(k)));
-
-    return result;
   }
 
   private List<DatastreamTask> getDatastreamTasks(List<Datastream> datastreams,
