@@ -1,7 +1,9 @@
 package com.linkedin.datastream.server;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,15 +24,17 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.SendFailedException;
@@ -501,20 +505,22 @@ public class EventProducer {
     return _generation;
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public static List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
+    String className = EventProducer.class.getSimpleName();
 
-    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventsProducedWithinSla"),
-        EVENTS_PRODUCED_WITHIN_SLA);
-    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "totalEventsProduced"),
-        TOTAL_EVENTS_PRODUCED);
-    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventsLatencyMs"),
-        EVENTS_LATENCY_MS);
-    metrics.put(MetricRegistry.name(EventProducer.class.getSimpleName(), AGGREGATE, "eventProduceRate"),
-        EVENT_PRODUCE_RATE);
-    metrics.put(EventProducer.class.getSimpleName() + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA,
-        new Counter());
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(className, AGGREGATE, "eventsProducedWithinSla"),
+        EVENTS_PRODUCED_WITHIN_SLA));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(className, AGGREGATE, "totalEventsProduced"),
+        TOTAL_EVENTS_PRODUCED));
+    metrics.add(
+        new StaticBrooklinMetric(MetricRegistry.name(className, AGGREGATE, "eventsLatencyMs"), EVENTS_LATENCY_MS));
+    metrics.add(
+        new StaticBrooklinMetric(MetricRegistry.name(className, AGGREGATE, "eventProduceRate"), EVENT_PRODUCE_RATE));
 
-    return Collections.unmodifiableMap(metrics);
+    metrics.add(new DynamicBrooklinMetric(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA,
+        BrooklinMetric.MetricType.COUNTER));
+
+    return Collections.unmodifiableList(metrics);
   }
 }

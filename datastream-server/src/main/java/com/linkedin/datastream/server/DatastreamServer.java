@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -22,17 +24,18 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.MetricsAware;
-import com.linkedin.datastream.common.ReadOnlyMetricRegistry;
+import com.linkedin.datastream.metrics.ReadOnlyMetricRegistry;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
@@ -76,7 +79,7 @@ public class DatastreamServer {
   private Map<String, String> _bootstrapConnectors;
 
   private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
-  private static final Map<String, Metric> DYNAMIC_METRICS = new HashMap<>();
+  private static final List<DynamicBrooklinMetric> DYNAMIC_METRICS = new ArrayList<>();
   private JmxReporter _jmxReporter;
 
   static {
@@ -225,18 +228,19 @@ public class DatastreamServer {
     }
   }
 
-  private void registerMetrics(Map<String, Metric> metrics) {
-    Optional.of(metrics).ifPresent(m -> m.forEach((key, value) -> {
+  private void registerMetrics(List<BrooklinMetric> metrics) {
+    Optional.of(metrics).ifPresent(m -> m.forEach((metric) -> {
       try {
         // If the key is a regular expression, the metric is dynamic, in which case it should be registered
         // later, after the server starts. Only the "static" metrics need to be registered before the server starts.
-        if (key.contains(MetricsAware.KEY_REGEX)) {
-          DYNAMIC_METRICS.put(key, value);
+        if (metric instanceof DynamicBrooklinMetric) {
+          DYNAMIC_METRICS.add((DynamicBrooklinMetric) metric);
         } else {
-          METRIC_REGISTRY.register(key, value);
+          StaticBrooklinMetric staticMetric = (StaticBrooklinMetric) metric;
+          METRIC_REGISTRY.register(staticMetric.getName(), staticMetric.getMetric());
         }
       } catch (IllegalArgumentException e) {
-        LOG.warn("Metric " + key + " has already been registered.", e);
+        LOG.warn("Metric " + metric.getName() + " has already been registered.", e);
       }
     }));
   }

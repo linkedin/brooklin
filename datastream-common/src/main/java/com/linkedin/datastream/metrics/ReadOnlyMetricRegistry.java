@@ -1,6 +1,7 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.metrics;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 
@@ -21,9 +22,9 @@ import com.codahale.metrics.Timer;
 public class ReadOnlyMetricRegistry {
 
   private final MetricRegistry _metricRegistry;
-  private final Map<String, Metric> _dynamicMetrics;
+  private final List<DynamicBrooklinMetric> _dynamicMetrics;
 
-  public ReadOnlyMetricRegistry(MetricRegistry metricRegistry, Map<String, Metric> dynamicMetrics) {
+  public ReadOnlyMetricRegistry(MetricRegistry metricRegistry, List<DynamicBrooklinMetric> dynamicMetrics) {
     _metricRegistry = metricRegistry;
     _dynamicMetrics = dynamicMetrics;
   }
@@ -129,11 +130,9 @@ public class ReadOnlyMetricRegistry {
   }
 
   /**
-   * Returns a map where keys are regular expressions to match against dynamic metric names, and values are metric
-   * objects which indicate the type of metric that the dynamic metric will be when it is created.
    * @return the dynamic metrics
    */
-  public Map<String, Metric> getDynamicMetrics() {
-    return Collections.unmodifiableMap(_dynamicMetrics);
+  public List<DynamicBrooklinMetric> getDynamicMetrics() {
+    return Collections.unmodifiableList(_dynamicMetrics);
   }
 }

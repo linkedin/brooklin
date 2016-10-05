@@ -16,7 +16,7 @@ import com.codahale.metrics.MetricRegistry;
 import static org.mockito.Mockito.mock;
 
 import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;

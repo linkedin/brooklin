@@ -1,4 +1,4 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.metrics;
 
 import org.apache.commons.lang.Validate;
 

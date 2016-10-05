@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.providers;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -12,8 +13,9 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
@@ -74,12 +76,12 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
 
-    metrics.put(buildMetricName("numCheckpointCommits"), _numCheckpointCommits);
-    metrics.put(buildMetricName("checkpointCommitLatency"), _checkpointCommitLatency);
+    metrics.add(new StaticBrooklinMetric(buildMetricName("numCheckpointCommits"), _numCheckpointCommits));
+    metrics.add(new StaticBrooklinMetric(buildMetricName("checkpointCommitLatency"), _checkpointCommitLatency));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }

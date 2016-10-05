@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -15,9 +16,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.MetricsAware;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -192,12 +194,12 @@ public class EventProducerPool implements MetricsAware {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
 
-    metrics.put(buildMetricName("unrecoverableErrors"), _unrecoverableErrors);
-    Optional.ofNullable(EventProducer.getMetrics()).ifPresent(m -> metrics.putAll(m));
+    metrics.add(new StaticBrooklinMetric(buildMetricName("unrecoverableErrors"), _unrecoverableErrors));
+    Optional.ofNullable(EventProducer.getMetrics()).ifPresent(m -> metrics.addAll(m));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }
