@@ -1,12 +1,11 @@
 package com.linkedin.datastream.server;
 
 import java.time.Duration;
-import java.util.Map;
+import java.util.List;
 import java.util.Properties;
 
-import com.codahale.metrics.Metric;
-
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.metrics.BrooklinMetric;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -68,7 +67,7 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       }
 
       @Override
-      public Map<String, Metric> getMetrics() {
+      public List<BrooklinMetric> getMetrics() {
         return null;
       }
     };

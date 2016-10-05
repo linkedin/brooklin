@@ -1,18 +1,18 @@
 package com.linkedin.datastream.connectors.mysql.or;
 
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.google.code.or.binlog.BinlogEventV4Header;
 import com.google.code.or.binlog.BinlogParserContext;
 import com.google.code.or.binlog.BinlogRowEventFilter;
 import com.google.code.or.binlog.impl.event.TableMapEvent;
 
-import com.linkedin.datastream.common.DynamicMetricsManager;
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 
 
 public class MysqlSourceBinlogRowEventFilter implements BinlogRowEventFilter {
@@ -55,9 +55,10 @@ public class MysqlSourceBinlogRowEventFilter implements BinlogRowEventFilter {
     }
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
-    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX  + TOTAL_EVENTS_RATE, new Meter());
-    return Collections.unmodifiableMap(metrics);
+  public static List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
+    metrics.add(new DynamicBrooklinMetric(CLASSNAME + MetricsAware.KEY_REGEX + TOTAL_EVENTS_RATE,
+        BrooklinMetric.MetricType.METER));
+    return Collections.unmodifiableList(metrics);
   }
 }

@@ -1,15 +1,17 @@
 package com.linkedin.datastream.common;
 
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
+
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 
 
 /**
@@ -42,11 +44,10 @@ public class ThreadTerminationMonitor {
     });
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
-    String metricName = MetricRegistry.name(
-        ThreadTerminationMonitor.class.getSimpleName(), ABNORMAL_TERMINATIONS);
-    metrics.put(metricName, TERMINATION_RATE);
-    return Collections.unmodifiableMap(metrics);
+  public static List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
+    String metricName = MetricRegistry.name(ThreadTerminationMonitor.class.getSimpleName(), ABNORMAL_TERMINATIONS);
+    metrics.add(new StaticBrooklinMetric(metricName, TERMINATION_RATE));
+    return Collections.unmodifiableList(metrics);
   }
 }

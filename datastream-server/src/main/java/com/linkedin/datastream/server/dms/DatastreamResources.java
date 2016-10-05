@@ -2,10 +2,9 @@ package com.linkedin.datastream.server.dms;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -14,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
@@ -22,6 +20,8 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.RestliUtils;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -199,19 +199,19 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public static List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
 
-    metrics.put(MetricRegistry.name(CLASS_NAME, "updateCall"), UPDATE_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCall"), DELETE_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "getCall"), GET_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "getAllCall"), GET_ALL_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "updateCall"), UPDATE_CALL));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "deleteCall"), DELETE_CALL));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "getCall"), GET_CALL));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "getAllCall"), GET_ALL_CALL));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR));
 
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatencyMs"), CREATE_CALL_LATENCY_MS);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "deleteCallLatencyMs"), DELETE_CALL_LATENCY_MS);
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "createCallLatencyMs"), CREATE_CALL_LATENCY_MS));
+    metrics.add(new StaticBrooklinMetric(MetricRegistry.name(CLASS_NAME, "deleteCallLatencyMs"), DELETE_CALL_LATENCY_MS));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }

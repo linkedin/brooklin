@@ -1,8 +1,7 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.metrics;
 
-import java.util.Map;
+import java.util.List;
 
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 /**
@@ -26,7 +25,7 @@ public interface MetricsAware {
    *
    * @return a mapping of metric name to metric
    */
-  Map<String, Metric> getMetrics();
+  List<BrooklinMetric> getMetrics();
 
   /**
    * @return the metric name prepended with the caller's class name

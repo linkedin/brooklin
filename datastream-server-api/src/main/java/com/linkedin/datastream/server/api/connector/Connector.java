@@ -3,7 +3,7 @@ package com.linkedin.datastream.server.api.connector;
 import java.util.List;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
 

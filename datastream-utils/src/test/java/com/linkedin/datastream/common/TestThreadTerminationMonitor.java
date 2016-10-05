@@ -6,6 +6,8 @@ import org.testng.annotations.Test;
 
 import com.codahale.metrics.Meter;
 
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
+
 
 public class TestThreadTerminationMonitor {
 
@@ -13,7 +15,8 @@ public class TestThreadTerminationMonitor {
 
   @BeforeTest
   public void prepare() {
-    meter = (Meter) ThreadTerminationMonitor.getMetrics().values().iterator().next();
+    meter =
+        (Meter) ((StaticBrooklinMetric) ThreadTerminationMonitor.getMetrics().stream().findFirst().get()).getMetric();
     Assert.assertEquals(0, meter.getCount());
   }
 

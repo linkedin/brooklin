@@ -3,9 +3,9 @@ package com.linkedin.datastream.kafka;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import kafka.admin.AdminUtils;
 import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
@@ -28,9 +27,12 @@ import kafka.utils.ZkUtils;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
@@ -275,12 +277,12 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
 
-    metrics.put(buildMetricName(EVENT_WRITE_RATE), _eventWriteRate);
-    metrics.put(buildMetricName(EVENT_BYTE_WRITE_RATE), _eventByteWriteRate);
-    metrics.put(buildMetricName(EVENT_TRANSPORT_ERROR_RATE), _eventTransportErrorRate);
+    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_WRITE_RATE), _eventWriteRate));
+    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_BYTE_WRITE_RATE), _eventByteWriteRate));
+    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_TRANSPORT_ERROR_RATE), _eventTransportErrorRate));
 
     /*
      * For dynamic metrics captured by regular expression, put an object corresponding to the type of metric that will be
@@ -292,10 +294,13 @@ public class KafkaTransportProvider implements TransportProvider {
      * will capture a counter metric with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
      * where xxx is the topic name.
      */
-    metrics.put(getDynamicMetricPrefixRegex() + EVENT_WRITE_RATE, new Meter());
-    metrics.put(getDynamicMetricPrefixRegex() + EVENT_BYTE_WRITE_RATE, new Meter());
-    metrics.put(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_RATE, new Meter());
+    metrics.add(
+        new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_WRITE_RATE, BrooklinMetric.MetricType.METER));
+    metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_BYTE_WRITE_RATE,
+        BrooklinMetric.MetricType.METER));
+    metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_RATE,
+        BrooklinMetric.MetricType.METER));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }

@@ -3,10 +3,9 @@ package com.linkedin.datastream.connectors.mysql;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,12 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlBinlogEventListener;
 import com.linkedin.datastream.connectors.mysql.or.MysqlBinlogParser;
@@ -32,6 +31,7 @@ import com.linkedin.datastream.connectors.mysql.or.MysqlReplicator;
 import com.linkedin.datastream.connectors.mysql.or.MysqlReplicatorImpl;
 import com.linkedin.datastream.connectors.mysql.or.MysqlServerTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlSourceBinlogRowEventFilter;
+import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -315,12 +315,11 @@ public class MysqlConnector implements Connector {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
-
-    metrics.put(buildMetricName("numDatastreamTasks"), _numDatastreamTasks);
-    Optional.of(MysqlBinlogEventListener.getMetrics()).ifPresent(metrics::putAll);
-    Optional.of(MysqlSourceBinlogRowEventFilter.getMetrics()).ifPresent(metrics::putAll);
-    return Collections.unmodifiableMap(metrics);
+  public List<BrooklinMetric> getMetrics() {
+    List<BrooklinMetric> metrics = new ArrayList<>();
+    metrics.add(new StaticBrooklinMetric(buildMetricName("numDatastreamTasks"), _numDatastreamTasks));
+    Optional.of(MysqlBinlogEventListener.getMetrics()).ifPresent(metrics::addAll);
+    Optional.of(MysqlSourceBinlogRowEventFilter.getMetrics()).ifPresent(metrics::addAll);
+    return Collections.unmodifiableList(metrics);
   }
 }

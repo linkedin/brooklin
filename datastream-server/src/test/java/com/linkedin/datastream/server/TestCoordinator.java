@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -22,14 +21,14 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -146,7 +145,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public Map<String, Metric> getMetrics() {
+    public List<BrooklinMetric> getMetrics() {
       return null;
     }
   }
@@ -202,7 +201,7 @@ public class TestCoordinator {
       }
 
       @Override
-      public Map<String, Metric> getMetrics() {
+      public List<BrooklinMetric> getMetrics() {
         return null;
       }
     };
@@ -1093,7 +1092,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public Map<String, Metric> getMetrics() {
+    public List<BrooklinMetric> getMetrics() {
       return null;
     }
   }

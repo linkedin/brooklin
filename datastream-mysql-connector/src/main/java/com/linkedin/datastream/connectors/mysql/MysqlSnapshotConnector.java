@@ -17,11 +17,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Metric;
-
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlQueryUtils;
+import com.linkedin.datastream.metrics.BrooklinMetric;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -164,7 +163,7 @@ public class MysqlSnapshotConnector implements Connector {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    return Collections.emptyMap();
+  public List<BrooklinMetric> getMetrics() {
+    return Collections.emptyList();
   }
 }
