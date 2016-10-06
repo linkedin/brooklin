@@ -22,7 +22,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -183,7 +183,7 @@ public class TestEventProducingConnector implements Connector {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return Collections.emptyList();
   }
 }

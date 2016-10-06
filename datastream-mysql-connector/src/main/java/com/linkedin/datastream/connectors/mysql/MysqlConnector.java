@@ -20,7 +20,8 @@ import com.codahale.metrics.Gauge;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlBinlogEventListener;
@@ -31,7 +32,6 @@ import com.linkedin.datastream.connectors.mysql.or.MysqlReplicator;
 import com.linkedin.datastream.connectors.mysql.or.MysqlReplicatorImpl;
 import com.linkedin.datastream.connectors.mysql.or.MysqlServerTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlSourceBinlogRowEventFilter;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -68,6 +68,7 @@ public class MysqlConnector implements Connector {
   private ConcurrentHashMap<DatastreamTask, MysqlReplicator> _mysqlProducers;
 
   private final Gauge<Integer> _numDatastreamTasks;
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
   private int _numTasks = 0;
 
   public MysqlConnector(Properties config) throws DatastreamException {
@@ -80,13 +81,13 @@ public class MysqlConnector implements Connector {
       throw new DatastreamRuntimeException("Missing serverId property.");
     }
 
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-
     _defaultServerId = Integer.valueOf(strServerId);
     _mysqlProducers = new ConcurrentHashMap<>();
 
     // initialize metrics
     _numDatastreamTasks = () -> _numTasks;
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _dynamicMetricsManager.registerMetric(this.getClass(), NUM_DATASTREAM_TASKS, _numDatastreamTasks);
   }
 
   @Override
@@ -315,11 +316,11 @@ public class MysqlConnector implements Connector {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
-    metrics.add(new StaticBrooklinMetric(buildMetricName("numDatastreamTasks"), _numDatastreamTasks));
-    Optional.of(MysqlBinlogEventListener.getMetrics()).ifPresent(metrics::addAll);
-    Optional.of(MysqlSourceBinlogRowEventFilter.getMetrics()).ifPresent(metrics::addAll);
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinGaugeInfo(buildMetricName(NUM_DATASTREAM_TASKS)));
+    Optional.of(MysqlBinlogEventListener.getMetricInfos()).ifPresent(metrics::addAll);
+    Optional.of(MysqlSourceBinlogRowEventFilter.getMetricInfos()).ifPresent(metrics::addAll);
     return Collections.unmodifiableList(metrics);
   }
 }

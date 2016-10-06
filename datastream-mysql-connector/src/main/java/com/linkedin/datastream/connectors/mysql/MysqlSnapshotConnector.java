@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlQueryUtils;
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -163,7 +163,7 @@ public class MysqlSnapshotConnector implements Connector {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return Collections.emptyList();
   }
 }

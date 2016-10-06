@@ -15,11 +15,10 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
-
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -45,7 +44,8 @@ public class EventProducerPool implements MetricsAware {
 
   public static final String POOL_SIZE = "poolSize";
 
-  private final Meter _unrecoverableErrors;
+  private static final String UNRECOVERABLE_ERRORS = "unrecoverableErrors";
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   public EventProducerPool(CheckpointProvider checkpointProvider, TransportProviderFactory transportProviderFactory,
       Properties transportProviderConfig, Properties eventProducerConfig) {
@@ -65,7 +65,7 @@ public class EventProducerPool implements MetricsAware {
     _taskEventProducerMap = new HashMap<>();
     _random = new Random();
 
-    _unrecoverableErrors = new Meter();
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
   }
 
   /**
@@ -166,7 +166,7 @@ public class EventProducerPool implements MetricsAware {
 
     tasks.forEach(t -> assignEventProducerToTask(newEventProducer, t));
 
-    _unrecoverableErrors.mark();
+    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), UNRECOVERABLE_ERRORS, 1);
   }
 
   private List<DatastreamTask> findTasksUsingEventProducer(EventProducer eventProducer) {
@@ -194,11 +194,11 @@ public class EventProducerPool implements MetricsAware {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
 
-    metrics.add(new StaticBrooklinMetric(buildMetricName("unrecoverableErrors"), _unrecoverableErrors));
-    Optional.ofNullable(EventProducer.getMetrics()).ifPresent(m -> metrics.addAll(m));
+    metrics.add(new BrooklinMeterInfo(buildMetricName(UNRECOVERABLE_ERRORS)));
+    Optional.ofNullable(EventProducer.getMetricInfos()).ifPresent(m -> metrics.addAll(m));
 
     return Collections.unmodifiableList(metrics);
   }

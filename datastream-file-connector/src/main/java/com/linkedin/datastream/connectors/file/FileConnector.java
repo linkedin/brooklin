@@ -22,8 +22,9 @@ import com.codahale.metrics.Gauge;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -47,7 +48,9 @@ public class FileConnector implements Connector {
   private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
+  private final DynamicMetricsManager _dynamicMetricsManager;
   private final Gauge<Integer> _numDatastreamTasks;
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
   private int _numTasks = 0;
 
   public FileConnector(Properties config) throws DatastreamException {
@@ -59,6 +62,9 @@ public class FileConnector implements Connector {
 
     // initialize metrics
     _numDatastreamTasks = () -> _numTasks;
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _dynamicMetricsManager.registerMetric(this.getClass(), NUM_DATASTREAM_TASKS, _numDatastreamTasks);
   }
 
   @Override
@@ -141,9 +147,9 @@ public class FileConnector implements Connector {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
-    metrics.add(new StaticBrooklinMetric(buildMetricName("numDatastreamTasks"), _numDatastreamTasks));
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinGaugeInfo(buildMetricName(NUM_DATASTREAM_TASKS)));
     return Collections.unmodifiableList(metrics);
   }
 }

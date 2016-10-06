@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -67,7 +67,7 @@ public class DummyTransportProviderFactory implements TransportProviderFactory {
       }
 
       @Override
-      public List<BrooklinMetric> getMetrics() {
+      public List<BrooklinMetricInfo> getMetricInfos() {
         return null;
       }
     };

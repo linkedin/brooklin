@@ -9,8 +9,8 @@ import com.google.code.or.binlog.BinlogParserContext;
 import com.google.code.or.binlog.BinlogRowEventFilter;
 import com.google.code.or.binlog.impl.event.TableMapEvent;
 
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 
@@ -55,10 +55,9 @@ public class MysqlSourceBinlogRowEventFilter implements BinlogRowEventFilter {
     }
   }
 
-  public static List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
-    metrics.add(new DynamicBrooklinMetric(CLASSNAME + MetricsAware.KEY_REGEX + TOTAL_EVENTS_RATE,
-        BrooklinMetric.MetricType.METER));
+  public static List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(CLASSNAME + MetricsAware.KEY_REGEX + TOTAL_EVENTS_RATE));
     return Collections.unmodifiableList(metrics);
   }
 }

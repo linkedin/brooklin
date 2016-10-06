@@ -36,8 +36,8 @@ import com.google.code.or.common.glossary.Row;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -444,12 +444,10 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     return false;
   }
 
-  public static List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
-    metrics.add(new DynamicBrooklinMetric(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_RATE,
-        BrooklinMetric.MetricType.METER));
-    metrics.add(new DynamicBrooklinMetric(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_RATE,
-        BrooklinMetric.MetricType.METER));
+  public static List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_RATE));
+    metrics.add(new BrooklinMeterInfo(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_RATE));
     return Collections.unmodifiableList(metrics);
   }
 }
