@@ -7,11 +7,11 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
 /**
@@ -26,17 +26,13 @@ public class ThreadTerminationMonitor {
   private static final Logger LOG = LoggerFactory.getLogger(ThreadTerminationMonitor.class);
 
   private static final Thread.UncaughtExceptionHandler OLD_HANDLER;
-  private static final Meter TERMINATION_RATE;
 
   static {
-    // Create metric
-    TERMINATION_RATE = new Meter();
-
     // Replace the default uncaught exception handler
     OLD_HANDLER = Thread.getDefaultUncaughtExceptionHandler();
     Thread.setDefaultUncaughtExceptionHandler((Thread t, Throwable e) -> {
       LOG.error(String.format("Thread %s terminated abnormally", t.getName()), e);
-      TERMINATION_RATE.mark();
+      DynamicMetricsManager.getInstance().createOrUpdateMeter(ThreadTerminationMonitor.class, ABNORMAL_TERMINATIONS, 1);
       // Resume the old behavior
       if (OLD_HANDLER != null) {
         OLD_HANDLER.uncaughtException(t, e);
@@ -44,10 +40,10 @@ public class ThreadTerminationMonitor {
     });
   }
 
-  public static List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
-    String metricName = MetricRegistry.name(ThreadTerminationMonitor.class.getSimpleName(), ABNORMAL_TERMINATIONS);
-    metrics.add(new StaticBrooklinMetric(metricName, TERMINATION_RATE));
+  public static List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(
+        MetricRegistry.name(ThreadTerminationMonitor.class.getSimpleName(), ABNORMAL_TERMINATIONS)));
     return Collections.unmodifiableList(metrics);
   }
 }

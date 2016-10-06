@@ -11,7 +11,7 @@ import java.util.Properties;
 
 import org.apache.log4j.Logger;
 
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -91,7 +91,7 @@ public class InMemoryTransportProvider implements TransportProvider {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }
 

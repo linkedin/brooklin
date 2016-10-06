@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -53,7 +53,7 @@ public class DummyConnector implements Connector {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }
 }

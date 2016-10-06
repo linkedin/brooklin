@@ -7,7 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.metrics.BrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -39,7 +39,7 @@ public class InMemoryCheckpointProvider implements CheckpointProvider {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }
 }

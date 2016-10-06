@@ -18,14 +18,12 @@ public interface MetricsAware {
   String KEY_REGEX = "([-.\\w\\d]+)\\.";
 
   /**
-   * Retrieve metrics
+   * Retrieve information about the metrics, which will be created dynamically. All metrics will be captured by
+   * regular expression.
    *
-   * For dynamic metrics to be captured by regular expression, since we do not have a reference to the actual Metric object,
-   * simply put null value into the map.
-   *
-   * @return a mapping of metric name to metric
+   * @return list of metric information
    */
-  List<BrooklinMetric> getMetrics();
+  List<BrooklinMetricInfo> getMetricInfos();
 
   /**
    * @return the metric name prepended with the caller's class name

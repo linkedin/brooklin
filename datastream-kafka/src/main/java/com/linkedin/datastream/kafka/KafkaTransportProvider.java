@@ -27,12 +27,11 @@ import kafka.utils.ZkUtils;
 import com.linkedin.datastream.common.AvroUtils;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
@@ -72,6 +71,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
+  private static final String AGGREGATE = "aggregate";
 
   public KafkaTransportProvider(Properties props) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
@@ -223,11 +223,10 @@ public class KafkaTransportProvider implements TransportProvider {
             new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()), exception));
         // Update topic-specific metrics and aggregate metrics
         int numBytes = outgoing.key().length + outgoing.value().length;
-        _eventWriteRate.mark();
-        _eventByteWriteRate.mark(numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_WRITE_RATE, 1);
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE,
-            numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_WRITE_RATE, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
@@ -277,29 +276,12 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
-    List<BrooklinMetric> metrics = new ArrayList<>();
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
 
-    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_WRITE_RATE), _eventWriteRate));
-    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_BYTE_WRITE_RATE), _eventByteWriteRate));
-    metrics.add(new StaticBrooklinMetric(buildMetricName(EVENT_TRANSPORT_ERROR_RATE), _eventTransportErrorRate));
-
-    /*
-     * For dynamic metrics captured by regular expression, put an object corresponding to the type of metric that will be
-     * created dynamically.
-     *
-     * For example, adding the following metric name:
-     *
-     * metrics.put(getDynamicMetricPrefixRegex() + "numEvents", new Counter());
-     * will capture a counter metric with name matching "com.linkedin.datastream.kafka.KafkaTransportProvider.xxx.numEvents",
-     * where xxx is the topic name.
-     */
-    metrics.add(
-        new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_WRITE_RATE, BrooklinMetric.MetricType.METER));
-    metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_BYTE_WRITE_RATE,
-        BrooklinMetric.MetricType.METER));
-    metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_RATE,
-        BrooklinMetric.MetricType.METER));
+    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_WRITE_RATE));
+    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_BYTE_WRITE_RATE));
+    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_RATE));
 
     return Collections.unmodifiableList(metrics);
   }

@@ -29,21 +29,19 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
-import com.linkedin.datastream.metrics.BrooklinMetric;
-import com.linkedin.datastream.metrics.DynamicBrooklinMetric;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.metrics.StaticBrooklinMetric;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
@@ -151,9 +149,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // Currently assigned datastream tasks by taskName
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
-  private final List<BrooklinMetric> _metrics = new ArrayList<>();
-  private Meter _numRebalances = new Meter();
+  private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
   private final DynamicMetricsManager _dynamicMetricsManager;
+  private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
 
@@ -197,17 +195,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "failed to create transport provider, factory: " + transportFactory, null);
     }
 
-    Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(_metrics::addAll);
+    Optional.ofNullable(_transportProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    Optional.ofNullable(cpProvider.getMetrics()).ifPresent(m -> _metrics.addAll(m));
+    Optional.ofNullable(cpProvider.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
 
     _eventProducerPool = new EventProducerPool(cpProvider, factory,
         coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
-    Optional.ofNullable(_eventProducerPool.getMetrics()).ifPresent(m -> _metrics.addAll(m));
+    Optional.ofNullable(_eventProducerPool.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
   }
 
   public void start() {
@@ -643,7 +641,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
       _adapter.cleanupDeadInstanceAssignments(currentAssignment);
-      _numRebalances.mark();
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_REBALANCES, 1);
     }
 
     // schedule retry if failure
@@ -684,7 +682,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new IllegalArgumentException(err);
     }
 
-    Optional<List<BrooklinMetric>> connectorMetrics = Optional.ofNullable(connector.getMetrics());
+    Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
     connectorMetrics.ifPresent(m -> _metrics.addAll(m));
 
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
@@ -729,12 +727,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   @Override
-  public List<BrooklinMetric> getMetrics() {
-    _metrics.add(new StaticBrooklinMetric(buildMetricName("numRebalances"), _numRebalances));
-
-    // dynamic metrics for capturing various errors
-    _metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + NUM_ERRORS, BrooklinMetric.MetricType.METER));
-    _metrics.add(new DynamicBrooklinMetric(getDynamicMetricPrefixRegex() + NUM_RETRIES, BrooklinMetric.MetricType.METER));
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    _metrics.add(new BrooklinMeterInfo(buildMetricName(NUM_REBALANCES)));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_ERRORS));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_RETRIES));
 
     return Collections.unmodifiableList(_metrics);
   }
