@@ -1,12 +1,10 @@
 package com.linkedin.datastream.connectors;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
-import com.codahale.metrics.Metric;
-
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -55,7 +53,7 @@ public class DummyConnector implements Connector {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
+  public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }
 }

@@ -5,10 +5,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -22,14 +24,12 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.MetricsAware;
-import com.linkedin.datastream.common.ReadOnlyMetricRegistry;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -76,7 +76,7 @@ public class DatastreamServer {
   private Map<String, String> _bootstrapConnectors;
 
   private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
-  private static final Map<String, Metric> DYNAMIC_METRICS = new HashMap<>();
+  private static final List<BrooklinMetricInfo> METRIC_INFOS = new ArrayList<>();
   private JmxReporter _jmxReporter;
 
   static {
@@ -96,8 +96,8 @@ public class DatastreamServer {
     return _coordinator;
   }
 
-  public ReadOnlyMetricRegistry getMetricRegistry() {
-    return new ReadOnlyMetricRegistry(METRIC_REGISTRY, DYNAMIC_METRICS);
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    return Collections.unmodifiableList(METRIC_INFOS);
   }
 
   public DatastreamStore getDatastreamStore() {
@@ -201,10 +201,10 @@ public class DatastreamServer {
   }
 
   private void initializeMetrics() {
-    registerMetrics(ThreadTerminationMonitor.getMetrics());
-    registerMetrics(_coordinator.getMetrics());
-    registerMetrics(DatastreamResources.getMetrics());
-    registerMetrics(BootstrapActionResources.getMetrics());
+    METRIC_INFOS.addAll(ThreadTerminationMonitor.getMetricInfos());
+    METRIC_INFOS.addAll(_coordinator.getMetricInfos());
+    METRIC_INFOS.addAll(DatastreamResources.getMetricInfos());
+    METRIC_INFOS.addAll(BootstrapActionResources.getMetricInfos());
 
     _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
 
@@ -223,22 +223,6 @@ public class DatastreamServer {
           .build(csvDir);
       reporter.start(1, MINUTES);
     }
-  }
-
-  private void registerMetrics(Map<String, Metric> metrics) {
-    Optional.of(metrics).ifPresent(m -> m.forEach((key, value) -> {
-      try {
-        // If the key is a regular expression, the metric is dynamic, in which case it should be registered
-        // later, after the server starts. Only the "static" metrics need to be registered before the server starts.
-        if (key.contains(MetricsAware.KEY_REGEX)) {
-          DYNAMIC_METRICS.put(key, value);
-        } else {
-          METRIC_REGISTRY.register(key, value);
-        }
-      } catch (IllegalArgumentException e) {
-        LOG.warn("Metric " + key + " has already been registered.", e);
-      }
-    }));
   }
 
   public synchronized void startup() throws DatastreamException {

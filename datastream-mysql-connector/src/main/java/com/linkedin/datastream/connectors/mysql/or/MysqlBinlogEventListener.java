@@ -12,8 +12,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.google.code.or.binlog.BinlogEventListener;
 import com.google.code.or.binlog.BinlogEventV4;
 import com.google.code.or.binlog.BinlogEventV4Header;
@@ -38,9 +36,11 @@ import com.google.code.or.common.glossary.Row;
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
@@ -444,10 +444,10 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     return false;
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
-    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_RATE, new Meter());
-    metrics.put(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_RATE, new Meter());
-    return Collections.unmodifiableMap(metrics);
+  public static List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_EVENT_RATE));
+    metrics.add(new BrooklinMeterInfo(CLASSNAME + MetricsAware.KEY_REGEX + PROCESSED_TXNS_RATE));
+    return Collections.unmodifiableList(metrics);
   }
 }

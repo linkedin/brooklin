@@ -3,7 +3,7 @@ package com.linkedin.datastream.server.api.transport;
 import java.time.Duration;
 import java.util.Properties;
 
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 

@@ -1,4 +1,4 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.metrics;
 
 import org.apache.commons.lang.Validate;
 
@@ -44,7 +44,7 @@ public class DynamicMetricsManager {
    * @param metric the metric to be registered
    */
   public synchronized void registerMetric(Class<?> clazz, String key, String metricName, Metric metric) {
-    validateArguments(clazz, key, metricName);
+    validateArguments(clazz, metricName);
 
     String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
@@ -52,6 +52,16 @@ public class DynamicMetricsManager {
     if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
       _metricRegistry.register(fullMetricName, metric);
     }
+  }
+
+  /**
+   * Register the metric for the specified metricName; if it has already been registered, do nothing
+   * @param clazz the class containing the metric
+   * @param metricName the metric name
+   * @param metric the metric to be registered
+   */
+  public synchronized void registerMetric(Class<?> clazz, String metricName, Metric metric) {
+    registerMetric(clazz, null, metricName, metric);
   }
 
   /**
@@ -63,7 +73,7 @@ public class DynamicMetricsManager {
    * @param value amount to increment the counter by (use negative value to decrement)
    */
   public synchronized void createOrUpdateCounter(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, key, metricName);
+    validateArguments(clazz, metricName);
 
     String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
@@ -76,6 +86,17 @@ public class DynamicMetricsManager {
   }
 
   /**
+   * Update the counter (or creates it if it does not exist) for the specified metricName.
+   * To decrement the counter, pass in a negative value.
+   * @param clazz the class containing the metric
+   * @param metricName the metric name
+   * @param value amount to increment the counter by (use negative value to decrement)
+   */
+  public synchronized void createOrUpdateCounter(Class<?> clazz, String metricName, long value) {
+    createOrUpdateCounter(clazz, null, metricName, value);
+  }
+
+  /**
    * Update the meter (or creates it if it does not exist) for the specified key/metricName pair by the given value.
    * @param clazz the class containing the metric
    * @param key the key (i.e. topic or partition) for the metric
@@ -83,7 +104,7 @@ public class DynamicMetricsManager {
    * @param value the value to mark on the meter
    */
   public synchronized void createOrUpdateMeter(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, key, metricName);
+    validateArguments(clazz, metricName);
 
     String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
@@ -96,6 +117,16 @@ public class DynamicMetricsManager {
   }
 
   /**
+   * Update the meter (or creates it if it does not exist) for the specified metricName.
+   * @param clazz the class containing the metric
+   * @param metricName the metric name
+   * @param value the value to mark on the meter
+   */
+  public synchronized void createOrUpdateMeter(Class<?> clazz, String metricName, long value) {
+    createOrUpdateMeter(clazz, null, metricName, value);
+  }
+
+  /**
    * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
    * @param clazz the class containing the metric
    * @param key the key (i.e. topic or partition) for the metric
@@ -103,7 +134,7 @@ public class DynamicMetricsManager {
    * @param value the value to update on the histogram
    */
   public synchronized void createOrUpdateHistogram(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, key, metricName);
+    validateArguments(clazz, metricName);
     String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
 
     // create and register the metric if it does not exist
@@ -114,9 +145,18 @@ public class DynamicMetricsManager {
     histogram.update(value);
   }
 
-  private void validateArguments(Class<?> clazz, String key, String metricName) {
+  /**
+   * Update the histogram (or creates it if it does not exist) for the specified metricName.
+   * @param clazz the class containing the metric
+   * @param metricName the metric name
+   * @param value the value to update on the histogram
+   */
+  public synchronized void createOrUpdateHistogram(Class<?> clazz, String metricName, long value) {
+    createOrUpdateHistogram(clazz, null, metricName, value);
+  }
+
+  private void validateArguments(Class<?> clazz, String metricName) {
     Validate.notNull(clazz, "clazz argument is null.");
-    Validate.notNull(key, "key argument is null.");
     Validate.notNull(metricName, "metricName argument is null.");
   }
 

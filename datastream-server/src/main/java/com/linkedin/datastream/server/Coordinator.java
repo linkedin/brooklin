@@ -29,17 +29,17 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
-import com.linkedin.datastream.common.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.MetricsAware;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -149,9 +149,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // Currently assigned datastream tasks by taskName
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
 
-  private final Map<String, Metric> _metrics = new HashMap<>();
-  private Meter _numRebalances = new Meter();
+  private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
   private final DynamicMetricsManager _dynamicMetricsManager;
+  private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
 
@@ -195,17 +195,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "failed to create transport provider, factory: " + transportFactory, null);
     }
 
-    Optional.ofNullable(_transportProvider.getMetrics()).ifPresent(_metrics::putAll);
+    Optional.ofNullable(_transportProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
     _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
 
     CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    Optional.ofNullable(cpProvider.getMetrics()).ifPresent(m -> _metrics.putAll(m));
+    Optional.ofNullable(cpProvider.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
 
     _eventProducerPool = new EventProducerPool(cpProvider, factory,
         coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
         coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
-    Optional.ofNullable(_eventProducerPool.getMetrics()).ifPresent(m -> _metrics.putAll(m));
+    Optional.ofNullable(_eventProducerPool.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
   }
 
   public void start() {
@@ -641,7 +641,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
       _adapter.cleanupDeadInstanceAssignments(currentAssignment);
-      _numRebalances.mark();
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_REBALANCES, 1);
     }
 
     // schedule retry if failure
@@ -682,8 +682,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new IllegalArgumentException(err);
     }
 
-    Optional<Map<String, Metric>> connectorMetrics = Optional.ofNullable(connector.getMetrics());
-    connectorMetrics.ifPresent(m -> _metrics.putAll(m));
+    Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
+    connectorMetrics.ifPresent(m -> _metrics.addAll(m));
 
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
     _connectors.put(connectorName, connectorWrapper);
@@ -727,14 +727,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    _metrics.put(buildMetricName("numRebalances"), _numRebalances);
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    _metrics.add(new BrooklinMeterInfo(buildMetricName(NUM_REBALANCES)));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_ERRORS));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_RETRIES));
 
-    // dynamic metrics for capturing various errors
-    _metrics.put(getDynamicMetricPrefixRegex() + NUM_ERRORS, new Meter());
-    _metrics.put(getDynamicMetricPrefixRegex() + NUM_RETRIES, new Meter());
-
-    return Collections.unmodifiableMap(_metrics);
+    return Collections.unmodifiableList(_metrics);
   }
 
   /**

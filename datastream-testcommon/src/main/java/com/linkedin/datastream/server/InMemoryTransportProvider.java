@@ -11,8 +11,7 @@ import java.util.Properties;
 
 import org.apache.log4j.Logger;
 
-import com.codahale.metrics.Metric;
-
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -20,8 +19,6 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 public class InMemoryTransportProvider implements TransportProvider {
   private static final Logger LOG = Logger.getLogger(InMemoryTransportProvider.class);
-
-  private Map<String, Metric> _metrics = new HashMap<>();
 
   private HashMap<String, Integer> _topics = new HashMap<>();
 
@@ -94,8 +91,8 @@ public class InMemoryTransportProvider implements TransportProvider {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    return _metrics;
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    return null;
   }
 
   public long getTotalEventsReceived(String connectionString) {

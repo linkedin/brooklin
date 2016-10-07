@@ -2,21 +2,23 @@ package com.linkedin.datastream.server.dms;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
@@ -39,16 +41,22 @@ public class BootstrapActionResources {
   private final DatastreamServer _datastreamServer;
   private final ErrorLogger _errorLogger;
 
-  private static final Meter CREATE_CALL = new Meter();
-  private static final Meter CALL_ERROR = new Meter();
+  private static final String CREATE_CALL = "createCall";
+  private static final String CALL_ERROR = "callError";
   private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
   private static final Gauge<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
+  private static final String CREATE_CALL_LATENCY_MS_STRING = "createCallLatencyMs";
+
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   public BootstrapActionResources(DatastreamServer datastreamServer) {
     _datastreamServer = datastreamServer;
     _store = datastreamServer.getDatastreamStore();
     _coordinator = datastreamServer.getCoordinator();
     _errorLogger = new ErrorLogger(LOG);
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _dynamicMetricsManager.registerMetric(this.getClass(), CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
   }
 
   /**
@@ -60,7 +68,7 @@ public class BootstrapActionResources {
   public Datastream create(@ActionParam("boostrapDatastream") Datastream bootstrapDatastream) {
     try {
       LOG.info(String.format("Create bootstrap datastream called with datastream %s", bootstrapDatastream));
-      CREATE_CALL.mark();
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CREATE_CALL, 1);
 
       if (!bootstrapDatastream.hasName()) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
@@ -89,10 +97,10 @@ public class BootstrapActionResources {
 
       return bootstrapDatastream;
     } catch (RestLiServiceException e) {
-      CALL_ERROR.mark();
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
       throw e;
     } catch (Exception e) {
-      CALL_ERROR.mark();
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("Failed to initialize bootstrap Datastream %s", bootstrapDatastream), e);
     }
@@ -100,13 +108,13 @@ public class BootstrapActionResources {
     return null;
   }
 
-  public static Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public static List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
 
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCall"), CREATE_CALL);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "callError"), CALL_ERROR);
-    metrics.put(MetricRegistry.name(CLASS_NAME, "createCallLatencyMs"), CREATE_CALL_LATENCY_MS);
+    metrics.add(new BrooklinMeterInfo(MetricRegistry.name(CLASS_NAME, CREATE_CALL)));
+    metrics.add(new BrooklinMeterInfo(MetricRegistry.name(CLASS_NAME, CALL_ERROR)));
+    metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(CLASS_NAME, CREATE_CALL_LATENCY_MS_STRING)));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }

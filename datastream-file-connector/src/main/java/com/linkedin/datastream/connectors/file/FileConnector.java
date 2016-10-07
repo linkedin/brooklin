@@ -2,11 +2,10 @@ package com.linkedin.datastream.connectors.file;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -19,11 +18,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -47,7 +48,9 @@ public class FileConnector implements Connector {
   private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
+  private final DynamicMetricsManager _dynamicMetricsManager;
   private final Gauge<Integer> _numDatastreamTasks;
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
   private int _numTasks = 0;
 
   public FileConnector(Properties config) throws DatastreamException {
@@ -59,6 +62,9 @@ public class FileConnector implements Connector {
 
     // initialize metrics
     _numDatastreamTasks = () -> _numTasks;
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _dynamicMetricsManager.registerMetric(this.getClass(), NUM_DATASTREAM_TASKS, _numDatastreamTasks);
   }
 
   @Override
@@ -141,11 +147,9 @@ public class FileConnector implements Connector {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
-
-    metrics.put(buildMetricName("numDatastreamTasks"), _numDatastreamTasks);
-
-    return Collections.unmodifiableMap(metrics);
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinGaugeInfo(buildMetricName(NUM_DATASTREAM_TASKS)));
+    return Collections.unmodifiableList(metrics);
   }
 }

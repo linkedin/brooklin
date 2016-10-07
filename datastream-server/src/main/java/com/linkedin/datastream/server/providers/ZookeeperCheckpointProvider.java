@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.providers;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -9,11 +10,10 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.ExponentiallyDecayingReservoir;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
-
+import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
@@ -24,15 +24,15 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private final ZkAdapter _zkAdapter;
 
-  private final Meter _numCheckpointCommits;
-  private final Histogram _checkpointCommitLatency;
+  private static final String NUM_CHECKPOINT_COMMITS = "numCheckpointCommits";
+  private static final String CHECKPOINT_COMMIT_LATENCY_MS = "checkpointCommitLatencyMs";
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;
 
     // Initialize metrics
-    _numCheckpointCommits = new Meter();
-    _checkpointCommitLatency = new Histogram(new ExponentiallyDecayingReservoir());
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
   }
 
   /**
@@ -47,8 +47,9 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
     checkpoints.forEach((key, value) -> {
       _zkAdapter.setDatastreamTaskStateForKey(key, CHECKPOINT_KEY_NAME, value);
     });
-    _numCheckpointCommits.mark(checkpoints.size());
-    _checkpointCommitLatency.update(System.currentTimeMillis() - startTime);
+    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_CHECKPOINT_COMMITS, checkpoints.size());
+    _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), CHECKPOINT_COMMIT_LATENCY_MS,
+        System.currentTimeMillis() - startTime);
   }
 
   /**
@@ -74,12 +75,12 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   }
 
   @Override
-  public Map<String, Metric> getMetrics() {
-    Map<String, Metric> metrics = new HashMap<>();
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
 
-    metrics.put(buildMetricName("numCheckpointCommits"), _numCheckpointCommits);
-    metrics.put(buildMetricName("checkpointCommitLatency"), _checkpointCommitLatency);
+    metrics.add(new BrooklinMeterInfo(buildMetricName(NUM_CHECKPOINT_COMMITS)));
+    metrics.add(new BrooklinHistogramInfo(buildMetricName(CHECKPOINT_COMMIT_LATENCY_MS)));
 
-    return Collections.unmodifiableMap(metrics);
+    return Collections.unmodifiableList(metrics);
   }
 }
