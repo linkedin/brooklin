@@ -20,8 +20,8 @@ public class BrooklinGaugeInfo extends BrooklinMetricInfo {
     this(nameOrRegex, Optional.empty());
   }
 
-  public BrooklinGaugeInfo(String nameOrRegex, Optional<List<String>> counterAttributes) {
-    super(nameOrRegex, counterAttributes);
+  public BrooklinGaugeInfo(String nameOrRegex, Optional<List<String>> gaugeAttributes) {
+    super(nameOrRegex, gaugeAttributes);
   }
 
 }
