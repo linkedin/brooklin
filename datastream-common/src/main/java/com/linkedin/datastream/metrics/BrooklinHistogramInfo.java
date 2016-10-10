@@ -32,8 +32,8 @@ public class BrooklinHistogramInfo extends BrooklinMetricInfo {
     this(nameOrRegex, Optional.empty());
   }
 
-  public BrooklinHistogramInfo(String nameOrRegex, Optional<List<String>> counterAttributes) {
-    super(nameOrRegex, counterAttributes);
+  public BrooklinHistogramInfo(String nameOrRegex, Optional<List<String>> histogramAttributes) {
+    super(nameOrRegex, histogramAttributes);
   }
 
 }
