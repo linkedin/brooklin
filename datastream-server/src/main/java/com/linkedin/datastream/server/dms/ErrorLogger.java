@@ -14,13 +14,11 @@ import com.linkedin.restli.server.RestLiServiceException;
  * A random UUID is attached for each instance for more readable log output.
  */
 final class ErrorLogger {
-  private String _id;
   private Logger _logger;
 
   public ErrorLogger(Logger logger) {
     Validate.notNull(logger, "null logger");
     _logger = logger;
-    _id = UUID.randomUUID().toString();
   }
 
   /**
@@ -39,11 +37,12 @@ final class ErrorLogger {
    * @param e inner exception
    */
   public void logAndThrowRestLiServiceException(HttpStatus status, String msg, Exception e) {
+    String id = UUID.randomUUID().toString();
     if (e != null) {
-      _logger.error(String.format("[%s] %s", _id, msg), e);
+      _logger.error(String.format("[%s] %s", id, msg), e);
       throw new RestLiServiceException(status, msg + " cause=" + e.getMessage());
     } else {
-      _logger.error(String.format("[%s] %s", _id, msg));
+      _logger.error(String.format("[%s] %s", id, msg));
       throw new RestLiServiceException(status, msg);
     }
   }
@@ -66,11 +65,12 @@ final class ErrorLogger {
    * @return CreateResponse object
    */
   public CreateResponse logAndGetResponse(HttpStatus status, String msg, Exception e) {
+    String id = UUID.randomUUID().toString();
     if (e != null) {
-      _logger.error(String.format("[%s] %s", _id, msg), e);
+      _logger.error(String.format("[%s] %s", id, msg), e);
       return new CreateResponse(new RestLiServiceException(status, msg + " cause=" + e.getMessage()));
     } else {
-      _logger.error(String.format("[%s] %s", _id, msg));
+      _logger.error(String.format("[%s] %s", id, msg));
       return new CreateResponse(new RestLiServiceException(status, msg));
     }
   }

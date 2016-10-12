@@ -56,6 +56,17 @@ public class DatastreamRestClient {
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
+  private Datastream doGetDatastream(String datastreamName) throws RemoteInvocationException {
+    GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
+    ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
+    return datastreamResponseFuture.getResponse().getEntity();
+  }
+
+  private static boolean isNotFoundHttpStatus(RemoteInvocationException e) {
+    return (e instanceof RestLiResponseException
+        && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode());
+  }
+
   /**
    * Get the complete datastream object corresponding to the datastream name. This method makes a GET rest call
    * to the Datastream management service which in turn fetches this Datastream object from the store (zookeeper).
@@ -69,19 +80,16 @@ public class DatastreamRestClient {
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    */
   public Datastream getDatastream(String datastreamName) {
-    GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
-    ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
     try {
-      return datastreamResponseFuture.getResponse().getEntity();
+      return doGetDatastream(datastreamName);
     } catch (RemoteInvocationException e) {
-      if (e instanceof RestLiResponseException
-          && ((RestLiResponseException) e).getStatus() == HttpStatus.S_404_NOT_FOUND.getCode()) {
+      if (isNotFoundHttpStatus(e)) {
         LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
         throw new DatastreamNotFoundException(datastreamName, e);
       } else {
         String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
-        LOG.error(errorMessage, e);
-        throw new DatastreamRuntimeException(errorMessage, e);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        return null;
       }
     }
   }
@@ -232,6 +240,26 @@ public class DatastreamRestClient {
       String errorMessage = String.format("Delete Datastream {%s} failed with error.", datastreamName);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
+  }
+
+  /**
+   * Check whether the specified datastream exists in the current Datastream cluster.
+   * @param datastreamName name of the datastream to be checked
+   * @return whether such datastream exists
+   */
+  public boolean datastreamExists(String datastreamName) {
+    try {
+      doGetDatastream(datastreamName);
+      return true;
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.debug(String.format("Datastream {%s} is not found", datastreamName));
+      } else {
+        String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+    return false;
   }
 
   /**
