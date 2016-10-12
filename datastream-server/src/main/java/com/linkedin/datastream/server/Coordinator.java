@@ -603,6 +603,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
     Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
 
+    // In case of the deletion of the last data stream for a connector type, the actual deletion of
+    // the data stream object from ZK has already happened before we reach here; we need to add
+    // an empty entry (map) for connector type to streams mapping, so that existing assignments
+    // get cleaned up properly
+    currentAssignment.values()
+        .stream()
+        .flatMap(taskSet -> taskSet.stream())
+        .map(task -> task.getDatastreams())
+        .flatMap(dsList -> dsList.stream())
+        .map(ds -> ds.getConnectorName())
+        .collect(Collectors.toSet())
+        .forEach(connType -> {
+          if (!streamsByConnectorType.containsKey(connType)) {
+            streamsByConnectorType.put(connType, new HashMap<>());
+          }
+        });
+
     _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
 
     for (String connectorType : streamsByConnectorType.keySet()) {
