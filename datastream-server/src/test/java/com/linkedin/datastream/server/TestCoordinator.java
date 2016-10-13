@@ -44,6 +44,7 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.UpdateResponse;
 
 
 public class TestCoordinator {
@@ -1260,18 +1261,19 @@ public class TestCoordinator {
   }
 
   /**
-   * Test create datastream scenario with the actual DSM.
+   * Test create and delete datastream scenario with the actual DSM.
    *
    * The expected outcome includes:
    *
    * 1) a new datastream is created by DSM and can be queried by name afterwards
    * 2) the datastream has valid destination (populated by DestinationManager)
    * 3) connector is assigned the task for the datastream
+   * 4) the data stream is deleted with proper clean-up
    *
    * @throws Exception
    */
   @Test
-  public void testCreateDatastreamHappyPath() throws Exception {
+  public void testCreateAndDeleteDatastreamHappyPath() throws Exception {
     TestSetup setup = createTestCoordinator();
 
     // Check retention when it's specific in topicConfig
@@ -1281,13 +1283,18 @@ public class TestCoordinator {
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     stream.getMetadata()
         .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
-    CreateResponse response = setup._resource.create(stream);
-    Assert.assertNull(response.getError());
-    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    CreateResponse createResponse = setup._resource.create(stream);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
     validateRetention(stream, setup._resource, myRetention);
+
+    // Delete the data stream and verify proper cleanup
+    UpdateResponse deleteResponse = setup._resource.delete(stream.getName());
+    Assert.assertEquals(deleteResponse.getStatus(), HttpStatus.S_200_OK);
+    assertConnectorAssignment(setup._connector, 30000);
   }
 
   @Test
@@ -1308,6 +1315,7 @@ public class TestCoordinator {
 
     setup._datastreamKafkaCluster.shutdown();
   }
+
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
