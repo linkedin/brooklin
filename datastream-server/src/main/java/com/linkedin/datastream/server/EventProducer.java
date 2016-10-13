@@ -25,15 +25,15 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.SendFailedException;
@@ -113,7 +113,7 @@ public class EventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private final int _availabilityThresholdSlaMs;
 
-  // EventProcuer is torn down and recreated when there is an send error.
+  // EventProducer is torn down and recreated when there is an send error.
   // As the producer -> task assignment is not atomic among all the tasks
   // sharing the producer, one task might still be using the bad producer.
   // This generation field help us tell whether a failed producer operation
@@ -134,7 +134,7 @@ public class EventProducer {
       _executor.scheduleAtFixedRate(this, 0, _periodMs, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdown() {
+    public void shutdown(boolean flushAndCheckpoint) {
       _logger.info("Shutting down checkpoint handler, tasks = " + getTaskString());
 
       try {
@@ -145,8 +145,12 @@ public class EventProducer {
         _executor.shutdownNow();
       }
 
-      // Final checkpointing
-      doCheckpoint();
+      if (flushAndCheckpoint) {
+        // Final checkpointing
+        doCheckpoint();
+      } else {
+        _logger.info("Closing the checkpoint handler without flushing and checkpointing");
+      }
 
       _logger.info("Checkpoint handler is shut down.");
     }
@@ -339,7 +343,8 @@ public class EventProducer {
       // Report availability metrics
       _sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsTimestamp();
       if (_sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, numberOfEvents);
+        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA,
+            numberOfEvents);
       } else {
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
             numberOfEvents);
@@ -392,7 +397,7 @@ public class EventProducer {
 
     // Shutdown the producer right away
     if (exception != null) {
-      shutdown();
+      shutdown(false);
     }
   }
 
@@ -473,11 +478,15 @@ public class EventProducer {
     }
   }
 
+  public void shutdown() {
+    shutdown(true);
+  }
+
   /**
    * Shutdown should only be called when all tasks associated with it are out of mission.
    * It is the responsibility of the {@link EventProducerPool} to ensure this.
    */
-  public void shutdown() {
+  public void shutdown(boolean flushAndCheckpoint) {
     if (_shutdownCompleted) {
       return;
     }
@@ -485,7 +494,7 @@ public class EventProducer {
     _logger.info("Shutting down event producer for " + getTaskString());
 
     _shutdownRequested = true;
-    _checkpointHandler.shutdown();
+    _checkpointHandler.shutdown(flushAndCheckpoint);
 
     try {
       _transportProvider.close();
