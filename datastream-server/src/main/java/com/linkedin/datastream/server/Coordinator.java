@@ -29,19 +29,18 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
@@ -607,18 +606,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // the data stream object from ZK has already happened before we reach here; we need to add
     // an empty entry (map) for connector type to streams mapping, so that existing assignments
     // get cleaned up properly
-    currentAssignment.values()
-        .stream()
-        .flatMap(taskSet -> taskSet.stream())
-        .map(task -> task.getDatastreams())
-        .flatMap(dsList -> dsList.stream())
-        .map(ds -> ds.getConnectorName())
-        .collect(Collectors.toSet())
-        .forEach(connType -> {
-          if (!streamsByConnectorType.containsKey(connType)) {
-            streamsByConnectorType.put(connType, new HashMap<>());
-          }
-        });
+    _connectors.values().forEach(connector -> {
+      String connType = connector.getConnectorType();
+      if (!streamsByConnectorType.containsKey(connType)) {
+        streamsByConnectorType.put(connType, new HashMap<>());
+      }
+    });
 
     _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
 
