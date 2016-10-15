@@ -250,27 +250,6 @@ public class TestDatastreamRestClient {
     restClient.getDatastream(datastream.getName());
   }
 
-  @Test
-  public void testCreateBootstrapDatastream() throws Exception {
-    Datastream bootstrapDatastream = generateDatastream(3);
-    LOG.info("Bootstrap datastream : " + bootstrapDatastream);
-    DatastreamRestClient restClient = createRestClient();
-    restClient.createBootstrapDatastream(bootstrapDatastream);
-    Datastream createdDatastream = restClient.getDatastream(bootstrapDatastream.getName());
-    LOG.info("Created Datastream : " + createdDatastream);
-    Assert.assertEquals(bootstrapDatastream.getName(), createdDatastream.getName());
-    Assert.assertEquals(bootstrapDatastream.getConnectorName(), createdDatastream.getConnectorName());
-  }
-
-  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
-  public void testCreateBootstrapDatastreamThatAlreadyExists() {
-    Datastream bootstrapDatastream = generateDatastream(4);
-    LOG.info("Bootstrap datastream : " + bootstrapDatastream);
-    DatastreamRestClient restClient = createRestClient();
-    restClient.createBootstrapDatastream(bootstrapDatastream);
-    restClient.createBootstrapDatastream(bootstrapDatastream);
-  }
-
   @Test(expectedExceptions = DatastreamNotFoundException.class)
   public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws Exception {
     DatastreamRestClient restClient = createRestClient();
