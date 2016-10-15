@@ -37,7 +37,6 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
-import com.linkedin.datastream.server.dms.BootstrapActionResources;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
@@ -205,7 +204,6 @@ public class DatastreamServer {
     METRIC_INFOS.addAll(ThreadTerminationMonitor.getMetricInfos());
     METRIC_INFOS.addAll(_coordinator.getMetricInfos());
     METRIC_INFOS.addAll(DatastreamResources.getMetricInfos());
-    METRIC_INFOS.addAll(BootstrapActionResources.getMetricInfos());
 
     _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
 
