@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -24,6 +25,7 @@ import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.RestLiServiceException;
 
 
 /**
@@ -99,8 +101,21 @@ public class TestDatastreamResources {
     Assert.assertEquals(ds, datastreamToCreate);
   }
 
+  private <T> void checkBadRequest(Callable<T> verif) throws Exception {
+    checkBadRequest(verif, HttpStatus.S_400_BAD_REQUEST);
+  }
+
+  private <T> void checkBadRequest(Callable<T> verif, HttpStatus status) throws Exception {
+    try {
+      verif.call();
+      Assert.fail();
+    } catch (RestLiServiceException e) {
+      Assert.assertEquals(e.getStatus(), status);
+    }
+  }
+
   @Test
-  public void testCreateDatastream() {
+  public void testCreateDatastream() throws Exception {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     Set<String> missingFields = new HashSet<>();
 
@@ -120,59 +135,37 @@ public class TestDatastreamResources {
     missingFields.clear();
     missingFields.add("name");
     Datastream noName = generateDatastream(3, missingFields);
-    response = resource.create(noName);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(noName));
 
     missingFields.clear();
     missingFields.add("connectorType");
     Datastream noConnectorType = generateDatastream(4, missingFields);
-    response = resource.create(noConnectorType);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(noConnectorType));
 
     missingFields.clear();
     missingFields.add("source");
     Datastream noSource = generateDatastream(5, missingFields);
-    response = resource.create(noSource);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(noSource));
 
     missingFields.clear();
     missingFields.add("metadata");
     Datastream noMetadata = generateDatastream(6, missingFields);
-    response = resource.create(noMetadata);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(noMetadata));
 
-    missingFields.clear();
-    Datastream noOwner = generateDatastream(6, missingFields);
+    Datastream noOwner = generateDatastream(6);
     noOwner.getMetadata().remove("owner");
-    response = resource.create(noOwner);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(noOwner));
+
+    Datastream badConnector = generateDatastream(6);
+    badConnector.setConnectorName("BadConnector");
+    checkBadRequest(() -> resource.create(badConnector));
+
+    Datastream badSource = generateDatastream(6);
+    badSource.getSource().setConnectionString("BadSource");
+    checkBadRequest(() -> resource.create(badSource));
 
     // creating existing Datastream
-    response = resource.create(allRequiredFields);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_409_CONFLICT);
-  }
-
-  @Test
-  public void testCreateInvalidDatastream() {
-    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
-    Datastream datastream1 = generateDatastream(6);
-    datastream1.setConnectorName("InvalidConnectorName");
-    CreateResponse response = resource.create(datastream1);
-    Assert.assertNotNull(response.getError());
-    Assert.assertEquals(response.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
-
-    Datastream datastream2 = generateDatastream(7);
-    datastream2.setSource(new DatastreamSource());
-    datastream2.getSource().setConnectionString("InvalidSource");
-    CreateResponse response2 = resource.create(datastream1);
-    Assert.assertNotNull(response2.getError());
-    Assert.assertEquals(response2.getError().getStatus(), HttpStatus.S_400_BAD_REQUEST);
+    checkBadRequest(() -> resource.create(allRequiredFields), HttpStatus.S_409_CONFLICT);
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {

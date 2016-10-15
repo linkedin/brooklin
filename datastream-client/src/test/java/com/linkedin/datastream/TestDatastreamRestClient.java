@@ -1,6 +1,5 @@
 package com.linkedin.datastream;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,7 +37,7 @@ import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DummyTransportProviderFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-import com.linkedin.r2.RemoteInvocationException;
+import com.linkedin.restli.client.RestLiResponseException;
 
 
 @Test(singleThreaded = true)
@@ -113,8 +112,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateTwoDatastreams()
-      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+  public void testCreateTwoDatastreams() throws Exception {
     Datastream datastream = generateDatastream(6);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = createRestClient();
@@ -142,8 +140,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateDatastreamToNonLeader()
-      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+  public void testCreateDatastreamToNonLeader() throws Exception {
     int httpPort = NetworkUtils.getAvailablePort();
     setupDatastreamServer(httpPort);
     Datastream datastream = generateDatastream(5);
@@ -160,8 +157,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
-  public void testCreateDatastreamThatAlreadyExists()
-      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+  public void testCreateDatastreamThatAlreadyExists() throws Exception {
     Datastream datastream = generateDatastream(1);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = createRestClient();
@@ -170,8 +166,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testWaitTillDatastreamIsInitializedReturnsInitializedDatastream()
-      throws DatastreamException, InterruptedException {
+  public void testWaitTillDatastreamIsInitializedReturnsInitializedDatastream() throws Exception {
     Datastream datastream = generateDatastream(11);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = createRestClient();
@@ -202,8 +197,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testGetAllDatastreams()
-      throws DatastreamException, IOException, RemoteInvocationException, InterruptedException {
+  public void testGetAllDatastreams() throws Exception {
     List<Datastream> datastreams =
         IntStream.range(100, 110).mapToObj(TestDatastreamRestClient::generateDatastream).collect(Collectors.toList());
     LOG.info("Datastreams : " + datastreams);
@@ -247,7 +241,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testDeleteDatastream() throws DatastreamException {
+  public void testDeleteDatastream() throws Exception {
     Datastream datastream = generateDatastream(2);
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = createRestClient();
@@ -257,7 +251,7 @@ public class TestDatastreamRestClient {
   }
 
   @Test
-  public void testCreateBootstrapDatastream() throws IOException, DatastreamException, RemoteInvocationException {
+  public void testCreateBootstrapDatastream() throws Exception {
     Datastream bootstrapDatastream = generateDatastream(3);
     LOG.info("Bootstrap datastream : " + bootstrapDatastream);
     DatastreamRestClient restClient = createRestClient();
@@ -270,7 +264,6 @@ public class TestDatastreamRestClient {
 
   @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
   public void testCreateBootstrapDatastreamThatAlreadyExists() {
-
     Datastream bootstrapDatastream = generateDatastream(4);
     LOG.info("Bootstrap datastream : " + bootstrapDatastream);
     DatastreamRestClient restClient = createRestClient();
@@ -279,15 +272,13 @@ public class TestDatastreamRestClient {
   }
 
   @Test(expectedExceptions = DatastreamNotFoundException.class)
-  public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testGetDatastreamThrowsDatastreamNotFoundExceptionWhenDatastreamIsNotfound() throws Exception {
     DatastreamRestClient restClient = createRestClient();
     restClient.getDatastream("Datastream_doesntexist");
   }
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
-  public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream()
-      throws IOException, DatastreamException, RemoteInvocationException {
+  public void testCreateDatastreamThrowsDatastreamExceptionOnBadDatastream() throws Exception {
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(new Datastream());
   }
@@ -300,5 +291,16 @@ public class TestDatastreamRestClient {
     Assert.assertNotNull(restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS));
     Assert.assertTrue(restClient.datastreamExists(datastream.getName()));
     Assert.assertFalse(restClient.datastreamExists("No Such Datastream"));
+  }
+
+  @Test
+  public void testBadCreateThrowsWithServerErrorRetained() throws Exception {
+    try {
+      DatastreamRestClient restClient = createRestClient();
+      restClient.createDatastream(new Datastream());
+    } catch (DatastreamRuntimeException e) {
+      RestLiResponseException re = (RestLiResponseException) e.getCause();
+      Assert.assertNotNull(re.getServiceErrorMessage());
+    }
   }
 }

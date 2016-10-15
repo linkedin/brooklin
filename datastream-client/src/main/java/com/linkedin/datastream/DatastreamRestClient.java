@@ -182,7 +182,7 @@ public class DatastreamRestClient {
         LOG.warn(msg, e);
         throw new DatastreamAlreadyExistsException(msg);
       } else {
-        String errorMessage = String.format("Create Datastream {%s} failed with error.", datastream);
+        String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
       }
     }
@@ -214,7 +214,7 @@ public class DatastreamRestClient {
         LOG.warn(msg, e);
         throw new DatastreamAlreadyExistsException(msg);
       } else {
-        String errorMessage = String.format("Create Bootstrap Datastream {%s} failed with error.", bootstrapDatastream);
+        String errorMessage = String.format("Create Bootstrap Datastream %s failed with error.", bootstrapDatastream);
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
       }
     }
@@ -237,7 +237,7 @@ public class DatastreamRestClient {
     try {
       response.getResponse();
     } catch (RemoteInvocationException e) {
-      String errorMessage = String.format("Delete Datastream {%s} failed with error.", datastreamName);
+      String errorMessage = String.format("Delete Datastream %s failed with error.", datastreamName);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
   }
@@ -253,9 +253,9 @@ public class DatastreamRestClient {
       return true;
     } catch (RemoteInvocationException e) {
       if (isNotFoundHttpStatus(e)) {
-        LOG.debug(String.format("Datastream {%s} is not found", datastreamName));
+        LOG.debug(String.format("Datastream %s is not found", datastreamName));
       } else {
-        String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
+        String errorMessage = String.format("Get Datastream %s failed with error.", datastreamName);
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
       }
     }

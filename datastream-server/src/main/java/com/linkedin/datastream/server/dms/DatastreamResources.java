@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
-import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -71,31 +71,37 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _errorLogger = new ErrorLogger(LOG);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerMetric(this.getClass(), CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
+    _dynamicMetricsManager.registerMetric(getClass(), CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
+    _dynamicMetricsManager.registerMetric(getClass(), DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
   }
 
   @Override
   public UpdateResponse update(String key, Datastream datastream) {
-    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), UPDATE_CALL, 1);
+    _dynamicMetricsManager.createOrUpdateMeter(getClass(), UPDATE_CALL, 1);
     // TODO: behavior of updating a datastream is not fully defined yet; block this method for now
     return new UpdateResponse(HttpStatus.S_405_METHOD_NOT_ALLOWED);
   }
 
   @Override
-  public UpdateResponse delete(String key) {
-    try {
-      LOG.info("Delete datastream called for datastream " + key);
+  public UpdateResponse delete(String datastreamName) {
+    if (null == _store.getDatastream(datastreamName)) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream requested to be deleted does not exist: " + datastreamName);
+    }
 
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), DELETE_CALL, 1);
+    try {
+      LOG.info("Delete datastream called for datastream " + datastreamName);
+
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), DELETE_CALL, 1);
       Instant startTime = Instant.now();
-      _store.deleteDatastream(key);
+      _store.deleteDatastream(datastreamName);
       _deleteCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
 
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-        "delete datastream failed for datastream: " + key, e);
+        "Delete failed for datastream: " + datastreamName, e);
     }
 
     return null;
@@ -106,10 +112,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public Datastream get(String name) {
     try {
       LOG.info(String.format("Get datastream called for datastream %s", name));
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), GET_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), GET_CALL, 1);
       return _store.getDatastream(name);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
         "Get datastream failed for datastream: " + name, e);
     }
@@ -122,7 +128,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
     try {
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), GET_ALL_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), GET_ALL_CALL, 1);
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
         .filter(stream -> stream != null).collect(Collectors.toList());
       if (LOG.isDebugEnabled()) {
@@ -130,7 +136,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
       return ret;
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger
         .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
     }
@@ -143,33 +149,19 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info(String.format("Create datastream called with datastream %s", datastream));
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Handling request on object: " + this.toString() + " thread: " + Thread.currentThread());
+        LOG.debug("Handling request on object: " + toString() + " thread: " + Thread.currentThread());
       }
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CREATE_CALL, 1);
+
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CREATE_CALL, 1);
 
       // rest.li has done this mandatory field check in the latest version.
       // Just in case we roll back to an earlier version, let's do the validation here anyway
-      if (!datastream.hasName()) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify name of Datastream!");
-      }
-      if (!datastream.hasConnectorName()) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify connectorType!");
-      }
-      if (!datastream.hasSource()) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify source of Datastream!");
-      }
-
-      if (!datastream.hasMetadata()) {
-        datastream.setMetadata(new StringMap());
-      }
-
-      if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY)) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Must specify owner of Datastream!");
-      }
+      Validate.isTrue(datastream.hasName(), "Must specify name of Datastream!");
+      Validate.isTrue(datastream.hasConnectorName(), "Must specify connectorType!");
+      Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
+      Validate.isTrue(datastream.hasMetadata()
+          && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
+          "Must specify owner of Datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
         datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
@@ -177,35 +169,39 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       Instant startTime = Instant.now();
 
-      LOG.debug("Done with preliminary check on the datastream. About to initialize it.");
-      try {
-        _coordinator.initializeDatastream(datastream);
-      } catch (DatastreamValidationException e) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger.logAndGetResponse(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ", e);
-      }
+      LOG.debug("Sanity check is finished, initializing datastream");
 
-      LOG.debug("Successully initialize datastream to: " + datastream);
-      LOG.debug("Persist the datastream to zookeeper.");
-      try {
-        _store.createDatastream(datastream.getName(), datastream);
-      } catch (DatastreamAlreadyExistsException e) {
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-        return _errorLogger
-          .logAndGetResponse(HttpStatus.S_409_CONFLICT, "Failed to create datastream: " + datastream, e);
-      }
+      _coordinator.initializeDatastream(datastream);
+
+      LOG.debug("Persisting initialized datastream to zookeeper: " + datastream);
+
+      _store.createDatastream(datastream.getName(), datastream);
 
       Duration delta = Duration.between(startTime, Instant.now());
       _createCallLatencyMs.set(delta.toMillis());
 
-      LOG.debug(
-        "Datastream persisted to zookeeper. Time taken for initialization and persistence: " + delta.toMillis() + "ms");
+      LOG.debug(String.format("Datastream persisted to zookeeper, total time used: %dms", delta.toMillis()));
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
+    } catch (IllegalArgumentException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Invalid input params for create request", e);
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to initialize Datastream: ", e);
+    } catch (DatastreamAlreadyExistsException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
+          "Datastream with the same name already exists: " + datastream, e);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), CALL_ERROR, 1);
-      return _errorLogger
-        .logAndGetResponse(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Failed to create datastream: " + datastream, e);
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Unexpected error during datastream creation: " + datastream, e);
     }
+
+    // Should never get here because we throw on any errors
+    return null;
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos() {
