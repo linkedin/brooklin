@@ -25,7 +25,7 @@ public class DatastreamProducerRecordBuilder {
   private String _sourceCheckpoint = "";
 
   private List<Pair<Object, Object>> _events = new ArrayList<>();
-  private long _eventsTimestamp;
+  private long _eventsSourceTimestamp;
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. if the partition is not set, TransportProvider
@@ -71,8 +71,8 @@ public class DatastreamProducerRecordBuilder {
     _events.add(new Pair<>(Base64.getEncoder().encodeToString(datastreamEvent.key.array()), datastreamEvent));
   }
 
-  public void setEventsTimestamp(long eventsTimestamp) {
-    _eventsTimestamp = eventsTimestamp;
+  public void setEventsSourceTimestamp(long eventsSourceTimestamp) {
+    _eventsSourceTimestamp = eventsSourceTimestamp;
   }
 
   /**
@@ -81,6 +81,6 @@ public class DatastreamProducerRecordBuilder {
    *   DatastreamProducerRecord that is created.
    */
   public DatastreamProducerRecord build() {
-    return new DatastreamProducerRecord(_events, _partition, _sourceCheckpoint, _eventsTimestamp);
+    return new DatastreamProducerRecord(_events, _partition, _sourceCheckpoint, _eventsSourceTimestamp);
   }
 }

@@ -172,7 +172,7 @@ public class TestEventProducingConnector implements Connector {
     builder.addEvent(event);
     builder.setPartition(partition);
     builder.setSourceCheckpoint(String.valueOf(eventIndex));
-    builder.setEventsTimestamp(System.currentTimeMillis());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
     return builder.build();
   }
 

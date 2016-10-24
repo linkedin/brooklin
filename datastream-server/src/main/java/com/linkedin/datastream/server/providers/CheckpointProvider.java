@@ -19,8 +19,8 @@ public interface CheckpointProvider extends MetricsAware {
   void commit(Map<DatastreamTask, String> checkpoints);
 
   /**
-   * Read the commited checkpoints from the checkpoint store
-   * @param datastreamTasks List of datastream tasks whose checkpoint needs to be read
+   * Read the committed checkpoints from the checkpoint store
+   * @param datastreamTasks List of datastream tasks whose checkpoints need to be read
    * @return Map of the checkpoints associated with the datastream task.
    */
   Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks);

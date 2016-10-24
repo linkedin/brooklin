@@ -9,8 +9,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 /**
  *  Connector interface defines a small set of methods that Coordinator communicates with.
- *  When the Coordinator starts, it will start all connectors it manages by calling the <i>start</i> method. When the Coordinator is
- *  shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
+ *  When the Coordinator starts, it will start all connectors it manages by calling the <i>start</i> method. When the
+ *  Coordinator is shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
 public interface Connector extends MetricsAware {
 
@@ -26,9 +26,8 @@ public interface Connector extends MetricsAware {
   void stop();
 
   /**
-   * callback when the datastreams assignment to this instance is changed. This is called whenever
-   * there is a change for the assignment. The implementation of the Connector is responsible
-   * to keep a state of the previous assignment.
+   * Callback when the datastreams assignment to this instance is changed. The implementation of the Connector is
+   * responsible to keep a state of the previous assignment.
    *
    * @param tasks the list of the current assignment.
    */
