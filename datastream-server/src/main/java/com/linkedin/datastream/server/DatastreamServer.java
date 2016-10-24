@@ -37,7 +37,6 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
-import com.linkedin.datastream.server.dms.BootstrapActionResources;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
@@ -49,6 +48,7 @@ import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
  * for all datastream services including the rest api service, the coordinator and so on.
  */
 public class DatastreamServer {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class);
 
   public static final String CONFIG_PREFIX = "brooklin.server.";
   public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
@@ -61,23 +61,23 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
-  public static final String STRATEGY_DOMAIN = "strategy";
-
-  private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class.getName());
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
+  public static final String STRATEGY_DOMAIN = "strategy";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
   private DatastreamNettyStandaloneLauncher _nettyLauncher;
-  private boolean _isInitialized = false;
-  private boolean _isStarted = false;
-  private String _csvMetricsDir;
+  private JmxReporter _jmxReporter;
 
-  private Map<String, String> _bootstrapConnectors;
+  private final String _csvMetricsDir;
+  private final int _httpPort;
+  private final Map<String, String> _bootstrapConnectors;
 
   private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
   private static final List<BrooklinMetricInfo> METRIC_INFOS = new ArrayList<>();
-  private JmxReporter _jmxReporter;
+
+  private boolean _isInitialized = false;
+  private boolean _isStarted = false;
 
   static {
     // Instantiate a dynamic metrics manager singleton object so that other components can emit metrics on the fly
@@ -102,6 +102,10 @@ public class DatastreamServer {
 
   public DatastreamStore getDatastreamStore() {
     return _datastreamStore;
+  }
+
+  public int getHttpPort() {
+    return _httpPort;
   }
 
   private void initializeConnector(String connectorName, Properties connectorProperties) {
@@ -153,10 +157,6 @@ public class DatastreamServer {
   }
 
   public DatastreamServer(Properties properties) throws DatastreamException {
-    if (isInitialized()) {
-      LOG.warn("Attempt to initialize DatastreamServer while it is already initialized.");
-      return;
-    }
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
@@ -184,9 +184,9 @@ public class DatastreamServer {
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
-    int httpPort =
+    _httpPort =
         verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new DatastreamNettyStandaloneLauncher(httpPort, new DatastreamResourceFactory(this),
+    _nettyLauncher = new DatastreamNettyStandaloneLauncher(_httpPort, new DatastreamResourceFactory(this),
         "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
 
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
@@ -204,7 +204,6 @@ public class DatastreamServer {
     METRIC_INFOS.addAll(ThreadTerminationMonitor.getMetricInfos());
     METRIC_INFOS.addAll(_coordinator.getMetricInfos());
     METRIC_INFOS.addAll(DatastreamResources.getMetricInfos());
-    METRIC_INFOS.addAll(BootstrapActionResources.getMetricInfos());
 
     _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
 
