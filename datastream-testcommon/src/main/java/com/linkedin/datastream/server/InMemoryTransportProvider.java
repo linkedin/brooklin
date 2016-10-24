@@ -2,12 +2,11 @@ package com.linkedin.datastream.server;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -23,7 +22,7 @@ public class InMemoryTransportProvider implements TransportProvider {
   private HashMap<String, Integer> _topics = new HashMap<>();
 
   // Map of destination connection string to the list of events.
-  private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new HashMap<>();
+  private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new ConcurrentHashMap<>();
 
   @Override
   public synchronized void createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
@@ -96,11 +95,14 @@ public class InMemoryTransportProvider implements TransportProvider {
   }
 
   public long getTotalEventsReceived(String connectionString) {
-    long totalEventsReceived = _recordsReceived.getOrDefault(connectionString, Collections.emptyList())
+    if (!_recordsReceived.containsKey(connectionString)) {
+      return 0L;
+    }
+
+    long totalEventsReceived = _recordsReceived.get(connectionString)
         .stream()
-        .map(DatastreamProducerRecord::getEvents)
-        .flatMap(Collection::stream)
-        .count();
+        .mapToInt(r -> r.getEvents().size())
+        .sum();
     LOG.info(
         String.format("Total events received for the destination %s is %d", connectionString, totalEventsReceived));
     return totalEventsReceived;
