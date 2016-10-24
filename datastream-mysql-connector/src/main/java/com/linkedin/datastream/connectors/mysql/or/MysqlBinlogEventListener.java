@@ -319,7 +319,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
           .map(metadata -> metadata.get(DatastreamEventMetadata.EVENT_TIMESTAMP))
           .map(metaVal -> Long.valueOf(metaVal.toString()));
       if (eventTimestamp.isPresent()) {
-        builder.setEventsTimestamp(eventTimestamp.get());
+        builder.setEventsSourceTimestamp(eventTimestamp.get());
       } else {
         String errorMsg = "Datastream event " + _eventsInTransaction.get(0).toString() + " was missing event timestamp metadata.";
         LOG.error(errorMsg);
