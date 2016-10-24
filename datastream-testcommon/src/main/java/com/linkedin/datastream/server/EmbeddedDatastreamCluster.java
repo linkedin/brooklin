@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.NetworkUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.kafka.KafkaCluster;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
@@ -22,8 +23,8 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 public class EmbeddedDatastreamCluster {
   private static final Logger LOG = Logger.getLogger(EmbeddedDatastreamCluster.class);
   private static final String KAFKA_TRANSPORT_FACTORY = "com.linkedin.datastream.kafka.KafkaTransportProviderFactory";
+  private static final long SERVER_INIT_TIMEOUT_MS = 60000; // 1 minute
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
-
   public static final String BOOTSTRAP_SERVERS_CONFIG = "bootstrap.servers";
 
   // the zookeeper ports that are currently taken
@@ -216,6 +217,9 @@ public class EmbeddedDatastreamCluster {
     for (int i = 0; i < numServers; i++) {
       startupServer(i);
     }
+
+    // Make sure all servers have started fully
+    _servers.stream().forEach(s -> PollUtils.poll(() -> s.isInitialized(), 1000, SERVER_INIT_TIMEOUT_MS));
   }
 
   public void shutdownServer(int index) {
