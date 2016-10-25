@@ -37,18 +37,20 @@ import com.linkedin.restli.common.IdResponse;
  * Datastream REST Client
  */
 public class DatastreamRestClient {
-
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
-  private final HttpClientFactory _httpClient;
 
   public DatastreamRestClient(String dsmUri) {
+    this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(
+        Collections.<String, String>emptyMap())));
+  }
+
+  public DatastreamRestClient(String dsmUri, Client r2Client) {
     Validate.notEmpty(dsmUri, "invalid DSM URI");
+    Validate.notNull(r2Client, "null R2 client");
     dsmUri = StringUtils.appendIfMissing(dsmUri, "/");
     _builders = new DatastreamRequestBuilders();
-    _httpClient = new HttpClientFactory();
-    final Client r2Client = new TransportClientAdapter(_httpClient.getClient(Collections.<String, String>emptyMap()));
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
@@ -229,6 +231,5 @@ public class DatastreamRestClient {
    */
   public void shutdown() {
     _restClient.shutdown(new FutureCallback<>());
-    _httpClient.shutdown(new FutureCallback<>());
   }
 }
