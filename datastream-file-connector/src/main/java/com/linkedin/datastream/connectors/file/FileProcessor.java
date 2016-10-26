@@ -90,7 +90,7 @@ class FileProcessor implements Runnable {
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
           builder.addEvent(event);
-          builder.setEventsTimestamp(currentTimeMillis);
+          builder.setEventsSourceTimestamp(currentTimeMillis);
           // If the destination is user managed, we will use the key to decide the partition.
           if (!_task.isUserManagedDestination()) {
             builder.setPartition(0);

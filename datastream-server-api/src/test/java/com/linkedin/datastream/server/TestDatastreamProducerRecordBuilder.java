@@ -24,7 +24,7 @@ public class TestDatastreamProducerRecordBuilder {
     builder.addEvent(event1);
     builder.addEvent(event2);
     builder.setPartition(partition);
-    builder.setEventsTimestamp(timestamp);
+    builder.setEventsSourceTimestamp(timestamp);
     builder.setSourceCheckpoint(sourceCheckpoint);
 
     DatastreamProducerRecord record = builder.build();
@@ -33,7 +33,7 @@ public class TestDatastreamProducerRecordBuilder {
     Assert.assertEquals(record.getEvents().get(1).getValue(), event2);
     Assert.assertEquals(record.getPartition().get().intValue(), partition);
     Assert.assertEquals(record.getCheckpoint(), sourceCheckpoint);
-    Assert.assertEquals(record.getEventsTimestamp(), timestamp);
+    Assert.assertEquals(record.getEventsSourceTimestamp(), timestamp);
   }
 
   private DatastreamEvent createDatastreamEvent() {
@@ -48,7 +48,7 @@ public class TestDatastreamProducerRecordBuilder {
   @Test
   public void testWithoutPartitionWithoutEventsWithoutSourceCheckpoint() {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-    builder.setEventsTimestamp(System.currentTimeMillis());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
 
     DatastreamProducerRecord record = builder.build();
     Assert.assertFalse(record.getPartition().isPresent());
@@ -79,7 +79,7 @@ public class TestDatastreamProducerRecordBuilder {
     byte[] key = "key".getBytes();
     byte[] payload = "payload".getBytes();
     builder.addEvent(key, payload);
-    builder.setEventsTimestamp(System.currentTimeMillis());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
     DatastreamProducerRecord record = builder.build();
 
     Assert.assertEquals(record.getEvents().size(), 1);

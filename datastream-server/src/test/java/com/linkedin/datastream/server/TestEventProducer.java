@@ -81,7 +81,7 @@ public class TestEventProducer {
     builder.addEvent(event);
     builder.setPartition(partition);
     builder.setSourceCheckpoint("new dummy checkpoint " + String.valueOf(_eventSeed));
-    builder.setEventsTimestamp(System.currentTimeMillis());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
     return builder.build();
   }
 
