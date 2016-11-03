@@ -219,7 +219,8 @@ public class EmbeddedDatastreamCluster {
     }
 
     // Make sure all servers have started fully
-    _servers.stream().forEach(s -> PollUtils.poll(() -> s.isInitialized(), 1000, SERVER_INIT_TIMEOUT_MS));
+    _servers.stream().forEach(s -> PollUtils.poll(() -> s.isStarted(), 1000, SERVER_INIT_TIMEOUT_MS));
+
   }
 
   public void shutdownServer(int index) {
