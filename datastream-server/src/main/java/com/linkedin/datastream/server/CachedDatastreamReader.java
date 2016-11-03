@@ -3,8 +3,10 @@ package com.linkedin.datastream.server;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.I0Itec.zkclient.IZkChildListener;
@@ -26,11 +28,10 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
  * Note : This layer assumes that the datastreams are not updated once they are created.
  */
 public class CachedDatastreamReader {
-
-  private static final Logger LOG = LoggerFactory.getLogger(CachedDatastreamReader.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(CachedDatastreamReader.class);
 
   private final String _cluster;
-  private List<String> _datastreamList = Collections.emptyList();
+  private List<String> _datastreamNames = Collections.emptyList();
   private Map<String, Datastream> _datastreams = new HashMap<>();
   private final ZkClient _zkclient;
 
@@ -39,7 +40,7 @@ public class CachedDatastreamReader {
     _cluster = cluster;
 
     // Get the initial datastream list.
-    _datastreamList = fetchAllDatastreamNamesFromZk();
+    _datastreamNames = fetchAllDatastreamNamesFromZk();
 
     String path = KeyBuilder.datastreams(_cluster);
     LOG.info("Subscribing to notification on zk path " + path);
@@ -53,39 +54,37 @@ public class CachedDatastreamReader {
           LOG.debug(
               String.format("Received datastream add or delete notification. parentPath %s, children %s", parentPath,
                   currentChildren));
-          _datastreamList =
-              currentChildren.stream().collect(Collectors.toCollection(() -> new ArrayList<>(currentChildren.size())));
-          List<String> datastreamsRemoved =
-              _datastreams.keySet().stream().filter(x -> !_datastreamList.contains(x)).collect(Collectors.toList());
-
+          _datastreamNames = new ArrayList<>(currentChildren);
+          Set<String> datastreamsRemoved = new HashSet<>(_datastreams.keySet());
+          datastreamsRemoved.removeAll(_datastreamNames);
           if (!datastreamsRemoved.isEmpty()) {
             LOG.info(String.format("Removing the deleted datastreams {%s} from cache", datastreamsRemoved));
-            datastreamsRemoved.stream().forEach(_datastreams::remove);
+            _datastreams.keySet().removeAll(datastreamsRemoved);
           }
 
-          LOG.debug(String.format("New datastream list in the cache: %s", _datastreamList));
+          LOG.debug(String.format("New datastream list in the cache: %s", _datastreamNames));
         }
       }
     });
   }
 
   public synchronized List<String> getAllDatastreamNames() {
-    return Collections.unmodifiableList(_datastreamList);
+    return Collections.unmodifiableList(_datastreamNames);
   }
 
   public synchronized List<Datastream> getAllDatastreams() {
     return getAllDatastreams(false);
   }
 
-  public List<Datastream> getAllDatastreams(boolean flushCache) {
+  public synchronized List<Datastream> getAllDatastreams(boolean flushCache) {
     if (flushCache) {
-      _datastreamList = fetchAllDatastreamNamesFromZk();
+      _datastreamNames = fetchAllDatastreamNamesFromZk();
     }
 
-    return _datastreamList.stream().map(this::getDatastream).collect(Collectors.toList());
+    return _datastreamNames.stream().map(this::getDatastream).collect(Collectors.toList());
   }
 
-  public Datastream getDatastream(String datastreamName) {
+  Datastream getDatastream(String datastreamName) {
     Datastream ds = _datastreams.get(datastreamName);
     if (ds == null) {
       ds = getDatastreamFromZk(datastreamName);
