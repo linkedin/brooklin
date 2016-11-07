@@ -2,7 +2,6 @@ package com.linkedin.datastream.server;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
@@ -14,6 +13,7 @@ import org.codehaus.jackson.annotate.JsonIgnore;
 import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,9 +44,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
 
   private static final String STATUS = "STATUS";
-
-  // Wait at most 60 seconds for acquiring the task
-  private static final Integer ACQUIRE_TIMEOUT_MS = 60000;
 
   // connector type. Type of the connector to be used for reading the change capture events
   // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
@@ -179,15 +176,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   @Override
-  public void acquire() throws DatastreamException {
-    acquire(ACQUIRE_TIMEOUT_MS);
-  }
-
-  public void acquire(int timeout) throws DatastreamException {
+  public void acquire(Duration timeout) {
     Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
     try {
       _zkAdapter.acquireTask(this, timeout);
-    } catch (DatastreamException e) {
+    } catch (Exception e) {
       LOG.error("Failed to acquire task: " + this, e);
       setStatus(DatastreamTaskStatus.error("Acquire failed, exception: " + e));
       throw e;
