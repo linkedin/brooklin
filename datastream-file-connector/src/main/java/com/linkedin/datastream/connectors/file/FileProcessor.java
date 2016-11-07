@@ -6,6 +6,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +25,7 @@ class FileProcessor implements Runnable {
 
   private static final int PARTITION = 0;
   private static final int POLL_WAIT_MS = 100;
+  private static final Duration ACQUIRE_TIMEOUT = Duration.ofMinutes(5);
 
   private final DatastreamTask _task;
   private final String _fileName;
@@ -67,7 +69,7 @@ class FileProcessor implements Runnable {
   @Override
   public void run() {
     try {
-      _task.acquire();
+      _task.acquire(ACQUIRE_TIMEOUT);
 
       Integer lineNo = loadCheckpoint();
       while (!_cancelRequested) {
