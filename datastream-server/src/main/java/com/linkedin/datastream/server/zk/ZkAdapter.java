@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -93,7 +93,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  */
 
 public class ZkAdapter {
-  private Logger _log = LoggerFactory.getLogger(ZkAdapter.class.getName());
+  private Logger _log = LoggerFactory.getLogger(ZkAdapter.class); // recreated after connect()
 
   private String _zkServers;
   private String _cluster;
@@ -189,7 +189,7 @@ public class ZkAdapter {
 
     // create a globally uniq instance name and create a live instance node in zookeeper
     _instanceName = createLiveInstanceNode();
-    _log = LoggerFactory.getLogger(String.format("%s:%s", ZkAdapter.class.getName(), _instanceName));
+    _log = LoggerFactory.getLogger("ZkAdapter:" + _instanceName);
 
     _log.info("Coordinator instance " + _instanceName + " is online");
 
@@ -785,7 +785,7 @@ public class ZkAdapter {
     }
   }
 
-  public void acquireTask(DatastreamTaskImpl task, long timeoutMs) throws DatastreamException {
+  public void acquireTask(DatastreamTaskImpl task, Duration timeout) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
     if (_zkclient.exists(lockPath)) {
@@ -795,7 +795,7 @@ public class ZkAdapter {
         return;
       }
 
-      waitForTaskRelease(task, timeoutMs, lockPath);
+      waitForTaskRelease(task, timeout.toMillis(), lockPath);
     }
 
     if (!_zkclient.exists(lockPath)) {
@@ -803,8 +803,8 @@ public class ZkAdapter {
       _log.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
       String msg =
-          String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task, timeoutMs,
-              owner);
+          String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
+              timeout.toMillis(), owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_log, msg, null);
     }
   }

@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.zk;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -356,6 +357,7 @@ public class TestZkAdapter {
   public void testTaskAquireRelease() throws Exception {
     String testCluster = "testTaskAquireRelease";
     String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
 
     ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
@@ -371,17 +373,17 @@ public class TestZkAdapter {
     adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
 
     // First acquire should succeed
-    Assert.assertTrue(expectException(task::acquire, false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
     // Acquire twice should succeed
-    Assert.assertTrue(expectException(task::acquire, false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
     ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     // Acquire from instance2 should fail
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+    Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
 
     // Release the task from instance1
     task.setZkAdapter(adapter1);
@@ -389,7 +391,7 @@ public class TestZkAdapter {
 
     // Now acquire from instance2 should succeed
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(task::acquire, false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
   }
 
   /**
@@ -400,6 +402,7 @@ public class TestZkAdapter {
   public void testTaskAquireReleaseOwnerUncleanShutdown() throws Exception {
     String testCluster = "testTaskAquireReleaseOwnerUncleanShutdown";
     String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
 
     ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
@@ -414,20 +417,20 @@ public class TestZkAdapter {
     tasks.add(task);
     adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
 
-    Assert.assertTrue(expectException(task::acquire, false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
     ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     LOG.info("Acquire from instance2 should fail");
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+    Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
 
     LOG.info("Disconnecting instance1");
     adapter1.disconnect();
 
     LOG.info("instance2 should be able to acquire after instance1's disconnection");
-    Assert.assertTrue(expectException(() -> task.acquire(), false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
   }
 
   /**
@@ -438,6 +441,7 @@ public class TestZkAdapter {
   public void testTaskAquireReleaseOwnerUncleanBounce() throws Exception {
     String testCluster = "testTaskAquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
 
     ZkAdapter adapter1 = createZkAdapter(testCluster);
     adapter1.connect();
@@ -453,14 +457,14 @@ public class TestZkAdapter {
     adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
 
     LOG.info("Acquire from instance1 should succeed");
-    Assert.assertTrue(expectException(task::acquire, false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
     ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
     LOG.info("Acquire from instance2 should fail");
     task.setZkAdapter(adapter2);
-    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+    Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
 
     LOG.info("Disconnecting instance1");
     String instanceName1 = adapter1.getInstanceName();
@@ -477,10 +481,10 @@ public class TestZkAdapter {
     Assert.assertNotEquals(instanceName1, adapter1.getInstanceName());
 
     LOG.info("instance2 should be able to acquire since old instance1 is dead");
-    Assert.assertTrue(expectException(() -> task.acquire(), false));
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
     LOG.info("Acquire from the new instance1 should fail");
     task.setZkAdapter(adapter1);
-    Assert.assertTrue(expectException(() -> task.acquire(100), true));
+    Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
   }
 }

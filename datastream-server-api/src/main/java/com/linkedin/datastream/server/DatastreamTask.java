@@ -1,11 +1,11 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 
 
@@ -95,8 +95,9 @@ public interface DatastreamTask {
    * two instances will work on the same task concurrently thus causing duplicate
    * events. This can happen in task reassignment induced by new or dead instances.
    * This is a no-op if the task is already acquired by the same instance.
+   * @param timeout duration to wait before timeout in acquiring the task
    */
-  void acquire() throws DatastreamException;
+  void acquire(Duration timeout);
 
   /**
    * A connector should remember to release a task if the task is unassigned to it
