@@ -155,9 +155,20 @@ public class DynamicMetricsManager {
     createOrUpdateHistogram(clazz, null, metricName, value);
   }
 
+  /**
+   * Get the metric object by name of the specified type based on return value.
+   * Currently only used by test cases.
+   * @param name
+   * @param <T>
+   * @return
+   */
+  @SuppressWarnings("unchecked")
+  public <T extends Metric> T getMetric(String name) {
+    return (T) _metricRegistry.getMetrics().getOrDefault(name, null);
+  }
+
   private void validateArguments(Class<?> clazz, String metricName) {
     Validate.notNull(clazz, "clazz argument is null.");
     Validate.notNull(metricName, "metricName argument is null.");
   }
-
 }
