@@ -23,7 +23,9 @@ public interface MetricsAware {
    *
    * @return list of metric information
    */
-  List<BrooklinMetricInfo> getMetricInfos();
+  default List<BrooklinMetricInfo> getMetricInfos() {
+    return null;
+  }
 
   /**
    * @return the metric name prepended with the caller's class name

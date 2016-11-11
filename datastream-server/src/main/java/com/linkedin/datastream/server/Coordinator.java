@@ -29,6 +29,9 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
@@ -37,6 +40,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -153,6 +157,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
+
+  // Connector common metrics
+  private static final String NUM_DATASTREAMS = "numDatastreams";
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -678,7 +686,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
       boolean customCheckpointing) {
-
     Validate.notNull(strategy, "strategy cannot be null");
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
@@ -701,6 +708,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (customCheckpointing) {
       _customCheckpointingConnectors.add(connectorName);
     }
+
+    // Register common connector metrics
+    Class<?> connectorClass = connector.getClass();
+    _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAMS,
+        (Gauge<Long>) connectorWrapper::getNumDatastreams);
+    _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAM_TASKS,
+        (Gauge<Long>) connectorWrapper::getNumDatastreamTasks);
+
+    String className = connectorName.getClass().getSimpleName();
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
   }
 
   /**

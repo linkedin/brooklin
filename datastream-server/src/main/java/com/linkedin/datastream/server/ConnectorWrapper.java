@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,10 +28,15 @@ public class ConnectorWrapper {
   private long _startTime;
   private long _endTime;
 
+  private AtomicLong _numDatastreams;
+  private AtomicLong _numDatastreamTasks;
+
   public ConnectorWrapper(String connectorType, Connector connector) {
     _log = LoggerFactory.getLogger(String.format("%s:%s", ConnectorWrapper.class.getName(), connectorType));
     _connectorType = connectorType;
     _connector = connector;
+    _numDatastreams = new AtomicLong(0);
+    _numDatastreamTasks = new AtomicLong(0);
   }
 
   public boolean hasError() {
@@ -96,6 +102,9 @@ public class ConnectorWrapper {
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
 
+    _numDatastreamTasks.set(tasks.size());
+    _numDatastreams.set(tasks.stream().map(t -> t.getDatastreams()).flatMap(List::stream).distinct().count());
+
     try {
       _connector.onAssignmentChange(tasks);
     } catch (Exception ex) {
@@ -121,5 +130,13 @@ public class ConnectorWrapper {
     }
 
     logApiEnd("initializeDatastream");
+  }
+
+  public long getNumDatastreams() {
+    return _numDatastreams.get();
+  }
+
+  public long getNumDatastreamTasks() {
+    return _numDatastreamTasks.get();
   }
 }
