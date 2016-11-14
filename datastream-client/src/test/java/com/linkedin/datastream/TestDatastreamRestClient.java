@@ -282,4 +282,10 @@ public class TestDatastreamRestClient {
       Assert.assertNotNull(re.getServiceErrorMessage());
     }
   }
+
+  @Test(expectedExceptions = DatastreamNotFoundException.class)
+  public void testDeleteNonExistentDatastream() throws Exception {
+    DatastreamRestClient restClient = createRestClient();
+    restClient.deleteDatastream("NoSuchDatastream");
+  }
 }

@@ -202,7 +202,12 @@ public class DatastreamRestClient {
       response.getResponse();
     } catch (RemoteInvocationException e) {
       String errorMessage = String.format("Delete Datastream %s failed with error.", datastreamName);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      if (isNotFoundHttpStatus(e)) {
+        LOG.error(errorMessage, e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
     }
   }
 
