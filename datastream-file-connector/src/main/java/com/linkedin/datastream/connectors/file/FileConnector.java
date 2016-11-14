@@ -2,11 +2,8 @@ package com.linkedin.datastream.connectors.file;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,14 +14,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
-
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -48,23 +40,12 @@ public class FileConnector implements Connector {
   private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
-  private final DynamicMetricsManager _dynamicMetricsManager;
-  private final Gauge<Integer> _numDatastreamTasks;
-  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
-  private int _numTasks = 0;
-
   public FileConnector(Properties config) throws DatastreamException {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 
     _numPartitions = Integer.parseInt(config.getProperty(CFG_NUM_PARTITIONS, "1"));
     _fileProcessors = new ConcurrentHashMap<>();
-
-    // initialize metrics
-    _numDatastreamTasks = () -> _numTasks;
-
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerMetric(this.getClass(), NUM_DATASTREAM_TASKS, _numDatastreamTasks);
   }
 
   @Override
@@ -109,7 +90,6 @@ public class FileConnector implements Connector {
 
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
-    Optional.ofNullable(tasks).ifPresent(t -> _numTasks = tasks.size());
     LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks));
     Set<DatastreamTask> unassigned = new HashSet<>(_fileProcessors.keySet());
     unassigned.removeAll(tasks);
@@ -144,12 +124,5 @@ public class FileConnector implements Connector {
     if (_numPartitions != 1) {
       stream.getSource().setPartitions(_numPartitions);
     }
-  }
-
-  @Override
-  public List<BrooklinMetricInfo> getMetricInfos() {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    metrics.add(new BrooklinGaugeInfo(buildMetricName(NUM_DATASTREAM_TASKS)));
-    return Collections.unmodifiableList(metrics);
   }
 }

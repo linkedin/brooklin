@@ -15,12 +15,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
-
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
@@ -67,10 +64,6 @@ public class MysqlConnector implements Connector {
 
   private ConcurrentHashMap<DatastreamTask, MysqlReplicator> _mysqlProducers;
 
-  private final Gauge<Integer> _numDatastreamTasks;
-  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
-  private int _numTasks = 0;
-
   public MysqlConnector(Properties config) throws DatastreamException {
     _defaultUserName = config.getProperty(CFG_MYSQL_USERNAME, "");
     _defaultPassword = config.getProperty(CFG_MYSQL_PASSWORD, "");
@@ -85,9 +78,7 @@ public class MysqlConnector implements Connector {
     _mysqlProducers = new ConcurrentHashMap<>();
 
     // initialize metrics
-    _numDatastreamTasks = () -> _numTasks;
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerMetric(this.getClass(), NUM_DATASTREAM_TASKS, _numDatastreamTasks);
   }
 
   @Override
@@ -221,7 +212,6 @@ public class MysqlConnector implements Connector {
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     if (Optional.ofNullable(tasks).isPresent()) {
       LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks.toString()));
-      _numTasks = tasks.size();
       for (DatastreamTask task : tasks) {
         MysqlReplicator replicator = _mysqlProducers.get(task);
         if (replicator == null) {
@@ -318,7 +308,6 @@ public class MysqlConnector implements Connector {
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    metrics.add(new BrooklinGaugeInfo(buildMetricName(NUM_DATASTREAM_TASKS)));
     Optional.of(MysqlBinlogEventListener.getMetricInfos()).ifPresent(metrics::addAll);
     Optional.of(MysqlSourceBinlogRowEventFilter.getMetricInfos()).ifPresent(metrics::addAll);
     return Collections.unmodifiableList(metrics);

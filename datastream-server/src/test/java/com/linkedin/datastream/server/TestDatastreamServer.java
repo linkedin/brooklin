@@ -38,6 +38,7 @@ import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
@@ -253,6 +254,10 @@ public class TestDatastreamServer {
     LOG.info("Events Written to file " + eventsWritten1);
 
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
+
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreams"));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreamTasks"));
+
     _datastreamCluster.shutdown();
   }
 
