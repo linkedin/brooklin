@@ -21,8 +21,6 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.MetricRegistry;
-
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
@@ -334,7 +332,6 @@ public class EventProducer {
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamTask task, DatastreamProducerRecord record) {
     // Treat all events within this record equally (assume same timestamp)
     int numberOfEvents = record.getEvents().size();
-
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
@@ -346,6 +343,8 @@ public class EventProducer {
       if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA,
             numberOfEvents);
+        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), task.getConnectorType(), EVENTS_PRODUCED_WITHIN_SLA,
+            numberOfEvents);
       } else {
         _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
             numberOfEvents);
@@ -355,8 +354,11 @@ public class EventProducer {
                 metadata.getPartition(), _availabilityThresholdSlaMs));
       }
       _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, TOTAL_EVENTS_PRODUCED, numberOfEvents);
+      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), task.getConnectorType(), TOTAL_EVENTS_PRODUCED,
+          numberOfEvents);
     }
     _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_PRODUCE_RATE, numberOfEvents);
+    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), task.getConnectorType(), EVENT_PRODUCE_RATE, numberOfEvents);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
@@ -519,9 +521,9 @@ public class EventProducer {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     String className = EventProducer.class.getSimpleName();
 
-    metrics.add(new BrooklinCounterInfo(MetricRegistry.name(className, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA)));
-    metrics.add(new BrooklinCounterInfo(MetricRegistry.name(className, AGGREGATE, TOTAL_EVENTS_PRODUCED)));
-    metrics.add(new BrooklinMeterInfo(MetricRegistry.name(className, AGGREGATE, EVENT_PRODUCE_RATE)));
+    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_SLA));
+    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + TOTAL_EVENTS_PRODUCED));
+    metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + EVENT_PRODUCE_RATE));
 
     metrics.add(new BrooklinHistogramInfo(className + MetricsAware.KEY_REGEX + EVENTS_LATENCY_MS_STRING));
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA));
