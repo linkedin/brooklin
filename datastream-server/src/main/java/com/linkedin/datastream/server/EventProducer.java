@@ -421,7 +421,7 @@ public class EventProducer {
       // Flush can and must be done without holding writer-lock which is needed by onSendCallback
       _logger.debug(String.format("Starting transport flush, tasks = [%s].", tasks));
       _transportProvider.flush();
-      _logger.info("Transport has been successfully flushed.");
+      _logger.debug("Transport has been successfully flushed.");
     } catch (Exception e) {
       String msg = String.format("Failed to flush transport, tasks = [%s].", tasks);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_logger, msg, e);
@@ -455,7 +455,7 @@ public class EventProducer {
       // Commit can be safely performed outside of critical section
       _logger.debug(String.format("Start committing checkpoints = %s, tasks = [%s].", committed, tasks));
       _checkpointProvider.commit(committed);
-      _logger.info("Checkpoints have been successfully committed");
+      _logger.debug("Checkpoints have been successfully committed");
     } catch (Exception e) {
       String errorMessage = String.format("Checkpoint commit failed, tasks = [%s].", tasks);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_logger, errorMessage, e);
