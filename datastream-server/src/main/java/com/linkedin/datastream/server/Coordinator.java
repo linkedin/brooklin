@@ -716,7 +716,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAM_TASKS,
         (Gauge<Long>) connectorWrapper::getNumDatastreamTasks);
 
-    String className = connectorName.getClass().getSimpleName();
+    String className = connectorClass.getSimpleName();
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
   }
