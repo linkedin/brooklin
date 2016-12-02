@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.connectors.mysql.or.MysqlQueryUtils;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -78,12 +78,9 @@ public class MysqlSnapshotConnector implements Connector {
   @Override
   public void stop() {
     stopAndRemoveHandlers(_taskHandlers.keySet());
-    try {
-      _executorService.awaitTermination(DEFAULT_STOP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-    } catch (InterruptedException e) {
-      LOG.warn("Interrupted while waiting for snapshot tasks to complete.", e);
+    if (!ThreadUtils.shutdownExecutor(_executorService, DEFAULT_STOP_TIMEOUT, LOG)) {
+      LOG.warn("Mysql snapshot connector did not shutdown cleanly.");
     }
-
     LOG.info("Mysql snapshot connector is stopped.");
   }
 
