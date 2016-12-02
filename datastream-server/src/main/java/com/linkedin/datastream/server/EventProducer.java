@@ -1,10 +1,12 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -24,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
@@ -57,7 +61,7 @@ public class EventProducer {
   public static final String INVALID_CHECKPOINT = "";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
   public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000 * 60; // 1 minute
-  public static final Integer DEFAULT_SHUTDOWN_POLL_MS = 1000 * 60; // 1 minute
+  public static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofMinutes(10);
 
   private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
 
@@ -81,7 +85,7 @@ public class EventProducer {
   private final ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _safeCheckpoints;
 
   // Helper for periodical flush/checkpoint operation
-  private final CheckpointHandler _checkpointHandler;
+  private final Optional<CheckpointHandler> _checkpointHandler;
 
   private volatile boolean _shutdownCompleted = false;
   private volatile boolean _shutdownRequested = false;
@@ -132,12 +136,8 @@ public class EventProducer {
     public void shutdown(boolean flushAndCheckpoint) {
       _logger.info("Shutting down checkpoint handler, tasks = " + getTaskString());
 
-      try {
-        _executor.shutdown();
-        _executor.awaitTermination(DEFAULT_SHUTDOWN_POLL_MS, TimeUnit.MILLISECONDS);
-      } catch (InterruptedException e) {
-        _logger.warn("Checkpoint handler shutdown is interrupted, forcing termination.");
-        _executor.shutdownNow();
+      if (!ThreadUtils.shutdownExecutor(_executor, DEFAULT_SHUTDOWN_TIMEOUT, _logger)) {
+        _logger.warn("Checkpoint handler did not shutdown cleanly.");
       }
 
       if (flushAndCheckpoint) {
@@ -197,7 +197,12 @@ public class EventProducer {
     _logger = LoggerFactory.getLogger(String.format("%s:%s:%d", MODULE, _producerId, _generation));
 
     // Start checkpoint handler
-    _checkpointHandler = new CheckpointHandler(config);
+    if (!customCheckpointing) {
+      _checkpointHandler = Optional.of(new CheckpointHandler(config));
+    } else {
+      _logger.info("Disabling periodic flush/checkpoint handler for customCheckpoint.");
+      _checkpointHandler = Optional.empty();
+    }
 
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
@@ -214,7 +219,7 @@ public class EventProducer {
   }
 
   private String getTaskString() {
-    return _safeCheckpoints.keySet().toString();
+    return _safeCheckpoints.keySet().stream().map(t -> t.getDatastreamTaskName()).collect(Collectors.joining(", "));
   }
 
   private Map<Integer, String> loadCheckpoints(DatastreamTask task) {
@@ -419,9 +424,9 @@ public class EventProducer {
     // Step 1: flush the transport to gather ACKs
     try {
       // Flush can and must be done without holding writer-lock which is needed by onSendCallback
-      _logger.debug(String.format("Starting transport flush, tasks = [%s].", tasks));
+      _logger.info(String.format("Starting transport flush, tasks = [%s].", tasks));
       _transportProvider.flush();
-      _logger.debug("Transport has been successfully flushed.");
+      _logger.info("Transport has been successfully flushed.");
     } catch (Exception e) {
       String msg = String.format("Failed to flush transport, tasks = [%s].", tasks);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_logger, msg, e);
@@ -497,7 +502,8 @@ public class EventProducer {
     _logger.info("Shutting down event producer for " + getTaskString());
 
     _shutdownRequested = true;
-    _checkpointHandler.shutdown(flushAndCheckpoint);
+
+    _checkpointHandler.ifPresent(h -> h.shutdown(flushAndCheckpoint));
 
     try {
       _transportProvider.close();
