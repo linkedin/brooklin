@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.file;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -9,7 +10,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -34,7 +35,7 @@ public class FileConnector implements Connector {
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
   public static final String CFG_NUM_PARTITIONS = "numPartitions";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
-  private static final int SHUTDOWN_TIMEOUT_MS = 5000;
+  private static final Duration SHUTDOWN_TIMEOUT = Duration.ofMillis(5000);
 
   private final ExecutorService _executorService;
   private final int _numPartitions;
@@ -57,15 +58,10 @@ public class FileConnector implements Connector {
   public synchronized void stop() {
     // Stop all current processors
     stopProcessorForTasks(_fileProcessors.keySet());
-    _executorService.shutdown();
-    Long now = System.currentTimeMillis();
-    try {
-      _executorService.awaitTermination(SHUTDOWN_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-    } catch (InterruptedException e) {
-      LOG.warn("Unexpected error in shutting down.", e);
+    if (!ThreadUtils.shutdownExecutor(_executorService, SHUTDOWN_TIMEOUT, LOG)) {
+      LOG.warn("Failed shut down cleanly.");
     }
-    Long done = System.currentTimeMillis();
-    LOG.info("FileConnector topped after " + (done - now) + "ms.");
+    LOG.info("FileConnector is stopped.");
   }
 
   private void stopProcessorForTasks(Set<DatastreamTask> unassigned) {
@@ -80,7 +76,7 @@ public class FileConnector implements Connector {
     // Ensure the processors have actually stopped
     for (DatastreamTask task : unassigned) {
       FileProcessor processor = _fileProcessors.get(task);
-      if (!PollUtils.poll(processor::isStopped, 200, SHUTDOWN_TIMEOUT_MS)) {
+      if (!PollUtils.poll(processor::isStopped, 200, SHUTDOWN_TIMEOUT.toMillis())) {
         throw new RuntimeException("Failed to stop processor for " + task);
       }
       _fileProcessors.remove(task);
