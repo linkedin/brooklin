@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.MetricRegistry;
+
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.anyObject;
@@ -33,6 +35,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -41,6 +44,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.testutil.InMemoryCheckpointProvider;
 
 
+@Test(singleThreaded = true)
 public class TestEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(TestEventProducer.class);
 
@@ -51,6 +55,10 @@ public class TestEventProducer {
   private CheckpointProvider _cpProvider;
   private Properties _config;
   private Random _random = new Random();
+
+  static {
+    DynamicMetricsManager.createInstance(new MetricRegistry());
+  }
 
   private Datastream createDatastream() {
     Datastream datastream = new Datastream();
@@ -162,13 +170,16 @@ public class TestEventProducer {
       _producer.send(task, record, null);
     }
     final boolean[] isCommitCalled = {false};
+    final boolean[] isFlushCalled = {false};
 
     verify(_transport, times(500)).send(any(), any(), anyObject());
     doAnswer(invocation -> isCommitCalled[0] = true).when(_cpProvider).commit(anyMap());
+    doAnswer(invocation -> isFlushCalled[0] = true).when(_transport).flush();
 
     // Ensure that commit is not called even after 1 second.
     Thread.sleep(1000);
     Assert.assertTrue(!isCommitCalled[0]);
+    Assert.assertTrue(!isFlushCalled[0]);
   }
 
   private boolean validateCheckpoint(CheckpointProvider provider, List<DatastreamTask> tasks,
