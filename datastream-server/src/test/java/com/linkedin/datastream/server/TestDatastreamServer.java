@@ -2,6 +2,8 @@ package com.linkedin.datastream.server;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -10,7 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.function.Supplier;
 
+import com.linkedin.datastream.common.*;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -23,12 +27,6 @@ import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.common.AvroUtils;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamUtils;
-import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
@@ -133,7 +131,8 @@ public class TestDatastreamServer {
         initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
     Datastream fileDatastream1 = createFileDatastream(fileName1);
     Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), numberOfPartitions);
 
@@ -148,8 +147,8 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
     // Test with the second datastream
-
-    String fileName2 = "/tmp/testFile2_" + UUID.randomUUID().toString();
+    Path tempFile2 = Files.createTempFile("testFile2", "");
+    String fileName2 = tempFile2.toAbsolutePath().toString();
     Datastream fileDatastream2 = createFileDatastream(fileName2);
 
     Collection<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
@@ -173,7 +172,9 @@ public class TestDatastreamServer {
         initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
     int totalEvents = 10;
     _datastreamCluster.startup();
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
 
     ZkClient zkClient = new ZkClient(_datastreamCluster.getZkConnection());
     ZkConnection zkConnection = new ZkConnection(_datastreamCluster.getZkConnection());
@@ -207,10 +208,14 @@ public class TestDatastreamServer {
     // There is a bug where when we delete the only remaining datastream
     // We are not notifying the connectors about the delete. This is an inherent problem with the existing API
     // because we notify only when there any assignments to the connector.
-    String dummyFileName = "/tmp/testFile2_" + UUID.randomUUID().toString();
+    Path dummyFile1 = Files.createTempFile("dummyFile", "");
+    String dummyFileName = dummyFile1.toAbsolutePath().toString();
+
     Datastream dummyDatastream = createFileDatastream(dummyFileName);
 
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
+
     LOG.info("Creating the file datastream " + fileName1);
     Datastream fileDatastream1 = createFileDatastream(fileName1);
 
@@ -229,7 +234,6 @@ public class TestDatastreamServer {
     LOG.info("Deleting the datastream " + fileDatastream1.getName());
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.deleteDatastream(fileDatastream1.getName());
-    FileUtils.forceDelete(new File(fileName1));
 
     // Adding a second sleep so that the new datastream will have a unique destination.
     Thread.sleep(Duration.ofSeconds(1).toMillis());
@@ -273,7 +277,9 @@ public class TestDatastreamServer {
     DatastreamServer server1 = servers.get(0);
     DatastreamServer server2 = servers.get(1);
 
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
+
     Datastream fileDatastream1 = createFileDatastream(fileName1);
     int totalEvents = 10;
     List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
@@ -342,7 +348,9 @@ public class TestDatastreamServer {
     DatastreamServer server1 = servers.get(0);
     DatastreamServer server2 = servers.get(1);
 
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
+
     Datastream fileDatastream1 = createFileDatastream(fileName1);
     int totalEvents = 10;
     List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
@@ -427,8 +435,11 @@ public class TestDatastreamServer {
     Assert.assertNotNull(servers.get(0));
     DatastreamServer server1 = servers.get(0);
 
-    String fileName1 = "/tmp/testFile1_" + UUID.randomUUID().toString();
-    String fileName2 = "/tmp/testFile2_" + UUID.randomUUID().toString();
+    Path tempFile1 = Files.createTempFile("testFile1", "");
+    String fileName1 = tempFile1.toAbsolutePath().toString();
+
+    Path tempFile2 = Files.createTempFile("testFile2", "");
+    String fileName2 = tempFile2.toAbsolutePath().toString();
 
     Datastream fileDatastream1 = createFileDatastream(fileName1);
     Datastream fileDatastream2 = createFileDatastream(fileName2);

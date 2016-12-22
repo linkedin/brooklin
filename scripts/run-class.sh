@@ -11,33 +11,33 @@ base_dir=$(dirname $0)/..
 # run ./gradlew copyDependantLibs to get all dependant jars in a local dir
 shopt -s nullglob
 
-for file in $base_dir/datastream-server/build/libs//datastream-server*.jar;
+for file in $base_dir/datastream-server/build/libs/datastream-server*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
 
-for file in $base_dir/datastream-server/build/dependant-libs//*.jar;
+for file in $base_dir/datastream-server/build/dependant-libs/*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
 
-for file in $base_dir/datastream-kafka/build/libs//datastream-kafka*.jar;
+for file in $base_dir/datastream-kafka/build/libs/datastream-kafka*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
 
-for file in $base_dir/datastream-kafka/build/dependant-libs//*.jar;
+for file in $base_dir/datastream-kafka/build/dependant-libs/*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
 
 
-for file in $base_dir/datastream-tools/build/libs//datastream-tools*.jar;
+for file in $base_dir/datastream-tools/build/libs/datastream-tools*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
 
-for file in $base_dir/datastream-file-connector/build/libs//datastream-file-connector*.jar;
+for file in $base_dir/datastream-file-connector/build/libs/datastream-file-connector*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
