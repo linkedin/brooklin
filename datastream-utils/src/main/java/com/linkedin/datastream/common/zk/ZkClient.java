@@ -1,12 +1,5 @@
 package com.linkedin.datastream.common.zk;
 
-import java.io.File;
-import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.Stack;
-
 import org.I0Itec.zkclient.ZkConnection;
 import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.I0Itec.zkclient.exception.ZkMarshallingError;
@@ -17,6 +10,12 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+import java.util.Stack;
 
 
 /**
@@ -30,6 +29,7 @@ import org.slf4j.LoggerFactory;
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
 
+  public static final String ZK_PATH_SEPARATOR = "/";
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   private ZkSerializer _zkSerializer = new ZKStringSerializer();
@@ -304,8 +304,10 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     // push paths in stack because we need to create from parent to children
     while (!this.exists(path)) {
       pstack.push(path);
-      File f = new File(path);
-      path = f.getParent();
+      path = path.substring(0, path.lastIndexOf(ZK_PATH_SEPARATOR));
+      if(path.isEmpty()) {
+          path = ZK_PATH_SEPARATOR;
+      }
     }
 
     while (!pstack.empty()) {
