@@ -8,8 +8,6 @@ IF [%1] EQU [] (
 	EXIT /B 1
 )
 
-echo "helllo2"
-
 rem Using pushd popd to set BASE_DIR to the absolute path
 pushd %~dp0..\..
 set BASE_DIR=%CD%
@@ -21,6 +19,9 @@ call :concat %BASE_DIR%\datastream-kafka\build\libs\*
 call :concat %BASE_DIR%\datastream-kafka\build\dependant-libs\*
 call :concat %BASE_DIR%\datastream-file-connector\build\libs\*
 call :concat %BASE_DIR%\datastream-file-connector\build\dependant-libs\*
+call :concat %BASE_DIR%\datastream-tools\build\libs\*
+call :concat %BASE_DIR%\datastream-tools\build\dependant-libs\*
+
 
 rem Classpath addition for release
 call :concat %BASE_DIR%\libs\*
@@ -104,7 +105,7 @@ IF ["%CLASSPATH%"] EQU [""] (
 
 set COMMAND=%JAVA% %HEAP_OPTS% %JVM_PERFORMANCE_OPTS% %JMX_OPTS% %LOG4J_OPTS% -cp %CLASSPATH% %OPTS% %*
 rem echo.
-echo "Executing:%COMMAND%"
+rem echo "Executing:%COMMAND%"
 rem echo.
 
 %COMMAND%
