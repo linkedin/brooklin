@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import com.linkedin.datastream.common.*;
 import org.I0Itec.zkclient.ZkConnection;
