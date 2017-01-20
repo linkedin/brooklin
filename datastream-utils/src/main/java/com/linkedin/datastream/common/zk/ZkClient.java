@@ -305,7 +305,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     while (!this.exists(path)) {
       pstack.push(path);
       path = path.substring(0, path.lastIndexOf(ZK_PATH_SEPARATOR));
-      if(path.isEmpty()) {
+      if (path.isEmpty()) {
           path = ZK_PATH_SEPARATOR;
       }
     }
