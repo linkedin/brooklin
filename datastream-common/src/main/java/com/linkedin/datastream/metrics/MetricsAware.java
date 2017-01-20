@@ -35,6 +35,13 @@ public interface MetricsAware {
   }
 
   /**
+   * @return the metric name prepended with the caller's class name
+   */
+  default String buildMetricName(String classSimpleName, String metricName) {
+    return MetricRegistry.name(classSimpleName, metricName);
+  }
+
+  /**
    * Get a regular expression for all dynamic metrics created within the class.
    *
    * For example, this regular expression should capture all topic-specific metrics emitted by KafkaTransportProvider
@@ -47,5 +54,9 @@ public interface MetricsAware {
    */
   default String getDynamicMetricPrefixRegex() {
     return this.getClass().getSimpleName() + KEY_REGEX;
+  }
+
+  default String getDynamicMetricPrefixRegex(String classSimpleName) {
+    return classSimpleName + KEY_REGEX;
   }
 }
