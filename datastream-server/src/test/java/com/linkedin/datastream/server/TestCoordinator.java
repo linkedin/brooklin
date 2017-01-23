@@ -27,6 +27,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
@@ -1283,6 +1284,8 @@ public class TestCoordinator {
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     stream.getMetadata()
         .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
+    stream.getDestination().setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster
+        .getKafkaCluster().getZkConnection(), "TestDatastreamTopic", false).getDestinationURI());
     CreateResponse createResponse = setup._resource.create(stream);
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
@@ -1305,6 +1308,9 @@ public class TestCoordinator {
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    stream.getDestination().setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster
+        .getKafkaCluster().getZkConnection(), "TestDatastreamTopic", false).getDestinationURI());
+
     CreateResponse response = setup._resource.create(stream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);

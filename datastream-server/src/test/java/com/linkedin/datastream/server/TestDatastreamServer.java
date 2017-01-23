@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,15 +126,14 @@ public class TestDatastreamServer {
 
   @Test
   public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents() throws Exception {
-    int numberOfPartitions = 5;
     _datastreamCluster =
-        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
+        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
     int totalEvents = 10;
     _datastreamCluster.startup();
     Path tempFile1 = Files.createTempFile("testFile1", "");
     String fileName1 = tempFile1.toAbsolutePath().toString();
-    Datastream fileDatastream1 = createFileDatastream(fileName1);
-    Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), numberOfPartitions);
+    Datastream fileDatastream1 = createFileDatastream(fileName1, 1);
+    Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 1);
 
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
@@ -148,7 +148,7 @@ public class TestDatastreamServer {
     // Test with the second datastream
     Path tempFile2 = Files.createTempFile("testFile2", "");
     String fileName2 = tempFile2.toAbsolutePath().toString();
-    Datastream fileDatastream2 = createFileDatastream(fileName2);
+    Datastream fileDatastream2 = createFileDatastream(fileName2, 1);
 
     Collection<String> eventsWritten2 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName2), eventsWritten2);
@@ -198,9 +198,8 @@ public class TestDatastreamServer {
 
   @Test
   public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
-    int numberOfPartitions = 5;
     _datastreamCluster =
-        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, numberOfPartitions);
+        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
     int totalEvents = 10;
     _datastreamCluster.startup();
 
@@ -210,13 +209,13 @@ public class TestDatastreamServer {
     Path dummyFile1 = Files.createTempFile("dummyFile", "");
     String dummyFileName = dummyFile1.toAbsolutePath().toString();
 
-    Datastream dummyDatastream = createFileDatastream(dummyFileName);
+    Datastream dummyDatastream = createFileDatastream(dummyFileName, 1);
 
     Path tempFile1 = Files.createTempFile("testFile1", "");
     String fileName1 = tempFile1.toAbsolutePath().toString();
 
     LOG.info("Creating the file datastream " + fileName1);
-    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Datastream fileDatastream1 = createFileDatastream(fileName1, 1);
 
     LOG.info("Writing events to the file");
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
@@ -238,7 +237,7 @@ public class TestDatastreamServer {
     Thread.sleep(Duration.ofSeconds(1).toMillis());
 
     LOG.info("Creating the datastream after deletion");
-    Datastream fileDatastream2 = createFileDatastream(fileName1);
+    Datastream fileDatastream2 = createFileDatastream(fileName1, 1);
 
     LOG.info("Destination for first datastream " + fileDatastream1.getDestination().toString());
     LOG.info("Destination for second datastream " + fileDatastream2.getDestination().toString());
@@ -279,7 +278,7 @@ public class TestDatastreamServer {
     Path tempFile1 = Files.createTempFile("testFile1", "");
     String fileName1 = tempFile1.toAbsolutePath().toString();
 
-    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Datastream fileDatastream1 = createFileDatastream(fileName1, 1);
     int totalEvents = 10;
     List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
 
@@ -350,7 +349,7 @@ public class TestDatastreamServer {
     Path tempFile1 = Files.createTempFile("testFile1", "");
     String fileName1 = tempFile1.toAbsolutePath().toString();
 
-    Datastream fileDatastream1 = createFileDatastream(fileName1);
+    Datastream fileDatastream1 = createFileDatastream(fileName1, 1);
     int totalEvents = 10;
     List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
 
@@ -440,8 +439,8 @@ public class TestDatastreamServer {
     Path tempFile2 = Files.createTempFile("testFile2", "");
     String fileName2 = tempFile2.toAbsolutePath().toString();
 
-    Datastream fileDatastream1 = createFileDatastream(fileName1);
-    Datastream fileDatastream2 = createFileDatastream(fileName2);
+    Datastream fileDatastream1 = createFileDatastream(fileName1, 1);
+    Datastream fileDatastream2 = createFileDatastream(fileName2, 1);
 
     int totalEvents = 10;
     List<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
@@ -518,10 +517,10 @@ public class TestDatastreamServer {
   private List<String> readFileDatastreamEvents(Datastream datastream, int partition, int totalEvents)
       throws Exception {
     KafkaDestination kafkaDestination =
-        KafkaDestination.parseKafkaDestinationUri(datastream.getDestination().getConnectionString());
+        KafkaDestination.parse(datastream.getDestination().getConnectionString());
     final int[] numberOfMessages = {0};
     List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.topicName(), partition, _datastreamCluster.getKafkaCluster().getBrokers(),
+    KafkaTestUtils.readTopic(kafkaDestination.getTopicName(), partition, _datastreamCluster.getKafkaCluster().getBrokers(),
         (key, value) -> {
           DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
           String eventValue = new String(datastreamEvent.payload.array());
@@ -535,8 +534,9 @@ public class TestDatastreamServer {
     return eventsReceived;
   }
 
-  private Datastream createFileDatastream(String fileName) throws IOException, DatastreamException {
-    return createFileDatastream(fileName, null, -1);
+  private Datastream createFileDatastream(String fileName, int numPartitions) throws IOException, DatastreamException {
+    String topic = Paths.get(fileName).getFileName().toString().replace(".", "_") + System.currentTimeMillis();
+    return createFileDatastream(fileName, topic, numPartitions);
   }
 
   private Datastream createFileDatastream(String fileName, String destinationTopic, int destinationPartitions)
@@ -545,6 +545,8 @@ public class TestDatastreamServer {
     testFile.createNewFile();
     testFile.deleteOnExit();
     Datastream fileDatastream1;
+    String kafkaZk = _datastreamCluster.getKafkaCluster().getZkConnection();
+    KafkaDestination destination = new KafkaDestination(kafkaZk, destinationTopic, false);
     if (destinationTopic != null) {
       fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_NAME, "file_" + testFile.getName(),
           testFile.getAbsolutePath(), destinationTopic, destinationPartitions);
@@ -552,6 +554,9 @@ public class TestDatastreamServer {
       fileDatastream1 = DatastreamTestUtils.createDatastream(FileConnector.CONNECTOR_NAME, "file_" + testFile.getName(),
           testFile.getAbsolutePath());
     }
+
+    // DatastreamTestUtils does not properly initialize destination URI
+    fileDatastream1.getDestination().setConnectionString(destination.getDestinationURI());
 
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.createDatastream(fileDatastream1);

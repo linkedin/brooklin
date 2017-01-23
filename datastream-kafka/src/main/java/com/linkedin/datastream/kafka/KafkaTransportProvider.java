@@ -1,7 +1,6 @@
 package com.linkedin.datastream.kafka;
 
 import java.io.IOException;
-import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +57,6 @@ public class KafkaTransportProvider implements TransportProvider {
   private final KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
   private final String _zkAddress;
-  private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
   private final ZkClient _zkClient;
   private final ZkUtils _zkUtils;
   private final Duration _retention;
@@ -119,9 +117,9 @@ public class KafkaTransportProvider implements TransportProvider {
     byte[] payloadValue = payload == null ? new byte[0] : convertToByteArray(payload);
 
     if (partition.isPresent() && partition.get() >= 0) {
-      return new ProducerRecord<>(destination.topicName(), partition.get(), keyValue, payloadValue);
+      return new ProducerRecord<>(destination.getTopicName(), partition.get(), keyValue, payloadValue);
     } else {
-      return new ProducerRecord<>(destination.topicName(), keyValue, payloadValue);
+      return new ProducerRecord<>(destination.getTopicName(), keyValue, payloadValue);
     }
   }
 
@@ -143,7 +141,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public String getDestination(String topicName) {
-    return String.format(DESTINATION_URI_FORMAT, _zkAddress, topicName);
+    return new KafkaDestination(_zkAddress, topicName, false).getDestinationURI();
   }
 
   @Override
@@ -161,7 +159,7 @@ public class KafkaTransportProvider implements TransportProvider {
       topicConfig.put(TOPIC_RETENTION_MS, String.valueOf(_retention.toMillis()));
     }
 
-    String topicName = getTopicName(destination);
+    String topicName = KafkaDestination.parse(destination).getTopicName();
 
     try {
       // Create only if it doesn't exist.
@@ -176,14 +174,10 @@ public class KafkaTransportProvider implements TransportProvider {
     }
   }
 
-  private String getTopicName(String destination) {
-    return URI.create(destination).getPath().substring(1);
-  }
-
   @Override
   public void dropTopic(String destinationUri) {
     Validate.notNull(destinationUri, "destinationuri should not null");
-    String topicName = getTopicName(destinationUri);
+    String topicName = KafkaDestination.parse(destinationUri).getTopicName();
 
     try {
       // Delete only if it exist.
@@ -200,7 +194,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
-    KafkaDestination destination = KafkaDestination.parseKafkaDestinationUri(destinationUri);
+    KafkaDestination destination = KafkaDestination.parse(destinationUri);
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
@@ -223,14 +217,14 @@ public class KafkaTransportProvider implements TransportProvider {
             new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()), exception));
         // Update topic-specific metrics and aggregate metrics
         int numBytes = outgoing.key().length + outgoing.value().length;
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_WRITE_RATE, 1);
-        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(), EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.getTopicName(), EVENT_WRITE_RATE, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.getTopicName(), EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.topicName(),
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), destination.getTopicName(),
           EVENT_TRANSPORT_ERROR_RATE, 1);
       String errorMessage = String.format(
           "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s " + "failed with exception",
@@ -267,7 +261,7 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public Duration getRetention(String destination) {
     Validate.notNull(destination, "null destination URI");
-    String topicName = getTopicName(destination);
+    String topicName = KafkaDestination.parse(destination).getTopicName();
     Properties props = AdminUtils.fetchEntityConfig(_zkUtils, ConfigType.Topic(), topicName);
     if (!props.containsKey(TOPIC_RETENTION_MS)) {
       return null;
