@@ -57,7 +57,7 @@ public class EventProducer {
     CUSTOM
   }
 
-  private static final String MODULE = EventProducer.class.getName();
+  private static final String MODULE = EventProducer.class.getSimpleName();
   public static final String INVALID_CHECKPOINT = "";
   public static final String CHECKPOINT_PERIOD_MS = "checkpointPeriodMs";
   public static final Integer DEFAULT_CHECKPOINT_PERIOD_MS = 1000 * 60; // 1 minute
@@ -340,30 +340,30 @@ public class EventProducer {
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
-      _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), metadata.getTopic(), EVENTS_LATENCY_MS_STRING,
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, metadata.getTopic(), EVENTS_LATENCY_MS_STRING,
           sourceToDestinationLatencyMs);
-      _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), AGGREGATE, EVENTS_LATENCY_MS_STRING,
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
           sourceToDestinationLatencyMs);
 
       if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA,
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA,
             numberOfEvents);
-        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), task.getConnectorType(), EVENTS_PRODUCED_WITHIN_SLA,
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, task.getConnectorType(), EVENTS_PRODUCED_WITHIN_SLA,
             numberOfEvents);
       } else {
-        _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
             numberOfEvents);
         _logger.debug(
             String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
                 sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(),
                 metadata.getPartition(), _availabilityThresholdSlaMs));
       }
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), AGGREGATE, TOTAL_EVENTS_PRODUCED, numberOfEvents);
-      _dynamicMetricsManager.createOrUpdateCounter(this.getClass(), task.getConnectorType(), TOTAL_EVENTS_PRODUCED,
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, numberOfEvents);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, task.getConnectorType(), TOTAL_EVENTS_PRODUCED,
           numberOfEvents);
     }
-    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), AGGREGATE, EVENT_PRODUCE_RATE, numberOfEvents);
-    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), task.getConnectorType(), EVENT_PRODUCE_RATE, numberOfEvents);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, numberOfEvents);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, task.getConnectorType(), EVENT_PRODUCE_RATE, numberOfEvents);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
