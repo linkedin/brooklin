@@ -3,7 +3,10 @@ package com.linkedin.datastream.kafka;
 import java.net.URI;
 import java.util.Objects;
 
+import org.apache.commons.httpclient.util.URIUtil;
 import org.apache.commons.lang3.Validate;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 
 
 /**
@@ -12,8 +15,8 @@ import org.apache.commons.lang3.Validate;
 public class KafkaDestination {
   public static final String SCHEME_KAFKA = "kafka";
   public static final String SCHEME_SECURE_KAFKA = "kafkassl";
-  public static final String DESTINATION_URI_FORMAT = SCHEME_KAFKA + "://%s?%s";
-  public static final String DESTINATION_URI_SSL_FORMAT = SCHEME_SECURE_KAFKA + "://%s?%s";
+  public static final String DESTINATION_URI_FORMAT = SCHEME_KAFKA + "://%s/%s";
+  public static final String DESTINATION_URI_SSL_FORMAT = SCHEME_SECURE_KAFKA + "://%s/%s";
 
   private final String _zkAddress;
   private final String _topicName;
@@ -28,16 +31,33 @@ public class KafkaDestination {
   public static KafkaDestination parse(String uri) {
     Validate.isTrue(uri.startsWith(SCHEME_KAFKA) || uri.startsWith(SCHEME_SECURE_KAFKA),
         "Invalid scheme in URI: " + uri);
+
+    try {
+      // Decode URI in case it's escaped
+      uri = URIUtil.decode(uri);
+    } catch (Exception e) {
+      throw new DatastreamRuntimeException("Failed to decode Kafka destination URI: " + uri, e);
+    }
+
     URI u = URI.create(uri);
     String scheme = u.getScheme();
-    String authority = u.getAuthority();
-    String topicName = u.getQuery();
+    String zkAddress = u.getAuthority();
+    String path = u.getPath();
+    String topicName;
+    int lastSlash = path.lastIndexOf("/");
+    if (lastSlash > 0) {
+      // intermediate paths are part of ZK address
+      zkAddress += path.substring(0, lastSlash);
+      topicName = path.substring(lastSlash + 1);
+    } else {
+      topicName = path.substring(1);
+    }
     long portNo = u.getPort();
-    Validate.notBlank(authority, "Missing authority in URI: " + uri);
+    Validate.notBlank(zkAddress, "Missing zkAddress in URI: " + uri);
     Validate.notBlank(topicName, "Missing topic name in URI: " + uri);
     Validate.isTrue(portNo != -1, "Missing port number in URI: " + uri);
     boolean isSecure = scheme.equals(SCHEME_SECURE_KAFKA);
-    return new KafkaDestination(u.getAuthority() + u.getPath(), topicName, isSecure);
+    return new KafkaDestination(zkAddress, topicName, isSecure);
   }
 
   public String getZkAddress() {
