@@ -162,6 +162,7 @@ project(':datastream-mysql-connector') {
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
