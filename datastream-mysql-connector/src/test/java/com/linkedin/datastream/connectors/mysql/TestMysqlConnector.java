@@ -29,7 +29,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.InMemoryTransportProvider;
-import com.linkedin.datastream.server.InMemoryTransportProviderFactory;
+import com.linkedin.datastream.server.InMemoryTransportProviderAdmin;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
@@ -66,7 +66,7 @@ public class TestMysqlConnector {
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
-    InMemoryTransportProvider transportProvider = InMemoryTransportProviderFactory.getTransportProvider();
+    InMemoryTransportProvider transportProvider = InMemoryTransportProviderAdmin.getTransportProvider();
     boolean pollResult = PollUtils.poll(() -> transportProvider.getTotalEventsReceived(connectionString) == 9,
         Duration.ofMillis(100).toMillis(), Duration.ofMinutes(2).toMillis());
     Assert.assertTrue(pollResult);
@@ -132,7 +132,7 @@ public class TestMysqlConnector {
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
-    InMemoryTransportProvider transportProvider = InMemoryTransportProviderFactory.getTransportProvider();
+    InMemoryTransportProvider transportProvider = InMemoryTransportProviderAdmin.getTransportProvider();
     boolean pollResult = PollUtils.poll(() -> transportProvider.getTotalEventsReceived(connectionString) == 16,
         Duration.ofMillis(100).toMillis(), Duration.ofMinutes(2).toMillis());
     Assert.assertTrue(pollResult);
@@ -231,7 +231,7 @@ public class TestMysqlConnector {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
         LoadbalancingStrategyFactory.class.getTypeName());
-    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, MysqlConnectorFactory.class.getTypeName());
+    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, MysqlConnectorFactory.class.getTypeName());
     props.put(MysqlConnector.CFG_MYSQL_SOURCE_TYPE, SourceType.MYSQLBINLOG.toString());
     props.put(MysqlConnector.CFG_MYSQL_SERVER_ID, String.valueOf(101));
     return props;

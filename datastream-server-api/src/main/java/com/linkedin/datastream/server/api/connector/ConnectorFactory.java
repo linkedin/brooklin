@@ -15,5 +15,5 @@ public interface ConnectorFactory {
    * @param config    Connector configuration.
    * @return Instance of the connector that is created.
    */
-  public Connector createConnector(String connectorName, Properties config);
+  Connector createConnector(String connectorName, Properties config);
 }

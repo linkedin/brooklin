@@ -180,6 +180,34 @@ project(':datastream-kafka') {
   }
 }
 
+project(':brooklin-eventhub') {
+  dependencies {
+    compile "com.microsoft.azure:azure-eventhubs:$eventHubVersion"
+
+    compile project(':datastream-server-api')
+    compile project(':datastream-utils')
+    compile project(':datastream-testcommon')
+  }
+}
+
+
+project(':brooklin-samza') {
+  dependencies {
+    compile "org.apache.samza:samza-api:$samzaVersion"
+
+    compile project(':datastream-server-api')
+    compile project(':datastream-utils')
+    compile project(':datastream-testcommon')
+  }
+}
+
+project(':brooklin-samza-eventhub') {
+  dependencies {
+    compile "org.apache.samza:samza-api:$samzaVersion"
+    compile "com.microsoft.azure:azure-eventhubs:$eventHubVersion"
+  }
+}
+
 project(':datastream-testcommon') {
   dependencies {
     compile project(':datastream-server-api')

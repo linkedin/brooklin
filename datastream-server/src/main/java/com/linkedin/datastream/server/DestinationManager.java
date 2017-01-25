@@ -2,12 +2,10 @@ package com.linkedin.datastream.server;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Stream;
 
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
@@ -17,9 +15,9 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.transport.TransportException;
-import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 
 /**
@@ -27,16 +25,13 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
  */
 public class DestinationManager {
   private static final Logger LOG = LoggerFactory.getLogger(DestinationManager.class.getName());
-  private static final int DEFAULT_NUMBER_PARTITIONS = 1;
-  private static final String REGEX_NON_ALPHA = "[^\\w]";
-  private static final String DESTINATION_DOMAIN = "destination";
 
-  private final TransportProvider _transportProvider;
+  private final Map<String, TransportProviderAdmin> _transportProviderAdmins;
   private final boolean _reuseExistingTopic;
 
-  public DestinationManager(boolean reuseExistingTopic, TransportProvider transportProvider) {
+  public DestinationManager(boolean reuseExistingTopic, Map<String, TransportProviderAdmin> transportProviderAdmins) {
     _reuseExistingTopic = reuseExistingTopic;
-    _transportProvider = transportProvider;
+    _transportProviderAdmins = transportProviderAdmins;
   }
 
   /**
@@ -47,7 +42,8 @@ public class DestinationManager {
    * @param datastream the datastream whose destination to be populated.
    * @param datastreams All datastreams in the current system.
    */
-  public void populateDatastreamDestination(Datastream datastream, List<Datastream> datastreams) {
+  public void populateDatastreamDestination(Datastream datastream, List<Datastream> datastreams)
+      throws DatastreamValidationException {
     Validate.notNull(datastream, "Datastream should not be null");
     Validate.notNull(datastreams, "Datastreams should not be null");
 
@@ -73,13 +69,14 @@ public class DestinationManager {
     // De-dup the datastreams, Set the destination for the duplicate datastreams same as the existing ones.
     Datastream existingStream = sourceStreamMapping.getOrDefault(datastream.getSource(), null);
     if (topicReuse && existingStream != null &&
-        existingStream.getConnectorName().equals(datastream.getConnectorName())) {
+        existingStream.getConnectorName().equals(datastream.getConnectorName())
+        && existingStream.getTransportProviderName().equals(datastream.getTransportProviderName())) {
       LOG.info(String.format("Datastream: %s has same source as existing datastream: %s, Setting the destination %s",
           datastream.getName(), existingStream.getName(), existingStream.getDestination()));
       populateDatastreamDestinationFromExistingDatastream(datastream, existingStream);
     } else {
-
-      populateNewDestination(datastream);
+      _transportProviderAdmins.get(datastream.getTransportProviderName())
+          .initializeDestinationForDatastream(datastream);
 
       LOG.info(
           String.format("Datastream %s has an unique source or topicReuse (%s) is set to true, Creating a new topic %s",
@@ -90,26 +87,6 @@ public class DestinationManager {
 
     LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations",
         sourceStreamMapping);
-  }
-
-  private void populateNewDestination(Datastream datastream) {
-    String topicName = getTopicName(datastream);
-    String connectionString = _transportProvider.getDestination(topicName);
-
-    int numberOfPartitions = DEFAULT_NUMBER_PARTITIONS;
-
-    // if the number of partitions is already set on the destination then use that.
-    if (datastream.hasDestination() && datastream.getDestination().hasPartitions()) {
-      numberOfPartitions = datastream.getDestination().getPartitions();
-    } else if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
-      // If the number of partitions is not set in destination but set in source, use that.
-      numberOfPartitions = datastream.getSource().getPartitions();
-    }
-
-    DatastreamDestination destination = new DatastreamDestination();
-    destination.setConnectionString(connectionString);
-    destination.setPartitions(numberOfPartitions);
-    datastream.setDestination(destination);
   }
 
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {
@@ -135,53 +112,23 @@ public class DestinationManager {
     if (datastream.hasMetadata()) {
       datastreamProperties.putAll(datastream.getMetadata());
     }
-    Properties topicProperties = new VerifiableProperties(datastreamProperties).getDomainProperties(DESTINATION_DOMAIN);
 
-    String connectionString = datastream.getDestination().getConnectionString();
-    int partitions = datastream.getDestination().getPartitions();
-    _transportProvider.createTopic(connectionString, partitions, topicProperties);
+    _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
 
     // Set destination creation time and retention
     datastream.getMetadata()
         .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
 
-    Duration retention = _transportProvider.getRetention(connectionString);
-    if (retention != null) {
-      datastream.getMetadata()
-          .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+    try {
+      Duration retention = _transportProviderAdmins.get(datastream.getTransportProviderName()).getRetention(datastream);
+      if (retention != null) {
+        datastream.getMetadata()
+            .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+      }
+    } catch (UnsupportedOperationException e) {
+      LOG.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
     }
 
-    return connectionString;
-  }
-
-  private String getTopicName(Datastream datastream) {
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy_MM_dd_HH_mm_ss");
-    String currentTime = formatter.format(LocalDateTime.now());
-    return String.format("%s_%s", datastream.getName(), currentTime);
-  }
-
-  /**
-   * Delete the datastream destination for a particular datastream.
-   * Caller should pass in all the datastreams present in the system.
-   * This method will ensure that there are no other references to the destination before deleting it.
-   * @param datastream Datastream whose destination needs to be deleted.
-   * @param allDatastreams All the datastreams in the system.
-   */
-  public void deleteDatastreamDestination(Datastream datastream, List<Datastream> allDatastreams)
-      throws TransportException {
-    Validate.notNull(datastream, "Datastream should not be null");
-    Validate.notNull(datastream.getDestination(), "Datastream destination should not be null");
-    Validate.notNull(allDatastreams, "allDatastreams should not be null");
-    Stream<Datastream> duplicateDatastreams = allDatastreams.stream()
-        .filter(d -> d.getDestination().equals(datastream.getDestination()) && !d.getName()
-            .equalsIgnoreCase(datastream.getName()));
-
-    // If there are no datastreams using the same destination, then delete the topic.
-    if (duplicateDatastreams.count() == 0) {
-      _transportProvider.dropTopic(datastream.getDestination().getConnectionString());
-    } else {
-      LOG.info(String.format("There are existing datastreams %s with the same destination (%s) as datastream %s ",
-          duplicateDatastreams, datastream.getDestination(), datastream.getName()));
-    }
+    return datastream.getDestination().getConnectionString();
   }
 }

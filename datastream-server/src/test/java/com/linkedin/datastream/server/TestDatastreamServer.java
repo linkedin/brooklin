@@ -74,7 +74,7 @@ public class TestDatastreamServer {
   private static Properties getBootstrapConnectorProperties() {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
-    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
+    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
     return props;
   }
 
@@ -91,7 +91,7 @@ public class TestDatastreamServer {
   private static Properties getDummyConnectorProperties(boolean bootstrap) {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
-    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
+    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
     if (bootstrap) {
       props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     }
@@ -301,6 +301,7 @@ public class TestDatastreamServer {
     List<String> assignments = zkclient.getChildren(assignmentPath);
     Assert.assertEquals(assignments.size(), 1);
 
+    LOG.info("Shutting down the server0.");
     // Stop 1st instance and wait until its ZK node is gone
     _datastreamCluster.shutdownServer(0);
     String instancesPath = KeyBuilder.liveInstances(cluster);
@@ -327,7 +328,8 @@ public class TestDatastreamServer {
     List<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, totalEvents * 2);
 
     LOG.info("Events Received " + eventsReceived2);
-    LOG.info("Events Written to file " + eventsWritten2);
+    LOG.info("First set of events Written to file " + eventsWritten1);
+    LOG.info("Second set of events Written to file " + eventsWritten2);
 
     // If no duplicate events were produced eventsReceived2 should equal eventsWritten1 + eventsWritten2
     // because KafkaTestUtils.readTopic always seeks to the beginning of the topic.
@@ -582,7 +584,7 @@ public class TestDatastreamServer {
   private Properties getTestConnectorProperties(String strategy) {
     Properties props = new Properties();
     props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, strategy);
-    props.put(DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
+    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
     return props;
   }
 }

@@ -34,7 +34,7 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.DummyTransportProviderFactory;
+import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.client.RestLiResponseException;
@@ -42,7 +42,9 @@ import com.linkedin.restli.client.RestLiResponseException;
 
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient {
-  private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
+  private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderAdminFactory.class.getTypeName();
+
+  private static final String TRANSPORT_NAME = "default";
 
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
@@ -71,6 +73,8 @@ public class TestDatastreamRestClient {
     ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(String.format("%s://%s", DummyConnector.CONNECTOR_TYPE, "DummySource"));
+    ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(TRANSPORT_NAME);
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
@@ -94,11 +98,14 @@ public class TestDatastreamRestClient {
     properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(port));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
-    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
-        + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
+    String tpPrefix = DatastreamServer.CONFIG_TRANSPORT_PROVIDER_PREFIX + TRANSPORT_NAME + ".";
+    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_NAMES, TRANSPORT_NAME);
+    properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, TRANSPORT_FACTORY_CLASS);
+    properties.put(
+        DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_FACTORY_CLASS_NAME,
+        DummyConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "."
-        + DatastreamServer.CONFIG_CONNECTOR_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
+        + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
     properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
         + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     // DummyConnector will verify this value being correctly set
