@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.providers;
 
-import java.util.List;
 import java.util.Map;
 
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -13,15 +12,27 @@ import com.linkedin.datastream.server.DatastreamTask;
 public interface CheckpointProvider extends MetricsAware {
 
   /**
-   * Commit the checkpoints to the checkpoint store.
-   * @param checkpoints Map of the datastreamTask to the checkpoint associated with the datastreamTask
+   * update the checkpoint. This might get called every time a send succeeds. So avoid writing to durable store
+   * everytime updateCheckpoint is called.
    */
-  void commit(Map<DatastreamTask, String> checkpoints);
+  void updateCheckpoint(DatastreamTask task, int partition, String checkpoint);
 
   /**
-   * Read the committed checkpoints from the checkpoint store
-   * @param datastreamTasks List of datastream tasks whose checkpoints need to be read
+   * Write the checkpoints to the store durably
+   */
+  void flush();
+
+  /**
+   * Get the safe checkpoints that the task has produced to. It is possible that the checkpoint provider is not
+   * writing the checkpoints every time updateCheckpoint is called in which case safe checkpoints will return checkpoints
+   * from the memory.
+   */
+  Map<Integer, String> getSafeCheckpoints(DatastreamTask task);
+
+  /**
+   * Read the checkpoints from the checkpoint store for the task
+   * @param datastreamTask datastream tasks whose checkpoints need to be read
    * @return Map of the checkpoints associated with the datastream task.
    */
-  Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks);
+  Map<Integer, String> getCommitted(DatastreamTask datastreamTask);
 }

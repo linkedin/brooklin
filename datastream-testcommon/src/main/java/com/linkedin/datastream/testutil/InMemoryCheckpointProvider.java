@@ -16,30 +16,37 @@ public class InMemoryCheckpointProvider implements CheckpointProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryCheckpointProvider.class);
 
-
-  private Map<DatastreamTask, String> _cpMap = new HashMap<>();
-
-  @Override
-  public void commit(Map<DatastreamTask, String> checkpoints) {
-    LOG.info(String.format("Commit called with checkpoints %s", checkpoints));
-    if (checkpoints.size() != 0) {
-      _cpMap.putAll(checkpoints);
-    }
-  }
-
-  @Override
-  public Map<DatastreamTask, String> getCommitted(List<DatastreamTask> datastreamTasks) {
-    Map<DatastreamTask, String> ret = new HashMap<>();
-    for (DatastreamTask task : datastreamTasks) {
-      if (_cpMap.containsKey(task)) {
-        ret.put(task, _cpMap.get(task));
-      }
-    }
-    return ret;
-  }
+  private Map<DatastreamTask, Map<Integer, String>> _cpMap = new HashMap<>();
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
+  }
+
+  @Override
+  public void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
+    if (!_cpMap.containsKey(task)) {
+      _cpMap.put(task, new HashMap<>());
+    }
+
+    _cpMap.get(task).put(partition, checkpoint);
+  }
+
+  @Override
+  public void flush() {
+  }
+
+  @Override
+  public Map<Integer, String> getSafeCheckpoints(DatastreamTask task) {
+    return _cpMap.get(task);
+  }
+
+  @Override
+  public Map<Integer, String> getCommitted(DatastreamTask datastreamTask) {
+    if (_cpMap.containsKey(datastreamTask)) {
+      return _cpMap.get(datastreamTask);
+    } else {
+      return new HashMap<>();
+    }
   }
 }

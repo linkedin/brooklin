@@ -22,7 +22,7 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 public class EmbeddedDatastreamCluster {
   private static final Logger LOG = Logger.getLogger(EmbeddedDatastreamCluster.class);
-  private static final String KAFKA_TRANSPORT_FACTORY = "com.linkedin.datastream.kafka.KafkaTransportProviderFactory";
+  private static final String KAFKA_TRANSPORT_FACTORY = "com.linkedin.datastream.kafka.KafkaTransportProviderAdminFactory";
   private static final long SERVER_INIT_TIMEOUT_MS = 60000; // 1 minute
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
   public static final String BOOTSTRAP_SERVERS_CONFIG = "bootstrap.servers";
@@ -92,17 +92,16 @@ public class EmbeddedDatastreamCluster {
     }
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(_datastreamPorts.get(index)));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, connectorTypes);
-
+    String tpName = "default";
+    String tpPrefix = DatastreamServer.CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName + ".";
+    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_NAMES, tpName);
     if (_kafkaCluster != null) {
-      properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, KAFKA_TRANSPORT_FACTORY);
-      properties.put(
-          String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, BOOTSTRAP_SERVERS_CONFIG),
-          kafkaCluster.getBrokers());
-      properties.put(String.format("%s.%s", Coordinator.TRANSPORT_PROVIDER_CONFIG_DOMAIN, CONFIG_ZK_CONNECT),
-          kafkaCluster.getZkConnection());
+      properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, KAFKA_TRANSPORT_FACTORY);
+      properties.put(String.format("%s%s", tpPrefix, BOOTSTRAP_SERVERS_CONFIG), kafkaCluster.getBrokers());
+      properties.put(String.format("%s%s", tpPrefix, CONFIG_ZK_CONNECT), kafkaCluster.getZkConnection());
     } else {
-      properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY,
-          InMemoryTransportProviderFactory.class.getTypeName());
+      properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME,
+          InMemoryTransportProviderAdminFactory.class.getTypeName());
     }
 
     properties.putAll(getDomainConnectorProperties(connectorProperties));
@@ -219,8 +218,7 @@ public class EmbeddedDatastreamCluster {
     }
 
     // Make sure all servers have started fully
-    _servers.stream().forEach(s -> PollUtils.poll(() -> s.isStarted(), 1000, SERVER_INIT_TIMEOUT_MS));
-
+    _servers.stream().forEach(server -> PollUtils.poll(server::isStarted, 1000, SERVER_INIT_TIMEOUT_MS));
   }
 
   public void shutdownServer(int index) {

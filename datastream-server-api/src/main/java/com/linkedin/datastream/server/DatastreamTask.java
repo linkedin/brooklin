@@ -17,6 +17,11 @@ public interface DatastreamTask {
   String getConnectorType();
 
   /**
+   * @return the name of the transport provider associated with the datastream task.
+   */
+  String getTransportProviderName();
+
+  /**
    * @return the event producer that the connector can use to produce events for this datastream task.
    */
   DatastreamEventProducer getEventProducer();
@@ -29,7 +34,7 @@ public interface DatastreamTask {
   /**
    * The Connector implementation can use this method to obtain the last saved state.
    * @param key for which the state needs to be returned.
-   * @return  the last saved state corresponding to the key.
+   * @return the last saved state corresponding to the key.
    */
   String getState(String key);
 

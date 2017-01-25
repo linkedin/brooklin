@@ -12,4 +12,6 @@ ext {
     intellijAnnotations = "12.0"
     commonslang3Version = "3.4"
     metricsCoreVersion = "3.1.2"
+    eventHubVersion = "0.9.0"
+    samzaVersion = "0.11.0"
 }

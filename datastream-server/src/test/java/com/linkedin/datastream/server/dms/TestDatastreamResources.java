@@ -20,6 +20,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
@@ -63,6 +64,9 @@ public class TestDatastreamResources {
       metadata.put("owner", "person_" + seed);
       ds.setMetadata(metadata);
     }
+
+    ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
     return ds;
   }
 
