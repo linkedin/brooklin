@@ -1,15 +1,21 @@
 package com.linkedin.datastream.testutil;
 
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.*;
-import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.CachedDatastreamReader;
-import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
-import com.linkedin.datastream.server.zk.KeyBuilder;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.CachedDatastreamReader;
+import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 
 
 /**
@@ -54,6 +60,8 @@ public class DatastreamTestUtils {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
     ds.setMetadata(metadata);
+    ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
     return ds;
   }
 
@@ -74,6 +82,7 @@ public class DatastreamTestUtils {
     ds.setSource(new DatastreamSource());
     ds.getSource().setConnectionString(source);
     ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
     ds.getDestination().setConnectionString(destination);
     ds.getDestination().setPartitions(destinationPartitions);
     ds.setStatus(DatastreamStatus.INITIALIZING);
@@ -91,7 +100,8 @@ public class DatastreamTestUtils {
    * @param datastreams list of datastreams
    * @throws DatastreamException the datastream exception
    */
-  public static void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams) throws DatastreamException {
+  public static void storeDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams)
+      throws DatastreamException {
     for (Datastream datastream : datastreams) {
       zkClient.ensurePath(KeyBuilder.datastreams(cluster));
       CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);

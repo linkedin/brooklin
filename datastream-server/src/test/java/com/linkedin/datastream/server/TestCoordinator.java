@@ -9,7 +9,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -25,16 +24,15 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.kafka.KafkaDestination;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.kafka.KafkaTransportProvider;
+import com.linkedin.datastream.kafka.KafkaDestination;
+import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
@@ -50,7 +48,6 @@ import com.linkedin.restli.server.UpdateResponse;
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
-  private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderFactory.class.getTypeName();
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
   private static final int WAIT_TIMEOUT_MS = 30000;
 
@@ -67,10 +64,13 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
-    props.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_FACTORY, TRANSPORT_FACTORY_CLASS);
     ZkClient client = new ZkClient(zkAddr);
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(client, cluster);
-    return new Coordinator(datastreamCache, props);
+    Coordinator coordinator = new Coordinator(datastreamCache, props);
+    DummyTransportProviderAdminFactory factory = new DummyTransportProviderAdminFactory();
+    coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        factory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+    return coordinator;
   }
 
   @BeforeMethod
@@ -340,15 +340,6 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  private void setDatastreamDestination(Datastream stream) {
-    if (stream.getDestination() == null) {
-      stream.setDestination(new DatastreamDestination());
-      // The connection string here needs to be unique
-      String destinationConnectionString = UUID.randomUUID().toString();
-      stream.getDestination().setConnectionString(destinationConnectionString);
-    }
-  }
-
   @Test
   public void testCoordinationMultipleConnectorTypesForBroadcastStrategy() throws Exception {
     String testCluster = "testCoordinationMultipleConnectors";
@@ -560,8 +551,6 @@ public class TestCoordinator {
     instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false);
     instance2.start();
 
-
-
     //
     // verify new assignment. instance1 : [datastream0], instance2: [datastream1]
     //
@@ -679,8 +668,6 @@ public class TestCoordinator {
     instance1.stop();
     zkClient.close();
   }
-
-
 
   @Test
   public void testBroadcastAssignmentReassignAfterDeath() throws Exception {
@@ -1159,7 +1146,8 @@ public class TestCoordinator {
 
     // Create 1st datastream
     ZkClient zkClient = new ZkClient(_zkConnectionString);
-    Datastream stream1 = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testName, connectorName, "stream54321")[0];
+    Datastream stream1 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testName, connectorName, "stream54321")[0];
     Assert.assertTrue(stream1.getMetadata().containsKey(DatastreamMetadataConstants.CREATION_MS));
 
     // Wait for first assignment is done
@@ -1277,22 +1265,18 @@ public class TestCoordinator {
   public void testCreateAndDeleteDatastreamHappyPath() throws Exception {
     TestSetup setup = createTestCoordinator();
 
-    // Check retention when it's specific in topicConfig
-    Duration myRetention = Duration.ofDays(10);
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    stream.getMetadata()
-        .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(myRetention.toMillis()));
-    stream.getDestination().setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster
-        .getKafkaCluster().getZkConnection(), "TestDatastreamTopic", false).getDestinationURI());
+    stream.getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic", false).getDestinationURI());
     CreateResponse createResponse = setup._resource.create(stream);
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
-    validateRetention(stream, setup._resource, myRetention);
 
     // Delete the data stream and verify proper cleanup
     UpdateResponse deleteResponse = setup._resource.delete(stream.getName());
@@ -1308,8 +1292,10 @@ public class TestCoordinator {
     String datastreamName = "TestDatastream";
     Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    stream.getDestination().setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster
-        .getKafkaCluster().getZkConnection(), "TestDatastreamTopic", false).getDestinationURI());
+
+    stream.getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic", false).getDestinationURI());
 
     CreateResponse response = setup._resource.create(stream);
     Assert.assertNull(response.getError());
@@ -1317,11 +1303,10 @@ public class TestCoordinator {
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
-    validateRetention(stream, setup._resource, KafkaTransportProvider.DEFAULT_RETENTION);
+    validateRetention(stream, setup._resource, KafkaTransportProviderAdmin.DEFAULT_RETENTION);
 
     setup._datastreamKafkaCluster.shutdown();
   }
-
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
@@ -1340,8 +1325,8 @@ public class TestCoordinator {
     Assert.assertTrue(result);
   }
 
-  private void waitTillAssignmentIsComplete(TestHookConnector connector1, TestHookConnector connector2,
-      int totalTasks, long timeoutMs) {
+  private void waitTillAssignmentIsComplete(TestHookConnector connector1, TestHookConnector connector2, int totalTasks,
+      long timeoutMs) {
 
     final long interval = timeoutMs < 100 ? timeoutMs : 100;
 
@@ -1349,9 +1334,7 @@ public class TestCoordinator {
       HashSet<DatastreamTask> tasks1 = new HashSet<>(connector1.getTasks());
       tasks1.addAll(connector2.getTasks());
       return tasks1.size() == totalTasks;
-
     }, interval, timeoutMs);
-
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
@@ -1362,8 +1345,8 @@ public class TestCoordinator {
     }
 
     Set<String> nameSet = new HashSet<>(Arrays.asList(datastreamNames));
-    return assignment.stream().allMatch(t -> nameSet.contains(t.getDatastreams().get(0).getName()) &&
-        t.getEventProducer() != null);
+    return assignment.stream()
+        .allMatch(t -> nameSet.contains(t.getDatastreams().get(0).getName()) && t.getEventProducer() != null);
   }
 
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {

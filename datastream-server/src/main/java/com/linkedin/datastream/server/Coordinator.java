@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -38,7 +39,6 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -49,7 +49,7 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
-import com.linkedin.datastream.server.api.transport.TransportProviderFactory;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -114,16 +114,17 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final CachedDatastreamReader _datastreamCache;
+  private final Properties _eventProducerConfig;
+  private final CheckpointProvider _cpProvider;
+
+  private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
   private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
-  public static final String SCHEMA_REGISTRY_CONFIG_DOMAIN = "brooklin.server.schemaRegistry";
-  public static final String TRANSPORT_PROVIDER_CONFIG_DOMAIN = "brooklin.server.transportProvider";
   public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
-  private final EventProducerPool _eventProducerPool;
   private final ThreadPoolExecutor _assignmentChangeThreadPool;
   private final String _clusterName;
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
@@ -146,7 +147,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // mapping from connector type to connector instance
   private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
 
-  private final TransportProvider _transportProvider;
   private final DestinationManager _destinationManager;
 
   // Currently assigned datastream tasks by taskName
@@ -187,32 +187,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
-    String transportFactory = config.getTransportProviderFactory();
-    TransportProviderFactory factory = ReflectionUtils.createInstance(transportFactory);
+    _eventProducerConfig = coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN);
 
-    if (factory == null) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
-          "failed to create transport provider factory: " + transportFactory, null);
-    }
+    _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProviderAdmins);
 
-    _transportProvider =
-        factory.createTransportProvider(coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN));
-    if (_transportProvider == null) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log,
-          "failed to create transport provider, factory: " + transportFactory, null);
-    }
-
-    Optional.ofNullable(_transportProvider.getMetricInfos()).ifPresent(_metrics::addAll);
-
-    _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProvider);
-
-    CheckpointProvider cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    Optional.ofNullable(cpProvider.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
-
-    _eventProducerPool = new EventProducerPool(cpProvider, factory,
-        coordinatorProperties.getDomainProperties(TRANSPORT_PROVIDER_CONFIG_DOMAIN),
-        coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN));
-    Optional.ofNullable(_eventProducerPool.getMetricInfos()).ifPresent(m -> _metrics.addAll(m));
+    _cpProvider = new ZookeeperCheckpointProvider(_adapter);
+    Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
   }
 
   public void start() {
@@ -244,6 +224,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public void stop() {
     _log.info("Stopping coordinator");
+
+    // Stopping event threads so that no more events are scheduled for the connector.
+    while (_eventThread.isAlive()) {
+      try {
+        _eventThread.interrupt();
+        _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
+      } catch (InterruptedException e) {
+        _log.warn("Exception caught while stopping coordinator", e);
+      }
+    }
+
+    // Stopping all the connectors so that they stop producing.
     for (String connectorType : _connectors.keySet()) {
       try {
         _connectors.get(connectorType).stop();
@@ -254,16 +246,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     }
 
-    while (_eventThread.isAlive()) {
-      try {
-        _eventThread.interrupt();
-        _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
-      } catch (InterruptedException e) {
-        _log.warn("Exception caught while stopping coordinator", e);
-      }
+    // Shutdown the event producer.
+    for (DatastreamTask task : _assignedDatastreamTasks.values()) {
+      ((EventProducer) task.getEventProducer()).shutdown();
     }
-
-    _eventProducerPool.shutdown();
 
     _adapter.disconnect();
     _log.info("Coordinator stopped");
@@ -415,7 +401,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (_assignedDatastreamTasks.containsKey(taskName)) {
       return _assignedDatastreamTasks.get(taskName);
     } else {
-      return _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
+      DatastreamTaskImpl task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
+      if (StringUtils.isEmpty(task.getTransportProviderName())) {
+        task.setTransportProviderName(_config.getDefaultTransportProviderName());
+      }
+
+      return task;
     }
   }
 
@@ -434,19 +425,31 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     addedTasks.removeAll(oldAssignment);
     oldAssignment.removeAll(assignment);
     removedTasks = oldAssignment;
+    boolean customCheckpointing = _customCheckpointingConnectors.contains(connectorType);
 
     if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
-      _eventProducerPool.assignEventProducers(connectorType, addedTasks, removedTasks,
-          _customCheckpointingConnectors.contains(connectorType));
+      addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(t -> {
+
+        TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
+        TransportProvider transportProvider = tpAdmin.assignTransportProvider(t);
+        EventProducer producer =
+            new EventProducer(t, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
+        DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) t;
+        taskImpl.setEventProducer(producer);
+        Map<Integer, String> checkpoints = producer.loadCheckpoints(t);
+        taskImpl.setCheckpoints(checkpoints);
+      });
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
         try {
           connector.onAssignmentChange(assignment);
-
           // Unassign tasks with producers
-          _eventProducerPool.unassignEventProducers(removedTasks);
+          removedTasks.forEach(t -> {
+            TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
+            tpAdmin.unassignTransportProvider(t);
+          });
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
@@ -534,7 +537,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             shouldRetry = true;
           }
         } catch (Exception e) {
-          _log.warn("Failed to update the destination of new datastream %s " + ds, e);
+          _log.warn("Failed to update the destination of new datastream {}", ds, e);
           shouldRetry = true;
         }
       }
@@ -579,10 +582,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     //       solution.
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
         .stream()
-        .filter(datastream -> datastream.hasStatus()
-            && datastream.getStatus() == DatastreamStatus.READY
-            && datastream.hasDestination()
-            && datastream.getDestination().hasConnectionString())
+        .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY
+            && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
         .sorted((d1, d2) -> compareCreationMs(d1, d2))
         .collect(Collectors.toList());
 
@@ -742,16 +743,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
 
+    if (!StringUtils.isEmpty(_config.getDefaultTransportProviderName())) {
+      if (!datastream.hasTransportProviderName() || StringUtils.isEmpty(datastream.getTransportProviderName())) {
+        datastream.setTransportProviderName(_config.getDefaultTransportProviderName());
+      }
+    }
+
     try {
       _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
       connector.initializeDatastream(datastream, allDatastreams);
+      _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
       throw e;
     }
 
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
-    _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
   }
 
   @Override
@@ -768,6 +775,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public String getClusterName() {
     return _clusterName;
+  }
+
+  public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
+    _transportProviderAdmins.put(transportProviderName, admin);
   }
 
   private class CoordinatorEventProcessor extends Thread {

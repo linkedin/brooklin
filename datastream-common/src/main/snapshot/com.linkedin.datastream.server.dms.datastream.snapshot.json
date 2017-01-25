@@ -46,6 +46,10 @@
       "type" : "string",
       "doc" : "Name of the connector to be used for reading the change capture events from the source, e.g. Oracle, Espresso, OracleBootstrap, EspressoBootstrap, Mysql etc.."
     }, {
+      "name" : "transportProviderName",
+      "type" : "string",
+      "doc" : "Name of the transport provider."
+    }, {
       "name" : "source",
       "type" : "DatastreamSource",
       "doc" : "Source that connector can use to connect to the data store and consume the data."

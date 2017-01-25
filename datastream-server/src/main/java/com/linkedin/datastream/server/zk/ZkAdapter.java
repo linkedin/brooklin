@@ -413,7 +413,7 @@ public class ZkAdapter {
    * @param taskName
    * @return
    */
-  public DatastreamTask getAssignedDatastreamTask(String instance, String taskName) {
+  public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
     String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
     DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
     String dsName = task.getDatastreamName();

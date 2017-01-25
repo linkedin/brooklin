@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+
+  @log4j.appenders.webapp@
+
+  @log4j.appenders.public_access@
+
+  <appender name="console" class="org.apache.log4j.ConsoleAppender">
+      <layout class="org.apache.log4j.PatternLayout">
+    <param name="ConversionPattern" 
+      value="%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n" />
+      </layout>
+  </appender>
+
+  @log4j.loggers.spring@
+
+  @log4j.loggers.public_access@
+  <logger name="com.linkedin.datastream.server" additivity="false">
+    <level value="INFO"/>
+    <appender-ref ref="console"/>
+  </logger>
+
+  @log4j.loggers.root@
+  <root>
+    <priority value ="INFO" />
+    <appender-ref ref="console"/>
+  </root>
+
+
+</log4j:configuration>
+

@@ -15,6 +15,11 @@
       "type": "string"
     },
     {
+      "name": "transportProviderName",
+      "doc": "Name of the transport provider.",
+      "type": "string"
+    },
+    {
       "name": "source",
       "doc": "Source that connector can use to connect to the data store and consume the data.",
       "type": {

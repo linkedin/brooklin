@@ -14,17 +14,17 @@ public final class CoordinatorConfig {
   private final Properties _config;
   private final VerifiableProperties _properties;
   private final int _retryIntervalMS;
-  private final String _transportProviderFactory;
   private final boolean _reuseExistingDestination;
 
   private static final String PREFIX = "brooklin.server.coordinator.";
+  public static final String CONFIG_DEFAULT_TRANSPORT_PROVIDER = PREFIX + "defaultTransportProviderName";
   public static final String CONFIG_CLUSTER = PREFIX + "cluster";
   public static final String CONFIG_ZK_ADDRESS = PREFIX + "zkAddress";
   public static final String CONFIG_ZK_SESSION_TIMEOUT = PREFIX + "zkSessionTimeout";
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMS";
-  public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = PREFIX + "transportProviderFactory";
   public static final String CONFIG_REUSE_EXISTING_DESTINATION = PREFIX + "reuseExistingDestination";
+  private final String _defaultTransportProviderName;
   private int _assignmentChangeThreadPoolThreadCount = 3;
 
   public CoordinatorConfig(Properties config) {
@@ -35,8 +35,8 @@ public final class CoordinatorConfig {
     _zkSessionTimeout = _properties.getInt(CONFIG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
     _zkConnectionTimeout = _properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
     _retryIntervalMS = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
-    _transportProviderFactory = _properties.getString(CONFIG_TRANSPORT_PROVIDER_FACTORY);
     _reuseExistingDestination = _properties.getBoolean(CONFIG_REUSE_EXISTING_DESTINATION, true);
+    _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
   }
 
   public Properties getConfigProperties() {
@@ -63,10 +63,6 @@ public final class CoordinatorConfig {
     return _retryIntervalMS;
   }
 
-  public String getTransportProviderFactory() {
-    return _transportProviderFactory;
-  }
-
   public boolean isReuseExistingDestination() {
     return _reuseExistingDestination;
   }
@@ -77,5 +73,9 @@ public final class CoordinatorConfig {
 
   public int getAssignmentChangeThreadPoolThreadCount() {
     return _assignmentChangeThreadPoolThreadCount;
+  }
+
+  public String getDefaultTransportProviderName() {
+    return _defaultTransportProviderName;
   }
 }

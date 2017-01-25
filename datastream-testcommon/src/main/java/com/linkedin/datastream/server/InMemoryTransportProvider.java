@@ -1,66 +1,42 @@
 package com.linkedin.datastream.server;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.api.transport.SendCallback;
-import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
 public class InMemoryTransportProvider implements TransportProvider {
   private static final Logger LOG = Logger.getLogger(InMemoryTransportProvider.class);
 
+  public HashMap<String, Integer> getTopics() {
+    return _topics;
+  }
+
   private HashMap<String, Integer> _topics = new HashMap<>();
 
   // Map of destination connection string to the list of events.
   private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new ConcurrentHashMap<>();
-
-  @Override
-  public synchronized void createTopic(String topicName, int numberOfPartitions, Properties topicConfig)
-      throws TransportException {
-    if (_topics.containsKey(topicName)) {
-      String msg = String.format("Topic %s already exists", topicName);
-      LOG.error(msg);
-      throw new TransportException(msg);
-    }
-    _topics.put(topicName, numberOfPartitions);
-  }
-
-  @Override
-  public synchronized void dropTopic(String destination) throws TransportException {
-    String topicName = getTopicName(destination);
-    if (_topics.remove(topicName) == null) {
-      String msg = String.format("Topic %s doesn't exist", topicName);
-      LOG.error(msg);
-      throw new TransportException(msg);
-    }
-  }
-
-  public String getDestination(String topicName) {
-    return topicName;
-  }
 
   public static String getTopicName(String destination) {
     return destination;
   }
 
   @Override
-  public synchronized void send(String connectionString, DatastreamProducerRecord record, SendCallback onComplete)
-      throws TransportException {
+  public synchronized void send(String connectionString, DatastreamProducerRecord record, SendCallback onComplete) {
     String topicName = getTopicName(connectionString);
     if (!_topics.containsKey(topicName)) {
       String msg = String.format("Topic %s doesn't exist", topicName);
       LOG.error(msg);
-      throw new TransportException(msg);
+      throw new DatastreamRuntimeException(msg);
     }
 
     if (!_recordsReceived.containsKey(connectionString)) {
@@ -73,16 +49,11 @@ public class InMemoryTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void close() throws TransportException {
+  public void close() {
   }
 
   @Override
-  public void flush() throws TransportException {
-  }
-
-  @Override
-  public Duration getRetention(String destination) {
-    return Duration.ofDays(1);
+  public void flush() {
   }
 
   public Map<String, List<DatastreamProducerRecord>> getRecordsReceived() {
@@ -99,12 +70,18 @@ public class InMemoryTransportProvider implements TransportProvider {
       return 0L;
     }
 
-    long totalEventsReceived = _recordsReceived.get(connectionString)
-        .stream()
-        .mapToInt(r -> r.getEvents().size())
-        .sum();
+    long totalEventsReceived =
+        _recordsReceived.get(connectionString).stream().mapToInt(r -> r.getEvents().size()).sum();
     LOG.info(
         String.format("Total events received for the destination %s is %d", connectionString, totalEventsReceived));
     return totalEventsReceived;
+  }
+
+  public void addTopic(String topicName, int numberOfPartitions) {
+    _topics.put(topicName, numberOfPartitions);
+  }
+
+  public void removeTopic(String topicName) {
+    _topics.remove(topicName);
   }
 }

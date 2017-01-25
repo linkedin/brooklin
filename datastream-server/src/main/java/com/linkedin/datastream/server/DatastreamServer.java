@@ -1,13 +1,14 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.ThreadTerminationMonitor;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,16 +28,20 @@ import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.ThreadTerminationMonitor;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
@@ -56,13 +61,14 @@ public class DatastreamServer {
   public static final String CONFIG_CSV_METRICS_DIR = CONFIG_PREFIX + "csvMetricsDir";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
-  public static final String CONFIG_TRANSPORT_PROVIDER_FACTORY = CoordinatorConfig.CONFIG_TRANSPORT_PROVIDER_FACTORY;
-  public static final String CONFIG_CONNECTOR_FACTORY_CLASS_NAME = "factoryClassName";
+  public static final String CONFIG_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
   public static final String STRATEGY_DOMAIN = "strategy";
+  public static final String CONFIG_TRANSPORT_PROVIDER_NAMES = CONFIG_PREFIX + "transportProviderNames";
+  public static final String CONFIG_TRANSPORT_PROVIDER_PREFIX = CONFIG_PREFIX + "transportProvider.";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -108,13 +114,34 @@ public class DatastreamServer {
     return _httpPort;
   }
 
+  private void initializeTransportProvider(String transportProviderName, Properties transportProviderConfig) {
+    LOG.info("Starting to load the transport provider: " + transportProviderName);
+
+    String factoryClassName = transportProviderConfig.getProperty(CONFIG_FACTORY_CLASS_NAME, "");
+    if (StringUtils.isBlank(factoryClassName)) {
+      String msg = "Factory class name is not set or empty for transport provider: " + transportProviderName;
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    TransportProviderAdminFactory factory = ReflectionUtils.createInstance(factoryClassName);
+    if (factory == null) {
+      String msg = "Invalid class name or no parameter-less constructor, class=" + factoryClassName;
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    TransportProviderAdmin admin = factory.createTransportProviderAdmin(transportProviderName, transportProviderConfig);
+    _coordinator.addTransportProvider(transportProviderName, admin);
+  }
+
   private void initializeConnector(String connectorName, Properties connectorProperties) {
     LOG.info("Starting to load connector: " + connectorName);
 
     VerifiableProperties connectorProps = new VerifiableProperties(connectorProperties);
 
     // For each connector type defined in the config, load one instance from that class
-    String className = connectorProperties.getProperty(CONFIG_CONNECTOR_FACTORY_CLASS_NAME, "");
+    String className = connectorProperties.getProperty(CONFIG_FACTORY_CLASS_NAME, "");
     if (StringUtils.isBlank(className)) {
       String errorMessage = "Factory className is empty for connector " + connectorName;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
@@ -161,14 +188,24 @@ public class DatastreamServer {
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
 
-    String[] connectorTypes = verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",");
-    if (connectorTypes.length == 0) {
+    HashSet<String> connectorTypes =
+        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",")));
+    if (connectorTypes.size() == 0) {
       String errorMessage = "No connectors specified in connectorTypes";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
+    }
+
+    HashSet<String> transportProviderNames =
+        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_TRANSPORT_PROVIDER_NAMES).split(",")));
+    if (transportProviderNames.size() == 0) {
+      String errorMessage = "No transport providers specified in config: " + CONFIG_TRANSPORT_PROVIDER_NAMES;
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
     }
 
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
-    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.length);
+    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
 
     LOG.info("Setting up DMS endpoint server.");
     ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
@@ -181,6 +218,12 @@ public class DatastreamServer {
     for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr,
           verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
+    }
+
+    LOG.info("Loading Transport providers.");
+    for (String tpName : transportProviderNames) {
+      initializeTransportProvider(tpName,
+          verifiableProperties.getDomainProperties(CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName));
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());

@@ -1,26 +1,26 @@
 package com.linkedin.datastream.server;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+
+import org.apache.commons.lang.Validate;
+import org.codehaus.jackson.annotate.JsonIgnore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.codehaus.jackson.annotate.JsonIgnore;
-import org.apache.commons.lang.Validate;
-
-import java.io.IOException;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Objects;
-import java.util.UUID;
 
 
 /**
@@ -45,12 +45,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   private static final String STATUS = "STATUS";
 
+  private HashMap<Integer, String> _checkpoints = new HashMap<>();
+
   // connector type. Type of the connector to be used for reading the change capture events
   // from the source, e.g. Oracle-Change, Espresso-Change, Oracle-Bootstrap, Espresso-Bootstrap,
   // Mysql-Change etc..
   private String _connectorType;
 
-  // The Id of the datastreamtask. It is a string that will represent one assignable element of
+  // The Id of the datastream task. It is a string that will represent one assignable element of
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
   // mapped to one Datastream. Each of the _id value will be represented in zookeeper
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
@@ -70,6 +72,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   private Map<String, String> _properties = new HashMap<>();
   private DatastreamEventProducer _eventProducer;
+  private String _transportProviderName;
 
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
@@ -161,12 +164,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public Map<Integer, String> getCheckpoints() {
-    // There is only one implementation of EventProducer so it's safe to cast
-    DatastreamEventProducerImpl impl = (DatastreamEventProducerImpl) _eventProducer;
-    Map<DatastreamTask, Map<Integer, String>> safeCheckpoints = impl.getEventProducer().getSafeCheckpoints();
-    // Checkpoint map of the owning task must be present in the producer
-    Validate.isTrue(safeCheckpoints.containsKey(this), "null checkpoints for task: " + this);
-    return Collections.unmodifiableMap(safeCheckpoints.get(this));
+    return _checkpoints;
   }
 
   @JsonIgnore
@@ -195,6 +193,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public void setDatastream(Datastream datastream) {
     _datastream = datastream;
+    _transportProviderName = datastream.getTransportProviderName();
   }
 
   @JsonIgnore
@@ -208,6 +207,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public String getConnectorType() {
     return _connectorType;
+  }
+
+  @JsonIgnore
+  @Override
+  public String getTransportProviderName() {
+    return _transportProviderName;
+  }
+
+  public void setTransportProviderName(String transportProviderName) {
+    _transportProviderName = transportProviderName;
   }
 
   public void setConnectorType(String connectorType) {
@@ -288,5 +297,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public void setZkAdapter(ZkAdapter adapter) {
     _zkAdapter = adapter;
+  }
+
+  public void updateCheckpoint(int partition, String checkpoint) {
+    LOG.debug("Update checkpoint called for partition {} and checkpoint {}", partition, checkpoint);
+    _checkpoints.put(partition, checkpoint);
+  }
+
+  public void setCheckpoints(Map<Integer, String> checkpoints) {
+    _checkpoints = new HashMap<>(checkpoints);
   }
 }
