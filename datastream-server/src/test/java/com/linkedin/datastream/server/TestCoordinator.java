@@ -528,7 +528,7 @@ public class TestCoordinator {
     instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false);
     instance1.start();
 
-    LOG.info("Creating two datastream");
+    LOG.info("Creating two datastreams");
 
     //
     // create 2 datastreams, [datastream0, datastream1]
@@ -787,7 +787,8 @@ public class TestCoordinator {
     LOG.info("Verify whether the six datastreams are assigned to the three connector instances");
 
     //
-    // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
+    // verify assignment, instance1: [datastream0, datastream3], instance2:[datastream1, datastream4]
+    // instance 3: [datastream2, datastream5]
     //
     assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK, "datastream0", "datastream3");
     assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK, "datastream1", "datastream4");
@@ -797,7 +798,6 @@ public class TestCoordinator {
     tasks1.addAll(connector2.getTasks());
     tasks1.addAll(connector3.getTasks());
     Collections.sort(tasks1, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
-
     LOG.info("Stop the instance1 and delete the live instance");
 
     //
@@ -835,10 +835,10 @@ public class TestCoordinator {
     List<DatastreamTask> tasks2 = new ArrayList<>(connector3.getTasks());
     Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
 
-    LOG.info("Tasks1: " + tasks1.toString());
-    LOG.info("Tasks2: " + tasks2.toString());
+    String taskLists = String.format("\nTask1: %s \nTask2: %s", tasks1.toString(), tasks2.toString());
+    LOG.info(taskLists);
 
-    Assert.assertEquals(tasks1, tasks2);
+    Assert.assertEquals(tasks1, tasks2, "Task lists not equal: " + taskLists);
 
     // Verify dead instance assignments have been removed
     Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName())));
