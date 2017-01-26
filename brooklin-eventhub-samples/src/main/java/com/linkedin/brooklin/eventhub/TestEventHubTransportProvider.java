@@ -6,7 +6,6 @@ import java.util.HashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
@@ -18,7 +17,6 @@ public class TestEventHubTransportProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestEventHubTransportProvider.class.getName());
 
-  @Test
   public void testSend() {
     EventHubDestination destination = createEventHubDestination();
     EventHubTransportProvider tp = new EventHubTransportProvider(destination, Collections.singletonList(0));
@@ -51,7 +49,6 @@ public class TestEventHubTransportProvider {
     return new EventHubDestination(TestEventHubTransportProviderAdmin.createEventHubDatastream("test1"));
   }
 
-  @Test
   public void testFlush() {
     EventHubDestination destination = createEventHubDestination();
     EventHubTransportProvider tp = new EventHubTransportProvider(destination, Collections.singletonList(0));
@@ -59,5 +56,11 @@ public class TestEventHubTransportProvider {
     tp.send(TestEventHubTransportProviderAdmin.DESTINATION, record, (metadata, exception) -> LOG.info("Send complete"));
 
     tp.flush();
+  }
+
+  public static void main(String[] args) {
+    TestEventHubTransportProvider provider = new TestEventHubTransportProvider();
+    provider.testSend();
+    provider.testFlush();
   }
 }

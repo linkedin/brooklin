@@ -201,6 +201,14 @@ project(':brooklin-samza') {
   }
 }
 
+project(':brooklin-eventhub-samples') {
+  dependencies {
+    compile project(':brooklin-eventhub')
+    compile project(':brooklin-samza-eventhub')
+    compile "org.testng:testng:$testngVersion"
+  }
+}
+
 project(':brooklin-samza-eventhub') {
   dependencies {
     compile "org.apache.samza:samza-api:$samzaVersion"
