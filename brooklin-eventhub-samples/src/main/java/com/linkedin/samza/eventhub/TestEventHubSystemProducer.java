@@ -119,4 +119,12 @@ public class TestEventHubSystemProducer {
     Assert.assertEquals(systemProducer.getPendingFutures().size(), 0);
     systemProducer.stop();
   }
+
+  public static void main(String[] args) {
+    TestEventHubSystemProducer producer = new TestEventHubSystemProducer();
+    producer.testSystemFactoryCreateAndStartProducer();
+    producer.testSend();
+    producer.testSendToSpecificPartition();
+    producer.testFlush();
+  }
 }
