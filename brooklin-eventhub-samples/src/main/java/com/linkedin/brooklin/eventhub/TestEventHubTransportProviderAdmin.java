@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.testng.Assert;
-import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -44,7 +43,6 @@ public class TestEventHubTransportProviderAdmin {
     return ds;
   }
 
-  @Test
   public void testAssignTask() {
     EventHubTransportProviderAdmin tpAdmin = new EventHubTransportProviderAdmin("eh", new Properties());
     Datastream ds1 = createEventHubDatastream("ds1");
@@ -60,14 +58,12 @@ public class TestEventHubTransportProviderAdmin {
     Assert.assertNotEquals(transportProvider1, transportProvider3);
   }
 
-  @Test
   public void testInitializeDestinationForDatastream() throws DatastreamValidationException {
     Datastream ds1 = createEventHubDatastream("ds1");
     EventHubTransportProviderAdmin tpAdmin = new EventHubTransportProviderAdmin("eh", new Properties());
     tpAdmin.initializeDestinationForDatastream(ds1);
   }
 
-  @Test
   public void testInitializeDestinationForDatastreamWithInvalidDestination() {
     Datastream ds1 = createEventHubDatastream("ds1");
     EventHubTransportProviderAdmin tpAdmin = new EventHubTransportProviderAdmin("eh", new Properties());
@@ -90,7 +86,6 @@ public class TestEventHubTransportProviderAdmin {
     }
   }
 
-  @Test
   public void testUnassignTask() {
     EventHubTransportProviderAdmin tpAdmin = new EventHubTransportProviderAdmin("eh", new Properties());
     Datastream ds1 = createEventHubDatastream("ds1");
@@ -98,5 +93,13 @@ public class TestEventHubTransportProviderAdmin {
     DatastreamTask task1 = new DatastreamTaskImpl(ds1, "ds1_1", partitions);
     tpAdmin.assignTransportProvider(task1);
     tpAdmin.unassignTransportProvider(task1);
+  }
+
+  public static void main(String[] args) throws DatastreamValidationException {
+    TestEventHubTransportProviderAdmin test = new TestEventHubTransportProviderAdmin();
+    test.testAssignTask();
+    test.testInitializeDestinationForDatastream();
+    test.testInitializeDestinationForDatastreamWithInvalidDestination();
+    test.testUnassignTask();
   }
 }
