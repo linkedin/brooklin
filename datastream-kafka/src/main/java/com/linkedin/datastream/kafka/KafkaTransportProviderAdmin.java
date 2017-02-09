@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
+import kafka.admin.RackAwareMode;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
@@ -145,7 +146,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     try {
       // Create only if it doesn't exist.
       if (!AdminUtils.topicExists(_zkUtils, topicName)) {
-        AdminUtils.createTopic(_zkUtils, topicName, numberOfPartitions, replicationFactor, topicConfig);
+        AdminUtils.createTopic(_zkUtils, topicName, numberOfPartitions, replicationFactor, topicConfig, RackAwareMode.Disabled$.MODULE$);
       } else {
         LOG.warn(String.format("Topic with name %s already exists", topicName));
       }

@@ -4,13 +4,12 @@ import java.util.Properties;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
-public class MysqlConnectorFactory implements ConnectorFactory {
+public class MysqlConnectorFactory implements ConnectorFactory<MysqlConnector> {
   @Override
-  public Connector createConnector(String connectorName, Properties config) {
+  public MysqlConnector createConnector(String connectorName, Properties config) {
     try {
       return new MysqlConnector(config);
     } catch (DatastreamException e) {

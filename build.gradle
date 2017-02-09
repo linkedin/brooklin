@@ -19,6 +19,10 @@ allprojects {
 
   repositories {
     mavenCentral()
+    maven {
+      //this is to allow depending on github projects not published to any repos (yet)
+      url 'https://jitpack.io'
+    }
     mavenLocal()
   }
 }
@@ -73,6 +77,8 @@ subprojects {
   def results = [:].withDefault { [] }
   test {
     useTestNG()
+    maxParallelForks = 1
+    maxHeapSize = "2048m"
     testLogging {
       exceptionFormat = 'full'
       events "started", "passed", "skipped", "failed"
@@ -180,6 +186,17 @@ project(':datastream-kafka') {
   }
 }
 
+project(':datastream-kafka-connector') {
+  dependencies {
+    compile project(':datastream-server-api')
+    //this is temporary - util this artifact is published properly we pull it via jitpack
+    compile "com.github.linkedin:li-apache-kafka-clients:$LIKafkaVersion"
+    compile "commons-validator:commons-validator:1.5.1"
+
+    testCompile project(':datastream-kafka')
+  }
+}
+
 project(':brooklin-eventhub') {
   dependencies {
     compile "com.microsoft.azure:azure-eventhubs:$eventHubVersion"
@@ -261,6 +278,8 @@ project(':datastream-tools') {
     from(project(':datastream-testcommon').configurations.runtime) { into("libs/") }
     from(project(':datastream-kafka').jar) { into("libs/") }
     from(project(':datastream-kafka').configurations.runtime) { into("libs/") }
+    from(project(':datastream-kafka-connector').jar) { into("libs/") }
+    from(project(':datastream-kafka-connector').configurations.runtime) { into("libs/") }
     duplicatesStrategy 'exclude'
   }
 
