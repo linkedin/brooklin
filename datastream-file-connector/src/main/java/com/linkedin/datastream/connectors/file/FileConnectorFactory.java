@@ -3,13 +3,12 @@ package com.linkedin.datastream.connectors.file;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
-public class FileConnectorFactory implements ConnectorFactory {
+public class FileConnectorFactory implements ConnectorFactory<FileConnector> {
   @Override
-  public Connector createConnector(String connectorName, Properties config) {
+  public FileConnector createConnector(String connectorName, Properties config) {
     try {
       return new FileConnector(config);
     } catch (DatastreamException e) {

@@ -43,7 +43,7 @@ public final class KafkaTestUtils {
     List<TopicPartition> topicPartitions = Collections.singletonList(subscription);
     KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
     consumer.assign(topicPartitions);
-    consumer.seekToBeginning(subscription);
+    consumer.seekToBeginning(Collections.singletonList(subscription));
 
     boolean keepGoing = true;
     long now = System.currentTimeMillis();

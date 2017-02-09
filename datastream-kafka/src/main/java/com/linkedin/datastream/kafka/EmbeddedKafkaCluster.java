@@ -10,6 +10,7 @@ import java.util.Properties;
 import com.linkedin.datastream.common.FileUtils;
 import com.linkedin.datastream.common.NetworkUtils;
 
+import java.util.concurrent.TimeUnit;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
 import kafka.utils.Time;
@@ -86,6 +87,7 @@ public class EmbeddedKafkaCluster {
       properties.setProperty("port", Integer.toString(port));
       properties.setProperty("log.dir", logDir.getAbsolutePath());
       properties.setProperty("log.flush.interval.messages", String.valueOf(1));
+      properties.setProperty("log.cleaner.enable", Boolean.FALSE.toString()); //to save memory
 
       KafkaServer broker = startBroker(properties);
 
@@ -110,10 +112,16 @@ public class EmbeddedKafkaCluster {
         // Ignore
       }
     }
+
+    @Override
+    public long hiResClockMs() {
+      return TimeUnit.NANOSECONDS.toMillis(nanoseconds());
+    }
   }
 
   private KafkaServer startBroker(Properties props) {
-    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new SystemTime(), scala.Option.apply(""));
+    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new SystemTime(),
+        scala.Option.apply(""), scala.collection.JavaConversions.asScalaBuffer(Collections.emptyList()));
     server.startup();
     return server;
   }

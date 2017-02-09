@@ -6,7 +6,7 @@ import java.util.Properties;
 /**
  * Connector factory interface, Each connector should implement this which creates the connector instance.
  */
-public interface ConnectorFactory {
+public interface ConnectorFactory<T extends Connector> {
 
   /**
    * create connector instance. Each connector should implement this method to create the corresponding connector
@@ -15,5 +15,5 @@ public interface ConnectorFactory {
    * @param config    Connector configuration.
    * @return Instance of the connector that is created.
    */
-  Connector createConnector(String connectorName, Properties config);
+  T createConnector(String connectorName, Properties config);
 }
