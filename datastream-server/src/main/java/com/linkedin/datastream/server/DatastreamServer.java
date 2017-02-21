@@ -147,7 +147,7 @@ public class DatastreamServer {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
-    ConnectorFactory connectorFactoryInstance = ReflectionUtils.createInstance(className);
+    ConnectorFactory<?> connectorFactoryInstance = ReflectionUtils.createInstance(className);
     if (connectorFactoryInstance == null) {
       String msg = "Invalid class name or no parameter-less constructor, class=" + className;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);

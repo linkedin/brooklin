@@ -15,6 +15,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import com.linkedin.datastream.common.*;
+import kafka.admin.RackAwareMode;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -178,7 +179,7 @@ public class TestDatastreamServer {
     ZkClient zkClient = new ZkClient(_datastreamCluster.getZkConnection());
     ZkConnection zkConnection = new ZkConnection(_datastreamCluster.getZkConnection());
     ZkUtils zkUtils = new ZkUtils(zkClient, zkConnection, false);
-    AdminUtils.createTopic(zkUtils, destinationTopic, numberOfPartitions, 1, new Properties());
+    AdminUtils.createTopic(zkUtils, destinationTopic, numberOfPartitions, 1, new Properties(), RackAwareMode.Disabled$.MODULE$);
 
     Datastream fileDatastream1 = createFileDatastream(fileName1, destinationTopic, 2);
     Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 2);
