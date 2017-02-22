@@ -1,39 +1,49 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class KafkaConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnector.class);
 
   public static final String CONNECTOR_NAME = "kafka";
-  public static final String COMMIT_INTERVAL_MILLIS = "CommitIntervalMillis";
+  public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMillis";
+  public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
+  private final KafkaConsumerFactory<?, ?> _consumerFactory;
+  private final Properties _consumerProps;
 
-  public KafkaConnector(String name, long commitntervalMillis) {
+  public KafkaConnector(String name, long commitIntervalMillis, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
+      Properties kafkaConsumerProps) {
+    _consumerFactory = kafkaConsumerFactory;
+    _consumerProps = kafkaConsumerProps;
     _name = name;
-    _commitIntervalMillis = commitntervalMillis;
+    _commitIntervalMillis = commitIntervalMillis;
   }
 
   private final String _name;
   private final long _commitIntervalMillis;
   private final ExecutorService _executor = Executors.newCachedThreadPool(new ThreadFactory() {
     private AtomicInteger threadCounter = new AtomicInteger(0);
+
     @Override
     public Thread newThread(Runnable r) {
       Thread t = new Thread(r);
@@ -65,6 +75,7 @@ public class KafkaConnector implements Connector {
 
   @Override
   public void onAssignmentChange(List<DatastreamTask> tasks) {
+    LOG.info("onAssignmentChange called with tasks {}", tasks);
 
     HashSet<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
     toCancel.removeAll(tasks);
@@ -80,7 +91,7 @@ public class KafkaConnector implements Connector {
         continue; //already running
       }
       LOG.info("creating task for {}.", task);
-      KafkaConnectorTask connectorTask = new KafkaConnectorTask(task, 100);
+      KafkaConnectorTask connectorTask = new KafkaConnectorTask(_consumerFactory, _consumerProps, task, 100);
       _runningTasks.put(task, connectorTask);
       _executor.submit(connectorTask);
     }
@@ -89,6 +100,7 @@ public class KafkaConnector implements Connector {
   @Override
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
+    LOG.info("Initialize datastream {}", stream);
     DatastreamSource source = stream.getSource();
     String connectionString = source.getConnectionString();
     //TODO - better validation and canonicalization
