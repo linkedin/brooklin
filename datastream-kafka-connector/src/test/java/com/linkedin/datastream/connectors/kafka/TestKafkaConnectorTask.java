@@ -1,13 +1,8 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.data.template.StringMap;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
-import com.linkedin.datastream.server.DatastreamTaskImpl;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -16,6 +11,13 @@ import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 
 public class TestKafkaConnectorTask {
@@ -70,7 +72,8 @@ public class TestKafkaConnectorTask {
     datastream.setMetadata(new StringMap());
     DatastreamTaskImpl task = new DatastreamTaskImpl(datastream);
     task.setEventProducer(datastreamProducer);
-    KafkaConnectorTask connectorTask = new KafkaConnectorTask(task, 100);
+    KafkaConnectorTask connectorTask =
+        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 100);
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> {
