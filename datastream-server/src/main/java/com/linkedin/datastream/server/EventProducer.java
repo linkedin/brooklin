@@ -131,7 +131,7 @@ public class EventProducer implements DatastreamEventProducer {
 
     try {
       _transportProvider.send(_datastreamTask.getDatastreamDestination().getConnectionString(), record,
-          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, _datastreamTask, record));
+          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record));
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
@@ -139,9 +139,11 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
-  private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamTask task, DatastreamProducerRecord record) {
+  // Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
+  // per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
+  // to avoid over-counting.
+  private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamProducerRecord record) {
     // Treat all events within this record equally (assume same timestamp)
-    int numberOfEvents = record.getEvents().size();
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
@@ -151,38 +153,37 @@ public class EventProducer implements DatastreamEventProducer {
           sourceToDestinationLatencyMs);
 
       if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, numberOfEvents);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, task.getConnectorType(), EVENTS_PRODUCED_WITHIN_SLA,
-            numberOfEvents);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+            EVENTS_PRODUCED_WITHIN_SLA, 1);
       } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA,
-            numberOfEvents);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
         _logger.debug(
             String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
-                sourceToDestinationLatencyMs, task.getDatastreamSource().getConnectionString(), metadata.getTopic(),
-                metadata.getPartition(), _availabilityThresholdSlaMs));
+                sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(),
+                metadata.getTopic(), metadata.getPartition(), _availabilityThresholdSlaMs));
       }
-      _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, numberOfEvents);
-      _dynamicMetricsManager.createOrUpdateCounter(MODULE, task.getConnectorType(), TOTAL_EVENTS_PRODUCED,
-          numberOfEvents);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), TOTAL_EVENTS_PRODUCED, 1);
     }
 
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, task.getConnectorType(), EVENT_PRODUCE_RATE, numberOfEvents);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
-      DatastreamTask task, DatastreamProducerRecord record) {
+      DatastreamProducerRecord record) {
 
     SendFailedException sendFailedException = null;
 
     if (exception != null) {
       // If it is custom checkpointing it is upto the connector to keep track of the safe checkpoints.
-      Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(task);
-      sendFailedException = new SendFailedException(task, safeCheckpoints, exception);
+      Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
+      sendFailedException = new SendFailedException(_datastreamTask, safeCheckpoints, exception);
     } else {
       // Report metrics
-      checkpoint((DatastreamTaskImpl) task, metadata.getPartition(), metadata.getCheckpoint());
-      reportMetrics(metadata, task, record);
+      checkpoint(metadata.getPartition(), metadata.getCheckpoint());
+      reportMetrics(metadata, record);
     }
 
     // Inform the connector about the success or failure, In the case of failure,
@@ -200,7 +201,8 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Inform the checkpoint provider about the new safe checkpoints.
    */
-  private void checkpoint(DatastreamTaskImpl task, int partition, String checkpoint) {
+  private void checkpoint(int partition, String checkpoint) {
+    DatastreamTaskImpl task = (DatastreamTaskImpl) _datastreamTask;
     try {
       _checkpointProvider.updateCheckpoint(task, partition, checkpoint);
       task.updateCheckpoint(partition, checkpoint);
