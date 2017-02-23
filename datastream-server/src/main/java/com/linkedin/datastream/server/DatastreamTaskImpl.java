@@ -193,7 +193,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public void setDatastream(Datastream datastream) {
     _datastream = datastream;
-    _transportProviderName = datastream.getTransportProviderName();
+
+    // It is possible that the datastream doesn't have transport provider name in which case
+    // coordinator will set this to defaultTransportProviderName.
+    if (datastream.hasTransportProviderName()) {
+      _transportProviderName = datastream.getTransportProviderName();
+    }
   }
 
   @JsonIgnore
