@@ -1,5 +1,9 @@
 package com.linkedin.datastream.metrics;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
 import org.apache.commons.lang.Validate;
 
 import com.codahale.metrics.Counter;
@@ -17,8 +21,13 @@ public class DynamicMetricsManager {
   private static DynamicMetricsManager _instance = null;
   private final MetricRegistry _metricRegistry;
 
+  // Metrics indexed by simple class name
+  // Simple class name -> full metric name -> metric
+  private final Map<String, Map<String, Metric>> _indexedMetrics;
+
   private DynamicMetricsManager(MetricRegistry metricRegistry) {
     _metricRegistry = metricRegistry;
+    _indexedMetrics = new HashMap<>();
   }
 
   public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry) {
@@ -35,6 +44,20 @@ public class DynamicMetricsManager {
     return _instance;
   }
 
+  private synchronized Optional<Metric> checkCache(String classSimpleName, String fullMetricName) {
+    if (_indexedMetrics.containsKey(classSimpleName)) {
+      return Optional.ofNullable(_indexedMetrics.get(classSimpleName).get(fullMetricName));
+    } else {
+      _indexedMetrics.put(classSimpleName, new HashMap<>());
+      return Optional.empty();
+    }
+  }
+
+  private synchronized void updateCache(String simpleClassName, String fullMetricName, Metric metric) {
+    _indexedMetrics.putIfAbsent(simpleClassName, new HashMap<>());
+    _indexedMetrics.get(simpleClassName).putIfAbsent(fullMetricName, metric);
+  }
+
   /**
    * Register the metric for the specified key/metricName pair by the given value; if it has
    * already been registered, do nothing
@@ -49,9 +72,13 @@ public class DynamicMetricsManager {
 
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
-    // create and register the metric if it does not exist
-    if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
-      _metricRegistry.register(fullMetricName, metric);
+    if (!checkCache(classSimpleName, fullMetricName).isPresent()) {
+      // create and register the metric if it does not exist
+      if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
+        _metricRegistry.register(fullMetricName, metric);
+      }
+
+      updateCache(classSimpleName, fullMetricName, metric);
     }
   }
 
@@ -74,15 +101,7 @@ public class DynamicMetricsManager {
    * @param metric the metric to be registered
    */
   public synchronized void registerMetric(Class<?> clazz, String key, String metricName, Metric metric) {
-    validateArguments(clazz, metricName);
-    Validate.notNull(metric, "metric argument is null.");
-
-    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
-
-    // create and register the metric if it does not exist
-    if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
-      _metricRegistry.register(fullMetricName, metric);
-    }
+    registerMetric(clazz.getSimpleName(), key, metricName, metric);
   }
 
   /**
@@ -109,11 +128,13 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
     // create and register the metric if it does not exist
-    Counter counter = _metricRegistry.getCounters().get(fullMetricName);
+    Counter counter =
+        (Counter) checkCache(classSimpleName, fullMetricName).orElse(_metricRegistry.getCounters().get(fullMetricName));
     if (counter == null) {
       counter = _metricRegistry.counter(fullMetricName);
     }
     counter.inc(value);
+    updateCache(classSimpleName, fullMetricName, counter);
   }
 
   /**
@@ -136,16 +157,7 @@ public class DynamicMetricsManager {
    * @param value amount to increment the counter by (use negative value to decrement)
    */
   public synchronized void createOrUpdateCounter(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, metricName);
-
-    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
-
-    // create and register the metric if it does not exist
-    Counter counter = _metricRegistry.getCounters().get(fullMetricName);
-    if (counter == null) {
-      counter = _metricRegistry.counter(fullMetricName);
-    }
-    counter.inc(value);
+    createOrUpdateCounter(clazz.getSimpleName(), key, metricName, value);
   }
 
   /**
@@ -172,11 +184,13 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
     // create and register the metric if it does not exist
-    Meter meter = _metricRegistry.getMeters().get(fullMetricName);
+    Meter meter =
+        (Meter) checkCache(classSimpleName, fullMetricName).orElse(_metricRegistry.getMeters().get(fullMetricName));
     if (meter == null) {
       meter = _metricRegistry.meter(fullMetricName);
     }
     meter.mark(value);
+    updateCache(classSimpleName, fullMetricName, meter);
   }
 
   /**
@@ -197,16 +211,7 @@ public class DynamicMetricsManager {
    * @param value the value to mark on the meter
    */
   public synchronized void createOrUpdateMeter(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, metricName);
-
-    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
-
-    // create and register the metric if it does not exist
-    Meter meter = _metricRegistry.getMeters().get(fullMetricName);
-    if (meter == null) {
-      meter = _metricRegistry.meter(fullMetricName);
-    }
-    meter.mark(value);
+    createOrUpdateMeter(clazz.getSimpleName(), key, metricName, value);
   }
 
   /**
@@ -231,11 +236,13 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
     // create and register the metric if it does not exist
-    Histogram histogram = _metricRegistry.getHistograms().get(fullMetricName);
+    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElse(
+        _metricRegistry.getHistograms().get(fullMetricName));
     if (histogram == null) {
       histogram = _metricRegistry.histogram(fullMetricName);
     }
     histogram.update(value);
+    updateCache(classSimpleName, fullMetricName, histogram);
   }
 
   /**
@@ -256,15 +263,7 @@ public class DynamicMetricsManager {
    * @param value the value to update on the histogram
    */
   public synchronized void createOrUpdateHistogram(Class<?> clazz, String key, String metricName, long value) {
-    validateArguments(clazz, metricName);
-    String fullMetricName = MetricRegistry.name(clazz.getSimpleName(), key, metricName);
-
-    // create and register the metric if it does not exist
-    Histogram histogram = _metricRegistry.getHistograms().get(fullMetricName);
-    if (histogram == null) {
-      histogram = _metricRegistry.histogram(fullMetricName);
-    }
-    histogram.update(value);
+    createOrUpdateHistogram(clazz.getSimpleName(), key, metricName, value);
   }
 
   /**
@@ -294,8 +293,4 @@ public class DynamicMetricsManager {
     Validate.notNull(metricName, "metricName argument is null.");
   }
 
-  private void validateArguments(Class<?> clazz, String metricName) {
-    Validate.notNull(clazz, "clazz argument is null.");
-    Validate.notNull(metricName, "metricName argument is null.");
-  }
 }
