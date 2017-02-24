@@ -183,10 +183,18 @@ project(':datastream-kafka') {
   }
 }
 
+project(':datastream-kafka-factory-impl') {
+  dependencies {
+    compile project(':datastream-kafka-connector')
+    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
+
+    testCompile project(':datastream-kafka')
+  }
+}
+
 project(':datastream-kafka-connector') {
   dependencies {
     compile project(':datastream-server-api')
-    //this is temporary - util this artifact is published properly we pull it via jitpack
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "commons-validator:commons-validator:1.5.1"
 
