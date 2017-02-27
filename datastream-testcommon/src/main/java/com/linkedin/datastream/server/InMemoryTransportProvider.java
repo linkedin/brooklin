@@ -60,11 +60,6 @@ public class InMemoryTransportProvider implements TransportProvider {
     return _recordsReceived;
   }
 
-  @Override
-  public List<BrooklinMetricInfo> getMetricInfos() {
-    return null;
-  }
-
   public long getTotalEventsReceived(String connectionString) {
     if (!_recordsReceived.containsKey(connectionString)) {
       return 0L;

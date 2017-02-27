@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.api.transport;
 
-import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 
@@ -8,7 +7,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
  * Datastream is transport agnostic system, This is the interface that each TransportProvider needs to be implement
  * to plug the different transport mechanisms (Kafka, kinesis, etc..) to Datastream
  */
-public interface TransportProvider extends MetricsAware {
+public interface TransportProvider {
   /**
    * Send the DatastreamEvent to the topic.
    * @param destination the destination topic to which the record should be sent.
