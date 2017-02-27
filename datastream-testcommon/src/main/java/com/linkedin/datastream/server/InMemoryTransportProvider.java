@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.log4j.Logger;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
