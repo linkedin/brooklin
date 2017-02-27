@@ -193,6 +193,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _cpProvider = new ZookeeperCheckpointProvider(_adapter);
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
+
+    _metrics.addAll(EventProducer.getMetricInfos());
   }
 
   public void start() {
@@ -584,7 +586,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .stream()
         .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY
             && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
-        .sorted((d1, d2) -> compareCreationMs(d1, d2))
+        .sorted(Coordinator::compareCreationMs)
         .collect(Collectors.toList());
 
     // The inner map is used to dedup Datastreams with the same destination
@@ -701,7 +703,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
-    connectorMetrics.ifPresent(m -> _metrics.addAll(m));
+    connectorMetrics.ifPresent(_metrics::addAll);
 
     ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
     _connectors.put(connectorName, connectorWrapper);
@@ -779,6 +781,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
     _transportProviderAdmins.put(transportProviderName, admin);
+
+    Optional<List<BrooklinMetricInfo>> transportProviderMetrics = Optional.ofNullable(admin.getMetricInfos());
+    transportProviderMetrics.ifPresent(_metrics::addAll);
   }
 
   private class CoordinatorEventProcessor extends Thread {

@@ -3,6 +3,7 @@ package com.linkedin.datastream.server.api.transport;
 import java.time.Duration;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
@@ -10,7 +11,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 /**
  * Transport provider Admin interface that each of the transport providers need to implement.
  */
-public interface TransportProviderAdmin {
+public interface TransportProviderAdmin extends MetricsAware {
 
   /**
    * assign the instance of the TransportProvider to the DatastreamTask. TransportProviderAdmin can
