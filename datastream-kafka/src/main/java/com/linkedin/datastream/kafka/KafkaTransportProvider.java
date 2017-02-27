@@ -165,14 +165,4 @@ public class KafkaTransportProvider implements TransportProvider {
   public void flush() {
     _producer.flush();
   }
-
-  public List<BrooklinMetricInfo> getMetricInfos() {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
-
-    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_WRITE_RATE));
-    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_BYTE_WRITE_RATE));
-    metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + EVENT_TRANSPORT_ERROR_RATE));
-
-    return Collections.unmodifiableList(metrics);
-  }
 }
