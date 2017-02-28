@@ -2,8 +2,10 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
@@ -13,8 +15,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,12 +30,14 @@ import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.server.DatastreamTaskStatus;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
 public class KafkaConnectorTask implements Runnable {
@@ -49,8 +57,8 @@ public class KafkaConnectorTask implements Runnable {
   private volatile String _taskName;
   private String _srcValue;
   private DatastreamEventProducer _producer;
-  private long _lastCommittedOffsets;
-  private boolean _workSinceLastCommit; //since last offset commit
+
+  private volatile ProgressTracker _progressTracker;
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
       long commitIntervalMillis) {
@@ -86,54 +94,60 @@ public class KafkaConnectorTask implements Runnable {
       props.put("bootstrap.servers", bootstrapValue);
       props.put("group.id", _taskName);
       props.put("enable.auto.commit", "false"); //auto-commits are unsafe
-      // TODO this is problematic. if the connector falls of the topic, it automatically starts from latest resulting
-      // in data loss.
-      props.put("auto.offset.reset", "latest"); //start from latest if no saved offsets
+      props.put("auto.offset.reset", "none");
       props.putAll(_consumerProps);
 
       try (Consumer<?, ?> consumer = _consumerFactory.createConsumer(props)) {
-        _lastCommittedOffsets = System.currentTimeMillis();
-        consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()));
 
         ConsumerRecords<?, ?> records;
+        _progressTracker = new ProgressTracker();
+
+        consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
+          @Override
+          public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+            LOG.trace("Partition ownership revoked for {}, checkpointing.", partitions);
+            maybeCommitOffsets(consumer, true); //happens inline as part of poll
+          }
+
+          @Override
+          public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+            //nop
+            LOG.trace("Partition ownership assigned for {}.", partitions);
+          }
+        });
+
         while (!_shouldDie) {
-
           //read a batch of records
-          records = consumer.poll(pollInterval);
+          try {
+            records = consumer.poll(pollInterval);
+          } catch (NoOffsetForPartitionException e) {
+            //means we have no saved offsets for some partitions, reset it to latest for those
+            consumer.seekToEnd(e.partitions());
+            continue;
+          }
 
-          if (startingUp) { // bootup completes on 1st successful poll
+          //handle startup notification if this is the 1st poll call
+          if (startingUp) {
             pollInterval = _offsetCommitInterval / 2; //leave time for processing, assume 50-50
             startingUp = false;
             _startedLatch.countDown();
           }
 
-          if (records.count() == 0) {
-            maybeCommitOffsets(consumer, false);
-            continue;
-          }
+          //send the batch out the other end
           long readTime = System.currentTimeMillis();
           String strReadTime = String.valueOf(readTime);
+          translateAndSendBatch(records, readTime, strReadTime, _progressTracker);
 
-          //send the batch out the other end
-
-          while (!_shouldDie) {
-            boolean success = translateAndSendBatch(records, readTime, strReadTime);
-            if (success) {
-              break;
-            }
-
-            LOG.warn("Sending the batch of events failed for datastream task {}. Retrying", _task);
-            //TODO - wait? backoff? max retries?!
-          }
-          _workSinceLastCommit = true;
-
-          //potentially commit our offsets (if its been long enough and we succeeded sending)
+          //potentially commit our offsets (if its been long enough and all sends were successful)
           maybeCommitOffsets(consumer, false);
         }
+
+        //shutdown
         maybeCommitOffsets(consumer, true);
       }
     } catch (Exception e) {
       LOG.error("{} failed with exception.", _taskName, e);
+      _task.setStatus(DatastreamTaskStatus.error(e.getMessage()));
       throw e;
     } finally {
       _stoppedLatch.countDown();
@@ -156,60 +170,45 @@ public class KafkaConnectorTask implements Runnable {
   }
 
   private void maybeCommitOffsets(Consumer<?, ?> consumer, boolean force) {
-    if (!_workSinceLastCommit) {
+    ProgressTracker progressTracker = _progressTracker;
+    boolean anyWorkDone = progressTracker.anyWorkDone();
+    if (!anyWorkDone) {
       return;
     }
     long now = System.currentTimeMillis();
-    long timeSinceLastCommit = now - _lastCommittedOffsets;
-    if (timeSinceLastCommit > _offsetCommitInterval || force) {
-      _producer.flush();
-      consumer.commitSync();
-      _lastCommittedOffsets = now;
-      _workSinceLastCommit = false;
+    long timeSinceLastCommit = now - progressTracker.since;
+    if (force || timeSinceLastCommit > _offsetCommitInterval) {
+      progressTracker.awaitCompletion(); //wait until all sends of the current batch succeed or anything fails
+      Pair<DatastreamRecordMetadata, Exception> failure = progressTracker.getFirstFailure();
+      if (failure != null) {
+        Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
+        //construct last checkpoint
+        consumer.assignment().forEach(topicPartition -> {
+          lastCheckpoint.put(topicPartition, consumer.committed(topicPartition));
+        });
+        //reset consumer to last checkpoint
+        lastCheckpoint.forEach((topicPartition, offsetAndMetadata) -> {
+          consumer.seek(topicPartition, offsetAndMetadata.offset());
+        });
+      } else {
+        _producer.flush();
+        consumer.commitSync();
+      }
+      _progressTracker = new ProgressTracker();
     }
   }
 
-  private boolean translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime, String strReadTime) {
-    AtomicReference<Pair<DatastreamRecordMetadata, Exception>> failure = new AtomicReference<>(null);
+  private void translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime,
+      String strReadTime, ProgressTracker progressTracker) {
     try {
-      CountDownLatch doneLatch = new CountDownLatch(1);
-      AtomicInteger numLeft = new AtomicInteger(records.count());
-      records.forEach(record -> {
-        DatastreamProducerRecord translated = translate(record, readTime, strReadTime);
-        _producer.send(translated, (metadata, exception) -> {
-          if (exception == null) {
-            //success
-            if (numLeft.decrementAndGet() == 0) {
-              doneLatch.countDown(); //all done (successfully)
-            }
-          } else {
-            //failure
-            failure.set(new Pair<>(metadata, exception));
-            doneLatch.countDown();
-          }
-        });
-      });
-
-      // TODO This behavior seems problematic. Right now kafka connector acts in a synchronous manner.
-      // i.e. poll() -> translateAndSend() -> Wait for send to complete -> poll() again
-      doneLatch.await();
-      Pair<DatastreamRecordMetadata, Exception> mdExceptionPair = failure.get();
-      if (mdExceptionPair == null) {
-        //successfully sent out the entire batch
-        return true;
-      }
-      throw mdExceptionPair.getValue();
+      progressTracker.markToBeSent(records.count());
+      records.forEach(record -> _producer.send(translate(record, readTime, strReadTime), progressTracker));
     } catch (Exception e) {
-      //some part of the batch failed to send out, or (if pair is null) some other exception
-      Pair<DatastreamRecordMetadata, Exception> mdExceptionPair = failure.get();
-      if (mdExceptionPair != null) {
-        LOG.error("sending event failed. metadata: {}", mdExceptionPair.getKey(), e);
-      } else {
-        //this is if the exception did not originate from the callback
-        LOG.error("sending event failed. no metadata", e);
-      }
+      //some part of the batch failed to send out, or some other exception
+      //progressTracker will only record the 1st failure, so we dont need to care
+      //about this overriding any previous failure captured by a callback
+      progressTracker.markFailed(null, e);
     }
-    return false;
   }
 
   private DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, long readTime, String strReadTime) {
@@ -248,6 +247,68 @@ public class KafkaConnectorTask implements Runnable {
       }
     } else {
       throw new DatastreamRuntimeException("Kafka connector doesn't support field of type" + field.getClass());
+    }
+  }
+
+  private static class ProgressTracker implements SendCallback {
+    private final long since = System.currentTimeMillis();
+    private final AtomicInteger msgsToBeSent = new AtomicInteger(0);
+    private final AtomicInteger msgsSucceeded = new AtomicInteger(0);
+    private final CountDownLatch doneLatch = new CountDownLatch(1);
+    private final AtomicReference<Boolean> success = new AtomicReference<>(null);
+    private volatile Pair<DatastreamRecordMetadata, Exception> firstFailure;
+
+    @Override
+    public void onCompletion(DatastreamRecordMetadata metadata, Exception exception) {
+      if (exception == null) {
+        markSucceeded();
+      } else {
+        markFailed(metadata, exception);
+      }
+    }
+
+    private void markToBeSent(int count) {
+      msgsToBeSent.addAndGet(count);
+    }
+
+    private void markSucceeded() {
+      if (msgsSucceeded.incrementAndGet() == msgsToBeSent.get()) {
+        if (success.compareAndSet(null, Boolean.TRUE)) {
+          doneLatch.countDown(); //successful completion
+        }
+      }
+    }
+
+    private void markFailed(DatastreamRecordMetadata metadata, Exception exception) {
+      if (success.compareAndSet(null, Boolean.FALSE)) {
+        //first failure
+        firstFailure = new Pair<>(metadata, exception);
+        doneLatch.countDown();
+        LOG.error("sending event failed. metadata: {}", metadata, exception);
+      } else {
+        if (!Boolean.FALSE.equals(success.get())) {
+          throw new IllegalStateException("should not be possible");
+        }
+      }
+    }
+
+    private boolean anyWorkDone() {
+      return msgsToBeSent.get() > 0;
+    }
+
+    private void awaitCompletion() {
+      while (true) {
+        try {
+          doneLatch.await();
+          break;
+        } catch (InterruptedException e) {
+          //ignore on purpose and keep waiting
+        }
+      }
+    }
+
+    public Pair<DatastreamRecordMetadata, Exception> getFirstFailure() {
+      return firstFailure;
     }
   }
 }

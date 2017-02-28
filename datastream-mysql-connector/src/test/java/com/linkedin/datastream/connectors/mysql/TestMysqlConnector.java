@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.mysql;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -62,14 +63,15 @@ public class TestMysqlConnector {
   @Test
   public void testMysqlDatastreamSingleTable() throws IOException, DatastreamException {
     Datastream datastream =
-        createMysqlDatastream("mysqldatastream1", DB1_NAME, TABLE1_NAME, "datastream-mysql-connector/src/test/data");
+        createMysqlDatastream("mysqldatastream1", DB1_NAME, TABLE1_NAME, getPathToData());
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
     InMemoryTransportProvider transportProvider = InMemoryTransportProviderAdmin.getTransportProvider();
     boolean pollResult = PollUtils.poll(() -> transportProvider.getTotalEventsReceived(connectionString) == 9,
         Duration.ofMillis(100).toMillis(), Duration.ofMinutes(2).toMillis());
-    Assert.assertTrue(pollResult);
+    Assert.assertTrue(pollResult, "expected 9 total events, got "
+        + transportProvider.getTotalEventsReceived(connectionString));
     Assert.assertEquals(transportProvider.getRecordsReceived().get(connectionString).size(), 3);
 
     DatastreamProducerRecord record1 = transportProvider.getRecordsReceived().get(connectionString).get(0);
@@ -127,8 +129,7 @@ public class TestMysqlConnector {
 
   @Test
   public void testMysqlDatastreamAllTablesInDb() throws IOException, DatastreamException {
-    Datastream datastream = createMysqlDatastream("mysqldatastream1", DB1_NAME, MysqlSource.ALL_TABLES,
-        "datastream-mysql-connector/src/test/data");
+    Datastream datastream = createMysqlDatastream("mysqldatastream1", DB1_NAME, MysqlSource.ALL_TABLES, getPathToData());
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
@@ -225,6 +226,15 @@ public class TestMysqlConnector {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(MysqlConnector.CONNECTOR_NAME, buildMysqlConnectorProperties());
     return EmbeddedDatastreamCluster.newTestDatastreamCluster(connectorProperties, override);
+  }
+
+  private static String getPathToData() throws IOException {
+    String workingDirectory = new File(".").getCanonicalPath();
+    String pathToData = "src/test/data";
+    if (!workingDirectory.endsWith("datastream-mysql-connector")) {
+      pathToData = "datastream-mysql-connector/" + pathToData;
+    }
+    return pathToData;
   }
 
   private static Properties buildMysqlConnectorProperties() {
