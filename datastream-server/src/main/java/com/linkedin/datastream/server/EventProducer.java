@@ -126,6 +126,7 @@ public class EventProducer implements DatastreamEventProducer {
    * @param record DatastreamEvent envelope
    * @param sendCallback
    */
+  @Override
   public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
     validateEventRecord(record);
 
@@ -193,6 +194,7 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
+  @Override
   public void flush() {
     _transportProvider.flush();
     _checkpointProvider.flush();

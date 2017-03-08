@@ -94,6 +94,9 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_HELP, OptionConstants.OPT_LONG_HELP, null, false,
             OptionConstants.OPT_DESC_HELP));
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
+            OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
 
     CommandLineParser parser = new BasicParser();
     CommandLine cmd;
@@ -137,10 +140,14 @@ public class DatastreamRestClientCli {
           String connectorName = getOptionValue(cmd, OptionConstants.OPT_SHORT_CONNECTOR_NAME, options);
           int partitions = Integer.parseInt(getOptionValue(cmd, OptionConstants.OPT_SHORT_NUM_PARTITION, options));
           Map<String, String> metadata = new HashMap<>();
+          String transport = "kafka"; // default value.
           if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
             metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
                 new TypeReference<Map<String, String>>() {
                 });
+          }
+          if (cmd.hasOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME)) {
+            transport = getOptionValue(cmd, OptionConstants.OPT_SHORT_TRANSPORT_NAME, options);
           }
 
           Datastream datastream = new Datastream();
@@ -151,6 +158,7 @@ public class DatastreamRestClientCli {
           datastreamSource.setPartitions(partitions);
           datastream.setSource(datastreamSource);
           datastream.setMetadata(new StringMap(metadata));
+          datastream.setTransportProviderName(transport);
           System.out.printf("Trying to create datastream %s", datastream);
           datastreamRestClient.createDatastream(datastream);
           System.out.printf("Created %s datastream. Now waiting for initialization (timeout = 10 seconds)\n",

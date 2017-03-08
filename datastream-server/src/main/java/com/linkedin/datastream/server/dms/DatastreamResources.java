@@ -132,7 +132,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
         .filter(stream -> stream != null).collect(Collectors.toList());
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Result collected for getAll: " + ret);
+        LOG.debug("Result collected for getAll: %s" + ret);
       }
       return ret;
     } catch (Exception e) {
@@ -149,7 +149,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info(String.format("Create datastream called with datastream %s", datastream));
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Handling request on object: " + toString() + " thread: " + Thread.currentThread());
+        LOG.debug("Handling request on object: %s thread: %s", this, Thread.currentThread());
       }
 
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CREATE_CALL, 1);
@@ -173,14 +173,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       _coordinator.initializeDatastream(datastream);
 
-      LOG.debug("Persisting initialized datastream to zookeeper: " + datastream);
+      LOG.debug("Persisting initialized datastream to zookeeper: %s",  datastream);
 
       _store.createDatastream(datastream.getName(), datastream);
 
       Duration delta = Duration.between(startTime, Instant.now());
       _createCallLatencyMs.set(delta.toMillis());
 
-      LOG.debug(String.format("Datastream persisted to zookeeper, total time used: %dms", delta.toMillis()));
+      LOG.debug("Datastream persisted to zookeeper, total time used: %dms", delta.toMillis());
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (IllegalArgumentException e) {
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);

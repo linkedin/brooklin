@@ -62,7 +62,7 @@ public class CachedDatastreamReader {
             _datastreams.keySet().removeAll(datastreamsRemoved);
           }
 
-          LOG.debug(String.format("New datastream list in the cache: %s", _datastreamNames));
+          LOG.debug("New datastream list in the cache: %s", _datastreamNames);
         }
       }
     });

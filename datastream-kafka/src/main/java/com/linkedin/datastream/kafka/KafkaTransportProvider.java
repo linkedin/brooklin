@@ -104,14 +104,13 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-
   public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
     KafkaDestination destination = KafkaDestination.parse(destinationUri);
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
 
-      LOG.debug("Sending Datastream event record: " + record);
+      LOG.debug("Sending Datastream event record: %s", record);
 
       for (Pair<Object, Object> event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
@@ -143,7 +142,7 @@ public class KafkaTransportProvider implements TransportProvider {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
-    LOG.debug("Done sending Datastream event record: " + record);
+    LOG.debug("Done sending Datastream event record: %s", record);
   }
 
   @Override
