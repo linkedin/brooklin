@@ -3,6 +3,8 @@ package com.linkedin.datastream.connectors;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +32,8 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * TestConnector that can be used to generate test events at regular intervals.
@@ -70,12 +74,12 @@ public class TestEventProducingConnector implements Connector {
   }
 
   @Override
-  public void start() {
+  public synchronized void start() {
     LOG.info("Start called.");
   }
 
   @Override
-  public void stop() {
+  public synchronized void stop() {
     LOG.info("Stop called.");
     _executor.shutdownNow();
     while (!_executor.isTerminated()) {
@@ -84,7 +88,7 @@ public class TestEventProducingConnector implements Connector {
   }
 
   @Override
-  public void onAssignmentChange(List<DatastreamTask> tasks) {
+  public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     LOG.info(String.format("onAssignmentChange called with tasks %s, existing assignment %s", tasks,
         _tasksAssigned.keySet()));
     for (DatastreamTask task : tasks) {
@@ -114,6 +118,8 @@ public class TestEventProducingConnector implements Connector {
   }
 
   private void executeTask(DatastreamTask task) {
+    int counter = 0;
+    Instant startTime = Instant.now();
     try {
       LOG.info("Starting the producer for task " + task);
       Datastream datastream = task.getDatastreams().get(0);
@@ -144,6 +150,7 @@ public class TestEventProducingConnector implements Connector {
               LOG.error("Send failed for event " + metadata.getCheckpoint(), exception);
             }
           });
+          counter++;
           try {
             Thread.sleep(sleepBetweenSendMs);
           } catch (InterruptedException e) {
@@ -158,6 +165,11 @@ public class TestEventProducingConnector implements Connector {
     } catch (Exception ex) {
       LOG.error("Producer thread threw exception, Stopping event producer for task " + task, ex);
     }
+
+    Duration elpaseTime = Duration.between(startTime, Instant.now());
+    double elapseSeconds = ((double) elpaseTime.toNanos()) / NANOSECONDS.convert(1, SECONDS);
+    LOG.info("XXXXXX {Task: " + task + "} Total Time: " + elapseSeconds + " total Messages: " + counter);
+    LOG.info("XXXXXX {Task: " + task + "} QPS:     " + (counter / elapseSeconds));
   }
 
   private DatastreamProducerRecord createDatastreamEvent(long eventIndex, int messageSize, int partition) {

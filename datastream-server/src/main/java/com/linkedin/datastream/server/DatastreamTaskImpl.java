@@ -114,7 +114,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
    */
   public static DatastreamTaskImpl fromJson(String json) {
     DatastreamTaskImpl task = JsonUtils.fromJson(json, DatastreamTaskImpl.class);
-    LOG.debug("Loaded existing DatastreamTask: " + task);
+    LOG.debug("Loaded existing DatastreamTask: %s", task);
     return task;
   }
 

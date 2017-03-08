@@ -56,7 +56,7 @@ public class DestinationManager {
     datastreams.stream().filter(d -> d.hasDestination() && d.getDestination().hasConnectionString() &&
         !d.getDestination().getConnectionString().isEmpty()).forEach(d -> sourceStreamMapping.put(d.getSource(), d));
 
-    LOG.debug("Datastream Source -> Datastream mapping before populating new datastream destinations",
+    LOG.debug("Datastream Source -> Datastream mapping before populating new datastream destinations: %s",
         sourceStreamMapping);
 
     boolean topicReuse = _reuseExistingTopic;
@@ -85,7 +85,7 @@ public class DestinationManager {
       sourceStreamMapping.put(datastream.getSource(), datastream);
     }
 
-    LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations",
+    LOG.debug("Datastream Source -> Destination mapping after the populating new datastream destinations: %s",
         sourceStreamMapping);
   }
 
