@@ -213,8 +213,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     }
 
     String[] tableNameParts = currFullDBTableName.split("[.]");
-    LOG.debug(
-        "File Number: " + _currFileName + ", Position: " + (int) binlogEventHeader.getPosition() + ", SCN =" + _scn);
+    LOG.debug("File Number: %s, Position: %d, SCN = %d", _currFileName, (int) binlogEventHeader.getPosition(), _scn);
 
     List<ColumnInfo> columnMetadata = _tableInfoProvider.getColumnList(tableNameParts[0], tableNameParts[1]);
 
@@ -291,7 +290,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       QueryEvent qe = (QueryEvent) event;
       String sql = qe.getSql().toString();
       if ("ROLLBACK".equalsIgnoreCase(sql)) {
-        LOG.debug("ROLLBACK sql: " + sql);
+        LOG.debug("ROLLBACK sql: %s", sql);
         return true;
       }
     }
@@ -344,14 +343,14 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       QueryEvent qe = (QueryEvent) event;
       String sql = qe.getSql().toString();
       if ("COMMIT".equalsIgnoreCase(sql)) {
-        LOG.debug("COMMIT sql: " + sql);
+        LOG.debug("COMMIT sql: %s", sql);
         return true;
       }
     } else if (event instanceof XidEvent) {
       // A transaction can end with either COMMIT or XID event.
       XidEvent xe = (XidEvent) event;
       long xid = xe.getXid();
-      LOG.debug("Treating XID event with xid = " + xid + " as commit for the transaction");
+      LOG.debug("Treating XID event with xid = %d as commit for the transaction", xid);
       return true;
     }
 

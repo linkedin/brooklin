@@ -603,11 +603,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (!streams.containsKey(ds.getDestination())) {
         streams.put(ds.getDestination(), ds);
       } else {
-        _log.debug(String.format("Datastream %s is de-duped by %s", ds, streams.get(ds.getDestination())));
+        _log.debug("Datastream %s is de-duped by %s", ds, streams.get(ds.getDestination()));
       }
     }
 
-    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: " + streamsByConnectorType);
+    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", streamsByConnectorType);
 
     // Map between Instance and the tasks
     Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
@@ -752,7 +752,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     try {
-      _log.debug(String.format("About to initialize datastream %s with connector %s", datastream, connectorName));
+      _log.debug("About to initialize datastream %s with connector %s", datastream, connectorName);
       connector.initializeDatastream(datastream, allDatastreams);
       _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
     } catch (Exception e) {

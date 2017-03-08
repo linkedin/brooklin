@@ -17,6 +17,11 @@ public class OptionConstants {
   public static final String OPT_ARG_DATASTREAM_NAME = "DATASTREAM_NAME";
   public static final String OPT_DESC_DATASTREAM_NAME = "Name of the datastream";
 
+  public static final String OPT_SHORT_TRANSPORT_NAME = "t";
+  public static final String OPT_LONG_TRANSPORT_NAME = "transport";
+  public static final String OPT_ARG_TRANSPORT_NAME = "TRANSPORT_NAME";
+  public static final String OPT_DESC_TRANSPORT_NAME = "Name of the Datastream Transport to use, default kafka.";
+
   public static final String OPT_SHORT_CONNECTOR_NAME = "c";
   public static final String OPT_LONG_CONNECTOR_NAME = "connector";
   public static final String OPT_ARG_CONNECTOR_NAME = "CONNECTOR_NAME";
