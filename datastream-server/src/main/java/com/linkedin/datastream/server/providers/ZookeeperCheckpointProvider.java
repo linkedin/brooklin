@@ -34,8 +34,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private static final String CHECKPOINT_COMMIT_LATENCY_MS = "checkpointCommitLatencyMs";
   private final DynamicMetricsManager _dynamicMetricsManager;
 
-  private Map<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new HashMap<>();
-  private Map<DatastreamTask, Instant> _lastCommitTime = new HashMap<>();
+  private ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
+  private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
   private static final Duration CHECKPOINT_INTERVAL = Duration.ofMinutes(1);
 
   // Instruct jackson to convert string keys to integer
@@ -53,39 +53,43 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    * Commit the checkpoints to the checkpoint store.
    */
   @Override
-  public synchronized void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
-    if (!_checkpointsToCommit.containsKey(task)) {
-      _checkpointsToCommit.put(task, new HashMap<>());
-    }
-    _checkpointsToCommit.get(task).put(partition, checkpoint);
+  public void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
+    Map<Integer, String> taskMap = getOrAddCheckpointMap(task);
+    synchronized (taskMap) {
+      taskMap.put(partition, checkpoint);
 
-    if (!_lastCommitTime.containsKey(task) || Instant.now()
-        .isAfter(_lastCommitTime.get(task).plus(CHECKPOINT_INTERVAL))) {
-      writeCheckpointsToStore(task);
+      if (!_lastCommitTime.containsKey(task) || Instant.now().isAfter(_lastCommitTime.get(task).plus(CHECKPOINT_INTERVAL))) {
+        writeCheckpointsToStore(task);
+      }
     }
+  }
+
+  private Map<Integer, String> getOrAddCheckpointMap(DatastreamTask task) {
+    return _checkpointsToCommit.computeIfAbsent(task, k -> new HashMap<>());
   }
 
   private void writeCheckpointsToStore(DatastreamTask task) {
-    long startTime = System.currentTimeMillis();
-    Map<Integer, String> checkpoints = mergeAndGetSafeCheckpoints(task);
+    Map<Integer, String> taskMap = getOrAddCheckpointMap(task);
+    synchronized (taskMap) {
+      long startTime = System.currentTimeMillis();
+      Map<Integer, String> checkpoints = mergeAndGetSafeCheckpoints(task, taskMap);
 
-    _zkAdapter.setDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME, JsonUtils.toJson(checkpoints));
-    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_CHECKPOINT_COMMITS, 1);
-    _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), CHECKPOINT_COMMIT_LATENCY_MS,
-        System.currentTimeMillis() - startTime);
-    // Clear the checkpoints to commit.
-    _checkpointsToCommit.get(task).clear();
-    _lastCommitTime.put(task, Instant.now());
+      _zkAdapter.setDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME, JsonUtils.toJson(checkpoints));
+      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_CHECKPOINT_COMMITS, 1);
+      _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), CHECKPOINT_COMMIT_LATENCY_MS,
+          System.currentTimeMillis() - startTime);
+      // Clear the checkpoints to commit.
+      _checkpointsToCommit.get(task).clear();
+      _lastCommitTime.put(task, Instant.now());
+    }
   }
 
   @Override
-  public synchronized void flush() {
+  public void flush() {
     _checkpointsToCommit.keySet().forEach(this::writeCheckpointsToStore);
   }
 
-  private Map<Integer, String> mergeAndGetSafeCheckpoints(DatastreamTask task) {
-
-    Map<Integer, String> safeCheckpoints = _checkpointsToCommit.get(task);
+  private Map<Integer, String> mergeAndGetSafeCheckpoints(DatastreamTask task, Map<Integer, String> safeCheckpoints) {
 
     // It is possible that the safe checkpoints contains only subset of partitions.
     // So it is safe to merge them with the existing checkpoints in the zookeeper.
@@ -106,8 +110,11 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
    * from the memory.
    */
   @Override
-  public synchronized Map<Integer, String> getSafeCheckpoints(DatastreamTask task) {
-    return mergeAndGetSafeCheckpoints(task);
+  public Map<Integer, String> getSafeCheckpoints(DatastreamTask task) {
+    Map<Integer, String> taskMap = getOrAddCheckpointMap(task);
+    synchronized (taskMap) {
+      return mergeAndGetSafeCheckpoints(task, taskMap);
+    }
   }
 
   private Map<Integer, String> getCheckpoint(DatastreamTask task) {
