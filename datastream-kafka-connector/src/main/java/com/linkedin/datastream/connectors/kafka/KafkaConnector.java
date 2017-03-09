@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -95,6 +97,11 @@ public class KafkaConnector implements Connector {
       _runningTasks.put(task, connectorTask);
       _executor.submit(connectorTask);
     }
+  }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    return Collections.unmodifiableList(KafkaConnectorTask.getMetricInfos());
   }
 
   @Override
