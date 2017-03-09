@@ -12,11 +12,14 @@ import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 
@@ -25,6 +28,7 @@ public class TestKafkaConnectorTask {
 
   @BeforeTest
   public void setup() throws Exception {
+    DynamicMetricsManager.createInstance(new MetricRegistry());
     _kafkaCluster = new EmbeddedZookeeperKafkaCluster();
     _kafkaCluster.startup();
   }
