@@ -10,6 +10,13 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 public interface TransportProvider {
   /**
    * Send the DatastreamEvent to the topic.
+   *
+   * <p>
+   * Note that the onComplete callbacks will generally execute in the I/O thread of
+   * the TransportProvider and should be reasonably fast or they will delay sending messages
+   * for other threads. If you want to execute an expensive callbacks it is recommended to use
+   * your own {@link java.util.concurrent.Executor} in the callback body to parallelize processing.
+   *
    * @param destination the destination topic to which the record should be sent.
    * @param record DatastreamEvent that needs to be sent to the stream.
    * @param onComplete call back that needs to called when the send completes.
