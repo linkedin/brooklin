@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamEventMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -257,8 +258,8 @@ public class KafkaConnectorTask implements Runnable {
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + REBALANCE_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + NUM_KAFKA_POLLS));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX_REGEX + EVENT_COUNTS_PER_POLL));
-    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_RECEIVED));
-    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_PROCESSED));
+    metrics.add(new BrooklinGaugeInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_RECEIVED));
+    metrics.add(new BrooklinGaugeInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_PROCESSED));
     return metrics;
   }
 
