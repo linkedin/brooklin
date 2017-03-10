@@ -29,12 +29,14 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
@@ -87,6 +89,16 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_SOURCE_URI, OptionConstants.OPT_LONG_SOURCE_URI,
             OptionConstants.OPT_ARG_SOURCE_URI, false, OptionConstants.OPT_DESC_SOURCE_URI));
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
+            OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_DESTINATION_URI, OptionConstants.OPT_LONG_DESTINATION_URI,
+            OptionConstants.OPT_ARG_DESTINATION_URI, false, OptionConstants.OPT_DESC_DESTINATION_URI));
+
+    options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS,
+        OptionConstants.OPT_LONG_DESTINATION_PARTITIONS, OptionConstants.OPT_ARG_DESTINATION_PARTITIONS, false,
+        OptionConstants.OPT_DESC_DESTINATION_PARTITIONS));
 
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_METADATA, OptionConstants.OPT_LONG_METADATA,
         OptionConstants.OPT_ARG_METADATA, false, OptionConstants.OPT_DESC_METADATA));
@@ -138,17 +150,26 @@ public class DatastreamRestClientCli {
           String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           String sourceUri = getOptionValue(cmd, OptionConstants.OPT_SHORT_SOURCE_URI, options);
           String connectorName = getOptionValue(cmd, OptionConstants.OPT_SHORT_CONNECTOR_NAME, options);
+
+          String destinationUri = "";
+          int numDestinationPartitions = -1;
+          if (cmd.hasOption(OptionConstants.OPT_SHORT_DESTINATION_URI)) {
+            destinationUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_URI);
+            numDestinationPartitions =
+                Integer.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
+          }
+
           int partitions = Integer.parseInt(getOptionValue(cmd, OptionConstants.OPT_SHORT_NUM_PARTITION, options));
           Map<String, String> metadata = new HashMap<>();
-          String transport = "kafka"; // default value.
           if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
             metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
                 new TypeReference<Map<String, String>>() {
                 });
           }
-          if (cmd.hasOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME)) {
-            transport = getOptionValue(cmd, OptionConstants.OPT_SHORT_TRANSPORT_NAME, options);
-          }
+
+          String transportProviderName = getOptionValue(cmd, OptionConstants.OPT_SHORT_TRANSPORT_NAME, options);
+
+          Duration timeout = Duration.ofMinutes(2);
 
           Datastream datastream = new Datastream();
           datastream.setName(datastreamName);
@@ -156,15 +177,21 @@ public class DatastreamRestClientCli {
           DatastreamSource datastreamSource = new DatastreamSource();
           datastreamSource.setConnectionString(sourceUri);
           datastreamSource.setPartitions(partitions);
+          datastream.setTransportProviderName(transportProviderName);
+          if (StringUtils.isNotEmpty(destinationUri)) {
+            DatastreamDestination destination = new DatastreamDestination();
+            destination.setConnectionString(destinationUri);
+            destination.setPartitions(numDestinationPartitions);
+            datastream.setDestination(destination);
+          }
           datastream.setSource(datastreamSource);
           datastream.setMetadata(new StringMap(metadata));
-          datastream.setTransportProviderName(transport);
           System.out.printf("Trying to create datastream %s", datastream);
           datastreamRestClient.createDatastream(datastream);
-          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = 10 seconds)\n",
-              connectorName);
-          Datastream completeDatastream = datastreamRestClient.waitTillDatastreamIsInitialized(datastreamName,
-              (int) Duration.ofSeconds(10).toMillis());
+          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = %d minutes)\n",
+              connectorName, timeout.toMinutes());
+          Datastream completeDatastream =
+              datastreamRestClient.waitTillDatastreamIsInitialized(datastreamName, (int) timeout.toMillis());
           System.out.printf("Initialized %s datastream: %s\n", connectorName, completeDatastream);
           break;
         }
@@ -175,6 +202,7 @@ public class DatastreamRestClientCli {
       if (datastreamRestClient != null) {
         datastreamRestClient.shutdown();
       }
+      System.exit(0);
     }
   }
 
