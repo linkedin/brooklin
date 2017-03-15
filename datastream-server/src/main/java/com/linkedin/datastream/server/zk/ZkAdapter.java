@@ -29,7 +29,6 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
@@ -44,16 +43,16 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  * │  |- instances ──────┼──┐       │                                                   │
  * │  |  |- i001         │  │       │┌───────────────────────────────────┐    ┌─────────┤
  * │  |  |- i002         │  └───────┼▶  ZkBackedInstanceAssignmentList   │    │         │   ┌────────────────┐
- * │  |                  │          │└───────────────────────────────────┘    │         │───▶ onBecomeLeader │
+ * │  |                  │          │└───────────────────────────────────┘    │         │───▶ onBecomeLeader*│
  * │  |- liveinstances ──┼───┐      │┌───────────────────────────────────┐    │         │   └────────────────┘
- * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌──────────────────┐
- * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onBecomeFollower │
- * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └──────────────────┘
+ * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌────────────────────┐
+ * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onDatastreamChange*│
+ * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └────────────────────┘
  * │  |- connectors      │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
  * │  |  |- Espresso ────┼───┐      │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
  * │  |  |- Oracle ──────┼──┐│      │┌───────────────────────────────────┐    │         │   └────────────────────┘
  * │                     │  └┴──────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
- * │                     │          │└───────────────────────────────────┘    │         │───▶ onLiveInstancesChange │
+ * │                     │          │└───────────────────────────────────┘    │         │───▶ onLiveInstancesChange*│
  * │                     │          │                                         │         │   └───────────────────────┘
  * │                     │          │                                         └─────────┤
  * │                     │          │                                                   │
@@ -63,6 +62,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *                                  └───────────────────────────────────────────────────┘
  *
  *
+ *  Note: * Callback for leader only.
  *
  * ZkAdapter is the adapter between the Coordiantor and the ZkClient. It uses ZkClient to communicate
  * with Zookeeper, and provides a set of callbacks that allows the Coordinator to react on events like
@@ -120,14 +120,11 @@ public class ZkAdapter {
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedTaskListProvider _assignmentList = null;
 
-  private final CachedDatastreamReader _datastreamCache;
-
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
 
   public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout,
-      ZkAdapterListener listener, CachedDatastreamReader datastreamCache) {
-    _datastreamCache = datastreamCache;
+      ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeout = sessionTimeout;
@@ -135,17 +132,7 @@ public class ZkAdapter {
     _listener = listener;
   }
 
-  /**
-   * ZkAdapter adapts the zookeeper data changes with the Coordinator logic. This method
-   * is responsible to hook up the listener so that the change will trigger the corresponding implementation.
-   *
-   * @param listener implementation of ZkAdapterListener. In most cases it is an instance of Coordinator
-   */
-  public void setListener(ZkAdapterListener listener) {
-    _listener = listener;
-  }
-
-  public boolean isLeader() {
+  public synchronized boolean isLeader() {
     return _isLeader;
   }
 
@@ -172,6 +159,10 @@ public class ZkAdapter {
       } catch (ZkException zke) {
         // do nothing, best effort clean up
       } finally {
+        if (_assignmentList != null) {
+          _assignmentList.close();
+          _assignmentList = null;
+        }
         _zkclient.close();
         _zkclient = null;
       }
@@ -195,7 +186,7 @@ public class ZkAdapter {
 
     // both leader and follower needs to listen to its own instance change
     // under /{cluster}/instances/{instance}
-    _assignmentList = new ZkBackedTaskListProvider();
+    _assignmentList = new ZkBackedTaskListProvider(_cluster, _instanceName);
 
     // start with follower state, then join leader election
     onBecomeFollower();
@@ -210,8 +201,6 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
-
-    _zkclient.subscribeChildChanges(KeyBuilder.instances(_cluster), _liveInstancesProvider);
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
@@ -236,8 +225,6 @@ public class ZkAdapter {
       _liveInstancesProvider.close();
       _liveInstancesProvider = null;
     }
-
-    _zkclient.unsubscribeChildChanges(KeyBuilder.instances(_cluster), _liveInstancesProvider);
 
     _isLeader = false;
   }
@@ -294,12 +281,7 @@ public class ZkAdapter {
       return;
     }
 
-    // if this instance is not the first candidate to become leader, make sure to reset
-    // the _isLeader status
-    if (_isLeader) {
-      onBecomeFollower();
-    }
-
+    // This instance is not the first candidate to become leader.
     // prevCandidate is the leader candidate that is in line before this current node
     // we only become the leader after prevCandidate goes offline
     String prevCandidate = liveInstances.get(index - 1);
@@ -318,6 +300,8 @@ public class ZkAdapter {
     boolean exists = _zkclient.exists(KeyBuilder.liveInstance(_cluster, prevCandidate), true);
 
     if (exists) {
+      // if this instance is not the first candidate to become leader, make sure to reset
+      // the _isLeader status
       if (_isLeader) {
         onBecomeFollower();
       }
@@ -853,7 +837,8 @@ public class ZkAdapter {
 
     /**
      * onDatastreamChange is called when there are changes to the datastreams under
-     * zookeeper path /{cluster}/datastream.
+     * zookeeper path /{cluster}/datastream. This method is called only when the Coordinator
+     * is the leader.
      */
     void onDatastreamChange();
   }
@@ -866,7 +851,7 @@ public class ZkAdapter {
 
     /**
      * default constructor, it will initiate the list by first read from zookeeper, and also setup
-     * a watch on the /{cluster}/datastream tree, so it can be notified for future changes.
+     * a watch on the /{cluster}/dms tree, so it can be notified for future changes.
      */
     public ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
@@ -884,7 +869,7 @@ public class ZkAdapter {
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
       _log.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
           + "parentPath %s,children %s", parentPath, currentChildren));
-      if (_listener != null) {
+      if (_listener != null && ZkAdapter.this.isLeader()) {
         _listener.onDatastreamChange();
       }
     }
@@ -925,7 +910,11 @@ public class ZkAdapter {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
         String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
-        liveInstances.add(hostname + "-" + n);
+        if (hostname != null) {
+          // hostname can be null if a node dies immediately after reading all live instances
+          _log.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
+          liveInstances.add(hostname + "-" + n);
+        }
       }
       return liveInstances;
     }
@@ -947,7 +936,7 @@ public class ZkAdapter {
 
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
 
-      if (_listener != null) {
+      if (_listener != null && ZkAdapter.this.isLeader()) {
         _listener.onLiveInstancesChange();
       }
     }
@@ -971,9 +960,10 @@ public class ZkAdapter {
    * task node changes under the connector node.
    */
   public class ZkBackedTaskListProvider implements IZkChildListener {
-    private String _path = KeyBuilder.instanceAssignments(_cluster, _instanceName);
+    private final String _path;
 
-    public ZkBackedTaskListProvider() {
+    public ZkBackedTaskListProvider(String cluster, String instanceName) {
+      _path = KeyBuilder.instanceAssignments(cluster, instanceName);
       _log.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
     }

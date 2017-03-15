@@ -56,7 +56,7 @@ public class TestZookeeperCheckpointProvider {
   @Test
   public void testCommitAndReadCheckpoints() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
-        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null, null);
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(generateDatastream(1));
