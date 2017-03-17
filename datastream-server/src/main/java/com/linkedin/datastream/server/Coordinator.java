@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
