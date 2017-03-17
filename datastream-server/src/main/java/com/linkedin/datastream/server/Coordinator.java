@@ -706,6 +706,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean succeeded = true;
     try {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
+      _adapter.updateAllAssignments(newAssignmentsByInstance);
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime Exception while updating Zookeeper.", e);
       succeeded = false;
@@ -715,7 +716,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
-      _adapter.cleanupDeadInstanceAssignments();
+      _adapter.cleanupDeadInstanceAssignments(liveInstances);
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_REBALANCES, 1);
     }

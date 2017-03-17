@@ -754,8 +754,7 @@ public class ZkAdapter {
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
    */
-  public void cleanupDeadInstanceAssignments() {
-    List<String> liveInstances = getLiveInstances();
+  public void cleanupDeadInstanceAssignments(List<String> liveInstances) {
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
     if (deadInstances.size() > 0) {
