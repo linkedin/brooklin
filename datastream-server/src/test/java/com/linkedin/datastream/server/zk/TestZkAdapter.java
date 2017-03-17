@@ -310,14 +310,17 @@ public class TestZkAdapter {
     //
     DatastreamTaskImpl task1 = new DatastreamTaskImpl();
     task1.setDatastreamName("task1");
+    task1.setTaskPrefix("task1");
     task1.setConnectorType(connectorType);
 
     DatastreamTaskImpl task2 = new DatastreamTaskImpl();
     task2.setDatastreamName("task2");
+    task2.setTaskPrefix("task2");
     task2.setConnectorType(connectorType);
 
     DatastreamTaskImpl task3 = new DatastreamTaskImpl();
     task3.setDatastreamName("task3");
+    task3.setTaskPrefix("task3");
     task3.setConnectorType(connectorType);
 
     Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
