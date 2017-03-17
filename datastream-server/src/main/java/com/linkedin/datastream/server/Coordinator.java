@@ -704,8 +704,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // it failed to create or delete znodes), we will do our best to continue the current process
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
-    for (Map.Entry<String, List<DatastreamTask>> entry : newAssignmentsByInstance.entrySet()) {
-      succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
+    try {
+        _adapter.updateAllAssignments(newAssignmentsByInstance);
+    } catch (RuntimeException e) {
+      _log.error("handleLeaderDoAssignment: runtime Exception while updating Zookeeper.", e);
+      succeeded = false;
     }
 
     _log.info("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
