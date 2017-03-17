@@ -33,11 +33,12 @@ class FileProcessor implements Runnable {
   private final DatastreamEventProducer _producer;
   private boolean _cancelRequested;
   private boolean _isStopped;
+  private int _lastSentLineNo;
 
   public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
-    _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
+
     _producer = producer;
     _isStopped = false;
     _cancelRequested = false;
@@ -51,19 +52,28 @@ class FileProcessor implements Runnable {
     if (cpString != null && !cpString.isEmpty()) {
       // Resume from last saved line number
       lineNo = Integer.valueOf(cpString);
-
-      // Must skip line by line as we can't get the actual file position of the
-      // last newline character due to the buffering done by BufferedReader.
-      for (int i = 0; i < lineNo; i++) {
-        _fileReader.readLine();
-      }
-
-      LOG.info("Resumed from line " + lineNo);
+      resumeFrom(lineNo);
+      _lastSentLineNo = lineNo;
     } else {
       LOG.info("Resumed from beginning");
     }
 
     return lineNo + 1;
+  }
+
+  private void resumeFrom(int lineNo) throws IOException {
+    if (_fileReader != null) {
+      _fileReader.close();
+    }
+    _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
+
+    // Must skip line by line as we can't get the actual file position of the
+    // last newline character due to the buffering done by BufferedReader.
+    for (int i = 0; i < lineNo; i++) {
+      _fileReader.readLine();
+    }
+
+    LOG.info("Resumed from line " + lineNo);
   }
 
   @Override
@@ -99,15 +109,23 @@ class FileProcessor implements Runnable {
           }
 
           builder.setSourceCheckpoint(lineNo.toString());
-          _producer.send(builder.build(),
-              (metadata, exception) -> {
-                if (exception == null) {
-                  LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
-                } else {
-                  LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
-                }
-              });
-          ++lineNo;
+
+          try {
+            _producer.send(builder.build(), (metadata, exception) -> {
+              if (exception == null) {
+                LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
+                _lastSentLineNo = Integer.parseInt(metadata.getCheckpoint());
+              } else {
+                LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
+              }
+            });
+            ++lineNo;
+          } catch (Exception e) {
+            LOG.error("Send failed with exception. Resuming from last checkpoint {}", _lastSentLineNo, e);
+            // If there was a failure in sending an event. Underlying producer will throw an exception on the next send.
+            // So on exception from send, Just resume from the last successfully sent record.
+            resumeFrom(_lastSentLineNo);
+          }
         } else {
           try {
             // Wait for new data
