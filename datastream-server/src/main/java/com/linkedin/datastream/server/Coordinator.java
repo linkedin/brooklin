@@ -52,6 +52,7 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
+import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -119,15 +120,24 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
+  private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
+  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+
+  private static final String NUM_REBALANCES = "numRebalances";
+  private static final String NUM_ERRORS = "numErrors";
+  private static final String NUM_RETRIES = "numRetries";
+
+  // Connector common metrics
+  private static final String NUM_DATASTREAMS = "numDatastreams";
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
+
+  private static Logger _log = LoggerFactory.getLogger(Coordinator.class);
+
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
   private final CheckpointProvider _cpProvider;
 
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
-  private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
-
-  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
-  public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
@@ -152,14 +162,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
   private final DynamicMetricsManager _dynamicMetricsManager;
-  private static final String NUM_REBALANCES = "numRebalances";
-  private static final String NUM_ERRORS = "numErrors";
-  private static final String NUM_RETRIES = "numRetries";
 
-  // Connector common metrics
-  private static final String NUM_DATASTREAMS = "numDatastreams";
-  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
   private HashMap<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
+
+  private ACLManager _aclManager;
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -186,6 +192,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     _eventProducerConfig = coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN);
+
+
+    _aclManager = new ACLManager(_datastreamCache);
+
+//    _destinationManager = new DestinationManager(config.isReuseExistingDestination(),
+//        _transportProviderAdmins, _aclManager);
 
     _cpProvider = new ZookeeperCheckpointProvider(_adapter);
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
@@ -273,7 +285,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    _aclManager.startAclSync();
     _log.info("Coordinator::onBecomeLeader completed successfully");
+  }
+
+  /**
+   * This method is called when the current datastream server instance becomes a follower.
+   */
+  @Override
+  public void onBecomeFollower() {
+    _log.info("Coordinator::onBecomeFollower is called");
+    _aclManager.stopAclSync();
+    _log.info("Coordinator::onBecomeFollower completed successfully");
   }
 
   /**
@@ -640,6 +663,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
     }
 
+    // Initialize destination ACL
+    _aclManager.setDestinationAcl(datastream);
+
     return datastream.getDestination().getConnectionString();
   }
 
@@ -736,15 +762,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   /**
    * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
    * connector per connector type.
-   *
-   * @param connectorName of the connector.
+   *  @param connectorName of the connector.
    * @param connector a connector that implements the Connector interface
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
-   *                            Coordinator will not perform checkpointing to the zookeeper.
+   * @param authEnabled
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
-      boolean customCheckpointing, DatastreamDeduper deduper) {
+      boolean customCheckpointing, DatastreamDeduper deduper, boolean authEnabled) {
     Validate.notNull(strategy, "strategy cannot be null");
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
@@ -760,6 +785,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
     connectorMetrics.ifPresent(_metrics::addAll);
+
+    if (authEnabled) {
+      _aclManager.addConnector(connectorName, connector);
+    }
 
     ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper);
     _connectors.put(connectorName, connectorInfo);
@@ -874,15 +903,32 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _clusterName;
   }
 
+  public ACLManager getAclManager() {
+    return _aclManager;
+  }
+
   public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
     _transportProviderAdmins.put(transportProviderName, admin);
+    _aclManager.addTransportProviderAdmin(transportProviderName, admin);
 
     Optional<List<BrooklinMetricInfo>> transportProviderMetrics = Optional.ofNullable(admin.getMetricInfos());
     transportProviderMetrics.ifPresent(_metrics::addAll);
   }
 
+
   public void addSerde(String serdeName, SerdeAdmin admin) {
     _serdeAdmins.put(serdeName, admin);
+  }
+
+  public void initializeAuthorizer(Authorizer authorizer) {
+    _aclManager.setAuthorizer(authorizer);
+
+    Optional.ofNullable(_aclManager.getMetricInfos()).ifPresent(_metrics::addAll);
+
+    if (authorizer instanceof MetricsAware) {
+      MetricsAware metricsAware = (MetricsAware) authorizer;
+      Optional.ofNullable(metricsAware.getMetricInfos()).ifPresent(_metrics::addAll);
+    }
   }
 
   private class CoordinatorEventProcessor extends Thread {
