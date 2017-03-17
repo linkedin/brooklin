@@ -123,6 +123,35 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
+  public void testIncompleteCurrentAssignment() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<Datastream> datastreams =
+        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
+    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    LoadbalancingStrategy strategy = new LoadbalancingStrategy();
+    ZkAdapter adapter = createMockAdapter();
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    for (String instance : instances) {
+      Assert.assertEquals(assignment.get(instance).size(), 2);
+      assignment.get(instance).forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
+    }
+
+
+    // Simulate some data corruption.
+    assignment.get(instances[0]).clear();
+    Map<String, Set<DatastreamTask>> newAssignment =
+        strategy.assign(datastreams, Arrays.asList(instances), assignment);
+
+    // For the moment the assumption is that the system will not create new tasks
+    // and just re-distribute the existing tasks over all the instances.
+    Assert.assertEquals(newAssignment.get(instances[0]).size(), 2);
+    Assert.assertEquals(newAssignment.get(instances[1]).size(), 1);
+    Assert.assertEquals(newAssignment.get(instances[2]).size(), 1);
+  }
+
+  @Test
   public void testLoadbalancingStrategyRedistributesTasksWhenNodeIsAdded() {
     String[] instances = new String[]{"instance1", "instance2"};
     List<Datastream> datastreams =

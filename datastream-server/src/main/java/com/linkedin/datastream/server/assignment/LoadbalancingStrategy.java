@@ -99,6 +99,21 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       // If there are no datastream tasks that are currently assigned for this datastream.
       if (tasksForDatastream.isEmpty()) {
         tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);
+      } else {
+        if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
+          // Check that all partitions are covered with existing tasks.
+          int numberOfDatastreamPartitions = datastream.getSource().getPartitions();
+          Set<Integer> assignedPartitions = new HashSet<>();
+          int count = 0;
+          for (DatastreamTask task : tasksForDatastream) {
+            count += task.getPartitions().size();
+            assignedPartitions.addAll(task.getPartitions());
+          }
+          if (count != numberOfDatastreamPartitions || assignedPartitions.size() != numberOfDatastreamPartitions) {
+            LOG.error("Corrupted partition information for datastream {}. Expected number of partitions {}, actual {}: {}",
+                datastream.getName(), numberOfDatastreamPartitions, count, assignedPartitions);
+          }
+        }
       }
 
       allTasks.addAll(tasksForDatastream);
