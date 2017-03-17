@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +12,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventMetadata;
+import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -80,15 +79,14 @@ class FileProcessor implements Runnable {
           throw new RuntimeException("Reading file failed.", e);
         }
         if (text != null) {
-          DatastreamEvent event = new DatastreamEvent();
-          event.payload = ByteBuffer.wrap(text.getBytes());
-
           // Using the line# as the key
-          event.key = ByteBuffer.wrap(lineNo.toString().getBytes());
-          event.metadata = new HashMap<>();
+
+          HashMap<String, String> eventMetadata = new HashMap<>();
           long currentTimeMillis = System.currentTimeMillis();
-          event.metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, String.valueOf(currentTimeMillis));
-          event.previous_payload = ByteBuffer.allocate(0);
+          eventMetadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(currentTimeMillis));
+          BrooklinEnvelope event =
+              new BrooklinEnvelope(lineNo.toString().getBytes(), text.getBytes(), null, eventMetadata);
+
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
           builder.addEvent(event);
@@ -96,17 +94,18 @@ class FileProcessor implements Runnable {
           // If the destination is user managed, we will use the key to decide the partition.
           if (!_task.isUserManagedDestination()) {
             builder.setPartition(0);
+          } else {
+            builder.setPartitionKey(lineNo.toString());
           }
 
           builder.setSourceCheckpoint(lineNo.toString());
-          _producer.send(builder.build(),
-              (metadata, exception) -> {
-                if (exception == null) {
-                  LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
-                } else {
-                  LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
-                }
-              });
+          _producer.send(builder.build(), (metadata, exception) -> {
+            if (exception == null) {
+              LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
+            } else {
+              LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
+            }
+          });
           ++lineNo;
         } else {
           try {

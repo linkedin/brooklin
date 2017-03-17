@@ -33,15 +33,15 @@ import com.google.code.or.common.glossary.Column;
 import com.google.code.or.common.glossary.Pair;
 import com.google.code.or.common.glossary.Row;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventMetadata;
+import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.connectors.mysql.MysqlCheckpoint;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -71,7 +71,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   /** Track current table name as reported in bin logs. */
   private HashMap<Long, String> _currDBTableNamesInTransaction = new HashMap<>();
 
-  private List<DatastreamEvent> _eventsInTransaction = new ArrayList<>();
+  private List<BrooklinEnvelope> _eventsInTransaction = new ArrayList<>();
 
   /** Cache of the column metadata for all the tables that are processed by this event listener **/
   HashMap<String, List<ColumnInfo>> _columnMetadataCache = new HashMap<>();
@@ -230,39 +230,35 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
         }
       }
 
-      _eventsInTransaction.add(buildDatastreamEvent(binlogEventType, String.format("%s:%s", _sourceId, _scn),
-          binlogEventHeader.getTimestamp(), tableNameParts[0], tableNameParts[1], JsonUtils.toJson(keyValues),
-          JsonUtils.toJson(rowValues)));
+      _eventsInTransaction.add(
+          buildEnvelopeEvent(binlogEventType, String.format("%s:%s", _sourceId, _scn), binlogEventHeader.getTimestamp(),
+              tableNameParts[0], tableNameParts[1], JsonUtils.toJson(keyValues), JsonUtils.toJson(rowValues)));
     }
   }
 
-  private DatastreamEvent buildDatastreamEvent(int binlogEventType, String gtid, long eventTimestamp, String dbName,
+  private BrooklinEnvelope buildEnvelopeEvent(int binlogEventType, String gtid, long eventTimestamp, String dbName,
       String tableName, String key, String value) {
-    Map<CharSequence, CharSequence> metadata = new HashMap<>();
-    metadata.put(DatastreamEventMetadata.OPCODE, getOpCode(binlogEventType).toString());
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put(BrooklinEnvelopeMetadataConstants.OPCODE, getOpCode(binlogEventType).toString());
     metadata.put("Gtid", gtid);
-    metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, String.valueOf(eventTimestamp));
-    metadata.put(DatastreamEventMetadata.DATABASE, dbName);
-    metadata.put(DatastreamEventMetadata.TABLE, tableName);
+    metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventTimestamp));
+    metadata.put(BrooklinEnvelopeMetadataConstants.DATABASE, dbName);
+    metadata.put(BrooklinEnvelopeMetadataConstants.TABLE, tableName);
 
-    DatastreamEvent datastreamEvent = new DatastreamEvent();
-    datastreamEvent.payload = ByteBuffer.wrap(value.getBytes());
-    datastreamEvent.key = ByteBuffer.wrap(key.getBytes());
-    datastreamEvent.metadata = metadata;
-    return datastreamEvent;
+    return new BrooklinEnvelope(ByteBuffer.wrap(key.getBytes()), ByteBuffer.wrap(value.getBytes()), null, metadata);
   }
 
-  private DatastreamEventMetadata.OpCode getOpCode(int binlogEventType) {
+  private BrooklinEnvelopeMetadataConstants.OpCode getOpCode(int binlogEventType) {
     switch (binlogEventType) {
       case UpdateRowsEvent.EVENT_TYPE:
       case UpdateRowsEventV2.EVENT_TYPE:
-        return DatastreamEventMetadata.OpCode.UPDATE;
+        return BrooklinEnvelopeMetadataConstants.OpCode.UPDATE;
       case DeleteRowsEvent.EVENT_TYPE:
       case DeleteRowsEventV2.EVENT_TYPE:
-        return DatastreamEventMetadata.OpCode.DELETE;
+        return BrooklinEnvelopeMetadataConstants.OpCode.DELETE;
       case WriteRowsEvent.EVENT_TYPE:
       case WriteRowsEventV2.EVENT_TYPE:
-        return DatastreamEventMetadata.OpCode.INSERT;
+        return BrooklinEnvelopeMetadataConstants.OpCode.INSERT;
       default:
         throw new DatastreamRuntimeException("Unknown event of type " + binlogEventType);
     }
@@ -314,13 +310,12 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       _eventsInTransaction.forEach(builder::addEvent);
       // Get the timestamp of the first event in the transaction
       Optional<Long> eventTimestamp = Optional.ofNullable(_eventsInTransaction.get(0))
-          .map(firstEvent -> firstEvent.metadata)
-          .map(metadata -> metadata.get(DatastreamEventMetadata.EVENT_TIMESTAMP))
-          .map(metaVal -> Long.valueOf(metaVal.toString()));
+          .map(firstEvent -> Long.valueOf(firstEvent.getMetadata().get(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP)));
       if (eventTimestamp.isPresent()) {
         builder.setEventsSourceTimestamp(eventTimestamp.get());
       } else {
-        String errorMsg = "Datastream event " + _eventsInTransaction.get(0).toString() + " was missing event timestamp metadata.";
+        String errorMsg =
+            "Datastream event " + _eventsInTransaction.get(0).toString() + " was missing event timestamp metadata.";
         LOG.error(errorMsg);
         throw new DatastreamRuntimeException(errorMsg);
       }

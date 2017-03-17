@@ -18,9 +18,9 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventMetadata;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.mysql.MysqlConnector.SourceType;
@@ -86,12 +86,12 @@ public class TestMysqlConnector {
     Assert.assertEquals(checkpoint1.getBinlogFileName(), BINLOG_FILENAME);
     Assert.assertEquals(checkpoint1.getTransactionId(), 3);
 
-    List<DatastreamEvent> events = getEventsFromRecord(record1);
+    List<BrooklinEnvelope> events = getEventsFromRecord(record1);
     LOG.info("Events from record1 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record2
     Assert.assertEquals(record2.getPartition().get().intValue(), 0);
@@ -104,9 +104,9 @@ public class TestMysqlConnector {
     events = getEventsFromRecord(record2);
     LOG.info("Events from record2 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record3
     Assert.assertEquals(record3.getPartition().get().intValue(), 0);
@@ -118,13 +118,13 @@ public class TestMysqlConnector {
 
     events = getEventsFromRecord(record3);
     LOG.info("Events from record3 " + events);
-    Assert.assertEquals(events.get(0).metadata.get(DatastreamEventMetadata.OPCODE),
-        DatastreamEventMetadata.OpCode.UPDATE.toString());
-    Assert.assertEquals(events.get(0).metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME);
+    Assert.assertEquals(events.get(0).getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+        BrooklinEnvelopeMetadataConstants.OpCode.UPDATE.toString());
+    Assert.assertEquals(events.get(0).getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME);
   }
 
-  private List<DatastreamEvent> getEventsFromRecord(DatastreamProducerRecord record) {
-    return record.getEvents().stream().map(x -> (DatastreamEvent) x.getValue()).collect(Collectors.toList());
+  private List<BrooklinEnvelope> getEventsFromRecord(DatastreamProducerRecord record) {
+    return record.getEvents().stream().map(x -> ((BrooklinEnvelope) x)).collect(Collectors.toList());
   }
 
   @Test
@@ -153,12 +153,12 @@ public class TestMysqlConnector {
     Assert.assertEquals(checkpoint1.getBinlogFileName(), BINLOG_FILENAME);
     Assert.assertEquals(checkpoint1.getTransactionId(), 3);
 
-    List<DatastreamEvent> events = getEventsFromRecord(record1);
+    List<BrooklinEnvelope> events = getEventsFromRecord(record1);
     LOG.info("Events from record1 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record2
     Assert.assertEquals(record2.getPartition().get().intValue(), 0);
@@ -171,9 +171,9 @@ public class TestMysqlConnector {
     events = getEventsFromRecord(record2);
     LOG.info("Events from record2 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record3
     Assert.assertEquals(record3.getPartition().get().intValue(), 0);
@@ -186,9 +186,9 @@ public class TestMysqlConnector {
     events = getEventsFromRecord(record3);
     LOG.info("Events from record3 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE2_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
 
     // Validate the record4
     Assert.assertEquals(record4.getPartition().get().intValue(), 0);
@@ -201,9 +201,9 @@ public class TestMysqlConnector {
     events = getEventsFromRecord(record4);
     LOG.info("Events from record4 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.UPDATE.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE1_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.UPDATE.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record5
     Assert.assertEquals(record5.getPartition().get().intValue(), 0);
@@ -216,9 +216,9 @@ public class TestMysqlConnector {
     events = getEventsFromRecord(record5);
     LOG.info("Events from record5 " + events);
     events.stream()
-        .forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.OPCODE),
-            DatastreamEventMetadata.OpCode.DELETE.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.metadata.get(DatastreamEventMetadata.TABLE), TABLE2_NAME));
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
+            BrooklinEnvelopeMetadataConstants.OpCode.DELETE.toString()));
+    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
   }
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithMysqlConnector(Properties override)

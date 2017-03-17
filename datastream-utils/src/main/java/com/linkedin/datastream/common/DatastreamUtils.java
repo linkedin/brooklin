@@ -1,16 +1,13 @@
 package com.linkedin.datastream.common;
 
-import com.linkedin.restli.internal.server.util.DataMapUtils;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.Validate;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import com.linkedin.restli.internal.server.util.DataMapUtils;
 
 
 /**
@@ -47,45 +44,6 @@ public final class DatastreamUtils {
   }
 
   /**
-   * There method is added to workaround a quirk of Avro, where the
-   * key type used in a map field is {@link org.apache.avro.util.Utf8}
-   * instead of plain Java String. This causes map lookup to fail since
-   * we always use plain String as keys.
-   *
-   * This method recreates DatastreamEvent.metadata with the same
-   * entries but converting key/value from Utf8 into String.
-   *
-   * @param event an Avro serialized DatastreamEvent
-   */
-  public static void processEventMetadata(DatastreamEvent event) {
-    if (event == null) {
-      return;
-    }
-    Map<CharSequence, CharSequence> out = new HashMap<>();
-    event.metadata.forEach((k, v) -> {
-      out.put(new String(k.toString()), new String(v.toString()));
-    });
-
-    event.metadata = out;
-  }
-
-  public static DatastreamEvent createEvent() {
-    Random random = new Random();
-    byte[] bytes = new byte[100];
-    random.nextBytes(bytes);
-    return createEvent(bytes);
-  }
-
-  public static DatastreamEvent createEvent(byte[] payload) {
-    DatastreamEvent event = new DatastreamEvent();
-    event.payload = ByteBuffer.wrap(payload);
-    event.key = ByteBuffer.allocate(0);
-    event.metadata = new HashMap<>();
-    event.previous_payload = ByteBuffer.allocate(0);
-    return event;
-  }
-
-  /**
    * Deserialize JSON text into a Datastream object.
    * @param json
    * @return
@@ -108,5 +66,9 @@ public final class DatastreamUtils {
   public static String toJSON(Datastream datastream) {
     byte[] jsonBytes = DataMapUtils.dataTemplateToBytes(datastream, true);
     return new String(jsonBytes, Charset.defaultCharset());
+  }
+
+  public static String getTaskPrefix(Datastream datastream) {
+    return datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
   }
 }

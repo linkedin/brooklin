@@ -1,11 +1,9 @@
 package com.linkedin.datastream.kafka;
 
-import java.io.IOException;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -15,13 +13,12 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
 
-import com.linkedin.datastream.common.AvroUtils;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
-import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -73,34 +70,33 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination,
-      DatastreamProducerRecord record, Object key, Object payload) throws DatastreamException {
+      DatastreamProducerRecord record, Object event) throws DatastreamException {
 
     Optional<Integer> partition = record.getPartition();
 
-    byte[] keyValue = key == null ? new byte[0] : convertToByteArray(key);
-    byte[] payloadValue = payload == null ? new byte[0] : convertToByteArray(payload);
+    byte[] keyValue = new byte[0];
+    byte[] payloadValue = new byte[0];
+    if (event instanceof BrooklinEnvelope) {
+      BrooklinEnvelope envelope = (BrooklinEnvelope) event;
+      if (envelope.getKey() instanceof byte[]) {
+        keyValue = (byte[]) envelope.getKey();
+      }
+
+      if (envelope.getValue() instanceof byte[]) {
+        payloadValue = (byte[]) envelope.getValue();
+      }
+    } else if (event instanceof byte[]) {
+      payloadValue = (byte[]) event;
+    }
 
     if (partition.isPresent() && partition.get() >= 0) {
+      // If the partition is specified. We send the record to the specific partition
       return new ProducerRecord<>(destination.getTopicName(), partition.get(), keyValue, payloadValue);
     } else {
-      return new ProducerRecord<>(destination.getTopicName(), keyValue, payloadValue);
+      // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
+      // to determine the partition.
+      return new ProducerRecord<>(destination.getTopicName(), record.getPartitionKey().get().getBytes(), payloadValue);
     }
-  }
-
-  private byte[] convertToByteArray(Object value) {
-    if (value instanceof IndexedRecord) {
-      IndexedRecord payloadRecord = (IndexedRecord) value;
-      try {
-        return AvroUtils.encodeAvroIndexedRecord(payloadRecord.getSchema(), payloadRecord);
-      } catch (IOException e) {
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to encode event in Avro, event=" + payloadRecord,
-            e);
-      }
-    } else if (value instanceof String) {
-      return ((String) value).getBytes();
-    }
-
-    throw new DatastreamRuntimeException("Transport provider supports payloads of type String or AvroRecords");
   }
 
   @Override
@@ -109,13 +105,15 @@ public class KafkaTransportProvider implements TransportProvider {
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
+      Validate.isTrue(record.getPartition().isPresent() || record.getPartitionKey().isPresent(),
+          "Either partition or partitionKey needs to be set");
 
       LOG.debug("Sending Datastream event record: %s", record);
 
-      for (Pair<Object, Object> event : record.getEvents()) {
+      for (Object event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          outgoing = convertToProducerRecord(destination, record, event.getKey(), event.getValue());
+          outgoing = convertToProducerRecord(destination, record, event);
         } catch (Exception e) {
           String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
           LOG.error(errorMessage, e);

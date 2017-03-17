@@ -1,11 +1,11 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +38,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -45,9 +46,14 @@ import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
+import com.linkedin.datastream.serde.SerDe;
+import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
+import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -138,16 +144,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
-  // mapping from connector name to associated assignment strategy
-  private final Map<String, AssignmentStrategy> _strategies = new HashMap<>();
-
-  // Connector types which has custom checkpointing enabled.
-  private Set<String> _customCheckpointingConnectors = new HashSet<>();
-
-  // mapping from connector type to connector instance
-  private final Map<String, ConnectorWrapper> _connectors = new HashMap<>();
-
-  private final DestinationManager _destinationManager;
+  // mapping from connector type to connector Info instance
+  private final Map<String, ConnectorInfo> _connectors = new HashMap<>();
 
   // Currently assigned datastream tasks by taskName
   private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
@@ -161,6 +159,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // Connector common metrics
   private static final String NUM_DATASTREAMS = "numDatastreams";
   private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
+  private HashMap<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -188,8 +187,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _eventProducerConfig = coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN);
 
-    _destinationManager = new DestinationManager(config.isReuseExistingDestination(), _transportProviderAdmins);
-
     _cpProvider = new ZookeeperCheckpointProvider(_adapter);
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
@@ -203,7 +200,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log = LoggerFactory.getLogger(String.format("%s:%s", Coordinator.class.getName(), _adapter.getInstanceName()));
 
     for (String connectorType : _connectors.keySet()) {
-      ConnectorWrapper connector = _connectors.get(connectorType);
+      ConnectorInfo connectorInfo = _connectors.get(connectorType);
+      ConnectorWrapper connector = connectorInfo.getConnector();
 
       // populate the instanceName. We only know the instance name after _adapter.connect()
       connector.setInstanceName(getInstanceName());
@@ -239,7 +237,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Stopping all the connectors so that they stop producing.
     for (String connectorType : _connectors.keySet()) {
       try {
-        _connectors.get(connectorType).stop();
+        _connectors.get(connectorType).getConnector().stop();
       } catch (Exception ex) {
         _log.warn(String.format(
             "Connector stop threw an exception for connectorType %s, " + "Swallowing it and continuing shutdown.",
@@ -403,16 +401,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return _assignedDatastreamTasks.get(taskName);
     } else {
       DatastreamTaskImpl task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
-      if (StringUtils.isEmpty(task.getTransportProviderName())) {
-        task.setTransportProviderName(_config.getDefaultTransportProviderName());
-      }
+      DatastreamGroup dg = _datastreamCache.getDatastreamGroups()
+          .stream()
+          .filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix()))
+          .findFirst()
+          .get();
 
+      task.setDatastreams(dg.getDatastreams());
       return task;
     }
   }
 
   private Future<Void> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
-    ConnectorWrapper connector = _connectors.get(connectorType);
+    ConnectorInfo connectorInfo = _connectors.get(connectorType);
+    ConnectorWrapper connector = connectorInfo.getConnector();
 
     List<DatastreamTask> addedTasks = new ArrayList<>(assignment);
     List<DatastreamTask> removedTasks;
@@ -426,31 +428,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     addedTasks.removeAll(oldAssignment);
     oldAssignment.removeAll(assignment);
     removedTasks = oldAssignment;
-    boolean customCheckpointing = _customCheckpointingConnectors.contains(connectorType);
 
     if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
-      addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(t -> {
-
-        TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
-        TransportProvider transportProvider = tpAdmin.assignTransportProvider(t);
-        EventProducer producer =
-            new EventProducer(t, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
-        DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) t;
-        taskImpl.setEventProducer(producer);
-        Map<Integer, String> checkpoints = producer.loadCheckpoints(t);
-        taskImpl.setCheckpoints(checkpoints);
-      });
+      addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(this::initializeTask);
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
         try {
           connector.onAssignmentChange(assignment);
           // Unassign tasks with producers
-          removedTasks.forEach(t -> {
-            TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
-            tpAdmin.unassignTransportProvider(t);
-          });
+          removedTasks.forEach(this::uninitializeTask);
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
@@ -463,6 +451,53 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return null;
+  }
+
+  private void uninitializeTask(DatastreamTask t) {
+    TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
+    tpAdmin.unassignTransportProvider(t);
+  }
+
+  private void initializeTask(DatastreamTask task) {
+    DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
+    assignSerdes(taskImpl);
+
+    boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
+    TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
+    TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
+    EventProducer producer =
+        new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
+
+    taskImpl.setEventProducer(producer);
+    Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
+    taskImpl.setCheckpoints(checkpoints);
+  }
+
+  private void assignSerdes(DatastreamTaskImpl datastreamTask) {
+    Datastream datastream = datastreamTask.getDatastreams().get(0);
+    SerDeSet destinationSet = null;
+
+    if (datastream.hasDestination()) {
+      DatastreamDestination destination = datastream.getDestination();
+      SerDe envelopeSerDe = null;
+      SerDe keySerDe = null;
+      SerDe valueSerDe = null;
+      if (destination.hasEnvelopeSerDe() && StringUtils.isNotEmpty(destination.getEnvelopeSerDe())) {
+        envelopeSerDe = _serdeAdmins.get(destination.getEnvelopeSerDe()).assignSerde(datastreamTask);
+      }
+
+      if (destination.hasKeySerDe() && StringUtils.isNotEmpty(destination.getKeySerDe())) {
+        keySerDe = _serdeAdmins.get(destination.getKeySerDe()).assignSerde(datastreamTask);
+      }
+
+      if (destination.hasPayloadSerDe() && StringUtils.isNotEmpty(destination.getPayloadSerDe())) {
+        valueSerDe = _serdeAdmins.get(destination.getPayloadSerDe()).assignSerde(datastreamTask);
+      }
+
+      destinationSet = new SerDeSet(keySerDe, valueSerDe, envelopeSerDe);
+    }
+
+    datastreamTask.assignSerDes(destinationSet);
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
@@ -517,18 +552,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     leaderDatastreamAddOrDeleteEventScheduled.set(false);
 
     // Get the list of all datastreams
-    List<Datastream> newDatastreams = _datastreamCache.getAllDatastreams(true);
+    List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true);
 
     // do nothing if there are zero datastreams
-    if (newDatastreams.isEmpty()) {
+    if (allStreams.isEmpty()) {
       _log.warn("Received a new datastream event, but there were no datastreams");
       return;
     }
 
-    for (Datastream ds : newDatastreams) {
-      if (ds.getStatus() != DatastreamStatus.READY) {
+    for (Datastream ds : allStreams) {
+      if (ds.getStatus() == DatastreamStatus.INITIALIZING) {
         try {
-          _destinationManager.createTopic(ds);
+          createTopic(ds);
 
           // Set the datastream status as ready for use (both producing and consumption)
           ds.setStatus(DatastreamStatus.READY);
@@ -541,6 +576,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
           shouldRetry = true;
         }
+      } else if (ds.getStatus() == DatastreamStatus.DELETING) {
+        _log.info("Trying to hard delete datastream {}", ds.getName());
+        hardDeleteDatastream(ds, allStreams);
       }
     }
 
@@ -561,11 +599,48 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
-  // Compare two datastreams based on creation timestamp ("" is smaller)
-  private static int compareCreationMs(Datastream d1, Datastream d2) {
-    String ts1 = d1.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "");
-    String ts2 = d2.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "");
-    return ts1.compareTo(ts2);
+  private void hardDeleteDatastream(Datastream ds, List<Datastream> allStreams) {
+    String taskPrefix = DatastreamUtils.getTaskPrefix(ds);
+    Optional<Datastream> duplicateStream = allStreams.stream()
+        .filter(x -> !x.getName().equals(ds.getName()) && DatastreamUtils.getTaskPrefix(x).equals(taskPrefix))
+        .findFirst();
+
+    if (!duplicateStream.isPresent()) {
+      _log.info(
+          "No datastream left in the datastream group with taskPrefix {}. Deleting all tasks corresponding to the datastream.",
+          taskPrefix);
+      _adapter.deleteTasksWithPrefix(_connectors.keySet(), taskPrefix);
+    } else {
+      _log.info("Found duplicate datastream {} for the datastream to be deleted {}. Not deleting the tasks.",
+          duplicateStream.get().getName(), ds.getName());
+    }
+
+    _adapter.deleteDatastream(ds.getName());
+  }
+
+  private String createTopic(Datastream datastream) throws TransportException {
+    Properties datastreamProperties = new Properties();
+    if (datastream.hasMetadata()) {
+      datastreamProperties.putAll(datastream.getMetadata());
+    }
+
+    _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
+
+    // Set destination creation time and retention
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+
+    try {
+      Duration retention = _transportProviderAdmins.get(datastream.getTransportProviderName()).getRetention(datastream);
+      if (retention != null) {
+        datastream.getMetadata()
+            .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+      }
+    } catch (UnsupportedOperationException e) {
+      _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
+    }
+
+    return datastream.getDestination().getConnectionString();
   }
 
   private void handleLeaderDoAssignment() {
@@ -576,72 +651,50 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
     //  2) status is READY
-    //
-    // TODO: currently datastreams are sorted based on the creation timestamp
-    //       before de-duping. This avoid creating duplicate tasks for a newer
-    //       datastream sharing destination with an existing datastream but
-    //       name appears before the older datastream because of alphabetic
-    //       ordering from zookeper. We might need to consider a long-term
-    //       solution.
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
         .stream()
         .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY
             && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
-        .sorted(Coordinator::compareCreationMs)
         .collect(Collectors.toList());
 
-    // The inner map is used to dedup Datastreams with the same destination
-    Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
+    Map<String, List<Datastream>> streamsByTaskPrefix =
+        allStreams.stream().collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
 
-    for (Datastream ds : allStreams) {
-      Map<DatastreamDestination, Datastream> streams =
-          streamsByConnectorType.computeIfAbsent(ds.getConnectorName(), n -> new HashMap<>());
+    List<DatastreamGroup> datastreamGroups = streamsByTaskPrefix.keySet()
+        .stream()
+        .map(x -> new DatastreamGroup(streamsByTaskPrefix.get(x)))
+        .collect(Collectors.toList());
 
-      // Only keep the datastreams with unique destinations
-      if (!streams.containsKey(ds.getDestination())) {
-        streams.put(ds.getDestination(), ds);
-      } else {
-        _log.debug("Datastream %s is de-duped by %s", ds, streams.get(ds.getDestination()));
-      }
-    }
-
-    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", streamsByConnectorType);
+    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", datastreamGroups);
 
     // Map between Instance and the tasks
-    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
-    Map<String, Set<DatastreamTask>> currentAssignment = _adapter.getAllAssignedDatastreamTasks();
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
-    // In case of the deletion of the last data stream for a connector type, the actual deletion of
-    // the data stream object from ZK has already happened before we reach here; we need to add
-    // an empty entry (map) for connector type to streams mapping, so that existing assignments
-    // get cleaned up properly
-    _connectors.values().forEach(connector -> {
-      String connType = connector.getConnectorType();
-      if (!streamsByConnectorType.containsKey(connType)) {
-        streamsByConnectorType.put(connType, new HashMap<>());
-      }
-    });
+    // Map between instance to tasks assigned to the instance.
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
 
-    _log.info("handleLeaderDoAssignment: current assignment: " + currentAssignment);
+    _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
 
-    for (String connectorType : streamsByConnectorType.keySet()) {
-      AssignmentStrategy strategy = _strategies.get(connectorType);
-      List<Datastream> datastreamsPerConnectorType =
-          new ArrayList<>(streamsByConnectorType.get(connectorType).values());
+    for (String connectorType : _connectors.keySet()) {
+      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
+          .filter(x -> x.getConnectorName().equals(connectorType))
+          .collect(Collectors.toList());
 
       // Get the list of tasks per instance for the given connector type
+      // We need to call assign even if the number of datastreams are empty, This is to make sure that
+      // the assignments get cleaned up for the deleted datastreams.
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, currentAssignment);
+          strategy.assign(datastreamsPerConnectorType, liveInstances, previousAssignmentByInstance);
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
-        if (!assignmentsByInstance.containsKey(instance)) {
-          assignmentsByInstance.put(instance, new ArrayList<>());
-        }
+        newAssignmentsByInstance.computeIfAbsent(instance, (x) -> new ArrayList<>());
+
         // Add the tasks for this connector type to the instance
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
           ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
-          assignmentsByInstance.get(instance).add(task);
+          newAssignmentsByInstance.get(instance).add(task);
         });
       }
     }
@@ -651,15 +704,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // it failed to create or delete znodes), we will do our best to continue the current process
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
-    for (Map.Entry<String, List<DatastreamTask>> entry : assignmentsByInstance.entrySet()) {
+    for (Map.Entry<String, List<DatastreamTask>> entry : newAssignmentsByInstance.entrySet()) {
       succeeded &= _adapter.updateInstanceAssignment(entry.getKey(), entry.getValue());
     }
 
-    _log.info("handleLeaderDoAssignment: new assignment: " + assignmentsByInstance);
+    _log.info("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
-      _adapter.cleanupDeadInstanceAssignments(currentAssignment);
+      _adapter.cleanupDeadInstanceAssignments();
+      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_REBALANCES, 1);
     }
 
@@ -686,7 +740,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    *                            Coordinator will not perform checkpointing to the zookeeper.
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
-      boolean customCheckpointing) {
+      boolean customCheckpointing, DatastreamDeduper deduper) {
     Validate.notNull(strategy, "strategy cannot be null");
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
@@ -703,19 +757,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
     connectorMetrics.ifPresent(_metrics::addAll);
 
-    ConnectorWrapper connectorWrapper = new ConnectorWrapper(connectorName, connector);
-    _connectors.put(connectorName, connectorWrapper);
-    _strategies.put(connectorName, strategy);
-    if (customCheckpointing) {
-      _customCheckpointingConnectors.add(connectorName);
-    }
+    ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper);
+    _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
     Class<?> connectorClass = connector.getClass();
     _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAMS,
-        (Gauge<Long>) connectorWrapper::getNumDatastreams);
+        (Gauge<Long>) () -> connectorInfo.getConnector().getNumDatastreams());
     _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAM_TASKS,
-        (Gauge<Long>) connectorWrapper::getNumDatastreamTasks);
+        (Gauge<Long>) () -> connectorInfo.getConnector().getNumDatastreamTasks());
 
     String className = connectorClass.getSimpleName();
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
@@ -731,12 +781,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
     datastream.setStatus(DatastreamStatus.INITIALIZING);
     String connectorName = datastream.getConnectorName();
-    ConnectorWrapper connector = _connectors.get(connectorName);
-    if (connector == null) {
+    ConnectorInfo connectorInfo = _connectors.get(connectorName);
+    if (connectorInfo == null) {
       String errorMessage = "Invalid connector: " + connectorName;
       _log.error(errorMessage);
       throw new DatastreamValidationException(errorMessage);
     }
+
+    ConnectorWrapper connector = connectorInfo.getConnector();
+    DatastreamDeduper deduper = connectorInfo.getDatastreamDeduper();
 
     List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams()
         .stream()
@@ -750,15 +803,55 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     try {
-      _log.debug("About to initialize datastream %s with connector %s", datastream, connectorName);
       connector.initializeDatastream(datastream, allDatastreams);
-      _destinationManager.populateDatastreamDestination(datastream, allDatastreams);
+
+      Optional<Datastream> existingDatastream = Optional.empty();
+
+      // Find the duplicate datastream only when the destination is not populated.
+      if (!datastream.hasDestination() || !datastream.getDestination().hasConnectionString() || StringUtils.isEmpty(
+          datastream.getDestination().getConnectionString())) {
+        existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
+      }
+
+      if (existingDatastream.isPresent()) {
+        populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
+        datastream.getMetadata()
+            .put(DatastreamMetadataConstants.TASK_PREFIX,
+                existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+      } else {
+        _transportProviderAdmins.get(datastream.getTransportProviderName())
+            .initializeDestinationForDatastream(datastream);
+
+        datastream.getMetadata()
+            .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+
+        _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
+            datastream.getName(), datastream.getDestination());
+      }
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
       throw e;
     }
 
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+  }
+
+  private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {
+    DatastreamDestination destination = existingStream.getDestination();
+    datastream.setDestination(destination);
+
+    // Copy destination-related metadata
+    if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
+              existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_CREATION_MS));
+    }
+
+    if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_RETENION_MS)) {
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
+              existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
+    }
   }
 
   @Override
@@ -782,6 +875,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     Optional<List<BrooklinMetricInfo>> transportProviderMetrics = Optional.ofNullable(admin.getMetricInfos());
     transportProviderMetrics.ifPresent(_metrics::addAll);
+  }
+
+  public void addSerde(String serdeName, SerdeAdmin admin) {
+    _serdeAdmins.put(serdeName, admin);
   }
 
   private class CoordinatorEventProcessor extends Thread {

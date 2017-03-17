@@ -1,13 +1,12 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 
 
 public class TestDatastreamProducerRecordBuilder {
@@ -19,8 +18,8 @@ public class TestDatastreamProducerRecordBuilder {
     long timestamp = System.currentTimeMillis();
 
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-    DatastreamEvent event1 = createDatastreamEvent();
-    DatastreamEvent event2 = createDatastreamEvent();
+    BrooklinEnvelope event1 = createDatastreamEvent();
+    BrooklinEnvelope event2 = createDatastreamEvent();
     builder.addEvent(event1);
     builder.addEvent(event2);
     builder.setPartition(partition);
@@ -29,27 +28,22 @@ public class TestDatastreamProducerRecordBuilder {
 
     DatastreamProducerRecord record = builder.build();
     Assert.assertEquals(record.getEvents().size(), 2);
-    Assert.assertEquals(record.getEvents().get(0).getValue(), event1);
-    Assert.assertEquals(record.getEvents().get(1).getValue(), event2);
+    Assert.assertEquals(((BrooklinEnvelope) record.getEvents().get(0)).getValue(), event1.getValue());
+    Assert.assertEquals(((BrooklinEnvelope) record.getEvents().get(1)).getValue(), event2.getValue());
     Assert.assertEquals(record.getPartition().get().intValue(), partition);
     Assert.assertEquals(record.getCheckpoint(), sourceCheckpoint);
     Assert.assertEquals(record.getEventsSourceTimestamp(), timestamp);
   }
 
-  private DatastreamEvent createDatastreamEvent() {
-    DatastreamEvent event = new DatastreamEvent();
-    event.metadata = new HashMap<>();
-    event.key = ByteBuffer.allocate(0);
-    event.payload = ByteBuffer.allocate(0);
-    event.previous_payload = ByteBuffer.allocate(0);
-    return event;
+  private BrooklinEnvelope createDatastreamEvent() {
+    return new BrooklinEnvelope(new byte[0], new byte[0], null, new HashMap<>());
   }
 
   @Test
   public void testWithoutPartitionWithoutEventsWithoutSourceCheckpoint() {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.setEventsSourceTimestamp(System.currentTimeMillis());
-
+    builder.setPartitionKey("foo");
     DatastreamProducerRecord record = builder.build();
     Assert.assertFalse(record.getPartition().isPresent());
     Assert.assertEquals(record.getCheckpoint(), "");
@@ -67,7 +61,7 @@ public class TestDatastreamProducerRecordBuilder {
   public void testBuilderThrowsWhenEventsTimestampMissing() {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
 
-    DatastreamEvent event = createDatastreamEvent();
+    BrooklinEnvelope event = createDatastreamEvent();
     builder.addEvent(event);
 
     builder.build();
@@ -78,12 +72,13 @@ public class TestDatastreamProducerRecordBuilder {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     byte[] key = "key".getBytes();
     byte[] payload = "payload".getBytes();
-    builder.addEvent(key, payload);
+    builder.addEvent(key, payload, null, new HashMap<>());
     builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    builder.setPartition(0);
     DatastreamProducerRecord record = builder.build();
 
     Assert.assertEquals(record.getEvents().size(), 1);
-    Assert.assertEquals(record.getEvents().get(0).getKey(), key);
-    Assert.assertEquals(record.getEvents().get(0).getValue(), payload);
+    Assert.assertEquals(((BrooklinEnvelope) record.getEvents().get(0)).getKey(), key);
+    Assert.assertEquals(((BrooklinEnvelope) record.getEvents().get(0)).getValue(), payload);
   }
 }

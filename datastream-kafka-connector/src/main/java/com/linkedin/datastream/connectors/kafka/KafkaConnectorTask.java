@@ -1,7 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -33,11 +30,9 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.SlidingTimeWindowReservoir;
 
-import com.linkedin.datastream.common.AvroUtils;
+import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventMetadata;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
@@ -316,43 +311,23 @@ public class KafkaConnectorTask implements Runnable {
   }
 
   private DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, long readTime, String strReadTime) {
-    DatastreamEvent event = new DatastreamEvent();
-    event.key = getSerializedBytes(fromKafka.key());
-    event.payload = getSerializedBytes(fromKafka.value());
-    event.previous_payload = null;
-    event.metadata = new HashMap<>();
-    event.metadata.put("kafka-origin", _srcValue);
+    HashMap<String, String> metadata = new HashMap<>();
+    metadata.put("kafka-origin", _srcValue);
     int partition = fromKafka.partition();
     String partitionStr = String.valueOf(partition);
-    event.metadata.put("kafka-origin-partition", partitionStr);
+    metadata.put("kafka-origin-partition", partitionStr);
     String offsetStr = String.valueOf(fromKafka.offset());
-    event.metadata.put("kafka-origin-offset", offsetStr);
-    event.metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, strReadTime);
+    metadata.put("kafka-origin-offset", offsetStr);
+    metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, strReadTime);
+    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     //TODO - copy over headers if/when they are ever supported
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-    builder.addEvent(event);
+    builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(readTime);
     builder.setPartition(partition); //assume source partition count is same as dest
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
-  }
-
-  private ByteBuffer getSerializedBytes(Object field) {
-    if (field instanceof byte[]) {
-      return ByteBuffer.wrap((byte[]) field);
-    } else if (field instanceof String) {
-      return ByteBuffer.wrap(((String) field).getBytes());
-    } else if (field instanceof IndexedRecord) {
-      IndexedRecord record = (IndexedRecord) field;
-      try {
-        return ByteBuffer.wrap(AvroUtils.encodeAvroIndexedRecord(record.getSchema(), record));
-      } catch (IOException e) {
-        throw new DatastreamRuntimeException("Unable to serialzie the avro record", e);
-      }
-    } else {
-      throw new DatastreamRuntimeException("Kafka connector doesn't support field of type" + field.getClass());
-    }
   }
 
   private class ProgressTracker implements SendCallback {

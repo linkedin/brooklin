@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
@@ -92,9 +93,16 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   @Override
   public void deleteDatastream(String key) {
     Validate.notNull(key, "null key");
-    String path = getZnodePath(key);
-    if (_zkClient.exists(path)) {
-      _zkClient.delete(getZnodePath(key));
+
+    Datastream datastream = getDatastream(key);
+    if (datastream != null) {
+      datastream.setStatus(DatastreamStatus.DELETING);
+      String data = DatastreamUtils.toJSON(datastream);
+      String path = getZnodePath(key);
+      _zkClient.updateDataSerialized(path, old -> data);
+      String dmsPath = KeyBuilder.datastreams(_cluster);
+      // Update the /dms to notify that coordinator needs to act on the deleted datastream.
+      _zkClient.updateDataSerialized(dmsPath, old -> String.valueOf(System.currentTimeMillis()));
     }
   }
 }

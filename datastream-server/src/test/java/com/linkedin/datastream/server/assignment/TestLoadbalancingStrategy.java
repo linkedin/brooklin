@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -18,7 +19,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -53,9 +56,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyDistributesTasksAcrossInstancesEqually() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -67,9 +71,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyCreatesMinTasks() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     Properties strategyProps = new Properties();
     strategyProps.put(LoadbalancingStrategy.CFG_MIN_TASKS, "12");
     LoadbalancingStrategy strategy = new LoadbalancingStrategy(strategyProps);
@@ -83,9 +88,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyCreatesTasksOnlyForPartitionsInDestination() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(2));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(2);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -101,9 +107,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyRedistributesTasksWhenNodeGoesDown() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
@@ -125,9 +132,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testIncompleteCurrentAssignment() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
@@ -154,9 +162,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyRedistributesTasksWhenNodeIsAdded() {
     String[] instances = new String[]{"instance1", "instance2"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
@@ -179,9 +188,10 @@ public class TestLoadbalancingStrategy {
   @Test
   public void testLoadbalancingStrategyCreatesNewDatastreamTasksWhenNewDatastreamIsAdded() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    List<Datastream> datastreams =
-        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1"));
-    datastreams.forEach(x -> x.getSource().setPartitions(12));
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(12);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
@@ -193,10 +203,10 @@ public class TestLoadbalancingStrategy {
     }
 
     datastreams = new ArrayList<>(datastreams);
-    datastreams.add(DatastreamTestUtils.createDatastream(DummyConnector.CONNECTOR_TYPE, "ds2", "source"));
-    datastreams.forEach(x -> {
-      x.getSource().setPartitions(12);
-    });
+    Datastream ds2 = DatastreamTestUtils.createDatastream(DummyConnector.CONNECTOR_TYPE, "ds2", "source");
+    ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds2));
+    ds2.getSource().setPartitions(12);
+    datastreams.add(new DatastreamGroup(Collections.singletonList(ds2)));
 
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
 
@@ -211,20 +221,24 @@ public class TestLoadbalancingStrategy {
     List<Datastream> datastreams =
         Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2"));
     datastreams.forEach(x -> x.getSource().setPartitions(12));
+
+    datastreams.forEach(
+        x -> x.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(x)));
+    List<DatastreamGroup> dgs =
+        datastreams.stream().map(x -> new DatastreamGroup(Collections.singletonList(x))).collect(Collectors.toList());
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
-    Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(dgs, Arrays.asList(instances), new HashMap<>());
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 4);
       assignment.get(instance).forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
     }
 
-    datastreams = new ArrayList<>(datastreams);
-    datastreams.remove(1);
+    dgs = new ArrayList<>(dgs);
+    dgs.remove(1);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(dgs, Arrays.asList(instances), assignment);
 
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 2);

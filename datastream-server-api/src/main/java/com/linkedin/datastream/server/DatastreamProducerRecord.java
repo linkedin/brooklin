@@ -4,35 +4,65 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 
+import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.serde.SerDeSet;
+
 
 /**
- * Envelope of a Datastream event to be sent via Kafka.
+ * List of brooklin events that needs to be sent to the transport provider
  */
 public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
+  private final Optional<String> _partitionKey;
   private final String _checkpoint;
-  private final List<Pair<Object, Object>> _events;
+  private List<?> _events;
   private final long _eventsSourceTimestamp;
 
-  DatastreamProducerRecord(List<Pair<Object, Object>> events, Optional<Integer> partition, String checkpoint,
-      long eventsSourceTimestamp) {
+  DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
+      String checkpoint, long eventsSourceTimestamp) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
     Validate.isTrue(eventsSourceTimestamp > 0, "events source timestamp is invalid");
+    Validate.isTrue(partition.isPresent() || partitionKey.isPresent(),
+        "Either partition or partitionKey should be present");
 
     _events = events;
     _partition = partition;
+    _partitionKey = partitionKey;
     _checkpoint = checkpoint;
     _eventsSourceTimestamp = eventsSourceTimestamp;
   }
 
+  public synchronized void serializeEvents(SerDeSet serDes) {
+    List<Object> serializedEvents = _events.stream()
+        .filter(event -> event instanceof BrooklinEnvelope)
+        .map(event -> serializeEvent((BrooklinEnvelope) event, serDes))
+        .collect(Collectors.toList());
+
+    _events = serializedEvents;
+  }
+
+  private Object serializeEvent(BrooklinEnvelope event, SerDeSet serDes) {
+    serDes.getKeySerDe().ifPresent(x -> event.setKey(x.serialize(event.getKey())));
+    serDes.getValueSerDe().ifPresent(x -> event.setValue(x.serialize(event.getValue())));
+    serDes.getValueSerDe().ifPresent(x -> event.setPreviousValue(x.serialize(event.getPreviousValue())));
+
+    if (serDes.getEnvelopeSerDe().isPresent()) {
+      return serDes.getEnvelopeSerDe().get().serialize(event);
+    }
+
+    return event;
+  }
+
   /**
-   * @return all events in the event record
+   * @return all events in the event record. The events returned can be of type BrooklinEnvelope or a serialized
+   * byte array. based on whether the envelope serializer is configured for the stream.
    */
-  public List<Pair<Object, Object>> getEvents() {
+  public synchronized List<?> getEvents() {
     return Collections.unmodifiableList(_events);
   }
 
@@ -52,7 +82,11 @@ public class DatastreamProducerRecord {
 
   @Override
   public String toString() {
-    return String.format("%s @ partition=%s", _events, _partition);
+    if (_partition.isPresent()) {
+      return String.format("%s @ partition=%s", _events, _partition.get());
+    } else {
+      return String.format("%s @ partitionKey=%s", _events, _partitionKey.get());
+    }
   }
 
   @Override
@@ -64,8 +98,8 @@ public class DatastreamProducerRecord {
       return false;
     }
     DatastreamProducerRecord record = (DatastreamProducerRecord) o;
-    return Objects.equals(_partition, record._partition) && Objects.equals(_events, record._events) && Objects
-        .equals(_checkpoint, record._checkpoint);
+    return Objects.equals(_partition, record._partition) && Objects.equals(_partitionKey, record._partitionKey)
+        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint);
   }
 
   @Override
@@ -84,4 +118,7 @@ public class DatastreamProducerRecord {
     return _checkpoint;
   }
 
+  public Optional<String> getPartitionKey() {
+    return _partitionKey;
+  }
 }

@@ -13,6 +13,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
@@ -123,6 +124,9 @@ public class DatastreamTestUtils {
   public static Datastream[] createAndStoreDatastreams(ZkClient zkClient, String cluster, String connectorType,
       String... datastreamNames) throws DatastreamException {
     Datastream[] datastreams = createDatastreams(connectorType, datastreamNames);
+    for (Datastream ds : datastreams) {
+      ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
+    }
     storeDatastreams(zkClient, cluster, datastreams);
     return datastreams;
   }

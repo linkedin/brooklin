@@ -28,6 +28,9 @@ import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
@@ -127,8 +130,7 @@ public class TestDatastreamServer {
 
   @Test
   public void testCreateTwoDatastreamOfFileConnectorProduceEventsReceiveEvents() throws Exception {
-    _datastreamCluster =
-        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
     int totalEvents = 10;
     _datastreamCluster.startup();
     Path tempFile1 = Files.createTempFile("testFile1", "");
@@ -187,8 +189,8 @@ public class TestDatastreamServer {
     Collection<String> eventsWritten1 = TestUtils.generateStrings(totalEvents);
     FileUtils.writeLines(new File(fileName1), eventsWritten1);
 
-    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 5);
-    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 5);
+    Collection<String> eventsReceived1 = readFileDatastreamEvents(fileDatastream1, 0, 4);
+    Collection<String> eventsReceived2 = readFileDatastreamEvents(fileDatastream1, 1, 6);
     eventsReceived1.addAll(eventsReceived2);
 
     LOG.info("Events Received " + eventsReceived1);
@@ -199,8 +201,7 @@ public class TestDatastreamServer {
 
   @Test
   public void testDeleteDatastreamAndRecreateDatastream() throws Exception {
-    _datastreamCluster =
-        initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
+    _datastreamCluster = initializeTestDatastreamServerWithFileConnector(1, BROADCAST_STRATEGY_FACTORY, 1);
     int totalEvents = 10;
     _datastreamCluster.startup();
 
@@ -519,16 +520,14 @@ public class TestDatastreamServer {
 
   private List<String> readFileDatastreamEvents(Datastream datastream, int partition, int totalEvents)
       throws Exception {
-    KafkaDestination kafkaDestination =
-        KafkaDestination.parse(datastream.getDestination().getConnectionString());
+    KafkaDestination kafkaDestination = KafkaDestination.parse(datastream.getDestination().getConnectionString());
     final int[] numberOfMessages = {0};
     List<String> eventsReceived = new ArrayList<>();
-    KafkaTestUtils.readTopic(kafkaDestination.getTopicName(), partition, _datastreamCluster.getKafkaCluster().getBrokers(),
-        (key, value) -> {
-          DatastreamEvent datastreamEvent = AvroUtils.decodeAvroSpecificRecord(DatastreamEvent.class, value);
-          String eventValue = new String(datastreamEvent.payload.array());
-          DatastreamUtils.processEventMetadata(datastreamEvent);
-          LOG.info(String.format("Datastream: %s", datastream));
+    KafkaTestUtils.readTopic(kafkaDestination.getTopicName(), partition,
+        _datastreamCluster.getKafkaCluster().getBrokers(), (key, value) -> {
+          String eventValue = new String(value);
+          LOG.info("Read {}th or {} events, Event {} from datastream {}", numberOfMessages[0], totalEvents, eventValue,
+              datastream);
           eventsReceived.add(eventValue);
           numberOfMessages[0]++;
           return numberOfMessages[0] < totalEvents;

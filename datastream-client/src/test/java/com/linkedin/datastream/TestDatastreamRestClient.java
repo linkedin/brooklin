@@ -200,6 +200,7 @@ public class TestDatastreamRestClient {
       stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_CREATION_MS);
       stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
       stream.getMetadata().remove(DatastreamMetadataConstants.CREATION_MS);
+      stream.getMetadata().remove(DatastreamMetadataConstants.TASK_PREFIX);
     }
   }
 
@@ -253,7 +254,9 @@ public class TestDatastreamRestClient {
     LOG.info("Datastream : " + datastream);
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(datastream);
+    restClient.waitTillDatastreamIsInitialized(datastream.getName(), Duration.ofMinutes(2).toMillis());
     restClient.deleteDatastream(datastream.getName());
+    restClient.waitTillDatastreamIsDeleted(datastream.getName(), Duration.ofMinutes(2).toMillis());
     restClient.getDatastream(datastream.getName());
   }
 

@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +18,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -73,8 +75,10 @@ public class TestKafkaConnectorTask {
     datastream.setConnectorName("whatever");
     datastream.setSource(source);
     datastream.setDestination(destination);
+    datastream.setTransportProviderName("default");
     datastream.setMetadata(new StringMap());
-    DatastreamTaskImpl task = new DatastreamTaskImpl(datastream);
+    datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
     KafkaConnectorTask connectorTask =
         new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 100);

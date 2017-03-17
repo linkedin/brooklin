@@ -42,8 +42,7 @@ public class DatastreamRestClient {
   private final RestClient _restClient;
 
   public DatastreamRestClient(String dsmUri) {
-    this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(
-        Collections.<String, String>emptyMap())));
+    this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(Collections.<String, String>emptyMap())));
   }
 
   public DatastreamRestClient(String dsmUri, Client r2Client) {
@@ -104,8 +103,7 @@ public class DatastreamRestClient {
    *   Returns the initialized datastream object.
    * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    */
-  public Datastream waitTillDatastreamIsInitialized(String datastreamName, long timeoutMs)
-      throws InterruptedException {
+  public Datastream waitTillDatastreamIsInitialized(String datastreamName, long timeoutMs) throws InterruptedException {
     final int pollIntervalMs = 500;
     final long startTimeMs = System.currentTimeMillis();
     while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
@@ -117,6 +115,30 @@ public class DatastreamRestClient {
     }
 
     String errorMessage = String.format("Datastream was not initialized before the timeout %s", timeoutMs);
+    LOG.error(errorMessage);
+    throw new DatastreamRuntimeException(errorMessage);
+  }
+
+  /**
+   * DeleteDatastream just marks the datastream for deletion. Hard delete of the datastream is an async process.
+   * This method waits till the datastream is completely removed from the system.
+   * @param datastreamName Name of the datastream.
+   * @param timeoutMs wait timeout in milliseconds.
+   * @throws InterruptedException
+   */
+  public void waitTillDatastreamIsDeleted(String datastreamName, long timeoutMs) throws InterruptedException {
+    final int pollIntervalMs = 500;
+    final long startTimeMs = System.currentTimeMillis();
+    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
+      try {
+        getDatastream(datastreamName);
+      } catch (DatastreamNotFoundException e) {
+        return;
+      }
+      Thread.sleep(pollIntervalMs);
+    }
+
+    String errorMessage = String.format("Datastream was not deleted before the timeout %s", timeoutMs);
     LOG.error(errorMessage);
     throw new DatastreamRuntimeException(errorMessage);
   }
