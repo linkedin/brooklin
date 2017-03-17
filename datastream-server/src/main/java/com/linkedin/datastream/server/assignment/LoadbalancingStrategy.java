@@ -1,11 +1,5 @@
 package com.linkedin.datastream.server.assignment;
 
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
-import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.DatastreamTaskImpl;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,6 +12,13 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.server.DatastreamGroup;
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 
 
 /**
@@ -36,7 +37,6 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   public static final String CFG_MIN_TASKS = "TasksPerDatastream";
   public static final int DEFAULT_MIN_TASKS = -1;
 
-
   // If the instances are down while the assignment is happening. We need to ensure that at least min tasks are created
   private final int minTasks;
   private final int overPartitioningFactor;
@@ -52,7 +52,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   }
 
   @Override
-  public Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
+  public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
     LOG.info(String.format("Assign called with datastreams: %s, instances: %s, currentAssignment: %s", datastreams,
         instances, currentAssignment));
@@ -76,63 +76,61 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       assignment.get(instanceName).add(datastreamTasks.get(i));
     }
 
-    LOG.info(String.format("Datastreams: %s, instances: %s, currentAssignment: %s, NewAssignment: %s",
-        datastreams.stream().map(x -> x.getName()).collect(Collectors.toList()), instances, currentAssignment,
-        assignment));
+    LOG.info(String.format("Datastream Groups: %s, instances: %s, currentAssignment: %s, NewAssignment: %s",
+        datastreams.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList()), instances,
+        currentAssignment, assignment));
 
     return assignment;
   }
 
-  private List<DatastreamTask> getDatastreamTasks(List<Datastream> datastreams,
+  private List<DatastreamTask> getDatastreamTasks(List<DatastreamGroup> datastreams,
       Map<String, Set<DatastreamTask>> currentAssignment, int maxTasksPerDatastream) {
     Set<DatastreamTask> allTasks = new HashSet<>();
 
     List<DatastreamTask> currentlyAssignedDatastreamTasks = new ArrayList<>();
     currentAssignment.values().forEach(currentlyAssignedDatastreamTasks::addAll);
 
-    for (Datastream datastream : datastreams) {
-      Set<DatastreamTask> tasksForDatastream = currentlyAssignedDatastreamTasks.stream()
-          .filter(
-              x -> x.getDatastreams().stream().map(Datastream::getName).anyMatch(y -> y.contains(datastream.getName())))
+    for (DatastreamGroup dg : datastreams) {
+      Set<DatastreamTask> tasksForDatastreamGroup = currentlyAssignedDatastreamTasks.stream()
+          .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
           .collect(Collectors.toSet());
 
       // If there are no datastream tasks that are currently assigned for this datastream.
-      if (tasksForDatastream.isEmpty()) {
-        tasksForDatastream = createTasksForDatastream(datastream, maxTasksPerDatastream);
+      if (tasksForDatastreamGroup.isEmpty()) {
+        tasksForDatastreamGroup = createTasksForDatastream(dg, maxTasksPerDatastream);
       } else {
+        Datastream datastream = dg.getDatastreams().get(0);
         if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
           // Check that all partitions are covered with existing tasks.
           int numberOfDatastreamPartitions = datastream.getSource().getPartitions();
           Set<Integer> assignedPartitions = new HashSet<>();
           int count = 0;
-          for (DatastreamTask task : tasksForDatastream) {
+          for (DatastreamTask task : tasksForDatastreamGroup) {
             count += task.getPartitions().size();
             assignedPartitions.addAll(task.getPartitions());
           }
           if (count != numberOfDatastreamPartitions || assignedPartitions.size() != numberOfDatastreamPartitions) {
-            LOG.error("Corrupted partition information for datastream {}. Expected number of partitions {}, actual {}: {}",
+            LOG.error(
+                "Corrupted partition information for datastream {}. Expected number of partitions {}, actual {}: {}",
                 datastream.getName(), numberOfDatastreamPartitions, count, assignedPartitions);
           }
         }
       }
 
-      allTasks.addAll(tasksForDatastream);
+      allTasks.addAll(tasksForDatastreamGroup);
     }
 
     return new ArrayList<>(allTasks);
   }
 
-  private Set<DatastreamTask> createTasksForDatastream(Datastream datastream, int maxTasksPerDatastream) {
-    int numberOfDatastreamPartitions = 1;
-    if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
-      numberOfDatastreamPartitions = datastream.getSource().getPartitions();
-    }
+  private Set<DatastreamTask> createTasksForDatastream(DatastreamGroup datastream, int maxTasksPerDatastream) {
+    int numberOfDatastreamPartitions = datastream.getSourcePartitions().orElse(1);
     int tasksPerDatastream =
         maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();
     for (int index = 0; index < tasksPerDatastream; index++) {
-      tasks.add(new DatastreamTaskImpl(datastream, Integer.toString(index),
-          assignPartitionsToTask(datastream, index, tasksPerDatastream)));
+      tasks.add(new DatastreamTaskImpl(datastream.getDatastreams(), Integer.toString(index),
+          assignPartitionsToTask(numberOfDatastreamPartitions, index, tasksPerDatastream)));
     }
 
     return tasks;
@@ -140,13 +138,10 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   // Finds the list of partitions that the current datastream task should own.
   // Based on the task index, total number of tasks in the datastream and the total partitions in the datastream source
-  private List<Integer> assignPartitionsToTask(Datastream datastream, int taskIndex, int totalTasks) {
+  private List<Integer> assignPartitionsToTask(int numPartitions, int taskIndex, int totalTasks) {
     List<Integer> partitions = new ArrayList<>();
-    if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
-      int numPartitions = datastream.getSource().getPartitions();
-      for (int index = 0; index + taskIndex < numPartitions; index += totalTasks) {
-        partitions.add(index + taskIndex);
-      }
+    for (int index = 0; index + taskIndex < numPartitions; index += totalTasks) {
+      partitions.add(index + taskIndex);
     }
 
     return partitions;

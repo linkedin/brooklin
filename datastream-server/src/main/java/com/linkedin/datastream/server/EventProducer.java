@@ -11,6 +11,7 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -19,6 +20,7 @@ import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
+import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.SendFailedException;
@@ -35,6 +37,7 @@ import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
 public class EventProducer implements DatastreamEventProducer {
 
   private final DatastreamTask _datastreamTask;
+  private final SerDeSet _serDeSet;
 
   /**
    * Policy for checkpoint handling
@@ -82,6 +85,7 @@ public class EventProducer implements DatastreamEventProducer {
     Validate.notNull(config, "null config");
 
     _datastreamTask = task;
+    _serDeSet = task.getDestinationSerDes();
     _transportProvider = transportProvider;
     _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
@@ -114,10 +118,11 @@ public class EventProducer implements DatastreamEventProducer {
     Validate.notNull(record.getEvents(), "null event payload.");
     Validate.notNull(record.getCheckpoint(), "null event checkpoint.");
 
-    for (Pair<Object, Object> event : record.getEvents()) {
-      Validate.notNull(event, "null event");
-      Validate.notNull(event.getKey(), "null key");
-      Validate.notNull(event.getValue(), "null value");
+    for (Object event : record.getEvents()) {
+      BrooklinEnvelope envelope = (BrooklinEnvelope) event;
+      Validate.notNull(envelope, "null event");
+      Validate.notNull(envelope.getKey(), "null key");
+      Validate.notNull(envelope.getValue(), "null value");
     }
   }
 
@@ -129,6 +134,9 @@ public class EventProducer implements DatastreamEventProducer {
   @Override
   public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
     validateEventRecord(record);
+
+    // Serialize
+    record.serializeEvents(_datastreamTask.getDestinationSerDes());
 
     try {
       _transportProvider.send(_datastreamTask.getDatastreamDestination().getConnectionString(), record,

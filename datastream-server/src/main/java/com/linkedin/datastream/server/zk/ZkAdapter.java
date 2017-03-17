@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
+import org.apache.commons.lang.StringUtils;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -326,6 +327,48 @@ public class ZkAdapter {
     return true;
   }
 
+  public void deleteTasksWithPrefix(Set<String> connectors, String taskPrefix) {
+    Set<String> tasksToDelete = _liveTaskMap.values()
+        .stream()
+        .flatMap(Collection::stream)
+        .filter(x -> x.getTaskPrefix().equals(taskPrefix))
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toSet());
+
+    for (String connector : connectors) {
+      Set<String> allTasks = new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
+      List<String> deadTasks = allTasks.stream().filter(tasksToDelete::contains).collect(Collectors.toList());
+
+      if (deadTasks.size() > 0) {
+        _log.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
+        for (String task : deadTasks) {
+          deleteConnectorTask(connector, task);
+        }
+      }
+    }
+  }
+
+  private void deleteConnectorTask(String connector, String taskName) {
+    _log.info("Trying to delete task" + taskName);
+    String path = KeyBuilder.connectorTask(_cluster, connector, taskName);
+    if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
+      // Ignore such failure for now
+      _log.warn("Failed to remove connector task: " + path);
+    }
+  }
+
+  public void deleteDatastream(String datastreamName) {
+    String path = KeyBuilder.datastream(_cluster, datastreamName);
+
+    if (!_zkclient.exists(path)) {
+      _log.warn("trying to delete znode of datastream that does not exist. Datastream name: " + datastreamName);
+      return;
+    }
+
+    _log.info("Deleting the zk path", path);
+    _zkclient.delete(path);
+  }
+
   /**
    * @return a list of instances include both dead and live ones.
    * Dead ones can be removed only after new assignments have
@@ -403,18 +446,22 @@ public class ZkAdapter {
     String dsName = task.getDatastreamName();
     task.setZkAdapter(this);
 
-    String dsPath = KeyBuilder.datastream(_cluster, dsName);
-    if (!_zkclient.exists(dsPath)) {
-      // There are certain corner cases where we end up with datastream tasks without corresponding datastreams.
-      // This happens when the datastream tasks are not cleaned up properly after the datastream is deleted.
-      // One such scenario - when the cluster is brought down immediately after the datastream is deleted.
-      // When we encounter such zombie tasks, We just log a warning, and in the next reassignment will cleanup the zombie tasks.
-      String errorMessage = String.format("Missing Datastream in ZooKeeper for task={%s} instance=%s", task, instance);
-      _log.warn(errorMessage);
+    if (StringUtils.isNotBlank(dsName) && StringUtils.isBlank(task.getTaskPrefix())) {
+      // These are old tasks that were created before DatastreamGroup concept existed.
+      String dsPath = KeyBuilder.datastream(_cluster, dsName);
+      if (!_zkclient.exists(dsPath)) {
+        // There are certain corner cases where we end up with datastream tasks without corresponding datastreams.
+        // This happens when the datastream tasks are not cleaned up properly after the datastream is deleted.
+        // One such scenario - when the cluster is brought down immediately after the datastream is deleted.
+        // When we encounter such zombie tasks, We just log a warning, and in the next reassignment will cleanup the zombie tasks.
+        String errorMessage =
+            String.format("Missing Datastream in ZooKeeper for task={%s} instance=%s", task, instance);
+        _log.warn(errorMessage);
+      }
+      String dsContent = _zkclient.ensureReadData(dsPath);
+      Datastream stream = DatastreamUtils.fromJSON(dsContent);
+      task.setTaskPrefix(DatastreamUtils.getTaskPrefix(stream));
     }
-    String dsContent = _zkclient.ensureReadData(dsPath);
-    Datastream stream = DatastreamUtils.fromJSON(dsContent);
-    task.setDatastream(stream);
 
     return task;
   }
@@ -684,10 +731,8 @@ public class ZkAdapter {
    * Coordinator is expect to cache the "current" assignment before
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
-   *
-   * @param previousAssignment instance assignment before reassignment by the strategy
    */
-  public void cleanupDeadInstanceAssignments(Map<String, Set<DatastreamTask>> previousAssignment) {
+  public void cleanupDeadInstanceAssignments() {
     List<String> liveInstances = getLiveInstances();
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
@@ -707,41 +752,28 @@ public class ZkAdapter {
         }
       }
     }
-
-    _log.info(String.format("previous assignment %s, current assignment: %s", previousAssignment, _liveTaskMap));
-    Set<String> liveTasks = _liveTaskMap.values()
-        .stream()
-        .flatMap(Collection::stream)
-        .map(DatastreamTask::getDatastreamTaskName)
-        .collect(Collectors.toSet());
-
-    List<String> connectors = getConnectors();
-    for (String connector : connectors) {
-      Set<String> deadTasks = new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
-      deadTasks.removeAll(liveTasks);
-
-      if (deadTasks.size() > 0) {
-        _log.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
-        for (String task : deadTasks) {
-          _log.info("Trying to delete task" + task);
-          String path = KeyBuilder.connectorTask(_cluster, connector, task);
-          if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
-            // Ignore such failure for now
-            _log.warn("Failed to remove connector task: " + path);
-          }
-        }
-      }
-    }
   }
 
-  private List<String> getConnectors() {
+  /**
+   * New assignment may not contain all the tasks from the previous assignment, This means that the diff of the
+   * tasks between the new and old assignment are not used any more which can be deleted.
+   * @param previousAssignmentByInstance previous task assignment
+   * @param newAssignmentsByInstance new task assignment.
+   */
+  public void cleanupOldUnusedTasks(Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
+      Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
 
-    String connectorsPath = KeyBuilder.connectors(_cluster);
-    if (_zkclient.exists(connectorsPath)) {
-      return _zkclient.getChildren(connectorsPath);
-    }
+    Set<DatastreamTask> newTasks =
+        newAssignmentsByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+    Set<DatastreamTask> oldTasks =
+        previousAssignmentByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+    List<DatastreamTask> unusedTasks =
+        oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toList());
+    _log.warn("Deleting the unused tasks {} found between previous {} and new assignment {}. ", unusedTasks,
+        previousAssignmentByInstance, newAssignmentsByInstance);
 
-    return Collections.emptyList();
+    // Delete the connector tasks.
+    unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));
   }
 
   private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {
@@ -786,9 +818,8 @@ public class ZkAdapter {
       _zkclient.createEphemeral(lockPath, _instanceName);
       _log.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
-      String msg =
-          String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
-              timeout.toMillis(), owner);
+      String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
+          timeout.toMillis(), owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(_log, msg, null);
     }
   }
@@ -846,7 +877,7 @@ public class ZkAdapter {
   /**
    * ZkBackedDMSDatastreamList
    */
-  public class ZkBackedDMSDatastreamList implements IZkChildListener {
+  public class ZkBackedDMSDatastreamList implements IZkChildListener, IZkDataListener {
     private String _path;
 
     /**
@@ -858,6 +889,7 @@ public class ZkAdapter {
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
       _log.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
+      _zkclient.subscribeDataChanges(_path, this);
     }
 
     public void close() {
@@ -872,6 +904,23 @@ public class ZkAdapter {
       if (_listener != null && ZkAdapter.this.isLeader()) {
         _listener.onDatastreamChange();
       }
+    }
+
+    // Triggered when the /dms is updated. The dms node is updated when someone wants to manually trigger a reassignment
+    // due to datastream add or delete.
+    @Override
+    public void handleDataChange(String dataPath, Object data) throws Exception {
+      _log.info(String.format("ZkBackedDMSDatastreamList::Received Data change notification on the path %s, data %s.",
+          dataPath, data.toString()));
+      if (_listener != null) {
+        _listener.onDatastreamChange();
+      }
+    }
+
+    // Triggered when the /dms is deleted. This can never happen unless someone is deleting the cluster.
+    @Override
+    public void handleDataDeleted(String dataPath) throws Exception {
+      //
     }
   }
 

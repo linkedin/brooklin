@@ -18,6 +18,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
@@ -213,7 +214,10 @@ public class TestDatastreamResources {
     Assert.assertTrue(resource.delete(removed.getName()).getStatus() == HttpStatus.S_200_OK);
 
     // Get All
-    List<Datastream> remainingQueryStreams = resource.getAll(NO_PAGING);
+    List<Datastream> remainingQueryStreams = resource.getAll(NO_PAGING)
+        .stream()
+        .filter(x -> x.getStatus() != DatastreamStatus.DELETING)
+        .collect(Collectors.toList());
 
     // Compare datastreams set only by name since destination is empty upon creation and later populated
     Assert.assertEquals(queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()),

@@ -7,6 +7,7 @@ import java.util.Map;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.serde.SerDeSet;
 
 
 public interface DatastreamTask {
@@ -45,6 +46,12 @@ public interface DatastreamTask {
    * @param value Actual state that needs to be stored.
    */
   void saveState(String key, String value);
+
+  /**
+   * Serdes used to serialize the events in the destination
+   * @return
+   */
+  SerDeSet getDestinationSerDes();
 
   /**
    * Set the status for datastreamtask. This is a way for the connector
@@ -89,6 +96,12 @@ public interface DatastreamTask {
    * number, and value is the safe checkpoint for it.
    */
   Map<Integer, String> getCheckpoints();
+
+  /**
+   * Get the task prefix that is used to identify all the tasks corresponding to the datastream group.
+   * @return
+   */
+  String getTaskPrefix();
 
   /**
    * @return the list of datastreams for which this task is producing events for.

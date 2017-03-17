@@ -223,6 +223,7 @@ public class TestZkAdapter {
     //
     DatastreamTaskImpl task1 = new DatastreamTaskImpl();
     task1.setDatastreamName("task1");
+    task1.setTaskPrefix("task1");
     task1.setConnectorType(connectorType);
     tasks.add(task1);
     adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
@@ -240,6 +241,7 @@ public class TestZkAdapter {
     //
     DatastreamTaskImpl task2 = new DatastreamTaskImpl();
     task2.setDatastreamName("task2");
+    task2.setTaskPrefix("task2");
     task2.setConnectorType(connectorType);
     tasks.add(task2);
     adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
@@ -259,6 +261,7 @@ public class TestZkAdapter {
     //
     DatastreamTaskImpl task3 = new DatastreamTaskImpl();
     task3.setDatastreamName("task3");
+    task3.setTaskPrefix("task3");
     task3.setConnectorType(connectorType);
     tasks.add(task3);
     tasks.remove(task2);
@@ -296,6 +299,7 @@ public class TestZkAdapter {
     //
     DatastreamTaskImpl task1_0 = new DatastreamTaskImpl();
     task1_0.setDatastreamName("task1");
+    task1_0.setTaskPrefix("task1");
     task1_0.setId("0");
     task1_0.setConnectorType(connectorType);
     tasks.add(task1_0);
@@ -303,17 +307,20 @@ public class TestZkAdapter {
     DatastreamTaskImpl task1_1 = new DatastreamTaskImpl();
     task1_1.setDatastreamName("task1");
     task1_1.setId("1");
+    task1_1.setTaskPrefix("task1");
     task1_1.setConnectorType(connectorType);
     tasks.add(task1_1);
 
     DatastreamTaskImpl task1_2 = new DatastreamTaskImpl();
     task1_2.setDatastreamName("task1");
+    task1_2.setTaskPrefix("task1");
     task1_2.setId("2");
     task1_2.setConnectorType(connectorType);
     tasks.add(task1_2);
 
     DatastreamTaskImpl task1_3 = new DatastreamTaskImpl();
     task1_3.setDatastreamName("task1");
+    task1_3.setTaskPrefix("task1");
     task1_3.setId("3");
     task1_3.setConnectorType(connectorType);
     tasks.add(task1_3);

@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.providers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import org.testng.Assert;
@@ -59,10 +60,10 @@ public class TestZookeeperCheckpointProvider {
         ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
-    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(generateDatastream(1));
+    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(1)));
     datastreamTask1.setId("dt1");
 
-    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(generateDatastream(2));
+    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(2)));
     datastreamTask2.setId("dt2");
 
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");

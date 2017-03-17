@@ -13,8 +13,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -38,6 +40,11 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
+import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
+import com.linkedin.datastream.server.api.connector.DatastreamDeduperFactory;
+import com.linkedin.datastream.server.api.connector.SourceBasedDeduperFactory;
+import com.linkedin.datastream.server.api.serde.SerdeAdmin;
+import com.linkedin.datastream.server.api.serde.SerdeAdminFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
@@ -69,6 +76,11 @@ public class DatastreamServer {
   public static final String STRATEGY_DOMAIN = "strategy";
   public static final String CONFIG_TRANSPORT_PROVIDER_NAMES = CONFIG_PREFIX + "transportProviderNames";
   public static final String CONFIG_TRANSPORT_PROVIDER_PREFIX = CONFIG_PREFIX + "transportProvider.";
+  public static final String CONFIG_SERDE_NAMES = CONFIG_PREFIX + "serdeNames";
+  public static final String CONFIG_SERDE_PREFIX = CONFIG_PREFIX + "serde.";
+  public static final String CONFIG_CONNECTOR_DEDUPER_FACTORY = "deduperFactory";
+  public static final String DEFAULT_DEDUPER_FACTORY = SourceBasedDeduperFactory.class.getName();
+  public static final String DOMAIN_DEDUPER = "deduper";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -112,6 +124,27 @@ public class DatastreamServer {
 
   public int getHttpPort() {
     return _httpPort;
+  }
+
+  private void initializeSerde(String serdeName, Properties serdeConfig) {
+    LOG.info("Starting to load the serde:{} with config: {} ", serdeName, serdeConfig);
+
+    String factoryClassName = serdeConfig.getProperty(CONFIG_FACTORY_CLASS_NAME, "");
+    if (StringUtils.isBlank(factoryClassName)) {
+      String msg = "Factory class name is not set or empty for serde: " + serdeName;
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    SerdeAdminFactory factory = ReflectionUtils.createInstance(factoryClassName);
+    if (factory == null) {
+      String msg = "Invalid class name or no parameter-less constructor, class=" + factoryClassName;
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    SerdeAdmin admin = factory.createSerdeAdmin(serdeName, serdeConfig);
+    _coordinator.addSerde(serdeName, admin);
   }
 
   private void initializeTransportProvider(String transportProviderName, Properties transportProviderConfig) {
@@ -176,9 +209,24 @@ public class DatastreamServer {
     Properties strategyProps = connectorProps.getDomainProperties(STRATEGY_DOMAIN);
     AssignmentStrategy assignmentStrategy = assignmentStrategyFactoryInstance.createStrategy(strategyProps);
 
+    // Read the deduper from the config; if not found, use default strategy
+    DatastreamDeduperFactory deduperFactoryInstance = null;
+    String deduperFactory = connectorProperties.getProperty(CONFIG_CONNECTOR_DEDUPER_FACTORY, DEFAULT_DEDUPER_FACTORY);
+    if (!deduperFactory.isEmpty()) {
+      deduperFactoryInstance = ReflectionUtils.createInstance(deduperFactory);
+    }
+
+    if (deduperFactoryInstance == null) {
+      String errorMessage = "Invalid de-duper factory class: " + deduperFactory;
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+    }
+
+    Properties deduperProps = connectorProps.getDomainProperties(DOMAIN_DEDUPER);
+    DatastreamDeduper deduper = deduperFactoryInstance.createDatastreamDeduper(strategyProps);
+
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
@@ -204,6 +252,11 @@ public class DatastreamServer {
       throw new DatastreamRuntimeException(errorMessage);
     }
 
+    Set<String> serdeNames = Arrays.asList(verifiableProperties.getString(CONFIG_SERDE_NAMES, "").split(","))
+        .stream()
+        .filter(x -> !x.isEmpty())
+        .collect(Collectors.toSet());
+
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
     coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
 
@@ -213,17 +266,22 @@ public class DatastreamServer {
 
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
     _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
-    LOG.info("Loading connectors.");
+    LOG.info("Loading connectors {}", connectorTypes);
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr,
           verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
     }
 
-    LOG.info("Loading Transport providers.");
+    LOG.info("Loading Transport providers {}", transportProviderNames);
     for (String tpName : transportProviderNames) {
       initializeTransportProvider(tpName,
           verifiableProperties.getDomainProperties(CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName));
+    }
+
+    LOG.info("Loading Serdes {} ", serdeNames);
+    for (String serde : serdeNames) {
+      initializeSerde(serde, verifiableProperties.getDomainProperties(CONFIG_SERDE_PREFIX + serde));
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());

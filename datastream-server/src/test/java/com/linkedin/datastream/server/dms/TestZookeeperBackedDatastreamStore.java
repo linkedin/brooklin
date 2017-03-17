@@ -11,6 +11,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -46,9 +47,10 @@ public class TestZookeeperBackedDatastreamStore {
     metadata.put("owner", "person_" + seed);
     DatastreamSource datastreamSource = new DatastreamSource();
     datastreamSource.setConnectionString(source);
-    Datastream ds =
-        new Datastream().setName(name).setConnectorName(connectorType).setSource(datastreamSource)
-            .setMetadata(metadata);
+    Datastream ds = new Datastream().setName(name)
+        .setConnectorName(connectorType)
+        .setSource(datastreamSource)
+        .setMetadata(metadata);
     return ds;
   }
 
@@ -78,7 +80,7 @@ public class TestZookeeperBackedDatastreamStore {
 
     // deleting the Datastream
     _store.deleteDatastream(ds.getName());
-    Assert.assertNull(_store.getDatastream(ds.getName()));
+    Assert.assertEquals(_store.getDatastream(ds.getName()).getStatus(), DatastreamStatus.DELETING);
 
     Assert.assertNull(_store.getDatastream(null));
   }

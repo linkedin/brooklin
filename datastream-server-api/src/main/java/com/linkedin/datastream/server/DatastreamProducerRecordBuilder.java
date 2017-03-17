@@ -1,17 +1,15 @@
 package com.linkedin.datastream.server;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 
 
 /**
@@ -24,8 +22,9 @@ public class DatastreamProducerRecordBuilder {
   private Optional<Integer> _partition = Optional.empty();
   private String _sourceCheckpoint = "";
 
-  private List<Pair<Object, Object>> _events = new ArrayList<>();
+  private List<BrooklinEnvelope> _events = new ArrayList<>();
   private long _eventsSourceTimestamp;
+  private Optional<String> _partitionKey = Optional.empty();
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. if the partition is not set, TransportProvider
@@ -35,6 +34,11 @@ public class DatastreamProducerRecordBuilder {
   public void setPartition(int partition) {
     Validate.isTrue(partition >= 0, "invalid partition number: " + partition);
     _partition = Optional.of(partition);
+  }
+
+  public void setPartitionKey(String partitionKey) {
+    Validate.notEmpty(partitionKey, "partitionKey cannot be empty.");
+    _partitionKey = Optional.of(partitionKey);
   }
 
   /**
@@ -48,27 +52,14 @@ public class DatastreamProducerRecordBuilder {
   /**
    * Add the event with key and value to the DatatreamProducerRecord. Datastream producer record can have multiple events.
    */
-  public void addEvent(Object key, Object value) {
+  public void addEvent(Object key, Object value, Object previousValue, Map<String, String> metadata) {
     key = key == null ? new byte[0] : key;
     value = value == null ? new byte[0] : value;
-    _events.add(new Pair<>(key, value));
+    _events.add(new BrooklinEnvelope(key, value, previousValue, metadata));
   }
 
-  /**
-   * Add the DatastreamEvent to the producer record.
-   * @param datastreamEvent
-   *   DatastreamEvent that needs to be added.
-   */
-  public void addEvent(DatastreamEvent datastreamEvent) {
-    Validate.notNull(datastreamEvent);
-
-    datastreamEvent.metadata = datastreamEvent.metadata == null ? new HashMap<>() : datastreamEvent.metadata;
-    datastreamEvent.key = datastreamEvent.key == null ? ByteBuffer.allocate(0) : datastreamEvent.key;
-    datastreamEvent.payload = datastreamEvent.payload == null ? ByteBuffer.allocate(0) : datastreamEvent.payload;
-    datastreamEvent.previous_payload =
-        datastreamEvent.previous_payload == null ? ByteBuffer.allocate(0) : datastreamEvent.previous_payload;
-
-    _events.add(new Pair<>(Base64.getEncoder().encodeToString(datastreamEvent.key.array()), datastreamEvent));
+  public void addEvent(BrooklinEnvelope envelope) {
+    _events.add(envelope);
   }
 
   public void setEventsSourceTimestamp(long eventsSourceTimestamp) {
@@ -81,6 +72,6 @@ public class DatastreamProducerRecordBuilder {
    *   DatastreamProducerRecord that is created.
    */
   public DatastreamProducerRecord build() {
-    return new DatastreamProducerRecord(_events, _partition, _sourceCheckpoint, _eventsSourceTimestamp);
+    return new DatastreamProducerRecord(_events, _partition, _partitionKey, _sourceCheckpoint, _eventsSourceTimestamp);
   }
 }
