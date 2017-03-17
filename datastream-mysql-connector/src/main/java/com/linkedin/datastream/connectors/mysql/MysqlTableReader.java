@@ -13,8 +13,8 @@ import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.common.DatastreamEventMetadata;
+import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.connectors.mysql.or.ColumnInfo;
@@ -100,7 +100,6 @@ public class MysqlTableReader {
 
       _closed = true;
     }
-
   }
 
   private boolean hasNext() throws SQLException {
@@ -133,7 +132,7 @@ public class MysqlTableReader {
     return _next;
   }
 
-  public DatastreamEvent next() throws SQLException {
+  public BrooklinEnvelope next() throws SQLException {
 
     if (!_isEof || _closed) {
       String msg = "TableReader needs to be closed or it is closed already.";
@@ -161,19 +160,15 @@ public class MysqlTableReader {
     }
   }
 
-  private DatastreamEvent buildDatastreamEvent(long eventTimestamp, String dbName, String tableName, String key,
+  private BrooklinEnvelope buildDatastreamEvent(long eventTimestamp, String dbName, String tableName, String key,
       String value) {
-    Map<CharSequence, CharSequence> metadata = new HashMap<>();
-    metadata.put(DatastreamEventMetadata.OPCODE, DatastreamEventMetadata.OpCode.INSERT.toString());
-    metadata.put(DatastreamEventMetadata.EVENT_TIMESTAMP, String.valueOf(eventTimestamp));
-    metadata.put(DatastreamEventMetadata.DATABASE, dbName);
-    metadata.put(DatastreamEventMetadata.TABLE, tableName);
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put(BrooklinEnvelopeMetadataConstants.OPCODE, BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString());
+    metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventTimestamp));
+    metadata.put(BrooklinEnvelopeMetadataConstants.DATABASE, dbName);
+    metadata.put(BrooklinEnvelopeMetadataConstants.TABLE, tableName);
 
-    DatastreamEvent datastreamEvent = new DatastreamEvent();
-    datastreamEvent.payload = ByteBuffer.wrap(value.getBytes());
-    datastreamEvent.key = ByteBuffer.wrap(key.getBytes());
-    datastreamEvent.metadata = metadata;
-    return datastreamEvent;
+    return new BrooklinEnvelope(ByteBuffer.wrap(key.getBytes()), ByteBuffer.wrap(value.getBytes()), null, metadata);
   }
 }
 

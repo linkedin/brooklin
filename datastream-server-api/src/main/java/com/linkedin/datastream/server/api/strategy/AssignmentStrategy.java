@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
@@ -30,6 +30,6 @@ public interface AssignmentStrategy {
    * @param currentAssignment existing assignment
    * @return
    */
-  Map<String, Set<DatastreamTask>> assign(List<Datastream> datastreams, List<String> instances,
+  Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment);
 }

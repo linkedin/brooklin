@@ -68,6 +68,18 @@ public class CachedDatastreamReader {
     });
   }
 
+  public synchronized List<DatastreamGroup> getDatastreamGroups() {
+    List<Datastream> allStreams = getAllDatastreams(false);
+
+    Map<String, List<Datastream>> streamsByTaskPrefix =
+        allStreams.stream().collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
+
+    return streamsByTaskPrefix.keySet()
+        .stream()
+        .map(x -> new DatastreamGroup(streamsByTaskPrefix.get(x)))
+        .collect(Collectors.toList());
+  }
+
   public synchronized List<String> getAllDatastreamNames() {
     return Collections.unmodifiableList(_datastreamNames);
   }
@@ -81,12 +93,12 @@ public class CachedDatastreamReader {
       _datastreamNames = fetchAllDatastreamNamesFromZk();
     }
 
-    return _datastreamNames.stream().map(this::getDatastream).collect(Collectors.toList());
+    return _datastreamNames.stream().map(x -> this.getDatastream(x, flushCache)).collect(Collectors.toList());
   }
 
-  Datastream getDatastream(String datastreamName) {
+  Datastream getDatastream(String datastreamName, boolean flushCache) {
     Datastream ds = _datastreams.get(datastreamName);
-    if (ds == null) {
+    if (ds == null || flushCache) {
       ds = getDatastreamFromZk(datastreamName);
 
       // If it has destination connection string populated then it is a complete datastream, cache it.

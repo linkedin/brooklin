@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +16,9 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
@@ -25,8 +28,8 @@ public class TestBroadcastStrategy {
 
   @Test
   public void testBroadcastStrategyCreatesAssignmentAcrossAllInstances() {
-    String[] instances = new String[] { "instance1", "instance2", "instance3" };
-    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -35,21 +38,22 @@ public class TestBroadcastStrategy {
     }
   }
 
-  private List<Datastream> generateDatastreams(String namePrefix, int numberOfDatastreams) {
-    List<Datastream> datastreams = new ArrayList<>();
+  private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams) {
+    List<DatastreamGroup> datastreams = new ArrayList<>();
     String type = DummyConnector.CONNECTOR_TYPE;
     for (int index = 0; index < numberOfDatastreams; index++) {
       Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
       ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
-      datastreams.add(ds);
+      ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
+      datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
     return datastreams;
   }
 
   @Test
   public void testBroadcastStrategyDoesntCreateNewTasksWhenCalledSecondTime() {
-    String[] instances = new String[] { "instance1", "instance2", "instance3" };
-    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
@@ -67,7 +71,7 @@ public class TestBroadcastStrategy {
   @Test
   public void testBroadcastStrategyRemovesDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
-    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
@@ -86,12 +90,12 @@ public class TestBroadcastStrategy {
   @Test
   public void testBroadcastStrategyCreatesNewTasksOnlyForNewDatastreamWhenDatastreamIsCreated() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
-    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
-    List<Datastream> newDatastreams = new ArrayList<>(datastreams);
-    Datastream newDatastream = generateDatastreams("newds", 1).get(0);
+    List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
+    DatastreamGroup newDatastream = generateDatastreams("newds", 1).get(0);
     newDatastreams.add(newDatastream);
 
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
@@ -101,8 +105,8 @@ public class TestBroadcastStrategy {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size() + 1, newAssignmentTasks.size());
-      Assert.assertTrue(oldAssignmentTasks.stream().allMatch(
-          x -> x.getDatastreams().contains(newDatastream.getName()) || newAssignmentTasks.contains(x)));
+      Assert.assertTrue(oldAssignmentTasks.stream()
+          .allMatch(x -> x.getTaskPrefix().equals(newDatastream.getTaskPrefix()) || newAssignmentTasks.contains(x)));
     }
   }
 
@@ -110,7 +114,7 @@ public class TestBroadcastStrategy {
   public void testBroadcastStrategyCreatesNewTasksOnlyForNewInstanceWhenInstanceIsAdded() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
-    List<Datastream> datastreams = generateDatastreams("ds", 5);
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy();
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
     List<String> newInstances = new ArrayList<>(instances);

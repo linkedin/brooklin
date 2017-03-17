@@ -17,7 +17,7 @@
     "type" : "enum",
     "name" : "DatastreamStatus",
     "namespace" : "com.linkedin.datastream.common",
-    "symbols" : [ "INITIALIZING", "READY" ]
+    "symbols" : [ "INITIALIZING", "READY", "DELETING" ]
   }, {
     "type" : "record",
     "name" : "DatastreamDestination",
@@ -31,6 +31,18 @@
       "name" : "partitions",
       "type" : "int",
       "doc" : "Number of partitions in the destination."
+    }, {
+      "name" : "keySerDe",
+      "type" : "string",
+      "doc" : "SerDe used to serialize/deserialize the key."
+    }, {
+      "name" : "payloadSerDe",
+      "type" : "string",
+      "doc" : "SerDe used to serialize/deserialize the payload."
+    }, {
+      "name" : "envelopeSerDe",
+      "type" : "string",
+      "doc" : "SerDe used to serialize/deserialize the envelope."
     } ]
   }, {
     "type" : "record",

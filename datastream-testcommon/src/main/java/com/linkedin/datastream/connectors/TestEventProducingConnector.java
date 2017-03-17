@@ -2,7 +2,6 @@ package com.linkedin.datastream.connectors;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -19,9 +18,12 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamEvent;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -32,8 +34,6 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * TestConnector that can be used to generate test events at regular intervals.
@@ -173,13 +173,14 @@ public class TestEventProducingConnector implements Connector {
   }
 
   private DatastreamProducerRecord createDatastreamEvent(long eventIndex, int messageSize, int partition) {
-    DatastreamEvent event = new DatastreamEvent();
-    event.key = ByteBuffer.wrap(String.valueOf(eventIndex).getBytes());
+
     String randomString = _randomValueGenerator.getNextString(messageSize, messageSize);
     String payload =
         String.format("TestEvent for partition:%d from host:%s with event index: %d text: %s", partition, _hostName,
             eventIndex, randomString);
-    event.payload = ByteBuffer.wrap(payload.getBytes());
+    byte[] key = String.valueOf(eventIndex).getBytes();
+
+    BrooklinEnvelope event = new BrooklinEnvelope(key, payload.getBytes(), null, new HashMap<>());
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(event);
     builder.setPartition(partition);

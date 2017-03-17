@@ -7,7 +7,7 @@ import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.RetriableException;
 import com.linkedin.datastream.common.RetryUtils;
@@ -51,7 +51,7 @@ public class SnapshotTaskHandler implements Runnable {
   @Override
   public void run() {
     MysqlTableReader tableReader = createTableReaderWithRetries();
-    DatastreamEvent event;
+    BrooklinEnvelope event;
     while ((event = getNextEventWithRetries(tableReader)) != null) {
       sendEvent(event);
     }
@@ -60,7 +60,7 @@ public class SnapshotTaskHandler implements Runnable {
     _stopped = true;
   }
 
-  private DatastreamEvent getNextEventWithRetries(MysqlTableReader tableReader) {
+  private BrooklinEnvelope getNextEventWithRetries(MysqlTableReader tableReader) {
 
     return RetryUtils.retry(() -> {
       try {
@@ -100,12 +100,12 @@ public class SnapshotTaskHandler implements Runnable {
     }, SQL_RETRY_PERIOD, _sqlTimeout);
   }
 
-  private void sendEvent(DatastreamEvent event) {
+  private void sendEvent(BrooklinEnvelope event) {
     // TODO producer error handling.
     _eventProducer.send(buildProducerRecord(event), null);
   }
 
-  private DatastreamProducerRecord buildProducerRecord(DatastreamEvent event) {
+  private DatastreamProducerRecord buildProducerRecord(BrooklinEnvelope event) {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(event);
     return builder.build();

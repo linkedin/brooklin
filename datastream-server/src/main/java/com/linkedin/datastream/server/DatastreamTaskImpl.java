@@ -20,6 +20,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 
@@ -44,6 +45,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
 
   private static final String STATUS = "STATUS";
+  private List<Datastream> _datastreams;
 
   private HashMap<Integer, String> _checkpoints = new HashMap<>();
 
@@ -58,12 +60,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
-  // _datastreamName is copied from Datastream instance. This is because in the znode we only persist
-  // the datastream name, and only obtain instance of Datastream by reading from the znode
-  // under corresponding /{cluster}/datastream/{datastreamName}
-  private String _datastreamName;
+  private String _taskPrefix;
 
-  private Datastream _datastream;
+  private String _datastreamName;
 
   // List of partitions the task covers.
   private List<Integer> _partitions;
@@ -73,21 +72,25 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private Map<String, String> _properties = new HashMap<>();
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
+  private SerDeSet _destinationSerDes;
 
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
   }
 
-  public DatastreamTaskImpl(Datastream datastream) {
-    this(datastream, UUID.randomUUID().toString(), new ArrayList<>());
+  public DatastreamTaskImpl(List<Datastream> datastreams) {
+    this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
-  public DatastreamTaskImpl(Datastream datastream, String id, List<Integer> partitions) {
-    Validate.notNull(datastream, "null datastream");
+  public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions) {
+    Validate.notEmpty(datastreams, "empty datastream");
     Validate.notNull(id, "null id");
-    _datastreamName = datastream.getName();
+
+    Datastream datastream = datastreams.get(0);
     _connectorType = datastream.getConnectorName();
-    _datastream = datastream;
+    _transportProviderName = datastream.getTransportProviderName();
+    _datastreams = datastreams;
+    _taskPrefix = datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
     _id = id;
     _partitions = new ArrayList<>();
     if (partitions != null && partitions.size() > 0) {
@@ -106,6 +109,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
 
     LOG.info("Created new DatastreamTask " + this);
+  }
+
+  /**
+   * @return the prefix of the task names that will be created for this datastream.
+   */
+  public static String getTaskPrefix(Datastream datastream) {
+    return datastream.getName();
   }
 
   /**
@@ -128,27 +138,28 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @JsonIgnore
   public String getDatastreamTaskName() {
-    return _id.equals("") ? _datastreamName : _datastreamName + "_" + _id;
+    return _id.equals("") ? _taskPrefix : _taskPrefix + "_" + _id;
   }
 
   @JsonIgnore
   @Override
   public boolean isUserManagedDestination() {
-    String userManaged =
-        _datastream.getMetadata().getOrDefault(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "false");
+    String userManaged = _datastreams.get(0)
+        .getMetadata()
+        .getOrDefault(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "false");
     return Boolean.parseBoolean(userManaged);
   }
 
   @JsonIgnore
   @Override
   public DatastreamSource getDatastreamSource() {
-    return _datastream.getSource();
+    return _datastreams.get(0).getSource();
   }
 
   @JsonIgnore
   @Override
   public DatastreamDestination getDatastreamDestination() {
-    return _datastream.getDestination();
+    return _datastreams.get(0).getDestination();
   }
 
   public void setPartitions(List<Integer> partitions) {
@@ -170,7 +181,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public List<Datastream> getDatastreams() {
-    return Collections.singletonList(_datastream);
+    return Collections.unmodifiableList(_datastreams);
   }
 
   @Override
@@ -191,14 +202,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _zkAdapter.releaseTask(this);
   }
 
-  public void setDatastream(Datastream datastream) {
-    _datastream = datastream;
-
-    // It is possible that the datastream doesn't have transport provider name in which case
-    // coordinator will set this to defaultTransportProviderName.
-    if (datastream.hasTransportProviderName()) {
-      _transportProviderName = datastream.getTransportProviderName();
-    }
+  public void setDatastreams(List<Datastream> datastreams) {
+    _datastreams = datastreams;
+    _transportProviderName = _datastreams.get(0).getTransportProviderName();
+    _connectorType = _datastreams.get(0).getConnectorName();
   }
 
   @JsonIgnore
@@ -210,11 +217,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _eventProducer = eventProducer;
   }
 
+  public void assignSerDes(SerDeSet destination) {
+    _destinationSerDes = destination;
+  }
+
   public String getConnectorType() {
     return _connectorType;
   }
 
-  @JsonIgnore
   @Override
   public String getTransportProviderName() {
     return _transportProviderName;
@@ -236,12 +246,20 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _id;
   }
 
+  public String getTaskPrefix() {
+    return _taskPrefix;
+  }
+
+  public void setTaskPrefix(String taskPrefix) {
+    _taskPrefix = taskPrefix;
+  }
+
   public String getDatastreamName() {
     return _datastreamName;
   }
 
   public void setDatastreamName(String datastreamName) {
-    this._datastreamName = datastreamName;
+    _datastreamName = datastreamName;
   }
 
   @JsonIgnore
@@ -253,11 +271,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   @Override
   public void saveState(String key, String value) {
-    Validate.notNull(key, "key cannot be null");
-    Validate.notNull(value, "value cannot be null");
-    Validate.notEmpty(key, "Key cannot be empty");
-    Validate.notEmpty(value, "value cannot be empty");
+    Validate.notEmpty(key, "Key cannot be null or empty");
+    Validate.notEmpty(value, "value cannot be null or empty");
     _zkAdapter.setDatastreamTaskStateForKey(this, key, value);
+  }
+
+  @Override
+  public SerDeSet getDestinationSerDes() {
+    return _destinationSerDes;
   }
 
   @JsonIgnore
@@ -286,12 +307,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
     return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects.equals(
-        _datastreamName, task._datastreamName) && Objects.equals(_partitions, task._partitions);
+        _taskPrefix, task._taskPrefix) && Objects.equals(_partitions, task._partitions);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _datastreamName, _partitions);
+    return Objects.hash(_connectorType, _id, _taskPrefix, _partitions);
   }
 
   @Override

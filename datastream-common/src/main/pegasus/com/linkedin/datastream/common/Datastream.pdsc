@@ -44,7 +44,7 @@
       "type" : {
        "type" : "enum",
        "name" : "DatastreamStatus",
-       "symbols" : [ "INITIALIZING", "READY" ]
+       "symbols" : [ "INITIALIZING", "READY", "DELETING" ]
       },
       "name" : "Status",
       "doc" : "Status of the datastream",
@@ -67,6 +67,21 @@
             "name": "partitions",
             "doc": "Number of partitions in the destination.",
             "type": "int"
+          },
+          {
+            "name": "keySerDe",
+            "doc": "SerDe used to serialize/deserialize the key.",
+            "type": "string"
+          },
+          {
+            "name": "payloadSerDe",
+            "doc": "SerDe used to serialize/deserialize the payload.",
+            "type": "string"
+          },
+          {
+            "name": "envelopeSerDe",
+            "doc": "SerDe used to serialize/deserialize the envelope.",
+            "type": "string"
           }
         ]
       },
