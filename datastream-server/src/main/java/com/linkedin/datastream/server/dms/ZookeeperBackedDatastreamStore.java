@@ -20,7 +20,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperBackedDatastreamStore.class.getName());
 
   private final ZkClient _zkClient;
-  private final String _rootPath;
+  private final String _cluster;
   private final CachedDatastreamReader _datastreamCache;
 
   public ZookeeperBackedDatastreamStore(CachedDatastreamReader datastreamCache, ZkClient zkClient, String cluster) {
@@ -30,11 +30,11 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
     _datastreamCache = datastreamCache;
     _zkClient = zkClient;
-    _rootPath = KeyBuilder.datastreams(cluster);
+    _cluster = cluster;
   }
 
   private String getZnodePath(String key) {
-    return _rootPath + "/" + key;
+    return KeyBuilder.datastream(_cluster, key);
   }
 
   @Override

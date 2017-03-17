@@ -172,8 +172,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _clusterName = _config.getCluster();
 
     _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getZkSessionTimeout(),
-        _config.getZkConnectionTimeout(), this, datastreamCache);
-    _adapter.setListener(this);
+        _config.getZkConnectionTimeout(), this);
 
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
@@ -550,6 +549,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
+      // TODO(misanchez) This condition is always true beacuse we are running in syncronized mode.
+      //                 we should consider to remove this AtomicBoolean.
       if (leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
@@ -593,11 +594,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, Map<DatastreamDestination, Datastream>> streamsByConnectorType = new HashMap<>();
 
     for (Datastream ds : allStreams) {
-      Map<DatastreamDestination, Datastream> streams = streamsByConnectorType.getOrDefault(ds.getConnectorName(), null);
-      if (streams == null) {
-        streams = new HashMap<>();
-        streamsByConnectorType.put(ds.getConnectorName(), streams);
-      }
+      Map<DatastreamDestination, Datastream> streams =
+          streamsByConnectorType.computeIfAbsent(ds.getConnectorName(), n -> new HashMap<>());
 
       // Only keep the datastreams with unique destinations
       if (!streams.containsKey(ds.getDestination())) {
