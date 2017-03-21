@@ -3,9 +3,12 @@ package com.linkedin.datastream.server.zk;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -226,7 +229,7 @@ public class TestZkAdapter {
     task1.setTaskPrefix("task1");
     task1.setConnectorType(connectorType);
     tasks.add(task1);
-    adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
     // verify that there are 1 znode under the zookeeper /{cluster}/instances/{instance}/
     //
@@ -244,7 +247,7 @@ public class TestZkAdapter {
     task2.setTaskPrefix("task2");
     task2.setConnectorType(connectorType);
     tasks.add(task2);
-    adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
     // verify that there are 2 znodes under the zookeeper path /{cluster}/instances/{instance}
     //
@@ -265,7 +268,7 @@ public class TestZkAdapter {
     task3.setConnectorType(connectorType);
     tasks.add(task3);
     tasks.remove(task2);
-    adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
     // verify that there are still 2 znodes under zookeeper path /{cluster}/instances/{instance}
     //
@@ -276,6 +279,74 @@ public class TestZkAdapter {
     Assert.assertEquals(assignment.get(1), "task3");
     validateConnectorTask(testCluster, connectorType, "task1", zkClient);
     validateConnectorTask(testCluster, connectorType, "task3", zkClient);
+
+    //
+    // cleanup
+    //
+    zkClient.close();
+  }
+
+  // When Coordinator leader writes the assignment to a specific instance, the change is indeed
+  // persisted in zookeeper
+  @Test
+  public void testUpdateAllAssignments() throws Exception {
+    String testCluster = "testUpdateAllInstanceAssignment";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
+    adapter1.connect();
+    adapter2.connect();
+
+    // Create all the Datastreams to be referenced by the tasks
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "task1", "task2", "task3");
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+
+    //
+    // simulate assigning:
+    //   to instance1: [task1]
+    //   to instance2: [task2, task3]
+    //
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setDatastreamName("task1");
+    task1.setTaskPrefix("task1");
+    task1.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setDatastreamName("task2");
+    task2.setTaskPrefix("task2");
+    task2.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
+    task3.setDatastreamName("task3");
+    task3.setTaskPrefix("task3");
+    task3.setConnectorType(connectorType);
+
+    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
+    assignmentsByInstance.put(adapter1.getInstanceName(), Arrays.asList(task1));
+    assignmentsByInstance.put(adapter2.getInstanceName(), Arrays.asList(task2, task3));
+
+    // Single call to update all assignments.
+    adapter1.updateAllAssignments(assignmentsByInstance);
+
+    //
+    // verify that there are 1 znode under the zookeeper /{cluster}/instances/{instance1}/
+    //
+    List<String> assignment1 =
+        zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter1.getInstanceName()));
+    Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 1, 100, 5000, assignment1));
+    Assert.assertEquals(assignment1.get(0), "task1");
+    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
+
+    //
+    // verify that there are 2 znode under the zookeeper /{cluster}/instances/{instance2}/
+    //
+    List<String> assignment2 =
+        zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter2.getInstanceName()));
+    Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 2, 100, 5000, assignment2));
+    Assert.assertEquals(assignment2.get(0), "task2");
+    Assert.assertEquals(assignment2.get(1), "task3");
 
     //
     // cleanup
@@ -325,7 +396,7 @@ public class TestZkAdapter {
     task1_3.setConnectorType(connectorType);
     tasks.add(task1_3);
 
-    adapter.updateInstanceAssignment(adapter.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
 
     //
     // verify there are 4 znodes under zookeeper path /{cluster}/instances/{instance}
@@ -377,7 +448,7 @@ public class TestZkAdapter {
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
 
     // First acquire should succeed
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
@@ -422,7 +493,7 @@ public class TestZkAdapter {
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
 
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
@@ -461,7 +532,7 @@ public class TestZkAdapter {
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    adapter1.updateInstanceAssignment(adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
 
     LOG.info("Acquire from instance1 should succeed");
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
@@ -493,5 +564,12 @@ public class TestZkAdapter {
     LOG.info("Acquire from the new instance1 should fail");
     task.setZkAdapter(adapter1);
     Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
+  }
+
+
+  public static void updateInstanceAssignment(ZkAdapter adapter, String instance, List<DatastreamTask> assignments) {
+    Map<String, List<DatastreamTask>> allAssignments = new HashMap<>();
+    allAssignments.put(instance, assignments);
+    adapter.updateAllAssignments(allAssignments);
   }
 }

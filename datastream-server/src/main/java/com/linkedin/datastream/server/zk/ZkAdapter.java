@@ -16,6 +16,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.I0Itec.zkclient.IZkChildListener;
@@ -476,6 +477,7 @@ public class ZkAdapter {
    *  If any one failed, RuntimeException will be thrown.
    */
   private void addTaskNodes(String instance, DatastreamTaskImpl task) {
+    _log.info("Adding Task Node: " + instance + ", task: " + task);
     String name = task.getDatastreamTaskName();
 
     // Must add task node under connector first because as soon as we update the
@@ -525,6 +527,7 @@ public class ZkAdapter {
    *  If either failed, RuntimeException will be thrown.
    */
   private void removeTaskNodes(String instance, String name) {
+    _log.info("Removing Task Node: " + instance + ", task: " + name);
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
 
     // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
@@ -545,67 +548,86 @@ public class ZkAdapter {
    *  - /<cluster>/instances/<instance>/<task1>,<task2>...
    *  - /<cluster>/connectors/<connectorType>/<task-name1>,<task-name2>...
    *
-   * Return true if assignments are persisted in zookeeper successfully.
-   *
-   * @param instance
-   * @param assignments
+   * @param assignmentsByInstance
    */
-  public boolean updateInstanceAssignment(String instance, List<DatastreamTask> assignments) {
-    _log.info("Updating datastream tasks assigned for instance: " + instance + ", new assignments are: " + assignments);
+  public void updateAllAssignments(Map<String, List<DatastreamTask>> assignmentsByInstance) {
+    // map of task name to DatastreamTask for future reference
+    Map<String, DatastreamTask> assignmentsMap = assignmentsByInstance.values().stream()
+        .flatMap(List::stream)
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
 
-    boolean result = true;
+    // For each instance, find the nodes to add and remove.
+    Map<String, Set<String>>  nodesToRemove = new HashMap<>();
+    Map<String, Set<String>>  nodesToAdd = new HashMap<>();
+    diffAssignmentNodes(assignmentsByInstance, nodesToRemove, nodesToAdd);
 
-    // list of new assignment, names only
-    Set<String> assignmentsNames = new HashSet<>();
-    // map of assignment, from name to DatastreamTask for future reference
-    Map<String, DatastreamTask> assignmentsMap = new HashMap<>();
-
-    assignments.forEach(task -> {
-      String name = task.getDatastreamTaskName();
-      assignmentsNames.add(name);
-      assignmentsMap.put(name, task);
-    });
-
-    // get the old assignment from zookeeper
-    Set<String> oldAssignmentNames = new HashSet<>();
-    String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
-    if (_zkclient.exists(instancePath)) {
-      oldAssignmentNames.addAll(_zkclient.getChildren(instancePath));
-    }
-
-    //
-    // find assignment names removed
-    //
-    Set<String> removed = new HashSet<>(oldAssignmentNames);
-    removed.removeAll(assignmentsNames);
-    //
-    // actually remove the znodes
-    //
-    if (removed.size() > 0) {
-      _log.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
-      for (String name : removed) {
-        removeTaskNodes(instance, name);
-      }
-    }
-    //
-    // find assignment named added
-    //
-    Set<String> added = new HashSet<>(assignmentsNames);
-    added.removeAll(oldAssignmentNames);
-    //
-    // actually add znodes
-    //
-    if (added.size() > 0) {
-      _log.info("Instance: " + instance + ", adding assignments: " + setToString(added));
-
-      for (String name : added) {
-        addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
+    // Add the new tasks znodes.
+    // We need to add the nodes BEFORE removing the old ones, to avoid tasks loss in case of server crash.
+    // In case of crash, the new leader will remove duplicate tasks when updating the assignments.
+    for (String instance : nodesToAdd.keySet()) {
+      Set<String> added = nodesToAdd.get(instance);
+      if (added.size() > 0) {
+        _log.info("Instance: " + instance + ", adding assignments: " + setToString(added));
+        for (String name : added) {
+          addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
+        }
       }
     }
 
-    _liveTaskMap.put(instance, new HashSet<>(assignments));
+    // Second remove the old tasks znodes.
+    for (String instance : nodesToRemove.keySet()) {
+      Set<String> removed = nodesToRemove.get(instance);
+      if (removed.size() > 0) {
+        _log.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
+        for (String name : removed) {
+          removeTaskNodes(instance, name);
+        }
+      }
+    }
 
-    return result;
+    // Finally, Save the new assignments in the cache.
+    _liveTaskMap = new HashMap<>();
+    for (String instance : nodesToAdd.keySet()) {
+      _liveTaskMap.put(instance, new HashSet<>(assignmentsByInstance.get(instance)));
+    }
+  }
+
+  /**
+   * Compare the current assignment with the new assignment, and update the list of nodes
+   * to add and remove per instance.
+   * @param assignmentsByInstance
+   * @param nodesToRemove
+   * @param nodesToAdd
+   */
+  private void diffAssignmentNodes(Map<String, List<DatastreamTask>> assignmentsByInstance,
+      Map<String, Set<String>> nodesToRemove, Map<String, Set<String>> nodesToAdd) {
+    for (String instance : assignmentsByInstance.keySet()) {
+      // list of new assignment, names only
+      Set<String> assignmentsNames = assignmentsByInstance.get(instance).stream()
+          .map(DatastreamTask::getDatastreamTaskName)
+          .collect(Collectors.toSet());
+
+      // get the old assignment from zookeeper
+      Set<String> oldAssignmentNames = new HashSet<>();
+      String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
+      if (_zkclient.exists(instancePath)) {
+        oldAssignmentNames.addAll(_zkclient.getChildren(instancePath));
+      }
+
+      //
+      // find assignments removed
+      //
+      Set<String> removed = new HashSet<>(oldAssignmentNames);
+      removed.removeAll(assignmentsNames);
+      nodesToRemove.put(instance, removed);
+
+      //
+      // find assignments added
+      //
+      Set<String> added = new HashSet<>(assignmentsNames);
+      added.removeAll(oldAssignmentNames);
+      nodesToAdd.put(instance, added);
+    }
   }
 
   // helper method for generating human readable log message, from a set of strings to a string
@@ -732,8 +754,7 @@ public class ZkAdapter {
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
    */
-  public void cleanupDeadInstanceAssignments() {
-    List<String> liveInstances = getLiveInstances();
+  public void cleanupDeadInstanceAssignments(List<String> liveInstances) {
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
     if (deadInstances.size() > 0) {
