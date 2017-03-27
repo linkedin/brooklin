@@ -69,7 +69,7 @@ public class ConnectorWrapper {
         _connectorType, _instanceName, _endTime - _startTime));
   }
 
-  public synchronized void start() {
+  public void start() {
     logApiStart("start");
 
     try {
@@ -82,7 +82,7 @@ public class ConnectorWrapper {
     logApiEnd("start");
   }
 
-  public synchronized void stop() {
+  public void stop() {
     logApiStart("stop");
 
     try {
@@ -99,11 +99,11 @@ public class ConnectorWrapper {
     return _connectorType;
   }
 
-  public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
+  public void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
 
     _numDatastreamTasks.set(tasks.size());
-    _numDatastreams.set(tasks.stream().map(t -> t.getDatastreams()).flatMap(List::stream).distinct().count());
+    _numDatastreams.set(tasks.stream().map(DatastreamTask::getDatastreams).flatMap(List::stream).distinct().count());
 
     try {
       _connector.onAssignmentChange(tasks);
@@ -115,7 +115,7 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
-  public synchronized void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+  public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     logApiStart("initializeDatastream");
 
