@@ -16,26 +16,30 @@ public interface Connector extends MetricsAware {
 
   /**
    * Method to start the connector. This is called immediately after the connector is instantiated.
-   * This typically happens when datastream instance starts up.
+   * This typically happens when brooklin server starts up.
    */
   void start();
 
   /**
-   * Method to stop the connector. This is called when the datastream instance is being stopped.
+   * Method to stop the connector. This is called when the brooklin server is being stopped.
    */
   void stop();
 
   /**
-   * Callback when the datastreams assignment to this instance is changed. The implementation of the Connector is
+   * Callback when the datastreams assigned to this instance is changed. The implementation of the Connector is
    * responsible to keep a state of the previous assignment.
-   *
    * @param tasks the list of the current assignment.
    */
   void onAssignmentChange(List<DatastreamTask> tasks);
 
   /**
-   * Initialize the datastream. Datastream management service call this before writing the
-   * Datastream into zookeeper. DMS ensures that stream.source has sufficient details.
+   * Initialize the datastream. Any connector specific validations for the datastream needs to performed here.
+   * Connector can mutate the datastream object in this call. Framework will write the updated datastream object.
+   * NOTE:
+   *   1. This method is called by the rest li service before the datastream is written to the zookeeper, So please make sure,
+   *   this call doesn't block for more then few seconds otherwise the rest call will timeout.
+   *   2. It is possible that the brooklin framework may call this method in parallel to another onAssignmentChange
+   *   call. It is upto the connector to perform the synchronization if it needs between initialize and onAssignmentChange.
    * @param stream: Datastream model
    * @param allDatastreams: all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.
