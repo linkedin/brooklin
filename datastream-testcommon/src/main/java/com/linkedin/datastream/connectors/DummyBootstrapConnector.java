@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 
@@ -15,12 +16,16 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  */
 public class DummyBootstrapConnector implements Connector {
 
-  private Properties _properties;
+  private final HashMap<String, String> _config;
 
   public static final String CONNECTOR_NAME = "DummyConnectorBootstrap";
 
   public DummyBootstrapConnector(Properties properties) throws Exception {
-    _properties = properties;
+
+    _config = new HashMap<>();
+    for (final String name: properties.stringPropertyNames()) {
+      _config.put(name, properties.getProperty(name));
+    }
   }
 
   @Override
@@ -42,6 +47,8 @@ public class DummyBootstrapConnector implements Connector {
     if (stream == null || stream.getSource() == null) {
       throw new DatastreamValidationException("Failed to get source from datastream.");
     }
+
+    stream.getMetadata().putAll(_config);
   }
 
   @Override
