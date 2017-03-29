@@ -48,7 +48,9 @@ public class DummyBootstrapConnector implements Connector {
       throw new DatastreamValidationException("Failed to get source from datastream.");
     }
 
-    stream.getMetadata().putAll(_config);
+    if (!stream.hasMetadata()) {
+      stream.getMetadata().putAll(_config);
+    }
   }
 
   @Override
