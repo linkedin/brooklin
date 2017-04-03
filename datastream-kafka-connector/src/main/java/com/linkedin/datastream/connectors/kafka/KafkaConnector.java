@@ -6,12 +6,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.kafka.clients.consumer.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,17 +30,20 @@ public class KafkaConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnector.class);
 
   public static final String CONNECTOR_NAME = "kafka";
-  public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMillis";
+  public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
+  public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final Properties _consumerProps;
+  private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
   public KafkaConnector(String name, long commitIntervalMillis, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
-      Properties kafkaConsumerProps) {
+      Properties kafkaConsumerProps, List<KafkaBrokerAddress> whitelistedBrokers) {
     _consumerFactory = kafkaConsumerFactory;
     _consumerProps = kafkaConsumerProps;
     _name = name;
     _commitIntervalMillis = commitIntervalMillis;
+    _whiteListedBrokers = new HashSet<>(whitelistedBrokers);
   }
 
   private final String _name;
@@ -85,7 +90,6 @@ public class KafkaConnector implements Connector {
     for (DatastreamTask task : toCancel) {
       KafkaConnectorTask connectorTask = _runningTasks.remove(task);
       connectorTask.stop();
-      //TODO - should wait?
     }
 
     for (DatastreamTask task : tasks) {
@@ -93,7 +97,8 @@ public class KafkaConnector implements Connector {
         continue; //already running
       }
       LOG.info("creating task for {}.", task);
-      KafkaConnectorTask connectorTask = new KafkaConnectorTask(_consumerFactory, _consumerProps, task, 100);
+      KafkaConnectorTask connectorTask =
+          new KafkaConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis);
       _runningTasks.put(task, connectorTask);
       _executor.submit(connectorTask);
     }
@@ -110,6 +115,7 @@ public class KafkaConnector implements Connector {
     LOG.info("Initialize datastream {}", stream);
     DatastreamSource source = stream.getSource();
     String connectionString = source.getConnectionString();
+
     //TODO - better validation and canonicalization
     //its possible to list the same broker as a hostname or IP
     //(kafka://localhost:666 vs kafka://127.0.0.1:666 vs kafka://::1:666/topic)
@@ -122,8 +128,33 @@ public class KafkaConnector implements Connector {
     try {
       KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
       source.setConnectionString(parsed.toString()); //ordered now
-    } catch (IllegalArgumentException e) {
+
+      if (!isWhiteListedCluster(parsed)) {
+        String msg =
+            String.format("Kafka connector is not white-listed for the cluster %s. Current white-listed clusters %s.",
+                connectionString, _whiteListedBrokers);
+        LOG.error(msg);
+        throw new DatastreamValidationException(msg);
+      }
+
+      if (!source.hasPartitions()) {
+        int numPartitions = getNumPartitions(parsed);
+        LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
+        source.setPartitions(numPartitions);
+      }
+    } catch (Exception e) {
+      LOG.error("Initialization threw an exception.", e);
       throw new DatastreamValidationException(e);
     }
+  }
+
+  private Boolean isWhiteListedCluster(KafkaConnectionString connectionStr) {
+    return _whiteListedBrokers.isEmpty() || connectionStr.getBrokers().stream().anyMatch(_whiteListedBrokers::contains);
+  }
+
+  private int getNumPartitions(KafkaConnectionString connectionString) {
+    Consumer<?, ?> consumer =
+        KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps, "partitionFinder", connectionString);
+    return consumer.partitionsFor(connectionString.getTopicName()).size();
   }
 }

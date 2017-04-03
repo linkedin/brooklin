@@ -1,7 +1,10 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
@@ -16,9 +19,8 @@ public class KafkaConnectorFactory implements ConnectorFactory<KafkaConnector> {
   @Override
   public KafkaConnector createConnector(String connectorName, Properties config) {
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
-    long commitMillis =
-        verifiableProperties.getLongInRange(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS, TimeUnit.SECONDS.toMillis(30),
-            0, TimeUnit.HOURS.toMillis(1));
+    long commitMillis = verifiableProperties.getLongInRange(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS,
+        Duration.ofMinutes(1).toMillis(), 0, Long.MAX_VALUE);
 
     String factory = verifiableProperties.getString(KafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS,
         KafkaConsumerFactoryImpl.class.getName());
@@ -27,7 +29,12 @@ public class KafkaConnectorFactory implements ConnectorFactory<KafkaConnector> {
       throw new DatastreamRuntimeException("Unable to instantiate factory class: " + factory);
     }
 
+    List<KafkaBrokerAddress> brokers =
+        Optional.ofNullable(verifiableProperties.getString(KafkaConnector.CONFIG_WHITE_LISTED_CLUSTERS, null))
+            .map(KafkaConnectionString::parseBrokers)
+            .orElse(Collections.emptyList());
+
     Properties kafkaConsumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
-    return new KafkaConnector(connectorName, commitMillis, kafkaConsumerFactory, kafkaConsumerProps);
+    return new KafkaConnector(connectorName, commitMillis, kafkaConsumerFactory, kafkaConsumerProps, brokers);
   }
 }

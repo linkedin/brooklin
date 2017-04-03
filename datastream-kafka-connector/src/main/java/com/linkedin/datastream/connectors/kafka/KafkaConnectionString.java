@@ -77,15 +77,21 @@ public class KafkaConnectionString {
       badArg(connectionString);
     }
     str = str.substring(0, topicIndex);
-    String[] hosts = str.split("\\s*,\\s*");
+    List<KafkaBrokerAddress> brokers = parseBrokers(str);
+    return new KafkaConnectionString(brokers, topicName);
+  }
+
+  public static List<KafkaBrokerAddress> parseBrokers(String brokersValue) {
+
+    String[] hosts = brokersValue.split("\\s*,\\s*");
     if (hosts.length < 1) {
-      badArg(connectionString);
+      badArg(brokersValue);
     }
     List<KafkaBrokerAddress> brokers = new ArrayList<>(hosts.length);
     for (String host : hosts) {
       brokers.add(KafkaBrokerAddress.valueOf(host));
     }
-    return new KafkaConnectionString(brokers, topicName);
+    return brokers;
   }
 
   private static void badArg(String arg) throws IllegalArgumentException {

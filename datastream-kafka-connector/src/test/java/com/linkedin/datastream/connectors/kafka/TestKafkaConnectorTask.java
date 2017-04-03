@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -40,13 +41,7 @@ public class TestKafkaConnectorTask {
     _kafkaCluster.shutdown();
   }
 
-  @Test
-  public void testConsume() throws Exception {
-    String topic = "pizza";
-    String broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
-
-    //produce 100 msgs to topic before start
-
+  public static void produceEvents(String broker, String topic, int numEvents) throws UnsupportedEncodingException {
     Properties props = new Properties();
     props.put("bootstrap.servers", broker);
     props.put("acks", "all");
@@ -57,14 +52,22 @@ public class TestKafkaConnectorTask {
     props.put("key.serializer", ByteArraySerializer.class.getCanonicalName());
     props.put("value.serializer", ByteArraySerializer.class.getCanonicalName());
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
-      for (int i = 0; i < 100; i++) {
+      for (int i = 0; i < numEvents; i++) {
         producer.send(new ProducerRecord<>(topic, ("key-" + i).getBytes("UTF-8"), ("value-" + i).getBytes("UTF-8")));
       }
       producer.flush();
     }
+  }
+
+  @Test
+  public void testConsume() throws Exception {
+    String topic = "pizza";
+    String broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
+
+    //produce 100 msgs to topic before start
+    produceEvents(broker, topic, 100);
 
     //start
-
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     DatastreamSource source = new DatastreamSource();
     source.setConnectionString("kafka://" + broker + "/pizza");
@@ -98,13 +101,7 @@ public class TestKafkaConnectorTask {
     Assert.assertTrue(datastreamProducer.getEvents().isEmpty());
 
     //send 100 more msgs
-
-    try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
-      for (int i = 100; i < 200; i++) {
-        producer.send(new ProducerRecord<>(topic, ("key-" + i).getBytes("UTF-8"), ("value-" + i).getBytes("UTF-8")));
-      }
-      producer.flush();
-    }
+    produceEvents(broker, topic, 100);
 
     long timeout = System.currentTimeMillis() + 5000;
     while (datastreamProducer.getEvents().size() != 100) {
