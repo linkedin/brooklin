@@ -12,8 +12,6 @@ import java.util.Properties;
 import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -33,6 +31,7 @@ import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
@@ -45,9 +44,6 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskStatus;
-import com.linkedin.datastream.server.Pair;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
 public class KafkaConnectorTask implements Runnable {
@@ -72,8 +68,7 @@ public class KafkaConnectorTask implements Runnable {
   private String _srcValue;
   private DatastreamEventProducer _producer;
 
-  private volatile ProgressTracker _progressTracker;
-
+  private static final Duration POLL_RETRY_SLEEP_DURATION = Duration.ofSeconds(5);
   private static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
   private static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
   private static final String AGGREGATE = "aggregate";
@@ -106,6 +101,7 @@ public class KafkaConnectorTask implements Runnable {
   private static final Meter AGGREGATED_BYTES_PROCESSED_RATE = new Meter();
   private static final Meter AGGREGATED_ERROR_RATE = new Meter();
   private static final Meter AGGREGATED_REBALANCE_RATE = new Meter();
+  private long _lastCommittedTime = System.currentTimeMillis();
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
       long commitIntervalMillis) {
@@ -141,6 +137,22 @@ public class KafkaConnectorTask implements Runnable {
     _dynamicMetricsManager.registerMetric(CLASS_NAME, AGGREGATE, REBALANCE_RATE, AGGREGATED_REBALANCE_RATE);
   }
 
+  public static Consumer<?, ?> createConsumer(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
+      String groupId, KafkaConnectionString connectionString) {
+
+    StringJoiner csv = new StringJoiner(",");
+    connectionString.getBrokers().forEach(broker -> csv.add(broker.toString()));
+    String bootstrapValue = csv.toString();
+
+    Properties props = new Properties();
+    props.put("bootstrap.servers", bootstrapValue);
+    props.put("group.id", groupId);
+    props.put("enable.auto.commit", "false"); //auto-commits are unsafe
+    props.put("auto.offset.reset", "none");
+    props.putAll(consumerProps);
+    return consumerFactory.createConsumer(props);
+  }
+
   @Override
   public void run() {
     LOG.info("Starting the kafka connector task for {}", _task);
@@ -151,9 +163,7 @@ public class KafkaConnectorTask implements Runnable {
 
       DatastreamSource source = _task.getDatastreamSource();
       KafkaConnectionString srcConnString = KafkaConnectionString.valueOf(source.getConnectionString());
-      StringJoiner csv = new StringJoiner(",");
-      srcConnString.getBrokers().forEach(broker -> csv.add(broker.toString()));
-      String bootstrapValue = csv.toString();
+
       _srcValue = srcConnString.toString();
 
       DatastreamDestination destination = _task.getDatastreamDestination();
@@ -161,18 +171,8 @@ public class KafkaConnectorTask implements Runnable {
       _producer = _task.getEventProducer();
       _taskName = srcConnString + "-to-" + dstConnString;
 
-      Properties props = new Properties();
-      props.put("bootstrap.servers", bootstrapValue);
-      props.put("group.id", _taskName);
-      props.put("enable.auto.commit", "false"); //auto-commits are unsafe
-      props.put("auto.offset.reset", "none");
-      props.putAll(_consumerProps);
-
-      try (Consumer<?, ?> consumer = _consumerFactory.createConsumer(props)) {
-
+      try (Consumer<?, ?> consumer = createConsumer(_consumerFactory, _consumerProps, _taskName, srcConnString)) {
         ConsumerRecords<?, ?> records;
-        _progressTracker = new ProgressTracker();
-
         consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
           @Override
           public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
@@ -190,6 +190,7 @@ public class KafkaConnectorTask implements Runnable {
         });
 
         while (!_shouldDie) {
+
           //read a batch of records
           try {
             records = consumer.poll(pollInterval);
@@ -198,6 +199,11 @@ public class KafkaConnectorTask implements Runnable {
           } catch (NoOffsetForPartitionException e) {
             //means we have no saved offsets for some partitions, reset it to latest for those
             consumer.seekToEnd(e.partitions());
+            continue;
+          } catch (Exception e) {
+            LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying.",
+                POLL_RETRY_SLEEP_DURATION.getSeconds(), e);
+            Thread.sleep(POLL_RETRY_SLEEP_DURATION.toMillis());
             continue;
           }
 
@@ -208,13 +214,25 @@ public class KafkaConnectorTask implements Runnable {
             _startedLatch.countDown();
           }
 
-          //send the batch out the other end
-          long readTime = System.currentTimeMillis();
-          String strReadTime = String.valueOf(readTime);
-          translateAndSendBatch(records, readTime, strReadTime, _progressTracker);
+          try {
 
-          //potentially commit our offsets (if its been long enough and all sends were successful)
-          maybeCommitOffsets(consumer, false);
+            //send the batch out the other end
+            long readTime = System.currentTimeMillis();
+            String strReadTime = String.valueOf(readTime);
+            translateAndSendBatch(records, readTime, strReadTime);
+
+            //potentially commit our offsets (if its been long enough and all sends were successful)
+            maybeCommitOffsets(consumer, false);
+          } catch (Exception e) {
+            LOG.info("sending the messages failed with exception. Trying to start processing from previous checkpoint.",
+                e);
+            Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
+            //construct last checkpoint
+            consumer.assignment().forEach(tp -> lastCheckpoint.put(tp, consumer.committed(tp)));
+            LOG.info("Seeking to previous checkpoints {} and start.", lastCheckpoint);
+            //reset consumer to last checkpoint
+            lastCheckpoint.forEach((tp, offsetAndMetadata) -> consumer.seek(tp, offsetAndMetadata.offset()));
+          }
         }
 
         //shutdown
@@ -223,7 +241,7 @@ public class KafkaConnectorTask implements Runnable {
     } catch (Exception e) {
       LOG.error("{} failed with exception.", _taskName, e);
       _task.setStatus(DatastreamTaskStatus.error(e.getMessage()));
-      throw e;
+      throw new DatastreamRuntimeException(e);
     } finally {
       _stoppedLatch.countDown();
       LOG.info("{} stopped", _taskName);
@@ -259,38 +277,18 @@ public class KafkaConnectorTask implements Runnable {
   }
 
   private void maybeCommitOffsets(Consumer<?, ?> consumer, boolean force) {
-    ProgressTracker progressTracker = _progressTracker;
-    boolean anyWorkDone = progressTracker.anyWorkDone();
-    if (!anyWorkDone) {
-      return;
-    }
     long now = System.currentTimeMillis();
-    long timeSinceLastCommit = now - progressTracker.since;
+    long timeSinceLastCommit = now - _lastCommittedTime;
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
-      progressTracker.awaitCompletion(); //wait until all sends of the current batch succeed or anything fails
-      Pair<DatastreamRecordMetadata, Exception> failure = progressTracker.getFirstFailure();
-      if (failure != null) {
-        Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
-        //construct last checkpoint
-        consumer.assignment().forEach(topicPartition -> {
-          lastCheckpoint.put(topicPartition, consumer.committed(topicPartition));
-        });
-        //reset consumer to last checkpoint
-        lastCheckpoint.forEach((topicPartition, offsetAndMetadata) -> {
-          consumer.seek(topicPartition, offsetAndMetadata.offset());
-        });
-      } else {
-        _producer.flush();
-        consumer.commitSync();
-      }
-      _progressTracker = new ProgressTracker();
+      LOG.info("Trying to flush the producer and commit offsets.");
+      _producer.flush();
+      consumer.commitSync();
+      _lastCommittedTime = System.currentTimeMillis();
     }
   }
 
-  private void translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime, String strReadTime,
-      ProgressTracker progressTracker) {
+  private void translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime, String strReadTime) {
     try {
-      progressTracker.markToBeSent(records.count());
       records.forEach(record -> {
         _lastEventReceivedTime = Instant.now();
         _eventsProcessedRate.mark();
@@ -298,15 +296,12 @@ public class KafkaConnectorTask implements Runnable {
         int numBytes = record.serializedKeySize() + record.serializedValueSize();
         _bytesProcessedRate.mark(numBytes);
         AGGREGATED_BYTES_PROCESSED_RATE.mark(numBytes);
-        _producer.send(translate(record, readTime, strReadTime), progressTracker);
+        _producer.send(translate(record, readTime, strReadTime), null);
       });
     } catch (Exception e) {
       _errorRate.mark();
       AGGREGATED_ERROR_RATE.mark();
-      //some part of the batch failed to send out, or some other exception
-      //progressTracker will only record the 1st failure, so we dont need to care
-      //about this overriding any previous failure captured by a callback
-      progressTracker.markFailed(null, e);
+      throw e;
     }
   }
 
@@ -328,68 +323,5 @@ public class KafkaConnectorTask implements Runnable {
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
-  }
-
-  private class ProgressTracker implements SendCallback {
-    private final long since = System.currentTimeMillis();
-    private final AtomicInteger msgsToBeSent = new AtomicInteger(0);
-    private final AtomicInteger msgsSucceeded = new AtomicInteger(0);
-    private final CountDownLatch doneLatch = new CountDownLatch(1);
-    private final AtomicReference<Boolean> success = new AtomicReference<>(null);
-    private volatile Pair<DatastreamRecordMetadata, Exception> firstFailure;
-
-    @Override
-    public void onCompletion(DatastreamRecordMetadata metadata, Exception exception) {
-      if (exception == null) {
-        _lastEventProcessedTime = Instant.now();
-        markSucceeded();
-      } else {
-        markFailed(metadata, exception);
-      }
-    }
-
-    private void markToBeSent(int count) {
-      msgsToBeSent.addAndGet(count);
-    }
-
-    private void markSucceeded() {
-      if (msgsSucceeded.incrementAndGet() == msgsToBeSent.get()) {
-        if (success.compareAndSet(null, Boolean.TRUE)) {
-          doneLatch.countDown(); //successful completion
-        }
-      }
-    }
-
-    private void markFailed(DatastreamRecordMetadata metadata, Exception exception) {
-      if (success.compareAndSet(null, Boolean.FALSE)) {
-        //first failure
-        firstFailure = new Pair<>(metadata, exception);
-        doneLatch.countDown();
-        LOG.error("sending event failed. metadata: {}", metadata, exception);
-      } else {
-        if (!Boolean.FALSE.equals(success.get())) {
-          throw new IllegalStateException("should not be possible");
-        }
-      }
-    }
-
-    private boolean anyWorkDone() {
-      return msgsToBeSent.get() > 0;
-    }
-
-    private void awaitCompletion() {
-      while (true) {
-        try {
-          doneLatch.await();
-          break;
-        } catch (InterruptedException e) {
-          //ignore on purpose and keep waiting
-        }
-      }
-    }
-
-    public Pair<DatastreamRecordMetadata, Exception> getFirstFailure() {
-      return firstFailure;
-    }
   }
 }
