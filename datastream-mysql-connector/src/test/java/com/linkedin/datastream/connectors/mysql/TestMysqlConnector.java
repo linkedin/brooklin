@@ -60,7 +60,7 @@ public class TestMysqlConnector {
             Arrays.asList(new ColumnInfo("id", true), new ColumnInfo("name"), new ColumnInfo("description")));
   }
 
-  @Test
+  @Test(enabled = false)
   public void testMysqlDatastreamSingleTable() throws IOException, DatastreamException {
     Datastream datastream =
         createMysqlDatastream("mysqldatastream1", DB1_NAME, TABLE1_NAME, getPathToData());
