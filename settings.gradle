@@ -10,8 +10,4 @@ include 'datastream-kafka-connector'
 include 'datastream-file-connector'
 include 'datastream-mysql-connector'
 include 'datastream-tools'
-include 'brooklin-eventhub'
-include 'brooklin-samza'
-include 'brooklin-samza-eventhub'
-include 'brooklin-eventhub-samples'
 
