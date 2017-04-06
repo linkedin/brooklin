@@ -72,7 +72,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private Map<String, String> _properties = new HashMap<>();
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
-  private SerDeSet _destinationSerDes;
+  private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
 
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
