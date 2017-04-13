@@ -162,6 +162,17 @@ project(':datastream-mysql-connector') {
   }
 }
 
+project(':brooklin-oracle-tb-connector') {
+  dependencies {
+    compile project(':datastream-server-api')
+    compile "org.apache.avro:avro:$avroVersion"
+    testCompile 'org.mockito:mockito-core:1.+'
+    test {
+      workingDir(project.projectDir.toString() + "/..")
+    }
+  }
+}
+
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
