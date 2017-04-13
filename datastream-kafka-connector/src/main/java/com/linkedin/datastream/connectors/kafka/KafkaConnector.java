@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,12 +13,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -136,11 +143,31 @@ public class KafkaConnector implements Connector {
         LOG.error(msg);
         throw new DatastreamValidationException(msg);
       }
+      try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
+          "partitionFinder", parsed)) {
+        if (!source.hasPartitions()) {
+          int numPartitions = consumer.partitionsFor(parsed.getTopicName()).size();
+          LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
+          source.setPartitions(numPartitions);
+        }
 
-      if (!source.hasPartitions()) {
-        int numPartitions = getNumPartitions(parsed);
-        LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
-        source.setPartitions(numPartitions);
+        // Try to see if the start position requested is indeed possible to seek to.
+        if (stream.getMetadata().containsKey(DatastreamMetadataConstants.START_POSITION)) {
+          long ts = Long.parseLong(stream.getMetadata().get(DatastreamMetadataConstants.START_POSITION));
+          Map<TopicPartition, Long> topicTimestamps = IntStream.range(0, source.getPartitions())
+              .mapToObj(x -> new TopicPartition(parsed.getTopicName(), x))
+              .collect(Collectors.toMap(Function.identity(), x -> ts));
+          Map<TopicPartition, OffsetAndTimestamp> offsets = consumer.offsetsForTimes(topicTimestamps);
+
+          LOG.info("Returned offsets {} for timestamp {}", offsets, ts);
+          if (offsets.values().stream().anyMatch(x -> x == null)) {
+            String msg = String.format(
+                "Datastream is configured to start from a timestamp %d. But kafka is not able to map the timestamp to an offset {%s}",
+                ts, offsets);
+            LOG.warn(msg);
+            throw new DatastreamValidationException(msg);
+          }
+        }
       }
     } catch (Exception e) {
       LOG.error("Initialization threw an exception.", e);
@@ -150,11 +177,5 @@ public class KafkaConnector implements Connector {
 
   private Boolean isWhiteListedCluster(KafkaConnectionString connectionStr) {
     return _whiteListedBrokers.isEmpty() || connectionStr.getBrokers().stream().anyMatch(_whiteListedBrokers::contains);
-  }
-
-  private int getNumPartitions(KafkaConnectionString connectionString) {
-    Consumer<?, ?> consumer =
-        KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps, "partitionFinder", connectionString);
-    return consumer.partitionsFor(connectionString.getTopicName()).size();
   }
 }

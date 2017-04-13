@@ -14,6 +14,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -53,13 +54,26 @@ public class TestKafkaConnector {
   }
 
   @Test
+  public void testConnectorWithStartPosition() throws UnsupportedEncodingException, DatastreamValidationException {
+    String topicName = "testConectorWithStartPosition";
+    TestKafkaConnectorTask.produceEvents(_broker, topicName, 0, 100);
+    long ts = System.currentTimeMillis();
+    TestKafkaConnectorTask.produceEvents(_broker, topicName, 100, 100);
+    Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
+    KafkaConnector connector =
+        new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(), Collections.emptyList());
+    ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, String.valueOf(ts));
+    connector.initializeDatastream(ds, Collections.emptyList());
+  }
+
+  @Test
   public void testConnectorPopulatesPartitions() throws UnsupportedEncodingException, DatastreamValidationException {
     String topicName = "testConnectorPopulatesPartitions";
-    TestKafkaConnectorTask.produceEvents(_broker, topicName, 10);
+    TestKafkaConnectorTask.produceEvents(_broker, topicName, 0, 10);
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
-    KafkaConnector connector = new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(),
-        Collections.emptyList());
+    KafkaConnector connector =
+        new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(), Collections.emptyList());
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertEquals(ds.getSource().getPartitions().intValue(), 1);
   }

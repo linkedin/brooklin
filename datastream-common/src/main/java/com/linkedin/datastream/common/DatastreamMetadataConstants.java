@@ -39,4 +39,9 @@ public class DatastreamMetadataConstants {
    * Timestamp of datastream creation in epoch-milis
    */
   public static final String CREATION_MS = "system.creation.ms";
+
+  /**
+   * Position at which the ingestion should start for the datastream.
+   */
+  public static final String START_POSITION = "system.start.position";
 }
