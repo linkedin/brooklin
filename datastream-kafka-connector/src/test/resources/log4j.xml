@@ -18,13 +18,13 @@
 
   @log4j.loggers.public_access@
   <logger name="com.linkedin.datastream.server" additivity="false">
-    <level value="DEBUG"/>
+    <level value="INFO"/>
     <appender-ref ref="console"/>
   </logger>
 
   @log4j.loggers.root@
   <root>
-    <priority value ="DEBUG" />
+    <priority value ="INFO" />
     <appender-ref ref="console"/>
   </root>
 
