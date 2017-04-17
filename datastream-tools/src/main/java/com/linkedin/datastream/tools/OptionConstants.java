@@ -27,6 +27,11 @@ public class OptionConstants {
   public static final String OPT_ARG_DESTINATION_URI = "DESTINATION_URI";
   public static final String OPT_DESC_DESTINATION_URI = "Datastream destination uri";
 
+  public static final String OPT_SHORT_UNFORMATTED = "nf";
+  public static final String OPT_LONG_UNFORMATTED = "noformat";
+  public static final String OPT_ARG_UNFORMATTED = "NO_FORMAT";
+  public static final String OPT_DESC_UNFORMATTED = "Print without formatting";
+
   public static final String OPT_SHORT_DESTINATION_PARTITIONS = "dp";
   public static final String OPT_LONG_DESTINATION_PARTITIONS = "destinationpartitions";
   public static final String OPT_ARG_DESTINATION_PARTITIONS = "DESTINATION_PARTITIONS";

@@ -2,11 +2,14 @@ package com.linkedin.datastream.common;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
+import org.apache.commons.lang.Validate;
 
 
 public class BrooklinEnvelope {
 
-  private Object _previousValue;
+  private Optional<Object> _previousValue;
 
   private Object _key;
 
@@ -14,10 +17,17 @@ public class BrooklinEnvelope {
 
   private Map<String, String> _metadata;
 
+  public BrooklinEnvelope(Object key, Object value, Map<String, String> metadata) {
+    this(key, value, null, metadata);
+  }
+
   public BrooklinEnvelope(Object key, Object value, Object previousValue, Map<String, String> metadata) {
+    Validate.notNull(key, "key cannot be null");
+    Validate.notNull(key, "value cannot be null");
+    Validate.notNull(metadata, "metadata cannot be null");
     _key = key;
     _value = value;
-    _previousValue = previousValue;
+    _previousValue = Optional.ofNullable(previousValue);
     _metadata = metadata;
   }
 
@@ -26,14 +36,16 @@ public class BrooklinEnvelope {
   }
 
   public void setPreviousValue(Object previousValue) {
-    _previousValue = previousValue;
+    _previousValue = Optional.ofNullable(previousValue);
   }
 
   public void setKey(Object key) {
+    Validate.notNull(key, "key cannot be null");
     _key = key;
   }
 
   public void setValue(Object value) {
+    Validate.notNull(value, "value cannot be null");
     _value = value;
   }
 
