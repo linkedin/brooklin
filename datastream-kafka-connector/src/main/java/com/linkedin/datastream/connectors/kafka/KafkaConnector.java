@@ -145,10 +145,18 @@ public class KafkaConnector implements Connector {
       }
       try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
           "partitionFinder", parsed)) {
+        int numPartitions = consumer.partitionsFor(parsed.getTopicName()).size();
         if (!source.hasPartitions()) {
-          int numPartitions = consumer.partitionsFor(parsed.getTopicName()).size();
           LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
           source.setPartitions(numPartitions);
+        } else {
+          if (source.getPartitions() != numPartitions) {
+            String msg =
+                String.format("Source is configured with %d partitions, But the topic %s actually has %d partitions",
+                    source.getPartitions(), parsed.getTopicName(), numPartitions);
+            LOG.error(msg);
+            throw new DatastreamValidationException(msg);
+          }
         }
 
         // Try to see if the start position requested is indeed possible to seek to.
