@@ -1,12 +1,12 @@
-package com.linkedin.datastream.connector.oracle.triggerbased;
+package com.linkedin.datastream.connectors.oracle.triggerbased;
 
+import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumerConfig;
 import java.util.Properties;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.connector.oracle.triggerbased.consumer.OracleConsumerConfig;
 
 
 public class OracleConnectorConfig {
