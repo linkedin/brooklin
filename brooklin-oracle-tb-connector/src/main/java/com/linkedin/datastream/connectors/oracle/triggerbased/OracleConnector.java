@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connector.oracle.triggerbased;
+package com.linkedin.datastream.connectors.oracle.triggerbased;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
