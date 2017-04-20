@@ -2,6 +2,7 @@ package com.linkedin.datastream.server.dms;
 
 import java.util.UUID;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 
@@ -10,13 +11,25 @@ import com.linkedin.restli.server.RestLiServiceException;
 
 /**
  * Simple utility class for logging and throwing/returning a restli exception.
- * A random UUID is attached for each instance for more readable log output.
+ * A shortened random UUID, as well as the server instance name,
+ * is attached to each error message to facilitate the trouble shooting
  */
 final class ErrorLogger {
-  private Logger _logger;
+  private final Logger _logger;
+  private final String _instance;
 
-  public ErrorLogger(Logger logger) {
+  /**
+   * Constructing an ErrorLogger
+   * @param logger logger to be used
+   * @param instance server instance name
+   */
+  public ErrorLogger(Logger logger, String instance) {
     Validate.notNull(logger, "null logger");
+    if (StringUtils.isBlank(instance)) {
+      _instance = "UnknownInstance";
+    } else {
+      _instance = instance;
+    }
     _logger = logger;
   }
 
@@ -37,12 +50,15 @@ final class ErrorLogger {
    */
   public void logAndThrowRestLiServiceException(HttpStatus status, String msg, Exception e) {
     String id = UUID.randomUUID().toString();
+    id = id.substring(0, Math.min(6, id.length()));
     if (e != null) {
       _logger.error(String.format("[%s] %s", id, msg), e);
-      throw new RestLiServiceException(status, msg + " cause=" + e.getMessage());
+      throw new RestLiServiceException(status,
+          String.format("msg=%s; cause=%s; instance=%s; id=%s;", msg, e.toString(), _instance, id));
     } else {
       _logger.error(String.format("[%s] %s", id, msg));
-      throw new RestLiServiceException(status, msg);
+      throw new RestLiServiceException(status,
+          String.format("msg=%s; cause=%s; instance=%s; id=%s;", msg, "None", _instance, id));
     }
   }
 }
