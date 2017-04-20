@@ -68,7 +68,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public DatastreamResources(DatastreamServer datastreamServer) {
     _store = datastreamServer.getDatastreamStore();
     _coordinator = datastreamServer.getCoordinator();
-    _errorLogger = new ErrorLogger(LOG);
+    _errorLogger = new ErrorLogger(LOG, _coordinator.getInstanceName());
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _dynamicMetricsManager.registerMetric(getClass(), CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);

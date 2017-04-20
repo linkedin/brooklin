@@ -171,6 +171,17 @@ public class TestDatastreamResources {
 
     // creating existing Datastream
     checkBadRequest(() -> resource.create(allRequiredFields), HttpStatus.S_409_CONFLICT);
+
+    Datastream undefinedProvider = generateDatastream(7);
+    String undefinedProviderName = "whatsoever";
+    undefinedProvider.setTransportProviderName(undefinedProviderName);
+    try {
+      resource.create(undefinedProvider);
+      Assert.fail("Should have failed for undefined provider name");
+    } catch (RestLiServiceException e) {
+      Assert.assertNotNull(e.getMessage());
+      Assert.assertTrue(e.getMessage().contains(undefinedProviderName));
+    }
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {

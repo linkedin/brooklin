@@ -823,6 +823,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             .put(DatastreamMetadataConstants.TASK_PREFIX,
                 existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
       } else {
+        if (!_transportProviderAdmins.containsKey(datastream.getTransportProviderName())) {
+          throw new DatastreamValidationException(
+              String.format("Transport provider \"%s\" is undefined", datastream.getTransportProviderName()));
+        }
         _transportProviderAdmins.get(datastream.getTransportProviderName())
             .initializeDestinationForDatastream(datastream);
 
