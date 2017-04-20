@@ -276,6 +276,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _zkAdapter.setDatastreamTaskStateForKey(this, key, value);
   }
 
+  @JsonIgnore
   @Override
   public SerDeSet getDestinationSerDes() {
     return _destinationSerDes;

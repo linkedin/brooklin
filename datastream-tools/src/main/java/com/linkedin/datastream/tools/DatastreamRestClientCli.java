@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 
 
@@ -59,12 +60,18 @@ public class DatastreamRestClientCli {
     READALL
   }
 
-  private static void printDatastreams(List<Datastream> streams) {
+  private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
     streams.stream().forEach(s -> {
       try {
-        System.out.println(mapper.defaultPrettyPrintingWriter().writeValueAsString(s));
+        String jsonValue = DatastreamUtils.toJSON(s);
+        if (!noformat) {
+          Object json = mapper.readValue(jsonValue, Object.class);
+          jsonValue = mapper.defaultPrettyPrintingWriter().writeValueAsString(json);
+        }
+
+        System.out.println(jsonValue);
       } catch (IOException e) {
         throw new DatastreamRuntimeException(e);
       }
@@ -92,6 +99,10 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
             OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_UNFORMATTED, OptionConstants.OPT_LONG_UNFORMATTED, null,
+            false, OptionConstants.OPT_DESC_UNFORMATTED));
+
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_DESTINATION_URI, OptionConstants.OPT_LONG_DESTINATION_URI,
             OptionConstants.OPT_ARG_DESTINATION_URI, false, OptionConstants.OPT_DESC_DESTINATION_URI));
@@ -125,6 +136,8 @@ public class DatastreamRestClientCli {
       return;
     }
 
+    boolean noformat = cmd.hasOption(OptionConstants.OPT_SHORT_UNFORMATTED);
+
     Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
@@ -134,11 +147,11 @@ public class DatastreamRestClientCli {
         case READ: {
           String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           Datastream stream = datastreamRestClient.getDatastream(datastreamName);
-          printDatastreams(Collections.singletonList(stream));
+          printDatastreams(noformat, Collections.singletonList(stream));
           return;
         }
         case READALL:
-          printDatastreams(datastreamRestClient.getAllDatastreams());
+          printDatastreams(noformat, datastreamRestClient.getAllDatastreams());
           return;
         case DELETE: {
           String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -198,6 +211,8 @@ public class DatastreamRestClientCli {
         default:
           // do nothing
       }
+    } catch (Exception e) {
+      System.out.println(e.toString());
     } finally {
       if (datastreamRestClient != null) {
         datastreamRestClient.shutdown();
