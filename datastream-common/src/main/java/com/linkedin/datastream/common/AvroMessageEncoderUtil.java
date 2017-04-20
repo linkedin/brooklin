@@ -3,6 +3,10 @@ package com.linkedin.datastream.common;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryEncoder;
@@ -36,25 +40,90 @@ public class AvroMessageEncoderUtil {
     return out.toByteArray();
   }
 
-  public static byte[] encode(String schemaId, IndexedRecord record) throws IOException {
+  /**
+   * generates the md5 hash of the schemaId and appends it to the given byte array.
+   * the byte array representing the payload of a BrooklinEnvelope
+   *
+   * This is done so when the client decodes the payload, it will contain a schemaId which
+   * can be used to retrieve the schema from the Schema Registry
+   *
+   * This method also converts an IndexedRecord into a byte array first
+   *
+   * @param schemaId
+   * @param record
+   * @return
+   * @throws IOException
+   */
+  public static byte[] encode(String schemaId, IndexedRecord record) throws AvroEncodingException {
     Validate.notNull(record, "cannot encode null Record, schemaId: " + schemaId);
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     out.write(MAGIC_BYTE);
     byte[] md5Bytes = hexToMd5(schemaId);
 
-    out.write(md5Bytes);
-    BinaryEncoder encoder = new BinaryEncoder(out);
-    DatumWriter<IndexedRecord> writer;
-    if (record instanceof SpecificRecord) {
-      writer = new SpecificDatumWriter<IndexedRecord>(record.getSchema());
-    } else {
-      writer = new GenericDatumWriter<IndexedRecord>(record.getSchema());
+    try {
+      out.write(md5Bytes);
+      BinaryEncoder encoder = new BinaryEncoder(out);
+      DatumWriter<org.apache.avro.generic.IndexedRecord> writer;
+      if (record instanceof SpecificRecord) {
+        writer = new SpecificDatumWriter<IndexedRecord>(record.getSchema());
+      } else {
+        writer = new GenericDatumWriter<IndexedRecord>(record.getSchema());
+      }
+      writer.write(record, encoder);
+      encoder.flush(); //encoder may buffer
+    } catch (IOException e) {
+      throw new AvroEncodingException(e);
     }
-    writer.write(record, encoder);
-    encoder.flush(); //encoder may buffer
 
     return out.toByteArray();
   }
+
+  /**
+   * When registering a Schema with some Schema Registry it should return a Hex value
+   * to be used to indentify that schema.
+   *
+   * @param schema
+   * @return
+   */
+  public static String schemaToHex(Schema schema) {
+    byte[] utf8Bytes = utf8(schema.toString(false));
+    byte[] md5Bytes = md5(utf8Bytes);
+    return hex(md5Bytes);
+  }
+
+  /**
+   * Converts a String into utf8
+   */
+  private static byte[] utf8(String s) {
+    try {
+      return s.getBytes("UTF-8");
+    } catch (UnsupportedEncodingException e) {
+      throw new IllegalStateException("This can't happen");
+    }
+  }
+
+
+  private static byte[] md5(byte[] bytes) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("md5");
+      return digest.digest(bytes);
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("This can't happen.", e);
+    }
+  }
+
+  private static String hex(byte[] bytes) {
+    StringBuilder builder = new StringBuilder(2 * bytes.length);
+    for (int i = 0; i < bytes.length; i++) {
+      String hexString = Integer.toHexString(0xFF & bytes[i]);
+      if (hexString.length() < 2) {
+        hexString = "0" + hexString;
+      }
+      builder.append(hexString);
+    }
+    return builder.toString();
+  }
+
 
   private static byte[] hexToMd5(String s) {
     int len = s.length();
