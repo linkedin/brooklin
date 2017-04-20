@@ -167,6 +167,7 @@ project(':brooklin-oracle-tb-connector') {
     compile project(':datastream-server-api')
     compile "org.apache.avro:avro:$avroVersion"
     testCompile 'org.mockito:mockito-core:1.+'
+    testCompile project(':datastream-testcommon')
     test {
       workingDir(project.projectDir.toString() + "/..")
     }
