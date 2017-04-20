@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased;
 
+
 import java.sql.Types;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.Properties;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.commons.lang3.Validate;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -24,6 +26,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.EventProducer;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
+import com.linkedin.datastream.common.ReflectionUtils;
 
 import static org.mockito.Mockito.mock;
 
@@ -34,7 +37,12 @@ import static org.mockito.Mockito.mock;
 public class OracleConnectorTestUtils {
   private static final String SCHEMA_REGISTRY_MODE_KEY = "mode";
   private static final String SCHEMA_REGISTRY_URI_KEY = "uri";
-  private static final String SCHEMA_REGISTRY_CONFIG_KEY = "kafkaSchemaRegistry";
+  private static final String SCHEMA_REGISTRY_NAME_KEY = "schemaRegistryName";
+  private static final String SCHEMA_REGISTRY_NAME = "kafkaSchemaRegistry";
+  private static final String SCHEMA_REGISTRY_CONFIG_KEY = "schemaRegistry." + SCHEMA_REGISTRY_NAME;
+
+  private static final String SCHEMA_REGISTRY_FACTORY_KEY = "schemaRegistryFactory";
+  private static final String SCHEMA_REGISTRY_FACTORY_NAME = "com.linkedin.datastream.connectors.oracle.triggerbased.SchemaRegistryFactoryImpl";
   private static final String DB_URI_KEY = "dbUri";
 
   static final String DEFAULT_DB_NAME = "dbName";
@@ -48,8 +56,10 @@ public class OracleConnectorTestUtils {
    */
   public static Properties getSchemaRegistryProps(String mode, String uri) {
     Properties props = new Properties();
+    props.put(SCHEMA_REGISTRY_NAME_KEY, SCHEMA_REGISTRY_NAME);
     props.put(SCHEMA_REGISTRY_CONFIG_KEY + "." + SCHEMA_REGISTRY_MODE_KEY, mode);
     props.put(SCHEMA_REGISTRY_CONFIG_KEY + "." + SCHEMA_REGISTRY_URI_KEY, uri);
+    props.put(SCHEMA_REGISTRY_FACTORY_KEY, SCHEMA_REGISTRY_FACTORY_NAME);
     return props;
   }
 
@@ -128,6 +138,19 @@ public class OracleConnectorTestUtils {
     CheckpointProvider cpProvider = mock(CheckpointProvider.class);
     Properties config = new Properties();
     return new EventProducer(task, transport, cpProvider, config, false);
+  }
+
+  /**
+   * Extract ListBackedTransportProvider from a DatastreamTask
+   * @param task
+   * @return
+   */
+  @SuppressWarnings("unchecked")
+  public static ListBackedTransportProvider getListBackedTransport(DatastreamTask task) throws Exception {
+    EventProducer producer = (EventProducer) task.getEventProducer();
+    TransportProvider transport = ReflectionUtils.getField(producer, "_transportProvider");
+    Validate.isInstanceOf(ListBackedTransportProvider.class, transport, "unknown transport type");
+    return (ListBackedTransportProvider) transport;
   }
 
   public static List<OracleChangeEvent> generateGenericEvents(int numEvents) {
@@ -214,7 +237,7 @@ public class OracleConnectorTestUtils {
     // build a generic record for Geo Field
     GenericRecord geo = new GenericData.Record(schema.getField("geo").schema());
     geo.put("country", "country-string");
-    geo.put("latitudeDeg", 5);
+    geo.put("latitudeDeg", 5F);
 
     // build an Array record for smallerCities field
     Schema smallerCitiesSchema = schema.getField("smallerCities").schema();
