@@ -31,7 +31,7 @@ public class BrooklinEnvelope {
     _metadata = metadata;
   }
 
-  public Object getPreviousValue() {
+  public Optional<Object> getPreviousValue() {
     return _previousValue;
   }
 
