@@ -1,9 +1,11 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -160,6 +162,8 @@ public class EventProducer implements DatastreamEventProducer {
           sourceToDestinationLatencyMs);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
           sourceToDestinationLatencyMs);
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
+          EVENTS_LATENCY_MS_STRING, sourceToDestinationLatencyMs);
 
       if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, 1);
@@ -239,9 +243,10 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_SLA));
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + TOTAL_EVENTS_PRODUCED));
     metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + EVENT_PRODUCE_RATE));
-
-    metrics.add(new BrooklinHistogramInfo(className + MetricsAware.KEY_REGEX + EVENTS_LATENCY_MS_STRING));
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA));
+    metrics.add(new BrooklinHistogramInfo(className + MetricsAware.KEY_REGEX + EVENTS_LATENCY_MS_STRING, Optional.of(
+        Arrays.asList(BrooklinHistogramInfo.MEAN, BrooklinHistogramInfo.MAX, BrooklinHistogramInfo.PERCENTILE_50,
+            BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
 
     return Collections.unmodifiableList(metrics);
   }
