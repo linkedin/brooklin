@@ -456,6 +456,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private void uninitializeTask(DatastreamTask t) {
     TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
     tpAdmin.unassignTransportProvider(t);
+    _cpProvider.unassignDatastreamTask(t);
   }
 
   private void initializeTask(DatastreamTask task) {

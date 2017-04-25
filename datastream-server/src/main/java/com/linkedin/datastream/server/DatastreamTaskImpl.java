@@ -62,8 +62,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   private String _taskPrefix;
 
-  private String _datastreamName;
-
   // List of partitions the task covers.
   private List<Integer> _partitions;
 
@@ -252,14 +250,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public void setTaskPrefix(String taskPrefix) {
     _taskPrefix = taskPrefix;
-  }
-
-  public String getDatastreamName() {
-    return _datastreamName;
-  }
-
-  public void setDatastreamName(String datastreamName) {
-    _datastreamName = datastreamName;
   }
 
   @JsonIgnore

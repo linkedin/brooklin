@@ -24,6 +24,11 @@ public class InMemoryCheckpointProvider implements CheckpointProvider {
   }
 
   @Override
+  public void unassignDatastreamTask(DatastreamTask task) {
+    _cpMap.remove(task);
+  }
+
+  @Override
   public void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
     if (!_cpMap.containsKey(task)) {
       _cpMap.put(task, new HashMap<>());
