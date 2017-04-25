@@ -34,7 +34,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
 
-  private final KafkaProducer<byte[], byte[]> _producer;
+  private KafkaProducer<byte[], byte[]> _producer;
   private final String _brokers;
 
   private static final String EVENT_WRITE_RATE = "eventWriteRate";
@@ -150,6 +150,7 @@ public class KafkaTransportProvider implements TransportProvider {
     // http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844/10
     if (_producer != null) {
       _producer.close(0, TimeUnit.MILLISECONDS);
+      _producer = null;
     }
   }
 

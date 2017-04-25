@@ -223,7 +223,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   public void shutdown() {
-    flush();
+    _checkpointProvider.flush();
     _transportProvider.close();
   }
 
