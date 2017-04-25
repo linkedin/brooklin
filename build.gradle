@@ -119,6 +119,8 @@ project(':datastream-common') {
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    compile "com.intellij:annotations:$intellijAnnotations"
+    compile group: 'com.google.guava', name: 'guava', version: '19.0'
   }
 }
 
