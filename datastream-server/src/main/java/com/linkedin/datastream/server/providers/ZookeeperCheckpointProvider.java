@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
-  private static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
+  public static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
 
   private final ZkAdapter _zkAdapter;
 
@@ -49,6 +50,12 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
   }
 
+  @Override
+  public void unassignDatastreamTask(DatastreamTask task) {
+    _checkpointsToCommit.remove(task);
+    _lastCommitTime.remove(task);
+  }
+
   /**
    * Commit the checkpoints to the checkpoint store.
    */
@@ -58,7 +65,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
     synchronized (taskMap) {
       taskMap.put(partition, checkpoint);
 
-      if (!_lastCommitTime.containsKey(task) || Instant.now().isAfter(_lastCommitTime.get(task).plus(CHECKPOINT_INTERVAL))) {
+      if (!_lastCommitTime.containsKey(task) || Instant.now()
+          .isAfter(_lastCommitTime.get(task).plus(CHECKPOINT_INTERVAL))) {
         writeCheckpointsToStore(task);
       }
     }
@@ -119,7 +127,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private Map<Integer, String> getCheckpoint(DatastreamTask task) {
     String checkpoint = _zkAdapter.getDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME);
-    if (checkpoint != null) {
+    if (StringUtils.isNotBlank(checkpoint)) {
       return JsonUtils.fromJson(checkpoint, _hashMapTypeReference);
     } else {
       LOG.info("Checkpoint doesn't exist for DatastreamTask " + task.toString());

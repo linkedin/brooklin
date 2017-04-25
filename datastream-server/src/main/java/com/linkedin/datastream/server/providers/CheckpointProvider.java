@@ -12,6 +12,12 @@ import com.linkedin.datastream.server.DatastreamTask;
 public interface CheckpointProvider extends MetricsAware {
 
   /**
+   * Unassign datastream task. This is called when the datastream task is being reassigned from the current instance.
+   * Any cleanup of the internal checkpoint state for the datastream task is performed here.
+   */
+  void unassignDatastreamTask(DatastreamTask task);
+
+  /**
    * update the checkpoint. This might get called every time a send succeeds. So avoid writing to durable store
    * everytime updateCheckpoint is called.
    */

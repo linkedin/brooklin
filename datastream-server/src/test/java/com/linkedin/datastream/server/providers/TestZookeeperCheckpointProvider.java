@@ -14,6 +14,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
@@ -52,6 +53,35 @@ public class TestZookeeperCheckpointProvider {
     metadata.put("owner", "person_" + seed);
     ds.setMetadata(metadata);
     return ds;
+  }
+
+  @Test
+  public void testUnassign() {
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    adapter.connect();
+    ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
+    Datastream ds1 = generateDatastream(1);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(ds1));
+    datastreamTask1.setId("dt1");
+
+    Datastream ds2 = generateDatastream(2);
+    ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(ds2));
+    datastreamTask2.setId("dt2");
+
+    checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
+    checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
+
+    adapter.setDatastreamTaskStateForKey(datastreamTask1, ZookeeperCheckpointProvider.CHECKPOINT_KEY_NAME, "");
+    checkpointProvider.unassignDatastreamTask(datastreamTask1);
+
+    Map<Integer, String> commitedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
+    Assert.assertEquals(commitedCheckpoints1.size(), 0);
+
+    Map<Integer, String> commitedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
+    Assert.assertEquals(commitedCheckpoints2.get(0), "checkpoint2");
   }
 
   @Test

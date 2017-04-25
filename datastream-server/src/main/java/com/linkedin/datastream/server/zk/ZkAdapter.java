@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
-import org.apache.commons.lang.StringUtils;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -444,26 +443,7 @@ public class ZkAdapter {
   public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
     String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
     DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
-    String dsName = task.getDatastreamName();
     task.setZkAdapter(this);
-
-    if (StringUtils.isNotBlank(dsName) && StringUtils.isBlank(task.getTaskPrefix())) {
-      // These are old tasks that were created before DatastreamGroup concept existed.
-      String dsPath = KeyBuilder.datastream(_cluster, dsName);
-      if (!_zkclient.exists(dsPath)) {
-        // There are certain corner cases where we end up with datastream tasks without corresponding datastreams.
-        // This happens when the datastream tasks are not cleaned up properly after the datastream is deleted.
-        // One such scenario - when the cluster is brought down immediately after the datastream is deleted.
-        // When we encounter such zombie tasks, We just log a warning, and in the next reassignment will cleanup the zombie tasks.
-        String errorMessage =
-            String.format("Missing Datastream in ZooKeeper for task={%s} instance=%s", task, instance);
-        _log.warn(errorMessage);
-      }
-      String dsContent = _zkclient.ensureReadData(dsPath);
-      Datastream stream = DatastreamUtils.fromJSON(dsContent);
-      task.setTaskPrefix(DatastreamUtils.getTaskPrefix(stream));
-    }
-
     return task;
   }
 
@@ -552,13 +532,14 @@ public class ZkAdapter {
    */
   public void updateAllAssignments(Map<String, List<DatastreamTask>> assignmentsByInstance) {
     // map of task name to DatastreamTask for future reference
-    Map<String, DatastreamTask> assignmentsMap = assignmentsByInstance.values().stream()
+    Map<String, DatastreamTask> assignmentsMap = assignmentsByInstance.values()
+        .stream()
         .flatMap(List::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
 
     // For each instance, find the nodes to add and remove.
-    Map<String, Set<String>>  nodesToRemove = new HashMap<>();
-    Map<String, Set<String>>  nodesToAdd = new HashMap<>();
+    Map<String, Set<String>> nodesToRemove = new HashMap<>();
+    Map<String, Set<String>> nodesToAdd = new HashMap<>();
     diffAssignmentNodes(assignmentsByInstance, nodesToRemove, nodesToAdd);
 
     // Add the new tasks znodes.
@@ -603,7 +584,8 @@ public class ZkAdapter {
       Map<String, Set<String>> nodesToRemove, Map<String, Set<String>> nodesToAdd) {
     for (String instance : assignmentsByInstance.keySet()) {
       // list of new assignment, names only
-      Set<String> assignmentsNames = assignmentsByInstance.get(instance).stream()
+      Set<String> assignmentsNames = assignmentsByInstance.get(instance)
+          .stream()
           .map(DatastreamTask::getDatastreamTaskName)
           .collect(Collectors.toSet());
 
