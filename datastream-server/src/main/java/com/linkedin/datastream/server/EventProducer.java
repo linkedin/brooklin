@@ -1,5 +1,7 @@
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -51,6 +53,12 @@ public class EventProducer implements DatastreamEventProducer {
 
   private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
 
+  public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
+
+  // Default flush interval, It is intentionally kept at low frequency. If a particular connectors wants
+  // a more frequent flush (high traffic connectors), it can perform that on it's own.
+  public static final String DEFAULT_FLUSH_INTERVAL_MS = String.valueOf(Duration.ofMinutes(5).toMillis());
+
   private final int _producerId;
   private final Logger _logger;
 
@@ -69,6 +77,8 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String AGGREGATE = "aggregate";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private final int _availabilityThresholdSlaMs;
+  private Instant _lastFlushTime = Instant.now();
+  private final Duration _flushInterval;
 
   /**
    * Construct an EventProducer instance.
@@ -99,6 +109,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
+
+    _flushInterval =
+        Duration.ofMillis(Long.parseLong(config.getProperty(CONFIG_FLUSH_INTERVAL_MS, DEFAULT_FLUSH_INTERVAL_MS)));
 
     _logger.info(String.format("Created event producer with customCheckpointing=%s", customCheckpointing));
 
@@ -138,6 +151,11 @@ public class EventProducer implements DatastreamEventProducer {
     // Serialize
     record.serializeEvents(_datastreamTask.getDestinationSerDes());
 
+    // It is possible that the connector is not calling flush at regular intervals, In which case we will force a periodic flush.
+    if (Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
+      flush();
+    }
+
     try {
       _transportProvider.send(_datastreamTask.getDatastreamDestination().getConnectionString(), record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record));
@@ -173,7 +191,8 @@ public class EventProducer implements DatastreamEventProducer {
                 metadata.getTopic(), metadata.getPartition(), _availabilityThresholdSlaMs));
       }
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
-      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), TOTAL_EVENTS_PRODUCED, 1);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), TOTAL_EVENTS_PRODUCED,
+          1);
     }
 
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
@@ -206,6 +225,7 @@ public class EventProducer implements DatastreamEventProducer {
   public void flush() {
     _transportProvider.flush();
     _checkpointProvider.flush();
+    _lastFlushTime = Instant.now();
   }
 
   /**
