@@ -8,6 +8,11 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 public class NoOpCheckpointProvider implements CheckpointProvider {
   @Override
+  public void unassignDatastreamTask(DatastreamTask task) {
+
+  }
+
+  @Override
   public void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
     return;
   }
