@@ -1,15 +1,17 @@
-package com.linkedin.datastream.avrogenerator;
+package com.linkedin.datastream.common;
 
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.sql.DataSource;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class OracleDataSourceFactory {
+public class DynamicDataSourceFactoryImpl implements OracleDataSourceFactory {
+
   private static final Logger LOG = LoggerFactory.getLogger(OracleDataSourceFactory.class);
 
   private static final Map<String, Class<?>> CLASS_CACHE = new ConcurrentHashMap<>();  // we should have 4 entries at most
@@ -21,7 +23,7 @@ public class OracleDataSourceFactory {
    * @param queryTimeoutSec  timeout for setting the connection properties of the data source; -1 = infinite
    * @return DataSource object for the specified URI
    */
-  public static DataSource createOracleDataSource(String uri, int queryTimeoutSec) throws Exception {
+  public DataSource createOracleDataSource(String uri, int queryTimeoutSec) throws Exception {
     DataSource ds = null;
     try {
       Class<?> oracleDataSourceClass = loadClass();
@@ -77,4 +79,5 @@ public class OracleDataSourceFactory {
 
     return loadedClass;
   }
+
 }
