@@ -8,12 +8,15 @@ import java.sql.PreparedStatement;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.ResultSet;
-
 import java.util.Set;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
+
+
 
 
 /**
@@ -57,7 +60,8 @@ public class OracleDatabaseClient extends DatabaseSource {
     }
 
     try {
-      _dataSource = OracleDataSourceFactory.createOracleDataSource(_connectionUri, -1);
+      DynamicDataSourceFactoryImpl dataSourceFactory = new DynamicDataSourceFactoryImpl();
+      _dataSource = dataSourceFactory.createOracleDataSource(_connectionUri, -1);
       _conn = _dataSource.getConnection();
     } catch (Exception e) {
       throw new SQLException(e);

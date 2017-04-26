@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
+package com.linkedin.datastream.common;
 
 import javax.sql.DataSource;
 
