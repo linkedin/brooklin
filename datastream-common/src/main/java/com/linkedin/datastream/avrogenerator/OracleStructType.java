@@ -5,8 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.base.CaseFormat;
-
 
 /**
  * The OracleStructType class implements the FieldType interface in order to act
@@ -106,12 +104,5 @@ public class OracleStructType implements FieldType {
     return structAvro;
   }
 
-  /**
-   * Assigning a lower case name for Oracle Struct Types
-   */
-  private static String lowerCamel(String fieldTypeName) {
-    String name =  CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, fieldTypeName);
-    return name + "Struct";
-  }
 }
 

@@ -144,16 +144,17 @@ public class OracleTableReader {
    * from the query resultSet. When building the Record, we need the type of
    * the record to match the type expected from the Avro Schema for that specific field.
    */
-  public static OracleChangeEvent generateEvent(ResultSet rs, Schema avroSchema, long scn, long sourceTimestamp) throws SQLException {
+  protected static OracleChangeEvent generateEvent(ResultSet rs, Schema avroSchema, long scn, long sourceTimestamp)
+      throws SQLException {
     OracleChangeEvent event = new OracleChangeEvent(scn, sourceTimestamp);
 
     ResultSetMetaData rsmd = rs.getMetaData();
     int colCount = rsmd.getColumnCount();
 
     if (colCount < 3) {
-      throw new DatastreamRuntimeException(String.format("ChangeCapture Query returned a ResultSet that has less than 3 columns. SCN: %s, TS: %s",
-          scn,
-          sourceTimestamp));
+      throw new DatastreamRuntimeException(
+          String.format("ChangeCapture Query returned a ResultSet that has less than 3 columns. SCN: %s, TS: %s", scn,
+              sourceTimestamp));
     }
 
     // we start from 3 because the first two data fields are SCN and eventTimestamp
@@ -199,7 +200,7 @@ public class OracleTableReader {
    * @return - an Object casted to the expected avro type
    * @throws SQLException
    */
-  public static Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException {
+  protected static Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException {
     if (sqlObject == null) {
       return null;
     }
@@ -231,7 +232,7 @@ public class OracleTableReader {
     }
 
     if (sqlObject instanceof SQLXML) {
-      return ((SQLXML) sqlObject).toString();
+      return sqlObject.toString();
     }
 
     if (sqlObject instanceof byte[]) {
@@ -270,11 +271,9 @@ public class OracleTableReader {
 
       // ensure that the number of fields in the schema is the same as the database
       if (childSchema.getFields().size() != sqlObjectAttributes.length) {
-        String msg = String.format("Avro Schema Mismatch for field: %s on Schema: %s. Avro Schema Field Num: %d, Db Field Num: %d",
-            colName,
-            childSchema.getFullName(),
-            childSchema.getFields().size(),
-            sqlObjectAttributes.length);
+        String msg = String.format(
+            "Avro Schema Mismatch for field: %s on Schema: %s. Avro Schema Field Num: %d, Db Field Num: %d", colName,
+            childSchema.getFullName(), childSchema.getFields().size(), sqlObjectAttributes.length);
 
         throw new DatastreamRuntimeException(msg);
       }
@@ -330,17 +329,16 @@ public class OracleTableReader {
       }
     }
 
-    throw new DatastreamRuntimeException(String.format("Cannot convert SQL type: %s for colName: %s value: %s into a AvroType",
-        sqlObject.getClass(),
-        colName,
-        sqlObject.toString()));
+    throw new DatastreamRuntimeException(
+        String.format("Cannot convert SQL type: %s for colName: %s value: %s into a AvroType", sqlObject.getClass(),
+            colName, sqlObject.toString()));
   }
 
   /**
    * Return the Schema of a field under the colName. If the underlying field is a
    * UNION type, iterate through it to find the not NULL schema.
    */
-  public static Schema getChildSchema(Schema avroSchema, String colName, List<Type> acceptable) {
+  protected static Schema getChildSchema(Schema avroSchema, String colName, List<Type> acceptable) {
     avroSchema = deUnify(avroSchema);
 
     // use getField() to get the schema of the colName in respect to the parent schema
