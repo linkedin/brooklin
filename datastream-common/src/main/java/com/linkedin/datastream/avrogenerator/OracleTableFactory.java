@@ -38,7 +38,8 @@ public class OracleTableFactory {
    * @return an OracleTable instance which represents the entire table
    * @throws SQLException
    */
-  public OracleTable buildOracleTable(String schemaName, String tableName, String primaryKey) throws SQLException, SchemaGenerationException {
+  public OracleTable buildOracleTable(String schemaName, String tableName, String primaryKey)
+      throws SQLException, SchemaGenerationException {
     List<OracleDatabaseClient.TableMetadata> metadataList = _databaseSource.getTableMetadata(schemaName, tableName);
 
     List<OracleColumn> childColumns = new ArrayList<>();
@@ -46,10 +47,9 @@ public class OracleTableFactory {
     for (OracleDatabaseClient.TableMetadata metadata : metadataList) {
       String colName = metadata.colName();
 
-      FieldType childFieldType = buildFieldType(metadata.columnSchemaName(),
-          metadata.columnFieldTypeName(),
-          metadata.precision(),
-          metadata.scale());
+      FieldType childFieldType =
+          buildFieldType(metadata.columnSchemaName(), metadata.columnFieldTypeName(), metadata.precision(),
+              metadata.scale());
 
       childColumns.add(new OracleColumn(colName, childFieldType, childColumns.size()));
     }
@@ -58,8 +58,8 @@ public class OracleTableFactory {
       List<String> primaryKeys = _databaseSource.getPrimaryKeyFields(tableName);
 
       if (primaryKeys.size() == 0) {
-        throw new SchemaGenerationException(String.format("Failed to retrieve primary keys from source: %s. Please call #setPrimaryKey()",
-            tableName));
+        throw new SchemaGenerationException(
+            String.format("Failed to retrieve primary keys from source: %s. Please call #setPrimaryKey()", tableName));
       }
 
       // build primaryKey string as comma-separated list of the primary key(s)
@@ -98,7 +98,8 @@ public class OracleTableFactory {
       return buildOracleStruct(schemaName, fieldTypeName);
     }
 
-    throw new SQLException(String.format("Cannot determine type info for the attribute (%s.%s)", schemaName, fieldTypeName));
+    throw new SQLException(
+        String.format("Cannot determine type info for the attribute (%s.%s)", schemaName, fieldTypeName));
   }
 
   /**
@@ -145,7 +146,8 @@ public class OracleTableFactory {
    * @throws SQLException
    */
   private FieldType buildOracleStruct(String schemaName, String fieldTypeName) throws SQLException {
-    List<OracleDatabaseClient.StructMetadata> metadataList = _databaseSource.getStructMetadata(schemaName, fieldTypeName);
+    List<OracleDatabaseClient.StructMetadata> metadataList =
+        _databaseSource.getStructMetadata(schemaName, fieldTypeName);
     List<OracleColumn> childColumns = new ArrayList<>();
 
     for (OracleDatabaseClient.StructMetadata metadata : metadataList) {

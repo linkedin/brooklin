@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connectors.oracle.triggerbased;
+package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
 import java.util.Properties;
 
@@ -7,8 +7,8 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumer;
-import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumerConfig;
+import com.linkedin.datastream.connectors.oracle.triggerbased.MockSchema;
+import com.linkedin.datastream.connectors.oracle.triggerbased.OracleSource;
 
 
 @Test

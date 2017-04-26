@@ -97,9 +97,9 @@ public class OracleDatabaseClient extends DatabaseSource {
     }
 
     if (pkList.size() > 1) {
-      throw new SchemaGenerationException(String.format("source: %s uses CompositeKeys: %s. This OracleDatabaseClient does not support CompositeKeys",
-          tableName,
-          pkList.toString()));
+      throw new SchemaGenerationException(
+          String.format("source: %s uses CompositeKeys: %s. This OracleDatabaseClient does not support CompositeKeys",
+              tableName, pkList.toString()));
     }
 
     return pkList;
@@ -140,7 +140,7 @@ public class OracleDatabaseClient extends DatabaseSource {
       stmt.executeQuery();
       return true;
     } catch (SQLException e) {
-      System.out.println(e.toString());
+      LOG.error(String.format("Failed to determine isTable() for schema %s, table %s", schemaName, tableName), e);
       return false;
     } finally {
       releaseResources(null, stmt);
@@ -402,7 +402,7 @@ public class OracleDatabaseClient extends DatabaseSource {
       try {
         rs.close();
       } catch (SQLException e) {
-        LOG.warn(e.getMessage());
+        LOG.warn("Failed to close ResultSet " + stmt, e);
       }
     }
 
@@ -410,7 +410,7 @@ public class OracleDatabaseClient extends DatabaseSource {
       try {
         stmt.close();
       } catch (SQLException e) {
-        LOG.warn(e.getMessage());
+        LOG.warn("Failed to close PreparedStatement " + stmt, e);
       }
     }
   }

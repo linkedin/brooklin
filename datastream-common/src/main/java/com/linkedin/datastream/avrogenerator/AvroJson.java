@@ -1,5 +1,6 @@
 package com.linkedin.datastream.avrogenerator;
 
+import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,11 +36,7 @@ public class AvroJson {
   private static final String RECORD_TYPE = "record";
 
 
-  private final Map<String, Object> _info;
-
-  public AvroJson() {
-    _info = new HashMap<String, Object>();
-  }
+  private final Map<String, Object> _info = new HashMap<>();
 
   public void setName(String name) {
     _info.put(NAME_KEY, name);
@@ -133,10 +130,9 @@ public class AvroJson {
       jgen.useDefaultPrettyPrinter();
       mapper.writeValue(jgen, _info);
       String schema = writer.getBuffer().toString();
-      System.out.println(schema);
 
-      return org.apache.avro.Schema.parse(schema);
-    } catch (java.io.IOException e) {
+      return Schema.parse(schema);
+    } catch (IOException e) {
       throw new SchemaGenerationException("Failed to generate Schema from AvroJson", e);
     }
   }

@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connectors.oracle.triggerbased;
+package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
 import java.math.BigDecimal;
 import java.sql.ResultSetMetaData;
@@ -20,8 +20,7 @@ import org.apache.avro.Schema.Type;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleTableReader;
-import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleChangeEvent;
+import com.linkedin.datastream.connectors.oracle.triggerbased.MockSchema;
 
 @Test
 public class TestOracleTableReader {
