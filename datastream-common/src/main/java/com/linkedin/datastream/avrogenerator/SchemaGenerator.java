@@ -27,45 +27,32 @@ public class SchemaGenerator {
   private SchemaGenerator(Builder builder) {
     _tableName = builder.tableName;
     _schemaName = builder.schemaName;
-    _primaryKey = builder._primaryKey;
-    _fields = builder._fields;
     _source = builder.databaseSource;
+    _primaryKey = builder.primaryKey;
+    _fields = builder.fields;
   }
 
   public Schema generate() throws SchemaGenerationException {
-    initializeClient();
-
-    // first generate an OracleTable
-    OracleTableFactory factory = new OracleTableFactory(_source);
     OracleTable table = null;
 
     try {
+      _source.initializeConnection();
+
+      // first generate an OracleTable
+      OracleTableFactory factory = new OracleTableFactory(_source);
       table = factory.buildOracleTable(_schemaName, _tableName, _primaryKey);
     } catch (SQLException | SchemaGenerationException e) {
-      throw new SchemaGenerationException("Failed to build OracleTable", e);
+      String msg = String.format("Failed to generate schema for schema %s table %s", _schemaName, _tableName);
+      LOG.error(msg);
+      throw new SchemaGenerationException(msg, e);
     } finally {
-      closeClient();
+      if (_source != null) {
+        _source.closeConnection();
+        _source = null;
+      }
     }
 
     return table.toAvro().toSchema();
-  }
-
-  private void closeClient() {
-    if (_source == null) {
-      return;
-    }
-
-    _source.closeConnection();
-    _source = null;
-  }
-
-  private void initializeClient() {
-    try {
-      _source.initializeConnection();
-    } catch (SQLException e) {
-      LOG.error("Failed to initialize connection");
-      throw new RuntimeException(e);
-    }
   }
 
   /**
@@ -77,10 +64,8 @@ public class SchemaGenerator {
     private final String schemaName;
     private final DatabaseSource databaseSource;
 
-
-    private String _primaryKey;
-    private List<String> _fields;
-    private DatabaseSource _databaseSource;
+    private String primaryKey;
+    private List<String> fields;
 
     public Builder(@NotNull String tableName, @NotNull String schemaName, @NotNull DatabaseSource databaseSource) {
       this.tableName = tableName;
@@ -93,7 +78,7 @@ public class SchemaGenerator {
      * determine the primary Keys
      */
     public Builder setPrimaryKey(String primaryKey) {
-      _primaryKey = primaryKey;
+      this.primaryKey = primaryKey;
       return this;
     }
 
@@ -102,7 +87,7 @@ public class SchemaGenerator {
      * the Avro Schema. The default is every field.
      */
     public Builder setSpecificFields(List<String> fields) {
-      _fields = fields;
+      this.fields = fields;
       return this;
     }
 

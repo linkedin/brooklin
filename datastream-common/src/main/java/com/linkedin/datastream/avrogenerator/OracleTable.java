@@ -75,7 +75,7 @@ public class OracleTable {
   public AvroJson toAvro() {
     AvroJson tableAvro = AvroJson.recordType(_tableName, getMetadata());
 
-    List<Map<String, Object>> fields = new ArrayList<Map<String, Object>>();
+    List<Map<String, Object>> fields = new ArrayList<>();
     for (OracleColumn childCol : getChildColumns()) {
       AvroJson childAvro = childCol.toAvro();
       fields.add(childAvro.info());
@@ -95,7 +95,8 @@ public class OracleTable {
 
   private static String buildDoc(String tableName) {
     SimpleDateFormat df = new SimpleDateFormat("MMM dd, yyyy hh:mm:ss a zzz");
-    return String.format("Auto-generated Avro schema for %s. Generated at %s", tableName, df.format(new Date(System.currentTimeMillis())));
+    return String.format("Auto-generated Avro schema for %s. Generated at %s", tableName,
+        df.format(new Date(System.currentTimeMillis())));
   }
 
   private static String buildNamespace(String schemaName) {

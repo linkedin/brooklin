@@ -201,8 +201,9 @@ public class OracleConnector implements Connector {
     });
   }
 
-  public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) throws DatastreamValidationException {
-    LOG.info(String.format("initializeDatastream called for %s", stream));
+  public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    LOG.info("initializeDatastream called for {}", stream);
     // due to the fact there is no partitioning in Oracle
     stream.getSource().setPartitions(1);
 
@@ -210,7 +211,8 @@ public class OracleConnector implements Connector {
     try {
       schemaId = SchemaUtil.getSchemaId(stream);
     } catch (NullPointerException e) {
-      throw new DatastreamValidationException("No " + SchemaUtil.SCHEMA_ID_KEY + " in metadata of stream: " + stream.getName());
+      throw new DatastreamValidationException(
+          "No " + SchemaUtil.SCHEMA_ID_KEY + " in metadata of stream: " + stream.getName());
     }
 
     try {
