@@ -17,8 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.SlidingTimeWindowReservoir;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.SchemaRegistryClient;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
@@ -28,8 +27,9 @@ import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumer;
 import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumerConfig;
 import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleChangeEvent;
-
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.SlidingTimeWindowReservoir;
 
 import static java.lang.String.format;
 
@@ -292,7 +292,7 @@ public class OracleTaskHandler implements Runnable {
         // This should not happen
         // TODO (sdkhan) store an {@code _oldScn} incase checkpointing fails
         if (checkpointMap == null || checkpointMap.get(PARTITION_NUM).equals("")) {
-          throw new Exception(format("No checkpoint found for OracleTaskHandler: %s", _handlerName));
+          throw new DatastreamRuntimeException(format("No checkpoint found for OracleTaskHandler: %s", _handlerName));
         }
 
         // update the _lastScn to the checkpoint Value
