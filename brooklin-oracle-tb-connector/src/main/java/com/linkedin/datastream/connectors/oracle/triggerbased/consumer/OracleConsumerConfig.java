@@ -3,6 +3,7 @@ package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
 
 
 /**
@@ -17,7 +18,7 @@ public class OracleConsumerConfig {
 
   private static final String DATA_SOURCE_FACTORY_CLASS = "dataSourceFactoryClass";
   private static final String DEFAULT_DATA_SOURCE_FACTORY_CLASS
-      = "com.linkedin.datastream.connectors.oracle.triggerbased.consumer.DynamicDataSourceFactoryImpl";
+      = DynamicDataSourceFactoryImpl.class.getName();
 
   private static final String QUERY_HINT = "queryHint";
   private static final String DEFAULT_EVENT_QUERY_HINTS = "/*+ first_rows LEADING(tx) +*/";

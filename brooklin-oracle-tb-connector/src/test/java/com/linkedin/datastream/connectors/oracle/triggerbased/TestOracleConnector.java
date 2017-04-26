@@ -12,7 +12,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.SchemaRegistryClient;
-import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.DynamicDataSourceFactoryImpl;
+import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -29,6 +29,7 @@ public class TestOracleConnector {
 
   @Test
   public void testOracleConnectorConfig() throws DatastreamException {
+
     String className = DynamicDataSourceFactoryImpl.class.getName();
 
     Properties prop = new Properties();

@@ -1,5 +1,7 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
+import com.linkedin.datastream.common.OracleDataSourceFactory;
+import com.linkedin.datastream.common.ReflectionUtils;
 import java.util.Properties;
 
 import org.testng.Assert;
@@ -27,6 +29,27 @@ public class TestOracleConsumer {
 
     _source = new OracleSource(connStr);
     _consumer = new OracleConsumer(config, _source, MockSchema.GENERIC_SCHEMA);
+  }
+
+  @Test
+  public void testConfig() {
+    Properties prop = new Properties();
+    prop.put("dbUri", "random");
+    OracleConsumerConfig config = new OracleConsumerConfig(prop);
+
+    OracleDataSourceFactory factory = ReflectionUtils.createInstance(config.getDataSourceFactoryClass());
+    Assert.assertNotNull(factory);
+  }
+
+  @Test
+  public void testInvalidDataSourceClass() {
+    Properties prop = new Properties();
+    prop.put("dbUri", "random");
+    prop.put("dataSourceFactoryClass", "class.does.not.exists");
+    OracleConsumerConfig config = new OracleConsumerConfig(prop);
+
+    OracleDataSourceFactory factory = ReflectionUtils.createInstance(config.getDataSourceFactoryClass());
+    Assert.assertNull(factory);
   }
 
   @Test
