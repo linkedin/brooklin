@@ -246,7 +246,7 @@ public class OracleConnector implements Connector {
     // class name given in the configs
     String className = properties.getProperty(SCHEMA_REGISTRY_FACTORY_KEY);
     if (StringUtils.isBlank(className)) {
-      String errorMessage = "Factory className is empty for SchemaRegistryClientFactory";
+      String errorMessage = "Missing property " + SCHEMA_REGISTRY_FACTORY_KEY;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
