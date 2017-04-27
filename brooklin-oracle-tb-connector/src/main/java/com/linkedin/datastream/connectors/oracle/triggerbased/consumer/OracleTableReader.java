@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.Date;
 import java.sql.SQLXML;
 import java.sql.Struct;
 import java.text.ParseException;
@@ -194,6 +195,10 @@ public class OracleTableReader {
    * In order to build a Struct, we need to build a GenericData.Record based on the schema of that
    * specific field. For Arrays, we need to build a GenericData.Array.
    *
+   * In order to avoid a dependency on {@code oracle.sql.TIMESTAMP} and {@code oracle.sql.DATE}
+   * we grab the original db field type from the Avro schema to parse these objects. This
+   * however does mean that we now have a hard dependency on our specific Avro Schema's.
+   *
    * @param sqlObject - the sql Object returned from the Result or a sub element.
    * @param colName - the col name mapping to a field in the avro Schema
    * @param avroSchema - the Avro schema for that specific source or field
@@ -237,6 +242,14 @@ public class OracleTableReader {
 
     if (sqlObject instanceof byte[]) {
       return ByteBuffer.wrap((byte[]) sqlObject);
+    }
+
+    if (sqlObject instanceof Date) {
+      return ((Date) sqlObject).getTime();
+    }
+
+    if (sqlObject instanceof Timestamp) {
+      return ((Timestamp) sqlObject).getTime();
     }
 
     if (sqlObject instanceof Blob) {
@@ -293,7 +306,6 @@ public class OracleTableReader {
     }
 
 
-    // TODO (sdkhan) find a way to test this
     if (sqlObject instanceof java.sql.Array) {
       Array sqlArray = (Array) sqlObject;
       Object[] sqlObjectArray = (Object[]) sqlArray.getArray();
@@ -310,7 +322,7 @@ public class OracleTableReader {
       return avroArray;
     }
 
-    // handling timestamps and dates
+    // handling oracle.sql.TIMESTAMPS and oracle.sql.DATE
     Field field = avroSchema.getField(colName);
     String fieldMetaString = field.getProp(META_KEY);
     FieldMetadata fieldMetadata = FieldMetadata.fromString(fieldMetaString);

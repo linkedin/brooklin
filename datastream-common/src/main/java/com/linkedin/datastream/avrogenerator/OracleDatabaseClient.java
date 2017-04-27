@@ -2,13 +2,13 @@ package com.linkedin.datastream.avrogenerator;
 
 import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.sql.PreparedStatement;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.ResultSet;
-import java.util.Set;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
@@ -38,7 +38,8 @@ public class OracleDatabaseClient extends DatabaseSource {
   private static final int SCALE_INDEX = 4;
   private static final int COL_NAME_INDEX = 5;
 
-  private static final Set<String> PRIMITIVE_TYPES_SET = new HashSet<>();
+  private static final List<String> PRIMITIVE_TYPES =
+      Arrays.asList(Types.values()).stream().map(t -> t.name()).collect(Collectors.toList());
 
   private DataSource _dataSource;
   private Connection _conn;
@@ -46,12 +47,6 @@ public class OracleDatabaseClient extends DatabaseSource {
 
   public OracleDatabaseClient(String connectionUri) {
     _connectionUri = connectionUri;
-
-    // For whatever reason, the JDBC driver does not return these
-    // as primitive types
-    PRIMITIVE_TYPES_SET.add(Types.NVARCHAR.toString());
-    PRIMITIVE_TYPES_SET.add(Types.NVARCHAR2.toString());
-    PRIMITIVE_TYPES_SET.add(Types.XMLTYPE.toString());
   }
 
   public void initializeConnection() throws SQLException {
@@ -153,30 +148,11 @@ public class OracleDatabaseClient extends DatabaseSource {
 
   /**
    * Determine if the fieldTypeName passed in the argument is one of the built in
-   * Oracle Types. This class maintains a {@code PRIMITIVE_TYPES_SET} which stores the
+   * Oracle Types. This class maintains a {@code PRIMITIVE_TYPES} which stores the
    * names of all the pre built Types.
    */
   public boolean isPrimitive(String fieldTypeName) throws SQLException {
-    if (PRIMITIVE_TYPES_SET.contains(fieldTypeName)) {
-      return true;
-    }
-
-    if (PRIMITIVE_TYPES_SET.size() > 3) {
-      return false;
-    }
-
-    // populate the PRIMITIVE_TYPES_SET
-    ResultSet rs = null;
-    try {
-      // This returns a ResultSet with all the built in types like NUMBER, VARCHAR2, CLOB, etc.
-      rs = _conn.getMetaData().getTypeInfo();
-      while (rs.next()) {
-        PRIMITIVE_TYPES_SET.add(rs.getString("TYPE_NAME"));
-      }
-      return PRIMITIVE_TYPES_SET.contains(fieldTypeName);
-    } finally {
-      releaseResources(rs, null);
-    }
+    return PRIMITIVE_TYPES.contains(fieldTypeName);
   }
 
   /**
