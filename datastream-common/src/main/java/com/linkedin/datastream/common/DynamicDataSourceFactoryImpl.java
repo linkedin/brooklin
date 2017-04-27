@@ -43,6 +43,10 @@ public class DynamicDataSourceFactoryImpl implements OracleDataSourceFactory {
         prop = new Properties();
       }
 
+      // This ensures that when we call {@code ResultSet.getObject()} it returns
+      // java.sql.Timestamp for the TIMESTAMP SQL type (instead of oracle.sql.TIMESTAMP)
+      prop.put("oracle.jdbc.J2EE13Compliant", "true");
+
       if (queryTimeoutSec > 0) {
         // read timeout should be slightly more than query timeout
         int readTimeoutMS = 1000 * queryTimeoutSec + 100;
