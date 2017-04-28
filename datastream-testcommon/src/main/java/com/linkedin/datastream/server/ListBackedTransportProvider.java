@@ -19,7 +19,6 @@ package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,10 +46,7 @@ public class ListBackedTransportProvider implements TransportProvider {
   @Override
   public synchronized void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
     LOG.info(String.format("send called on destination %s with %d events", destination, record.getEvents().size()));
-    List<BrooklinEnvelope> eventList =
-        record.getEvents().stream().map(data -> (BrooklinEnvelope) data).collect(Collectors.toList());
-
-    _allEvents.add(eventList);
+    _allEvents.add(record.getEvents());
     _allRecords.add(record);
   }
 
