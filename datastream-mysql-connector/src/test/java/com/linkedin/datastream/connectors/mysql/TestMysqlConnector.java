@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +18,8 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.BrooklinEnvelope;
-import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.mysql.MysqlConnector.SourceType;
@@ -62,16 +61,15 @@ public class TestMysqlConnector {
 
   @Test(enabled = false)
   public void testMysqlDatastreamSingleTable() throws IOException, DatastreamException {
-    Datastream datastream =
-        createMysqlDatastream("mysqldatastream1", DB1_NAME, TABLE1_NAME, getPathToData());
+    Datastream datastream = createMysqlDatastream("mysqldatastream1", DB1_NAME, TABLE1_NAME, getPathToData());
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
     InMemoryTransportProvider transportProvider = InMemoryTransportProviderAdmin.getTransportProvider();
     boolean pollResult = PollUtils.poll(() -> transportProvider.getTotalEventsReceived(connectionString) == 9,
         Duration.ofMillis(100).toMillis(), Duration.ofMinutes(2).toMillis());
-    Assert.assertTrue(pollResult, "expected 9 total events, got "
-        + transportProvider.getTotalEventsReceived(connectionString));
+    Assert.assertTrue(pollResult,
+        "expected 9 total events, got " + transportProvider.getTotalEventsReceived(connectionString));
     Assert.assertEquals(transportProvider.getRecordsReceived().get(connectionString).size(), 3);
 
     DatastreamProducerRecord record1 = transportProvider.getRecordsReceived().get(connectionString).get(0);
@@ -91,7 +89,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record2
     Assert.assertEquals(record2.getPartition().get().intValue(), 0);
@@ -106,7 +105,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record3
     Assert.assertEquals(record3.getPartition().get().intValue(), 0);
@@ -124,12 +124,13 @@ public class TestMysqlConnector {
   }
 
   private List<BrooklinEnvelope> getEventsFromRecord(DatastreamProducerRecord record) {
-    return record.getEvents().stream().map(x -> ((BrooklinEnvelope) x)).collect(Collectors.toList());
+    return record.getEvents();
   }
 
   @Test
   public void testMysqlDatastreamAllTablesInDb() throws IOException, DatastreamException {
-    Datastream datastream = createMysqlDatastream("mysqldatastream1", DB1_NAME, MysqlSource.ALL_TABLES, getPathToData());
+    Datastream datastream =
+        createMysqlDatastream("mysqldatastream1", DB1_NAME, MysqlSource.ALL_TABLES, getPathToData());
     Assert.assertTrue(datastream.hasDestination());
     LOG.info("Datastream created " + datastream);
     String connectionString = datastream.getDestination().getConnectionString();
@@ -158,7 +159,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record2
     Assert.assertEquals(record2.getPartition().get().intValue(), 0);
@@ -173,7 +175,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record3
     Assert.assertEquals(record3.getPartition().get().intValue(), 0);
@@ -188,7 +191,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.INSERT.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
 
     // Validate the record4
     Assert.assertEquals(record4.getPartition().get().intValue(), 0);
@@ -203,7 +207,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.UPDATE.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE1_NAME));
 
     // Validate the record5
     Assert.assertEquals(record5.getPartition().get().intValue(), 0);
@@ -218,7 +223,8 @@ public class TestMysqlConnector {
     events.stream()
         .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.OPCODE),
             BrooklinEnvelopeMetadataConstants.OpCode.DELETE.toString()));
-    events.stream().forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
+    events.stream()
+        .forEach(x -> Assert.assertEquals(x.getMetadata().get(BrooklinEnvelopeMetadataConstants.TABLE), TABLE2_NAME));
   }
 
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithMysqlConnector(Properties override)

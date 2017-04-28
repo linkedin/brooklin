@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 
@@ -19,7 +18,7 @@ public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
   private final Optional<String> _partitionKey;
   private final String _checkpoint;
-  private List<?> _events;
+  private List<BrooklinEnvelope> _events;
   private final long _eventsSourceTimestamp;
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
@@ -38,31 +37,24 @@ public class DatastreamProducerRecord {
   }
 
   public synchronized void serializeEvents(SerDeSet serDes) {
-    List<Object> serializedEvents = _events.stream()
-        .filter(event -> event instanceof BrooklinEnvelope)
-        .map(event -> serializeEvent((BrooklinEnvelope) event, serDes))
-        .collect(Collectors.toList());
-
-    _events = serializedEvents;
+    _events.stream().forEach(event -> serializeEvent(event, serDes));
   }
 
-  private Object serializeEvent(BrooklinEnvelope event, SerDeSet serDes) {
+  private void serializeEvent(BrooklinEnvelope event, SerDeSet serDes) {
     serDes.getKeySerDe().ifPresent(x -> event.setKey(x.serialize(event.getKey())));
     serDes.getValueSerDe().ifPresent(x -> event.setValue(x.serialize(event.getValue())));
     serDes.getValueSerDe().ifPresent(x -> event.setPreviousValue(x.serialize(event.getPreviousValue())));
 
     if (serDes.getEnvelopeSerDe().isPresent()) {
-      return serDes.getEnvelopeSerDe().get().serialize(event);
+      event.setValue(serDes.getEnvelopeSerDe().get().serialize(event));
     }
-
-    return event;
   }
 
   /**
    * @return all events in the event record. The events returned can be of type BrooklinEnvelope or a serialized
    * byte array. based on whether the envelope serializer is configured for the stream.
    */
-  public synchronized List<?> getEvents() {
+  public synchronized List<BrooklinEnvelope> getEvents() {
     return Collections.unmodifiableList(_events);
   }
 
