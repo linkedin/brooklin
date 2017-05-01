@@ -2,6 +2,7 @@ package com.linkedin.datastream.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -13,8 +14,6 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.Encoder;
-import org.apache.avro.io.JsonDecoder;
-import org.apache.avro.io.JsonEncoder;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
@@ -49,34 +48,17 @@ public class AvroUtils {
    * @throws IOException
    */
   public static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record) throws IOException {
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    BinaryEncoder encoder = new BinaryEncoder(outputStream);
-    return encodeAvroIndexedRecord(schema, record, outputStream, encoder);
-  }
-
-  /**
-   * Convert an Avro record to Json and encode it into byte array
-   * @param schema schema describing the desired layout of the bytes
-   * @param record the instance of the avro record
-   * @return encoded bytes
-   * @throws IOException
-   */
-  public static byte[] encodeAvroIndexedRecordAsJson(Schema schema, IndexedRecord record) throws IOException {
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    JsonEncoder encoder = new JsonEncoder(schema, outputStream);
-    return encodeAvroIndexedRecord(schema, record, outputStream, encoder);
-  }
-
-  private static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record,
-      ByteArrayOutputStream outputStream, Encoder encoder) throws IOException {
     DatumWriter<IndexedRecord> datumWriter;
+
     if (record instanceof GenericRecord) {
       datumWriter = new GenericDatumWriter<>(schema);
     } else {
       datumWriter = new SpecificDatumWriter<>(schema);
     }
-    datumWriter.write(record, encoder);
-    encoder.flush();
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    BinaryEncoder binaryEncoder = new BinaryEncoder(outputStream);
+    datumWriter.write(record, binaryEncoder);
+    binaryEncoder.flush();
     outputStream.close();
     return outputStream.toByteArray();
   }
@@ -153,18 +135,4 @@ public class AvroUtils {
   public static GenericRecord decodeAvroGenericRecord(Schema schema, byte[] bytes) throws IOException {
     return decodeAvroGenericRecord(schema, bytes, (GenericRecord) null);
   }
-
-  /**
-   * Decode and deserialize the Json byte array into an instance of an Avro record
-   * @param schema schema describing the expected information of the bytes.
-   * @param bytes Json string in bytes to decode
-   * @return decoded instance of GenericRecord
-   * @throws IOException
-   */
-  public static <T> T decodeJsonAsAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
-    JsonDecoder jsonDecoder = new JsonDecoder(schema, new String(bytes));
-    GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
-    return reader.read(reuse, jsonDecoder);
-  }
-
 }
