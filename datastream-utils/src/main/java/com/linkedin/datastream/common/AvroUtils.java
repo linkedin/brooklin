@@ -13,6 +13,7 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.Encoder;
+import org.apache.avro.io.JsonDecoder;
 import org.apache.avro.io.JsonEncoder;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
@@ -152,4 +153,18 @@ public class AvroUtils {
   public static GenericRecord decodeAvroGenericRecord(Schema schema, byte[] bytes) throws IOException {
     return decodeAvroGenericRecord(schema, bytes, (GenericRecord) null);
   }
+
+  /**
+   * Decode and deserialize the Json byte array into an instance of an Avro record
+   * @param schema schema describing the expected information of the bytes.
+   * @param bytes Json string in bytes to decode
+   * @return decoded instance of GenericRecord
+   * @throws IOException
+   */
+  public static <T> T decodeJsonAsAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
+    JsonDecoder jsonDecoder = new JsonDecoder(schema, new String(bytes));
+    GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
+    return reader.read(reuse, jsonDecoder);
+  }
+
 }

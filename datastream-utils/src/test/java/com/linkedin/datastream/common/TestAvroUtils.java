@@ -29,4 +29,13 @@ public class TestAvroUtils {
     Assert.assertTrue(json.contains(expectedValue));
   }
 
+  @Test
+  public void testDecodeAvroAsJson() throws Exception {
+    String expectedValue = "{\"first\":\"name123\"}";
+    Schema schema = Schema.parse(SCHEMA_STRING);
+    GenericRecord record = AvroUtils.decodeJsonAsAvroGenericRecord(schema, expectedValue.getBytes(), null);
+    String encodedValue = new String(AvroUtils.encodeAvroIndexedRecordAsJson(schema, record));
+    Assert.assertEquals(expectedValue, encodedValue);
+  }
+
 }
