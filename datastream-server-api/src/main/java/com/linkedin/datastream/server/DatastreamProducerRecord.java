@@ -43,7 +43,10 @@ public class DatastreamProducerRecord {
   private void serializeEvent(BrooklinEnvelope event, SerDeSet serDes) {
     serDes.getKeySerDe().ifPresent(x -> event.setKey(x.serialize(event.getKey())));
     serDes.getValueSerDe().ifPresent(x -> event.setValue(x.serialize(event.getValue())));
-    serDes.getValueSerDe().ifPresent(x -> event.setPreviousValue(x.serialize(event.getPreviousValue())));
+
+    if (event.getPreviousValue().isPresent() && serDes.getValueSerDe().isPresent()) {
+      event.setPreviousValue(serDes.getValueSerDe().get().serialize(event.getPreviousValue()));
+    }
 
     if (serDes.getEnvelopeSerDe().isPresent()) {
       event.setValue(serDes.getEnvelopeSerDe().get().serialize(event));
