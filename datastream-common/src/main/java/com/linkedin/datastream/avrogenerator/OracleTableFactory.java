@@ -56,17 +56,13 @@ public class OracleTableFactory {
 
     if (primaryKey == null) {
       List<String> primaryKeys = _databaseSource.getPrimaryKeyFields(tableName);
-
-      if (primaryKeys.size() == 0) {
-        throw new SchemaGenerationException(
-            String.format("Failed to retrieve primary keys from source: %s. Please call #setPrimaryKey()", tableName));
+      if (primaryKeys.size() > 0) {
+        // build primaryKey string as comma-separated list of the primary key(s)
+        primaryKey = Joiner.on(",")
+            .join(primaryKeys.stream()
+                .map(pk -> CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, pk))
+                .collect(Collectors.toList()));
       }
-
-      // build primaryKey string as comma-separated list of the primary key(s)
-      primaryKey = Joiner.on(",")
-          .join(primaryKeys.stream()
-              .map(pk -> CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, pk))
-              .collect(Collectors.toList()));
     }
 
     return new OracleTable(tableName, schemaName, childColumns, primaryKey);
