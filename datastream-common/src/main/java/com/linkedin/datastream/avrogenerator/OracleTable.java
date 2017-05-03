@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 
 /**
@@ -48,26 +49,19 @@ public class OracleTable {
   private final String _schemaName;
   private final List<OracleColumn> _childColumns;
 
-  public OracleTable(@NotNull String tableName, @NotNull String schemaName, List<OracleColumn> childColumns, @NotNull String primaryKey) {
+  public OracleTable(@NotNull String tableName, @NotNull String schemaName, @NotNull List<OracleColumn> childColumns,
+      @Nullable String primaryKey) {
     _tableName = tableName;
     _childColumns = childColumns;
     _primaryKey = primaryKey;
     _schemaName = schemaName;
   }
 
-  public String getPrimaryKey() {
-    return _primaryKey;
-  }
-
-  public List<OracleColumn> getChildColumns() {
-    return _childColumns;
-  }
-
-  public String getMetadata() {
+  private String getMetadata() {
     StringBuilder meta = new StringBuilder();
 
     meta.append(String.format("%s=%s;", TABLE_NAME_KEY, _tableName));
-    meta.append(String.format("%s=%s;", PRIMARY_KEY, getPrimaryKey()));
+    meta.append(String.format("%s=%s;", PRIMARY_KEY, _primaryKey));
 
     return meta.toString();
   }
@@ -76,7 +70,7 @@ public class OracleTable {
     AvroJson tableAvro = AvroJson.recordType(_tableName, getMetadata());
 
     List<Map<String, Object>> fields = new ArrayList<>();
-    for (OracleColumn childCol : getChildColumns()) {
+    for (OracleColumn childCol : _childColumns) {
       AvroJson childAvro = childCol.toAvro();
       fields.add(childAvro.info());
     }
@@ -90,7 +84,7 @@ public class OracleTable {
 
   @Override
   public String toString() {
-    return String.format("tableName: %s, PrimaryKey: %s", _tableName, getPrimaryKey());
+    return String.format("tableName: %s, PrimaryKey: %s", _tableName, _primaryKey);
   }
 
   private static String buildDoc(String tableName) {

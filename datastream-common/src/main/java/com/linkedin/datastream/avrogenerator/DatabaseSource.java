@@ -81,7 +81,7 @@ public abstract class DatabaseSource {
   abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
 
 
-  static class CollectionMetadata {
+  protected static class CollectionMetadata {
     private String _fieldName;
     private String _schemaName;
     private int _precision;
@@ -112,7 +112,7 @@ public abstract class DatabaseSource {
   }
 
 
-  static class StructMetadata {
+  protected static class StructMetadata {
     private String _fieldTypeName;
     private String _schemaName;
     private String _colName;
@@ -149,7 +149,7 @@ public abstract class DatabaseSource {
     }
   }
 
-  static class TableMetadata {
+  protected static class TableMetadata {
     private String _columnSchemaName;
     private String _columnFieldTypeName;
     private String _colName;
