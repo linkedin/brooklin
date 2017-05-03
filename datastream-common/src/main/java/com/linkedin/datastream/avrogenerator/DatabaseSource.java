@@ -17,14 +17,14 @@ public abstract class DatabaseSource {
   /**
    * Initialize connection to the database
    */
-  void initializeConnection() throws SQLException {
+  protected void initializeConnection() throws SQLException {
     // default implementation is no-op
   }
 
   /**
    * Close connection to the database
    */
-  void closeConnection() {
+  protected void closeConnection() {
     // default implementation is no-op
   }
 
@@ -32,53 +32,53 @@ public abstract class DatabaseSource {
    * Determine if the arguments points to a table or view in the Database
    * @return true is exists, false otherwise
    */
-  abstract boolean isTable(String schemaName, String tableName);
+  protected abstract boolean isTable(String schemaName, String tableName);
 
   /**
    * Determine if the arguments point to a Collection type in the table
    * @return true is collection, false otherwise
    */
-  abstract boolean isCollection(String schemaName, String fieldTypeName) throws SQLException;
+  protected abstract boolean isCollection(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Determine if the arguments point to Struct Type in the table
    * @return true if Struct, false otherwise
    */
-  abstract boolean isStruct(String schemaName, String fieldTypeName) throws SQLException;
+  protected abstract boolean isStruct(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Determine if the fieldTypeName is one of the primitive types of the Database
    * @return true if primitive
    */
-  abstract boolean isPrimitive(String fieldTypeName) throws SQLException;
+  protected abstract boolean isPrimitive(String fieldTypeName) throws SQLException;
 
   /**
    * Retrieve the table Metadata containing information such as all of Column names
    * and their types.
    */
-  abstract List<TableMetadata> getTableMetadata(String schemaName, String tableName) throws SQLException;
+  protected abstract List<TableMetadata> getTableMetadata(String schemaName, String tableName) throws SQLException;
 
   /**
    * Retrieve the metadata of the Struct type. Contains information about the child columns that are
    * associated with this Struct Type
    */
-  abstract List<StructMetadata> getStructMetadata(String schemaName, String fieldTypeName) throws SQLException;
+  protected abstract List<StructMetadata> getStructMetadata(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Retrieve the metadata of the Collection Type. Contains information about the elements of the
    * Array Type
    */
-  abstract CollectionMetadata getCollectionMetadata(String schemaName, String fieldTypeName) throws SQLException;
+  protected abstract CollectionMetadata getCollectionMetadata(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Create and run a query to get all primary keys from the Database table/view
    */
-  abstract List<String> getPrimaryKeyFields(String tableName) throws SQLException, SchemaGenerationException;
+  protected abstract List<String> getPrimaryKeyFields(String tableName) throws SQLException, SchemaGenerationException;
 
   /**
    * Create and execute a query to get all the fields from the Database table/view
    */
-  abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
+  protected abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
 
 
   protected static class CollectionMetadata {
@@ -87,26 +87,26 @@ public abstract class DatabaseSource {
     private int _precision;
     private int _scale;
 
-    public CollectionMetadata(@NotNull String schemaName, @NotNull  String fieldName, int precision, int scale) {
+    protected CollectionMetadata(@NotNull String schemaName, @NotNull  String fieldName, int precision, int scale) {
       _fieldName = fieldName;
       _schemaName = schemaName;
       _precision = precision;
       _scale = scale;
     }
 
-    String elementFieldTypeName() {
+    protected String getElementFieldTypeName() {
       return _fieldName;
     }
 
-    String elementSchemaName() {
+    protected String getElementSchemaName() {
       return _schemaName;
     }
 
-    int elementPrecision() {
+    protected int getElementPrecision() {
       return _precision;
     }
 
-    int elementScale() {
+    protected int getElementScale() {
       return _scale;
     }
   }
@@ -120,7 +120,7 @@ public abstract class DatabaseSource {
     private int _scale;
 
 
-    StructMetadata(String schemaName, @NotNull String fieldTypeName, @NotNull String colName, int precision, int scale) {
+    protected StructMetadata(String schemaName, @NotNull String fieldTypeName, @NotNull String colName, int precision, int scale) {
       _fieldTypeName = fieldTypeName;
       _schemaName = schemaName;
       _colName = colName;
@@ -128,23 +128,23 @@ public abstract class DatabaseSource {
       _scale = scale;
     }
 
-    String schemaName() {
+    protected String getSchemaName() {
       return _schemaName;
     }
 
-    String fieldTypeName() {
+    protected String getFieldTypeName() {
       return _fieldTypeName;
     }
 
-    String colName() {
+    protected String getColName() {
       return _colName;
     }
 
-    int precision() {
+    protected int getPrecision() {
       return _precision;
     }
 
-    int scale() {
+    protected int getScale() {
       return _scale;
     }
   }
@@ -156,7 +156,7 @@ public abstract class DatabaseSource {
     private int _precision;
     private int _scale;
 
-    TableMetadata(@NotNull String colTypeName, @NotNull String colName, int precision, int scale) {
+    protected TableMetadata(@NotNull String colTypeName, @NotNull String colName, int precision, int scale) {
       String[] columnTypeParts = colTypeName.split("\\.");
 
       if (columnTypeParts.length == 1) {
@@ -172,23 +172,23 @@ public abstract class DatabaseSource {
       _colName = colName;
     }
 
-    String columnSchemaName() {
+    protected String getColumnSchemaName() {
       return _columnSchemaName;
     }
 
-    String columnFieldTypeName() {
+    protected String getColumnFieldTypeName() {
       return _columnFieldTypeName;
     }
 
-    String colName() {
+    protected String getColName() {
       return _colName;
     }
 
-    int precision() {
+    protected int getPrecision() {
       return _precision;
     }
 
-    int scale() {
+    protected int getScale() {
       return _scale;
     }
   }
