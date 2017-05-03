@@ -706,7 +706,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
     try {
-        _adapter.updateAllAssignments(newAssignmentsByInstance);
+      _adapter.updateAllAssignments(newAssignmentsByInstance);
       _adapter.updateAllAssignments(newAssignmentsByInstance);
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime Exception while updating Zookeeper.", e);
@@ -831,8 +831,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _transportProviderAdmins.get(datastream.getTransportProviderName())
             .initializeDestinationForDatastream(datastream);
 
-        datastream.getMetadata()
-            .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+        // Populate the task prefix if it is not already present.
+        if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
+          datastream.getMetadata()
+              .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+        }
 
         _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
             datastream.getName(), datastream.getDestination());
