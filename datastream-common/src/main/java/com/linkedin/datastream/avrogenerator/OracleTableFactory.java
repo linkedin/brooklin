@@ -45,11 +45,11 @@ public class OracleTableFactory {
     List<OracleColumn> childColumns = new ArrayList<>();
 
     for (OracleDatabaseClient.TableMetadata metadata : metadataList) {
-      String colName = metadata.colName();
+      String colName = metadata.getColName();
 
       FieldType childFieldType =
-          buildFieldType(metadata.columnSchemaName(), metadata.columnFieldTypeName(), metadata.precision(),
-              metadata.scale());
+          buildFieldType(metadata.getColumnSchemaName(), metadata.getColumnFieldTypeName(), metadata.getPrecision(),
+              metadata.getScale());
 
       childColumns.add(new OracleColumn(colName, childFieldType, childColumns.size()));
     }
@@ -122,10 +122,10 @@ public class OracleTableFactory {
   private FieldType buildOracleCollection(String schemaName, String fieldTypeName) throws SQLException {
     OracleDatabaseClient.CollectionMetadata metadata = _databaseSource.getCollectionMetadata(schemaName, fieldTypeName);
 
-    FieldType elementFieldType = buildFieldType(metadata.elementSchemaName(),
-        metadata.elementFieldTypeName(),
-        metadata.elementPrecision(),
-        metadata.elementScale());
+    FieldType elementFieldType = buildFieldType(metadata.getElementSchemaName(),
+        metadata.getElementFieldTypeName(),
+        metadata.getElementPrecision(),
+        metadata.getElementScale());
 
     return new OracleCollectionType(schemaName, fieldTypeName, elementFieldType);
   }
@@ -147,12 +147,12 @@ public class OracleTableFactory {
     List<OracleColumn> childColumns = new ArrayList<>();
 
     for (OracleDatabaseClient.StructMetadata metadata : metadataList) {
-      FieldType childFieldType = buildFieldType(metadata.schemaName(),
-          metadata.fieldTypeName(),
-          metadata.precision(),
-          metadata.scale());
+      FieldType childFieldType = buildFieldType(metadata.getSchemaName(),
+          metadata.getFieldTypeName(),
+          metadata.getPrecision(),
+          metadata.getScale());
 
-      childColumns.add(new OracleColumn(metadata.colName(), childFieldType, childColumns.size()));
+      childColumns.add(new OracleColumn(metadata.getColName(), childFieldType, childColumns.size()));
     }
 
     return new OracleStructType(schemaName, fieldTypeName, childColumns);
