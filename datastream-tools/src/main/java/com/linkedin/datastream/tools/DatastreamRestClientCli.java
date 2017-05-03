@@ -112,7 +112,7 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_ENVELOPE_SERDE_NAME, OptionConstants.OPT_LONG_ENVELOPE_SERDE_NAME,
             OptionConstants.OPT_ARG_ENVELOPE_SERDE_NAME, false, OptionConstants.OPT_DESC_ENVELOPE_SERDE_NAME));
-    
+
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_UNFORMATTED, OptionConstants.OPT_LONG_UNFORMATTED, null,
             false, OptionConstants.OPT_DESC_UNFORMATTED));
@@ -212,11 +212,11 @@ public class DatastreamRestClientCli {
           datastreamSource.setConnectionString(sourceUri);
           datastreamSource.setPartitions(partitions);
           datastream.setTransportProviderName(transportProviderName);
+          DatastreamDestination destination = new DatastreamDestination();
+          datastream.setDestination(destination);
           if (StringUtils.isNotEmpty(destinationUri)) {
-            DatastreamDestination destination = new DatastreamDestination();
             destination.setConnectionString(destinationUri);
             destination.setPartitions(numDestinationPartitions);
-            datastream.setDestination(destination);
           }
 
           keySerdeName.ifPresent(x -> datastream.getDestination().setKeySerDe(x));
