@@ -81,38 +81,38 @@ public abstract class DatabaseSource {
   protected abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
 
 
-  protected static class CollectionMetadata {
+  public static class CollectionMetadata {
     private String _fieldName;
     private String _schemaName;
     private int _precision;
     private int _scale;
 
-    protected CollectionMetadata(@NotNull String schemaName, @NotNull  String fieldName, int precision, int scale) {
+    public CollectionMetadata(@NotNull String schemaName, @NotNull  String fieldName, int precision, int scale) {
       _fieldName = fieldName;
       _schemaName = schemaName;
       _precision = precision;
       _scale = scale;
     }
 
-    protected String getElementFieldTypeName() {
+    public String getElementFieldTypeName() {
       return _fieldName;
     }
 
-    protected String getElementSchemaName() {
+    public String getElementSchemaName() {
       return _schemaName;
     }
 
-    protected int getElementPrecision() {
+    public int getElementPrecision() {
       return _precision;
     }
 
-    protected int getElementScale() {
+    public int getElementScale() {
       return _scale;
     }
   }
 
 
-  protected static class StructMetadata {
+  public static class StructMetadata {
     private String _fieldTypeName;
     private String _schemaName;
     private String _colName;
@@ -120,7 +120,7 @@ public abstract class DatabaseSource {
     private int _scale;
 
 
-    protected StructMetadata(String schemaName, @NotNull String fieldTypeName, @NotNull String colName, int precision, int scale) {
+    public StructMetadata(String schemaName, @NotNull String fieldTypeName, @NotNull String colName, int precision, int scale) {
       _fieldTypeName = fieldTypeName;
       _schemaName = schemaName;
       _colName = colName;
@@ -128,35 +128,35 @@ public abstract class DatabaseSource {
       _scale = scale;
     }
 
-    protected String getSchemaName() {
+    public String getSchemaName() {
       return _schemaName;
     }
 
-    protected String getFieldTypeName() {
+    public String getFieldTypeName() {
       return _fieldTypeName;
     }
 
-    protected String getColName() {
+    public String getColName() {
       return _colName;
     }
 
-    protected int getPrecision() {
+    public int getPrecision() {
       return _precision;
     }
 
-    protected int getScale() {
+    public int getScale() {
       return _scale;
     }
   }
 
-  protected static class TableMetadata {
+  public static class TableMetadata {
     private String _columnSchemaName;
     private String _columnFieldTypeName;
     private String _colName;
     private int _precision;
     private int _scale;
 
-    protected TableMetadata(@NotNull String colTypeName, @NotNull String colName, int precision, int scale) {
+    public TableMetadata(@NotNull String colTypeName, @NotNull String colName, int precision, int scale) {
       String[] columnTypeParts = colTypeName.split("\\.");
 
       if (columnTypeParts.length == 1) {
@@ -172,23 +172,23 @@ public abstract class DatabaseSource {
       _colName = colName;
     }
 
-    protected String getColumnSchemaName() {
+    public String getColumnSchemaName() {
       return _columnSchemaName;
     }
 
-    protected String getColumnFieldTypeName() {
+    public String getColumnFieldTypeName() {
       return _columnFieldTypeName;
     }
 
-    protected String getColName() {
+    public String getColName() {
       return _colName;
     }
 
-    protected int getPrecision() {
+    public int getPrecision() {
       return _precision;
     }
 
-    protected int getScale() {
+    public int getScale() {
       return _scale;
     }
   }

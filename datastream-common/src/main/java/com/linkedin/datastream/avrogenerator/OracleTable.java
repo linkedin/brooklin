@@ -57,6 +57,10 @@ public class OracleTable {
     _schemaName = schemaName;
   }
 
+  public String getPrimaryKey() {
+    return _primaryKey;
+  }
+
   private String getMetadata() {
     StringBuilder meta = new StringBuilder();
 
