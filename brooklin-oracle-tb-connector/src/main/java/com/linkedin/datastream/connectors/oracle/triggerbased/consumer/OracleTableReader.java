@@ -256,7 +256,7 @@ public class OracleTableReader {
       try {
         return blobToBytes((Blob) sqlObject);
       } catch (SQLException e) {
-        throw new DatastreamRuntimeException(String.format("Failed to read Blob value for colName: {}", colName), e);
+        throw new DatastreamRuntimeException(String.format("Failed to read Blob value for colName: %s", colName), e);
       }
     }
 
@@ -264,7 +264,7 @@ public class OracleTableReader {
       try {
         return clobToString((Clob) sqlObject);
       } catch (IOException | SQLException e) {
-        throw new DatastreamRuntimeException(String.format("Failed to read Clob value for colName: {}", colName), e);
+        throw new DatastreamRuntimeException(String.format("Failed to read Clob value for colName: %s", colName), e);
       }
     }
 
@@ -322,13 +322,13 @@ public class OracleTableReader {
       return avroArray;
     }
 
-    // handling oracle.sql.TIMESTAMPS and oracle.sql.DATE
+    // handling oracle.sql.DATE
     Field field = avroSchema.getField(colName);
     String fieldMetaString = field.getProp(META_KEY);
     FieldMetadata fieldMetadata = FieldMetadata.fromString(fieldMetaString);
     Types originalColumnType = fieldMetadata.getDbFieldType();
 
-    if (originalColumnType.equals(Types.DATE) || originalColumnType.equals(Types.TIMESTAMP)) {
+    if (originalColumnType.equals(Types.DATE)) {
       try {
         return DATE_FORMAT.parse(sqlObject.toString()).getTime();
       } catch (ParseException e) {
@@ -337,7 +337,7 @@ public class OracleTableReader {
             sqlObject.toString(),
             sqlObject.getClass().getName());
 
-        return null;
+        throw new DatastreamRuntimeException(e);
       }
     }
 
@@ -463,7 +463,7 @@ public class OracleTableReader {
    * This function converts from UPPER_CAMEL to LOWER_CAMEL while also maintaining a cache
    *
    * @param upperColName - the UPPER_CAMEL column Name from the ResultSet
-   * @return
+   * @return the LOWER_CAMEL string
    */
   private static String camelCase(String upperColName) {
     if (COLUMN_NAME_CACHE.containsKey(upperColName)) {
