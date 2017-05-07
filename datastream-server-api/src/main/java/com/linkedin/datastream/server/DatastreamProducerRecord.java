@@ -37,7 +37,7 @@ public class DatastreamProducerRecord {
   }
 
   public synchronized void serializeEvents(SerDeSet serDes) {
-    _events.stream().forEach(event -> serializeEvent(event, serDes));
+    _events.forEach(event -> serializeEvent(event, serDes));
   }
 
   private void serializeEvent(BrooklinEnvelope event, SerDeSet serDes) {
@@ -77,11 +77,7 @@ public class DatastreamProducerRecord {
 
   @Override
   public String toString() {
-    if (_partition.isPresent()) {
-      return String.format("%s @ partition=%s", _events, _partition.get());
-    } else {
-      return String.format("%s @ partitionKey=%s", _events, _partitionKey.get());
-    }
+    return String.format("%s @ partitionKey=%s partition=%d", _events, _partitionKey.orElse(null), _partition.orElse(-1));
   }
 
   @Override

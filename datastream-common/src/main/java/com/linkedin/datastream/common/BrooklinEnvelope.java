@@ -9,7 +9,7 @@ import org.apache.commons.lang.Validate;
 
 public class BrooklinEnvelope {
 
-  private Optional<Object> _previousValue;
+  private Object _previousValue;
 
   private Object _key;
 
@@ -27,16 +27,25 @@ public class BrooklinEnvelope {
     Validate.notNull(metadata, "metadata cannot be null");
     _key = key;
     _value = value;
-    _previousValue = Optional.ofNullable(previousValue);
+    _previousValue = previousValue;
     _metadata = metadata;
   }
 
+  /**
+   * Note: be careful about the return type of this API. It's Optional<Object>
+   * instead of Object, which is inconsistent with the rest of the APIs in the
+   * file.
+   *
+   * The return type here (Optional<Object>) is not a good idea. It's inconsistent
+   * with other APIs in the class. Plus, "Optional" itself is an "Object". So it's extremely
+   * error-prone.
+   */
   public Optional<Object> getPreviousValue() {
-    return _previousValue;
+    return Optional.ofNullable(_previousValue);
   }
 
   public void setPreviousValue(Object previousValue) {
-    _previousValue = Optional.ofNullable(previousValue);
+    _previousValue = previousValue;
   }
 
   public void setKey(Object key) {
