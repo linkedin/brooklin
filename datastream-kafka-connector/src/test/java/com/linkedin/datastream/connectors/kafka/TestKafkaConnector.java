@@ -39,6 +39,18 @@ public class TestKafkaConnector {
     _kafkaCluster.shutdown();
   }
 
+  private Properties getDefaultConfig(Properties override) {
+    Properties config = new Properties();
+    config.put(KafkaConnector.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
+    config.put(KafkaConnector.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
+    config.put(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
+    if (override != null) {
+      config.putAll(override);
+    }
+    return config;
+  }
+
   private Datastream createDatastream(String name, String topicName) {
     DatastreamSource source = new DatastreamSource();
     source.setConnectionString("kafka://" + _broker + "/" + topicName);
@@ -61,9 +73,24 @@ public class TestKafkaConnector {
     TestKafkaConnectorTask.produceEvents(_broker, topicName, 100, 100);
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     KafkaConnector connector =
-        new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(), Collections.emptyList());
+        new KafkaConnector("test", getDefaultConfig(null));
     ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, String.valueOf(ts));
     connector.initializeDatastream(ds, Collections.emptyList());
+  }
+
+  @Test
+  public void testPopulatingDefaultSerde() throws Exception {
+    String topicName = "testPopulatingDefaultSerde";
+    TestKafkaConnectorTask.produceEvents(_broker, topicName, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_broker, topicName, 100, 100);
+    Datastream ds = createDatastream("testPopulatingDefaultSerde", topicName);
+    KafkaConnector connector =
+        new KafkaConnector("test", getDefaultConfig(null));
+    connector.initializeDatastream(ds, Collections.emptyList());
+    Assert.assertTrue(ds.getDestination().hasKeySerDe());
+    Assert.assertEquals(ds.getDestination().getKeySerDe(), "keySerde");
+    Assert.assertTrue(ds.getDestination().hasPayloadSerDe());
+    Assert.assertEquals(ds.getDestination().getPayloadSerDe(), "valueSerde");
   }
 
   @Test
@@ -73,7 +100,7 @@ public class TestKafkaConnector {
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     KafkaConnector connector =
-        new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(), Collections.emptyList());
+        new KafkaConnector("test", getDefaultConfig(null));
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertEquals(ds.getSource().getPartitions().intValue(), 1);
   }
@@ -83,8 +110,9 @@ public class TestKafkaConnector {
     String topicName = "testConnectorValidatesWhitelistedBroker";
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
-    KafkaConnector connector = new KafkaConnector("test", 10000, new KafkaConsumerFactoryImpl(), new Properties(),
-        Collections.singletonList(KafkaBrokerAddress.valueOf("randomBroker:2546")));
+    Properties override = new Properties();
+    override.put(KafkaConnector.CONFIG_WHITE_LISTED_CLUSTERS, "randomBroker:2546");
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(override));
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 }

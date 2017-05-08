@@ -20,6 +20,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -127,6 +128,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
   public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
@@ -314,7 +316,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onAssignmentChange completed successfully");
   }
 
-  private void handleAssignmentChange() {
+  private void handleAssignmentChange() throws TimeoutException {
     long startAt = System.currentTimeMillis();
 
     // when there is any change to the assignment for this instance. Need to find out what is the connector
@@ -372,16 +374,27 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(Objects::nonNull)
         .collect(Collectors.toList()));
 
-    // Wait till all the futures are complete.
-    for (Future<Void> assignmentChangeFuture : assignmentChangeFutures) {
-      try {
-        assignmentChangeFuture.get();
-      } catch (InterruptedException e) {
-        _log.warn("onAssignmentChange call got interrupted", e);
-        break;
-      } catch (ExecutionException e) {
-        _log.warn("onAssignmentChange call threw exception", e);
+    // Wait till all the futures are complete or timeout.
+    Instant start = Instant.now();
+    try {
+      for (Future<Void> assignmentChangeFuture : assignmentChangeFutures) {
+        if (Duration.between(start, Instant.now()).compareTo(ASSIGNMENT_TIMEOUT) > 0) {
+          throw new TimeoutException("Timeout doing assignment");
+        }
+        try {
+          assignmentChangeFuture.get(ASSIGNMENT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+          _log.warn("onAssignmentChange call threw exception", e);
+        }
       }
+    } catch (TimeoutException e) {
+      // if it's timeout then we will retry
+      _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+      throw e;
+    } catch (InterruptedException e) {
+      _log.warn("onAssignmentChange call got interrupted", e);
+    } finally {
+      assignmentChangeFutures.forEach(future -> future.cancel(true));
     }
 
     // now save the current assignment

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +18,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.TopicPartition;
@@ -25,8 +27,11 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -37,20 +42,42 @@ public class KafkaConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnector.class);
 
   public static final String CONNECTOR_NAME = "kafka";
+  public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
+  public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
+  public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
+  private final String _defaultKeySerde;
+  private final String _defaultValueSerde;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
+  private final Properties _connectorProprs;
   private final Properties _consumerProps;
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
-  public KafkaConnector(String name, long commitIntervalMillis, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
-      Properties kafkaConsumerProps, List<KafkaBrokerAddress> whitelistedBrokers) {
-    _consumerFactory = kafkaConsumerFactory;
-    _consumerProps = kafkaConsumerProps;
+  public KafkaConnector(String name, Properties config) {
     _name = name;
-    _commitIntervalMillis = commitIntervalMillis;
-    _whiteListedBrokers = new HashSet<>(whitelistedBrokers);
+    _connectorProprs = config;
+    VerifiableProperties verifiableProperties = new VerifiableProperties(config);
+    _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
+    _defaultValueSerde = verifiableProperties.getString(CONFIG_DEFAULT_VALUE_SERDE, "");
+    _commitIntervalMillis = verifiableProperties.getLongInRange(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS,
+        Duration.ofMinutes(1).toMillis(), 0, Long.MAX_VALUE);
+
+    String factory = verifiableProperties.getString(KafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS,
+        KafkaConsumerFactoryImpl.class.getName());
+    _consumerFactory = ReflectionUtils.createInstance(factory);
+    if (_consumerFactory == null) {
+      throw new DatastreamRuntimeException("Unable to instantiate factory class: " + factory);
+    }
+
+    List<KafkaBrokerAddress> brokers =
+        Optional.ofNullable(verifiableProperties.getString(KafkaConnector.CONFIG_WHITE_LISTED_CLUSTERS, null))
+            .map(KafkaConnectionString::parseBrokers)
+            .orElse(Collections.emptyList());
+    _whiteListedBrokers = new HashSet<>(brokers);
+
+    _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
   }
 
   private final String _name;
@@ -135,6 +162,16 @@ public class KafkaConnector implements Connector {
     try {
       KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
       source.setConnectionString(parsed.toString()); //ordered now
+
+      if (stream.hasDestination()) {
+        // set default key and value serde
+        if (!stream.getDestination().hasKeySerDe() && !StringUtils.isBlank(_defaultKeySerde)) {
+          stream.getDestination().setKeySerDe(_defaultKeySerde);
+        }
+        if (!stream.getDestination().hasPayloadSerDe() && !StringUtils.isBlank(_defaultValueSerde)) {
+          stream.getDestination().setPayloadSerDe(_defaultValueSerde);
+        }
+      }
 
       if (!isWhiteListedCluster(parsed)) {
         String msg =
