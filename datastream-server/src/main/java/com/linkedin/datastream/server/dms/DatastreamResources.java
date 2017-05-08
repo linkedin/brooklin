@@ -26,6 +26,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
@@ -93,11 +94,24 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       LOG.info("Delete datastream called for datastream " + datastreamName);
 
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), DELETE_CALL, 1);
+
+      // Authorization check on behalf of the connector
+      Datastream stream = _store.getDatastream(datastreamName);
+      Validate.notNull(stream, "cannot delete non-existent datastream: " + datastreamName);
+
+      if (!_coordinator.getAclManager().hasSourceAccess(stream)) {
+        throw new AuthorizationException("Insufficient permission to delete datastream: " + stream);
+      }
+
       Instant startTime = Instant.now();
       _store.deleteDatastream(datastreamName);
       _deleteCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
 
       return new UpdateResponse(HttpStatus.S_200_OK);
+    } catch (IllegalArgumentException | AuthorizationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to delete datastream: ", e);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
@@ -171,6 +185,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       LOG.debug("Sanity check is finished, initializing datastream");
 
+      if (!_coordinator.getAclManager().hasSourceAccess(datastream)) {
+        throw new AuthorizationException("Insufficient permission to create datastream: " + datastream);
+      }
+
       _coordinator.initializeDatastream(datastream);
 
       LOG.debug("Persisting initialized datastream to zookeeper: %s",  datastream);
@@ -186,6 +204,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Invalid input params for create request", e);
+    } catch (AuthorizationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_401_UNAUTHORIZED,
+          "Unauthorized to create Datastream: ", e);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,

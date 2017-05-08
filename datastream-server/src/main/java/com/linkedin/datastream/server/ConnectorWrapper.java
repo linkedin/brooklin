@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -32,7 +33,7 @@ public class ConnectorWrapper {
   private AtomicLong _numDatastreamTasks;
 
   public ConnectorWrapper(String connectorType, Connector connector) {
-    _log = LoggerFactory.getLogger(String.format("%s:%s", ConnectorWrapper.class.getName(), connectorType));
+    _log = LoggerFactory.getLogger(String.format("%s:%s", ConnectorWrapper.class.getSimpleName(), connectorType));
     _connectorType = connectorType;
     _connector = connector;
     _numDatastreams = new AtomicLong(0);
@@ -123,6 +124,11 @@ public class ConnectorWrapper {
       if (!stream.hasDestination()) {
         stream.setDestination(new DatastreamDestination());
       }
+
+      if (!stream.hasMetadata()) {
+        stream.setMetadata(new StringMap());
+      }
+
       _connector.initializeDatastream(stream, allDatastreams);
     } catch (Exception ex) {
       logErrorAndException("initializeDatastream", ex);

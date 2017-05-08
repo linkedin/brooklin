@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.dms;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -15,19 +16,37 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.kafka.KafkaDestination;
+import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.SourceBasedDeduper;
+import com.linkedin.datastream.server.api.security.AclAware;
+import com.linkedin.datastream.server.api.security.Authorizer;
+import com.linkedin.datastream.server.api.transport.TransportProvider;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
+import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.RestLiServiceException;
+
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 
 /**
@@ -256,5 +275,89 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         datastreams.stream().map(Datastream::getName).skip(skip).limit(limit).collect(Collectors.toSet()),
         queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
+  }
+
+  @Test
+  public void testAuthorizerInitializeDatastream() throws Exception {
+    String testConectorName = "testConnector";
+    String streamNameDeny = "AuthorizerInitializeDatastreamDeny";
+    String streamNameAccept = "AuthorizerInitializeDatastreamAccept";
+
+    Authorizer authorizer = mock(Authorizer.class);
+    Datastream denyStream = DatastreamTestUtils.createDatastreams(testConectorName, streamNameDeny)[0];
+    Datastream acceptStream = DatastreamTestUtils.createDatastreams(testConectorName, streamNameAccept)[0];
+    KafkaDestination destination = new KafkaDestination(_datastreamKafkaCluster.getZkConnection(), "Foo", false);
+    acceptStream.getDestination().setConnectionString(destination.getDestinationURI());
+    when(authorizer.hasSourceAccess(denyStream)).then((o) -> false);
+    when(authorizer.hasSourceAccess(anyObject())).then((o) -> {
+      Datastream stream = (Datastream) o.getArguments()[0];
+      return stream.getName().equals(acceptStream.getName());
+    });
+
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+    coordinator.initializeAuthorizer(authorizer);
+
+    Connector connector = mock(Connector.class, withSettings().extraInterfaces(AclAware.class));
+    when(((AclAware) connector).getAclKey(anyObject())).thenReturn("FooBar");
+    coordinator.addConnector(testConectorName, connector, new BroadcastStrategy(), false,
+        new SourceBasedDeduper(), true);
+
+    // Create a datastream
+    String dmsUri = String.format("http://localhost:%d",
+        _datastreamKafkaCluster.getPrimaryDatastreamServer().getHttpPort());
+    DatastreamRestClient restClient = new DatastreamRestClient(dmsUri);
+    restClient.createDatastream(acceptStream);
+
+    // Wait for destination population which sets up consumer ACL
+    restClient.waitTillDatastreamIsInitialized(acceptStream.getName(), 60000);
+
+    // DenyStream should be failed to create
+    try {
+      restClient.createDatastream(denyStream);
+      Assert.fail();
+    } catch (Exception ae) {
+    }
+  }
+
+  @Test
+  public void testAuthorizerSetConsumerAcl() throws Exception {
+    String testConectorName = "testConnector";
+    String streamName = "testAuthorizerSetConsumerAclDatastream";
+
+    Datastream stream = DatastreamTestUtils.createDatastreams(testConectorName, streamName)[0];
+
+    // Authorize source consumption
+    Authorizer authorizer = mock(Authorizer.class);
+    when(authorizer.hasSourceAccess(anyObject())).then((o) -> true);
+    when(authorizer.getSyncInterval()).then((o) -> Duration.ofMillis(5000));
+
+    // Create mock transport provider implementing AclAware
+    Connector connector = mock(Connector.class, withSettings().extraInterfaces(AclAware.class));
+    when(((AclAware) connector).getAclKey(anyObject())).thenReturn("FooBar");
+
+    // Use authorizer for the connector
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+    coordinator.initializeAuthorizer(authorizer);
+
+    coordinator.addConnector(testConectorName, connector, new BroadcastStrategy(), false,
+        new SourceBasedDeduper(), true);
+
+    // Create mock transport provider implementing AclAware
+    TransportProviderAdmin tpAdminAclAware = mock(TransportProviderAdmin.class, withSettings().extraInterfaces(AclAware.class));
+    when(((AclAware) tpAdminAclAware).getAclKey(anyObject())).thenReturn("BarFoo");
+    when(tpAdminAclAware.assignTransportProvider(anyObject())).thenReturn(mock(TransportProvider.class));
+    coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME, tpAdminAclAware);
+
+    // Create a datastream
+    String dmsUri = String.format("http://localhost:%d",
+        _datastreamKafkaCluster.getPrimaryDatastreamServer().getHttpPort());
+    DatastreamRestClient restClient = new DatastreamRestClient(dmsUri);
+    restClient.createDatastream(stream);
+
+    // Wait for destination population which sets up consumer ACL
+    restClient.waitTillDatastreamIsInitialized(stream.getName(), 60000);
+
+    // Verify consumer ACL is set up
+    verify(authorizer, times(1)).setDestinationAcl(anyObject());
   }
 }

@@ -109,7 +109,7 @@ public class CachedDatastreamReader {
     return ds;
   }
 
-  private Datastream getDatastreamFromZk(String datastreamName) {
+  Datastream getDatastreamFromZk(String datastreamName) {
     String path = KeyBuilder.datastream(_cluster, datastreamName);
     String content = _zkclient.ensureReadData(path);
     return DatastreamUtils.fromJSON(content);

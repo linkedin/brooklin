@@ -92,7 +92,7 @@ public class EmbeddedDatastreamCluster {
     }
     properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(_datastreamPorts.get(index)));
     properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, connectorTypes);
-    String tpName = "default";
+    String tpName = DummyTransportProviderAdminFactory.PROVIDER_NAME;
     String tpPrefix = DatastreamServer.CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName + ".";
     properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_NAMES, tpName);
     if (_kafkaCluster != null) {

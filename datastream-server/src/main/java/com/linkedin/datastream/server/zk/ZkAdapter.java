@@ -227,6 +227,10 @@ public class ZkAdapter {
       _liveInstancesProvider = null;
     }
 
+    if (_listener != null) {
+      _listener.onBecomeFollower();
+    }
+
     _isLeader = false;
   }
 
@@ -855,6 +859,11 @@ public class ZkAdapter {
      * the calling of task assignment.
      */
     void onBecomeLeader();
+
+    /**
+     * onBecomeFollower() is called when this Coordinator becomes the follower.
+     */
+    void onBecomeFollower();
 
     /**
      * onLiveInstancesChange is called when the list of live instances changed. That is, any

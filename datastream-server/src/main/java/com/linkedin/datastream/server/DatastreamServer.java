@@ -22,9 +22,6 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
@@ -45,6 +42,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamDeduperFactory;
 import com.linkedin.datastream.server.api.connector.SourceBasedDeduperFactory;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.serde.SerdeAdminFactory;
+import com.linkedin.datastream.server.api.security.Authorizer;
+import com.linkedin.datastream.server.api.security.AuthorizerFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
@@ -54,6 +53,9 @@ import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
@@ -72,6 +74,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
+  public static final String CONFIG_CONNECTOR_AUTH_ENABLED = "authEnabled";
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
   public static final String STRATEGY_DOMAIN = "strategy";
   public static final String CONFIG_TRANSPORT_PROVIDER_NAMES = CONFIG_PREFIX + "transportProviderNames";
@@ -81,6 +84,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_DEDUPER_FACTORY = "deduperFactory";
   public static final String DEFAULT_DEDUPER_FACTORY = SourceBasedDeduperFactory.class.getName();
   public static final String DOMAIN_DEDUPER = "deduper";
+  public static final String CONFIG_AUTHORIZER_PREFIX = CONFIG_PREFIX + "authorizer.";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -159,13 +163,34 @@ public class DatastreamServer {
 
     TransportProviderAdminFactory factory = ReflectionUtils.createInstance(factoryClassName);
     if (factory == null) {
-      String msg = "Invalid class name or no parameter-less constructor, class=" + factoryClassName;
+      String msg = "Invalid class name or no default constructor, class=" + factoryClassName;
       LOG.error(msg);
       throw new DatastreamRuntimeException(msg);
     }
 
     TransportProviderAdmin admin = factory.createTransportProviderAdmin(transportProviderName, transportProviderConfig);
     _coordinator.addTransportProvider(transportProviderName, admin);
+  }
+
+  private void initializeAuthorizer(Properties authorizerConfig) {
+    LOG.info("Starting to load authorizer with config: " + authorizerConfig);
+
+    String factoryClassName = authorizerConfig.getProperty(CONFIG_FACTORY_CLASS_NAME, "");
+    if (StringUtils.isBlank(factoryClassName)) {
+      String msg = "Factory class name is not set or empty for authorizer";
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    AuthorizerFactory factory = ReflectionUtils.createInstance(factoryClassName);
+    if (factory == null) {
+      String msg = "Invalid class name or no default constructor, class=" + factoryClassName;
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+
+    Authorizer authorizer = factory.createAuthorizer(authorizerConfig);
+    _coordinator.initializeAuthorizer(authorizer);
   }
 
   private void initializeConnector(String connectorName, Properties connectorProperties) {
@@ -182,7 +207,7 @@ public class DatastreamServer {
 
     ConnectorFactory<?> connectorFactoryInstance = ReflectionUtils.createInstance(className);
     if (connectorFactoryInstance == null) {
-      String msg = "Invalid class name or no parameter-less constructor, class=" + className;
+      String msg = "Invalid class name or no default constructor, class=" + className;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
 
@@ -224,9 +249,12 @@ public class DatastreamServer {
     Properties deduperProps = connectorProps.getDomainProperties(DOMAIN_DEDUPER);
     DatastreamDeduper deduper = deduperFactoryInstance.createDatastreamDeduper(deduperProps);
 
+    boolean authEnabled = Boolean.valueOf(connectorProperties.getProperty(CONFIG_CONNECTOR_AUTH_ENABLED, "false"));
+
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing,
+        deduper, authEnabled);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
@@ -266,7 +294,17 @@ public class DatastreamServer {
 
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
     _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
-    LOG.info("Loading connectors {}", connectorTypes);
+
+    // NOTE: authorizer must be loaded prior to connectors and transportProviders
+    LOG.info("Loading authorizer.");
+    Properties authorizerConfig = verifiableProperties.getDomainProperties(CONFIG_AUTHORIZER_PREFIX);
+    if (!authorizerConfig.isEmpty()) {
+      initializeAuthorizer(authorizerConfig);
+    } else {
+      LOG.warn("No authorizer specified in config");
+    }
+
+    LOG.info("Loading connectors.");
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr,
