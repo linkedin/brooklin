@@ -13,14 +13,27 @@ public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;
   private boolean _isStarted;
 
-  public EmbeddedZookeeperKafkaCluster() throws IOException {
+  /**
+   * Create a EmbeddedZookeeperKafkaCluster with specific base kafka config
+   * @param kafkaBaseConfig base config of kafka brokers
+   * @throws IOException
+   */
+  public EmbeddedZookeeperKafkaCluster(Properties kafkaBaseConfig) throws IOException {
     _embeddedZookeeper = new EmbeddedZookeeper();
     List<Integer> kafkaPorts = new ArrayList<>();
     // -1 for any available port
     kafkaPorts.add(-1);
     kafkaPorts.add(-1);
-    _embeddedKafkaCluster = new EmbeddedKafkaCluster(_embeddedZookeeper.getConnection(), new Properties(), kafkaPorts);
+    _embeddedKafkaCluster = new EmbeddedKafkaCluster(_embeddedZookeeper.getConnection(), kafkaBaseConfig, kafkaPorts);
     _isStarted = false;
+  }
+
+  /**
+   * Create a EmbeddedZookeeperKafkaCluster with default base kafka config
+   * @throws IOException
+   */
+  public EmbeddedZookeeperKafkaCluster() throws IOException {
+    this(new Properties());
   }
 
   @Override

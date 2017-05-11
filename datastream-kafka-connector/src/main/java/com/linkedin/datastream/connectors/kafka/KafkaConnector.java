@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,7 +183,13 @@ public class KafkaConnector implements Connector {
       }
       try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
           "partitionFinder", parsed)) {
-        int numPartitions = consumer.partitionsFor(parsed.getTopicName()).size();
+        List<PartitionInfo> partitionInfos = consumer.partitionsFor(parsed.getTopicName());
+        if (partitionInfos == null) {
+          throw new DatastreamValidationException(
+              "Can't get partition info from kafka. Very likely that auto topic creation "
+                  + "is disabled on the broker and the topic doesn't exist: " + parsed.getTopicName());
+        }
+        int numPartitions = partitionInfos.size();
         if (!source.hasPartitions()) {
           LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
           source.setPartitions(numPartitions);

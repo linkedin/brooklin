@@ -88,6 +88,7 @@ public class EmbeddedKafkaCluster {
       properties.setProperty("log.dir", logDir.getAbsolutePath());
       properties.setProperty("log.flush.interval.messages", String.valueOf(1));
       properties.setProperty("log.cleaner.enable", Boolean.FALSE.toString()); //to save memory
+      properties.setProperty("offsets.topic.num.partitions", "1");
 
       KafkaServer broker = startBroker(properties);
 
