@@ -35,16 +35,26 @@ import com.linkedin.restli.common.IdResponse;
 
 /**
  * Datastream REST Client
+ *
+ * TODO(misanchez) Make constructors package protected, and convert this class to an interface.
  */
 public class DatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
 
+  /**
+   * @deprecated Please use factory DatrastreamRestClientFactory
+   */
+  @Deprecated
   public DatastreamRestClient(String dsmUri) {
     this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(Collections.<String, String>emptyMap())));
   }
 
+  /**
+   * @deprecated Please use factory DatrastreamRestClientFactory
+   */
+  @Deprecated
   public DatastreamRestClient(String dsmUri, Client r2Client) {
     Validate.notEmpty(dsmUri, "invalid DSM URI");
     Validate.notNull(r2Client, "null R2 client");

@@ -88,7 +88,7 @@ public class TestDatastreamRestClient {
   }
 
   private DatastreamRestClient createRestClient() {
-    return new DatastreamRestClient("http://localhost:" + _datastreamServer.getHttpPort());
+    return DatrastreamRestClientFactory.getClient("http://localhost:" + _datastreamServer.getHttpPort());
   }
 
   private void setupDatastreamServer(int port) throws DatastreamException {
@@ -152,7 +152,7 @@ public class TestDatastreamRestClient {
     setupDatastreamServer(httpPort);
     Datastream datastream = generateDatastream(5);
     LOG.info("Datastream : " + datastream);
-    DatastreamRestClient restClient = new DatastreamRestClient("http://localhost:" + httpPort);
+    DatastreamRestClient restClient = DatrastreamRestClientFactory.getClient("http://localhost:" + httpPort);
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
     LOG.info("Created Datastream : " + createdDatastream);
