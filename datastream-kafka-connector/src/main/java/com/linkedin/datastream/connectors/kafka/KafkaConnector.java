@@ -210,8 +210,7 @@ public class KafkaConnector implements Connector {
           if (offsetMap.size() != numPartitions || IntStream.range(0, numPartitions)
               .anyMatch(x -> !offsetMap.containsKey(x))) {
             String msg =
-                String.format("Missing partitions starting offset for partition %d, json value %s", numPartitions,
-                    json);
+                String.format("Missing partitions starting offset for datastream %s, json value %s", stream, json);
             LOG.warn(msg);
             throw new DatastreamValidationException(msg);
           }
