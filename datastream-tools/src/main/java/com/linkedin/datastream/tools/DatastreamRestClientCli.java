@@ -36,6 +36,7 @@ import org.codehaus.jackson.type.TypeReference;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatrastreamRestClientFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
@@ -156,7 +157,7 @@ public class DatastreamRestClientCli {
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
     try {
-      datastreamRestClient = new DatastreamRestClient(dmsUri);
+      datastreamRestClient = DatrastreamRestClientFactory.getClient(dmsUri);
       switch (op) {
         case READ: {
           String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
