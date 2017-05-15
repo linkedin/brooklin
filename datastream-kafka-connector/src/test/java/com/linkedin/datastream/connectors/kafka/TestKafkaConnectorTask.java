@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -28,6 +29,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -101,8 +103,7 @@ public class TestKafkaConnectorTask {
 
     //produce 100 msgs to topic before start
     produceEvents(_kafkaCluster, _zkUtils, topic, 0, 100);
-
-    long ts = System.currentTimeMillis();
+    Map<Integer, Long> startOffsets = Collections.singletonMap(0, 100L);
 
     LOG.info("Sending second set of events");
 
@@ -125,7 +126,7 @@ public class TestKafkaConnectorTask {
     datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
 
     // Unable to set the start position, OffsetToTimestamp is returning null in the embedded kafka cluster.
-    datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, String.valueOf(ts));
+    datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(startOffsets));
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
