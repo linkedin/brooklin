@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -35,6 +36,7 @@ import org.codehaus.jackson.type.TypeReference;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatrastreamRestClientFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
@@ -99,6 +101,19 @@ public class DatastreamRestClientCli {
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
             OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
+
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_KEY_SERDE_NAME, OptionConstants.OPT_LONG_KEY_SERDE_NAME,
+            OptionConstants.OPT_ARG_KEY_SERDE_NAME, false, OptionConstants.OPT_DESC_KEY_SERDE_NAME));
+
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_PAYLOAD_SERDE_NAME, OptionConstants.OPT_LONG_PAYLOAD_SERDE_NAME,
+            OptionConstants.OPT_ARG_PAYLOAD_SERDE_NAME, false, OptionConstants.OPT_DESC_PAYLOAD_SERDE_NAME));
+
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_ENVELOPE_SERDE_NAME, OptionConstants.OPT_LONG_ENVELOPE_SERDE_NAME,
+            OptionConstants.OPT_ARG_ENVELOPE_SERDE_NAME, false, OptionConstants.OPT_DESC_ENVELOPE_SERDE_NAME));
+
     options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_UNFORMATTED, OptionConstants.OPT_LONG_UNFORMATTED, null,
             false, OptionConstants.OPT_DESC_UNFORMATTED));
@@ -142,7 +157,7 @@ public class DatastreamRestClientCli {
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
     try {
-      datastreamRestClient = new DatastreamRestClient(dmsUri);
+      datastreamRestClient = DatrastreamRestClientFactory.getClient(dmsUri);
       switch (op) {
         case READ: {
           String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -180,6 +195,13 @@ public class DatastreamRestClientCli {
                 });
           }
 
+          Optional<String> keySerdeName =
+              getOptionalOptionValue(cmd, OptionConstants.OPT_SHORT_KEY_SERDE_NAME, options);
+
+          Optional<String> payloadSerdeName =
+              getOptionalOptionValue(cmd, OptionConstants.OPT_SHORT_PAYLOAD_SERDE_NAME, options);
+          Optional<String> envelopeSerdeName =
+              getOptionalOptionValue(cmd, OptionConstants.OPT_SHORT_ENVELOPE_SERDE_NAME, options);
           String transportProviderName = getOptionValue(cmd, OptionConstants.OPT_SHORT_TRANSPORT_NAME, options);
 
           Duration timeout = Duration.ofMinutes(2);
@@ -191,12 +213,17 @@ public class DatastreamRestClientCli {
           datastreamSource.setConnectionString(sourceUri);
           datastreamSource.setPartitions(partitions);
           datastream.setTransportProviderName(transportProviderName);
+          DatastreamDestination destination = new DatastreamDestination();
+          datastream.setDestination(destination);
           if (StringUtils.isNotEmpty(destinationUri)) {
-            DatastreamDestination destination = new DatastreamDestination();
             destination.setConnectionString(destinationUri);
             destination.setPartitions(numDestinationPartitions);
-            datastream.setDestination(destination);
           }
+
+          keySerdeName.ifPresent(x -> datastream.getDestination().setKeySerDe(x));
+          payloadSerdeName.ifPresent(x -> datastream.getDestination().setPayloadSerDe(x));
+          envelopeSerdeName.ifPresent(x -> datastream.getDestination().setEnvelopeSerDe(x));
+
           datastream.setSource(datastreamSource);
           datastream.setMetadata(new StringMap(metadata));
           System.out.printf("Trying to create datastream %s", datastream);
@@ -219,6 +246,15 @@ public class DatastreamRestClientCli {
       }
       System.exit(0);
     }
+  }
+
+  private static Optional<String> getOptionalOptionValue(CommandLine cmd, String optShortKeySerdeName, Options options) {
+    Optional<String> value = Optional.empty();
+    if (cmd.hasOption(optShortKeySerdeName)) {
+      value = Optional.of(getOptionValue(cmd, optShortKeySerdeName, options));
+    }
+
+    return value;
   }
 
   private static String getOptionValue(CommandLine cmd, String optionName, Options options) {

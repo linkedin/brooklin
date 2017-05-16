@@ -1,12 +1,13 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
-import com.linkedin.datastream.connectors.oracle.triggerbased.OracleSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.OracleDataSourceFactory;
+import com.linkedin.datastream.connectors.oracle.triggerbased.OracleSource;
 
 
 /**
@@ -62,8 +65,7 @@ public class OracleConsumer {
   private PreparedStatement _changeCaptureStatement;
 
 
-  public OracleConsumer(OracleConsumerConfig config, OracleSource source, Schema schema) throws
-                                                                                                DatastreamException {
+  public OracleConsumer(OracleConsumerConfig config, OracleSource source, Schema schema) throws DatastreamException {
     _source = source;
 
     _uri = config.getDbUri();
@@ -136,8 +138,52 @@ public class OracleConsumer {
    * @throws SQLException
    */
   public List<OracleChangeEvent> consume(long lastScn) throws SQLException {
-    // TODO (sdkhan) implement
-    return null;
+    // validate connection has been established
+    if (_conn == null) {
+      String msg = String.format("OracleConsumer: %s Does not have a connection", getName());
+      LOG.error(msg);
+      throw new SQLException(msg);
+    }
+
+    // Prepared statements improve performance by having the database compile and build the
+    // query plan for the statement once. We dont want release this resource or create a new
+    // one every time since the only thing that changes are the parameters of the where
+    // clause
+    if (_changeCaptureStatement == null) {
+      _changeCaptureStatement = generatePreparedStatement(_changeCaptureQuery, -1);
+      _changeCaptureStatement.setFetchSize(_fetchSize);
+    }
+
+
+    // execute the prepared statement
+    ResultSet rs = null;
+    try {
+      // bind the {@code lastScn}, telling the query to only look at changes since {@code lastScn}
+      // MAX_SCN is the largest possible scn
+      _changeCaptureStatement.setLong(1, lastScn);
+      _changeCaptureStatement.setLong(2, MAX_SCN);
+
+      rs = executeQuery(_changeCaptureStatement);
+
+      // instantiate an Oracle Table Reader to convert ResultSet to OracleChangeEvents
+      OracleTableReader tableReader = new OracleTableReader(rs, _schema);
+
+      List<OracleChangeEvent> changeEvents = new ArrayList<>();
+      OracleChangeEvent changeEvent;
+
+      // build a Change Event for each row in the ResultSet and add it to a list of Change Events
+      while ((changeEvent = nextEventWithRetries(tableReader)) != null) {
+        changeEvents.add(changeEvent);
+      }
+
+      return changeEvents;
+    } catch (SQLException e) {
+      LOG.error(String.format("Query failed: %s", _changeCaptureQuery));
+      throw e;
+    } finally {
+      _conn.commit();
+      releaseResources(rs, null);
+    }
   }
 
   public long getLatestScn() throws SQLException {
@@ -167,7 +213,7 @@ public class OracleConsumer {
             sql));
       }
 
-      LOG.info("latest SCN is: " + scn);
+      LOG.info("latest SCN is: {}", scn);
       return scn;
 
     } finally {
@@ -351,9 +397,15 @@ public class OracleConsumer {
     }
   }
 
-  private OracleChangeEvent nextEventWithRetries(OracleSource tableReader) {
-    // TODO implement
-    return null;
+  private OracleChangeEvent nextEventWithRetries(OracleTableReader tableReader) {
+    try {
+      return tableReader.next();
+    } catch (SQLException e) {
+      LOG.error("Error while trying to iterate through SQL");
+      return null;
+    } catch (NoSuchElementException | DatastreamException e) {
+      return null;
+    }
   }
 }
 

@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased;
 
-
 import java.util.Properties;
 
 import org.testng.Assert;
@@ -8,10 +7,12 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.SchemaRegistryClient;
+import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -28,7 +29,8 @@ public class TestOracleConnector {
 
   @Test
   public void testOracleConnectorConfig() throws DatastreamException {
-    String className = "com.linkedin.datastream.connectors.oracle.triggerbased.consumer.DynamicDataSourceFactoryImpl";
+
+    String className = DynamicDataSourceFactoryImpl.class.getName();
 
     Properties prop = new Properties();
     prop.put("schemaRegistryName", "randomSchemaRegistry");
@@ -53,12 +55,13 @@ public class TestOracleConnector {
     OracleConnectorConfig config = new OracleConnectorConfig(props);
 
     // register a mock schema in the in-memory schema registry and store the returned Id
-    SchemaRegistryClient client = new SchemaRegistryFactoryImpl()
-        .createSchemaRegistryClient(config.getSchemaRegistryConfig());
+    SchemaRegistryClient client =
+        new SchemaRegistryFactoryImpl().createSchemaRegistryClient(config.getSchemaRegistryConfig());
     String id = client.registerSchema(MockSchema.GENERIC_SCHEMA.getName(), MockSchema.GENERIC_SCHEMA);
 
     // creating the Oracle Connector
-    Connector connector = new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, props);
+    Connector connector =
+        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, props);
 
     // creating the Datastream
     Datastream datastream = OracleConnectorTestUtils.createDatastream("oracle:/dbName/viewName", id, "connString");
@@ -71,7 +74,8 @@ public class TestOracleConnector {
   public void testInvalidInitializeDatastream() throws Exception {
 
     Properties prop = OracleConnectorTestUtils.getDefaultProps();
-    Connector connector = new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, prop);
+    Connector connector =
+        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, prop);
 
     // creating the Datastream
     Datastream datastream = OracleConnectorTestUtils.createDatastream();

@@ -22,6 +22,21 @@ public class OptionConstants {
   public static final String OPT_ARG_TRANSPORT_NAME = "TRANSPORT_NAME";
   public static final String OPT_DESC_TRANSPORT_NAME = "Name of the Datastream Transport to use, default kafka.";
 
+  public static final String OPT_SHORT_KEY_SERDE_NAME = "ks";
+  public static final String OPT_LONG_KEY_SERDE_NAME = "kserde";
+  public static final String OPT_ARG_KEY_SERDE_NAME = "KEY_SERDE";
+  public static final String OPT_DESC_KEY_SERDE_NAME = "Name of the Serde to be used for key. Config is optional.";
+
+  public static final String OPT_SHORT_PAYLOAD_SERDE_NAME = "ps";
+  public static final String OPT_LONG_PAYLOAD_SERDE_NAME = "pserde";
+  public static final String OPT_ARG_PAYLOAD_SERDE_NAME = "PAYLOAD_SERDE";
+  public static final String OPT_DESC_PAYLOAD_SERDE_NAME = "Name of the Serde to be used for payload. Config is optional.";
+
+  public static final String OPT_SHORT_ENVELOPE_SERDE_NAME = "es";
+  public static final String OPT_LONG_ENVELOPE_SERDE_NAME = "eserde";
+  public static final String OPT_ARG_ENVELOPE_SERDE_NAME = "ENVELOPE_SERDE";
+  public static final String OPT_DESC_ENVELOPE_SERDE_NAME = "Name of the Serde to be used for Envelope. Config is optional.";
+
   public static final String OPT_SHORT_DESTINATION_URI = "d";
   public static final String OPT_LONG_DESTINATION_URI = "destination";
   public static final String OPT_ARG_DESTINATION_URI = "DESTINATION_URI";

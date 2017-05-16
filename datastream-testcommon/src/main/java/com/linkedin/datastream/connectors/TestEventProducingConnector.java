@@ -81,6 +81,10 @@ public class TestEventProducingConnector implements Connector {
   @Override
   public synchronized void stop() {
     LOG.info("Stop called.");
+
+    // Flush the producers so that the data is sent and water marks move forward.
+    _tasksAssigned.keySet().forEach(x -> x.getEventProducer().flush());
+
     _executor.shutdownNow();
     while (!_executor.isTerminated()) {
       Thread.yield();

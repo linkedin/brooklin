@@ -222,7 +222,7 @@ public class DatastreamServer {
     }
 
     Properties deduperProps = connectorProps.getDomainProperties(DOMAIN_DEDUPER);
-    DatastreamDeduper deduper = deduperFactoryInstance.createDatastreamDeduper(strategyProps);
+    DatastreamDeduper deduper = deduperFactoryInstance.createDatastreamDeduper(deduperProps);
 
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));

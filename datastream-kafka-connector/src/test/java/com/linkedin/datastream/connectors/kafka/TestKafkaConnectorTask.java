@@ -2,9 +2,11 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.I0Itec.zkclient.ZkConnection;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -19,12 +21,16 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
+import kafka.admin.AdminUtils;
+import kafka.utils.ZkUtils;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -35,23 +41,31 @@ public class TestKafkaConnectorTask {
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
 
   private EmbeddedZookeeperKafkaCluster _kafkaCluster;
+  private ZkUtils _zkUtils;
 
   @BeforeTest
   public void setup() throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry());
-    _kafkaCluster = new EmbeddedZookeeperKafkaCluster();
+    Properties kafkaConfig = new Properties();
+    // we will disable auto topic creation for this test file
+    kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
+    _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
+    _zkUtils =
+        new ZkUtils(new ZkClient(_kafkaCluster.getZkConnection()), new ZkConnection(_kafkaCluster.getZkConnection()),
+            false);
   }
 
   @AfterTest
   public void teardown() throws Exception {
+    _zkUtils.close();
     _kafkaCluster.shutdown();
   }
 
-  public static void produceEvents(String broker, String topic, int index, int numEvents)
+  public static void produceEvents(EmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
       throws UnsupportedEncodingException {
     Properties props = new Properties();
-    props.put("bootstrap.servers", broker);
+    props.put("bootstrap.servers", cluster.getBrokers());
     props.put("acks", "all");
     props.put("retries", 0);
     props.put("batch.size", 16384);
@@ -59,6 +73,10 @@ public class TestKafkaConnectorTask {
     props.put("buffer.memory", 33554432);
     props.put("key.serializer", ByteArraySerializer.class.getCanonicalName());
     props.put("value.serializer", ByteArraySerializer.class.getCanonicalName());
+
+    if (!AdminUtils.topicExists(zkUtils, topic)) {
+      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+    }
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
       for (int i = 0; i < numEvents; i++) {
         final int finalIndex = index;
@@ -84,14 +102,13 @@ public class TestKafkaConnectorTask {
     LOG.info("Sending first set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(broker, topic, 0, 100);
-
-    long ts = System.currentTimeMillis();
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 100);
+    Map<Integer, Long> startOffsets = Collections.singletonMap(0, 100L);
 
     LOG.info("Sending second set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(broker, topic, 100, 100);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 100, 100);
 
     //start
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -109,7 +126,7 @@ public class TestKafkaConnectorTask {
     datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
 
     // Unable to set the start position, OffsetToTimestamp is returning null in the embedded kafka cluster.
-    datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, String.valueOf(ts));
+    datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(startOffsets));
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
@@ -128,7 +145,7 @@ public class TestKafkaConnectorTask {
     LOG.info("Sending third set of events");
 
     //send 100 more msgs
-    produceEvents(broker, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
     long timeout = System.currentTimeMillis() + 5000;
     while (datastreamProducer.getEvents().size() != 200) {

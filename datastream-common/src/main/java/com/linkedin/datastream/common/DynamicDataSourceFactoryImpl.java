@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
+package com.linkedin.datastream.common;
 
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -42,6 +42,10 @@ public class DynamicDataSourceFactoryImpl implements OracleDataSourceFactory {
       if (prop == null) {
         prop = new Properties();
       }
+
+      // This ensures that when we call {@code ResultSet.getObject()} it returns
+      // java.sql.Timestamp for the TIMESTAMP SQL type (instead of oracle.sql.TIMESTAMP)
+      prop.put("oracle.jdbc.J2EE13Compliant", "true");
 
       if (queryTimeoutSec > 0) {
         // read timeout should be slightly more than query timeout
