@@ -69,6 +69,11 @@ public final class DatastreamUtils {
   }
 
   public static String getTaskPrefix(Datastream datastream) {
+    if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
+      // Missing task prefix, generate one.
+      return DatastreamUtils.getTaskPrefix(datastream);
+    }
+
     return datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
   }
 }
