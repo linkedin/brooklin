@@ -14,15 +14,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
+import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +27,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -203,19 +201,16 @@ public class KafkaConnector implements Connector {
           }
         }
 
-        // Try to see if the start position requested is indeed possible to seek to.
+        // Try to see if the start positions requested are valid.
+        // Value is a json string encoding partition to offset, like {"0":23,"1":15,"2":88}
         if (stream.getMetadata().containsKey(DatastreamMetadataConstants.START_POSITION)) {
-          long ts = Long.parseLong(stream.getMetadata().get(DatastreamMetadataConstants.START_POSITION));
-          Map<TopicPartition, Long> topicTimestamps = IntStream.range(0, source.getPartitions())
-              .mapToObj(x -> new TopicPartition(parsed.getTopicName(), x))
-              .collect(Collectors.toMap(Function.identity(), x -> ts));
-          Map<TopicPartition, OffsetAndTimestamp> offsets = consumer.offsetsForTimes(topicTimestamps);
-
-          LOG.info("Returned offsets {} for timestamp {}", offsets, ts);
-          if (offsets.values().stream().anyMatch(x -> x == null)) {
-            String msg = String.format(
-                "Datastream is configured to start from a timestamp %d. But kafka is not able to map the timestamp to an offset {%s}",
-                ts, offsets);
+          String json = stream.getMetadata().get(DatastreamMetadataConstants.START_POSITION);
+          Map<Integer, Long> offsetMap = JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
+          });
+          if (offsetMap.size() != numPartitions || IntStream.range(0, numPartitions)
+              .anyMatch(x -> !offsetMap.containsKey(x))) {
+            String msg =
+                String.format("Missing partitions starting offset for datastream %s, json value %s", stream, json);
             LOG.warn(msg);
             throw new DatastreamValidationException(msg);
           }

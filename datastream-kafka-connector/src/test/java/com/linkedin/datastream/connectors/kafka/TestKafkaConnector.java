@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkConnection;
@@ -18,6 +19,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -84,9 +86,10 @@ public class TestKafkaConnector {
     long ts = System.currentTimeMillis();
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
+    Map<Integer, Long> offsets = Collections.singletonMap(0, 100L);
     KafkaConnector connector =
         new KafkaConnector("test", getDefaultConfig(null));
-    ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, String.valueOf(ts));
+    ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(offsets));
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 

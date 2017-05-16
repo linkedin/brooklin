@@ -14,8 +14,6 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -23,8 +21,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.TopicPartition;
+import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +38,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -62,7 +61,7 @@ public class KafkaConnectorTask implements Runnable {
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _datastreamName;
   private final Datastream _datastream;
-  private final Optional<Long> _startPosition;
+  private final Optional<Map<Integer, Long>> _startOffsets;
 
   //lifecycle
   private volatile boolean _shouldDie = false;
@@ -121,8 +120,9 @@ public class KafkaConnectorTask implements Runnable {
     _datastream = task.getDatastreams().get(0);
     _task = task;
 
-    _startPosition = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
-        .map(Long::parseLong);
+    _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
+        .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
+        }));
 
     _offsetCommitInterval = commitIntervalMillis;
     _datastreamName = task.getDatastreams().get(0).getName();
@@ -212,10 +212,10 @@ public class KafkaConnectorTask implements Runnable {
             _eventCountsPerPoll.update(records.count());
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
-            if (_startPosition.isPresent()) {
+            if (_startOffsets.isPresent()) {
               LOG.info("Datastream is configured with StartPosition. Trying to start from {}",
-                  Instant.ofEpochMilli(_startPosition.get()));
-              seekToTimestamp(consumer, e.partitions(), _startPosition.get());
+                  _startOffsets.get());
+              seekToOffset(consumer, e.partitions(), _startOffsets.get());
             } else {
               //means we have no saved offsets for some partitions, reset it to latest for those
               consumer.seekToEnd(e.partitions());
@@ -270,29 +270,17 @@ public class KafkaConnectorTask implements Runnable {
     }
   }
 
-  private void seekToTimestamp(Consumer<?, ?> consumer, Set<TopicPartition> partitions, Long timeStamp) {
-    Instant ts = Instant.ofEpochMilli(timeStamp);
-    Map<TopicPartition, Long> timestamps =
-        partitions.stream().collect(Collectors.toMap(Function.identity(), x -> timeStamp));
-    Map<TopicPartition, OffsetAndTimestamp> offsets = consumer.offsetsForTimes(timestamps);
-    LOG.info("Offsets for timestamp {} is {}.", ts, offsets);
-    offsets.entrySet().stream().filter(x -> x.getValue() != null).forEach(o -> {
-      LOG.info("Seeking to offset {} for topic partition {}", o.getValue().offset(), o.getKey());
-      consumer.seek(o.getKey(), o.getValue().offset());
+  private static void seekToOffset(Consumer<?, ?> consumer, Set<TopicPartition> partitions,
+      Map<Integer, Long> startOffsets) {
+    partitions.forEach(tp -> {
+      Long offset = startOffsets.get(tp.partition());
+      if (offset == null) {
+        String msg = String.format("Couldn't find the offset for partition %s", tp);
+        LOG.error(msg);
+        throw new DatastreamRuntimeException(msg);
+      }
+      consumer.seek(tp, offset);
     });
-
-    Set<TopicPartition> tps = offsets.entrySet()
-        .stream()
-        .filter(x -> x.getValue() == null)
-        .map(Map.Entry::getKey)
-        .collect(Collectors.toSet());
-
-    if (tps.size() > 0) {
-      String msg =
-          String.format("Couldn't find the offsets corresponding to timestamp %s for topic partitions %s.", ts, tps);
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
 
     LOG.info("Seek completed to the offsets.");
   }
