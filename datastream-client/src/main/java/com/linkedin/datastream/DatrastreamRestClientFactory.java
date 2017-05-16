@@ -2,7 +2,6 @@ package com.linkedin.datastream;
 
 import com.linkedin.r2.transport.common.Client;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
