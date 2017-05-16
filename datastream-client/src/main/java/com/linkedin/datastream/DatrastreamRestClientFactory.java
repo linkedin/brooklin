@@ -4,10 +4,11 @@ import com.linkedin.r2.transport.common.Client;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class DatrastreamRestClientFactory {
-  private static Map<String, DatastreamRestClient> overrides = new HashMap<>();
+  private static Map<String, DatastreamRestClient> overrides = new ConcurrentHashMap<>();
 
   public static DatastreamRestClient getClient(String dsmUri) {
     if (overrides.containsKey(dsmUri)) {
