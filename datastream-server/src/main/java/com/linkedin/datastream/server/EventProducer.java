@@ -66,15 +66,15 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
 
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
-  private static final String ALTERNATE_AVAILABILITY_THRESHOLD_SLA_MS = "alternateAvailabilityThresholdSlaMs";
+  private static final String AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "availabilityThresholdAlternateSlaMs";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
   private static final String AGGREGATE = "aggregate";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
-  private static final String DEFAULT_ALTERNATE_AVAILABILITY_THRESHOLD_SLA_MS = "180000"; // 3 minutes
+  private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
-  private final int _alternateAvailabilityThresholdSlaMs;
+  private final int _availabilityThresholdAlternateSlaMs;
 
   /**
    * Construct an EventProducer instance.
@@ -105,9 +105,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
-    _alternateAvailabilityThresholdSlaMs =
-        Integer.parseInt(config.getProperty(ALTERNATE_AVAILABILITY_THRESHOLD_SLA_MS,
-            DEFAULT_ALTERNATE_AVAILABILITY_THRESHOLD_SLA_MS));
+    _availabilityThresholdAlternateSlaMs =
+        Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS,
+            DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
 
     _logger.info(String.format("Created event producer with customCheckpointing=%s", customCheckpointing));
 
@@ -182,7 +182,7 @@ public class EventProducer implements DatastreamEventProducer {
                 metadata.getTopic(), metadata.getPartition(), _availabilityThresholdSlaMs));
       }
 
-      if (sourceToDestinationLatencyMs <= _alternateAvailabilityThresholdSlaMs) {
+      if (sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs) {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
             EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
@@ -191,7 +191,7 @@ public class EventProducer implements DatastreamEventProducer {
         _logger.debug(
             String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
                 sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(),
-                metadata.getTopic(), metadata.getPartition(), _alternateAvailabilityThresholdSlaMs));
+                metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs));
       }
 
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
