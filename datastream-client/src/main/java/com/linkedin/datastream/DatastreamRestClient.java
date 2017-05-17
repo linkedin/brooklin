@@ -44,7 +44,7 @@ public class DatastreamRestClient {
   private final RestClient _restClient;
 
   /**
-   * @deprecated Please use factory DatrastreamRestClientFactory
+   * @deprecated Please use factory {@link DatastreamRestClientFactory}
    */
   @Deprecated
   public DatastreamRestClient(String dsmUri) {
@@ -52,7 +52,7 @@ public class DatastreamRestClient {
   }
 
   /**
-   * @deprecated Please use factory DatrastreamRestClientFactory
+   * @deprecated Please use factory {@link DatastreamRestClientFactory}
    */
   @Deprecated
   public DatastreamRestClient(String dsmUri, Client r2Client) {
