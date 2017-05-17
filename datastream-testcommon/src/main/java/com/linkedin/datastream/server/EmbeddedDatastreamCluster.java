@@ -13,7 +13,7 @@ import org.apache.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.DatrastreamRestClientFactory;
+import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.NetworkUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -171,7 +171,7 @@ public class EmbeddedDatastreamCluster {
    * Construct a datastream rest client for the specific datastream server
    */
   public DatastreamRestClient createDatastreamRestClient(int index) {
-    return DatrastreamRestClientFactory.getClient(String.format("http://localhost:%d/", _datastreamPorts.get(index)));
+    return DatastreamRestClientFactory.getClient(String.format("http://localhost:%d/", _datastreamPorts.get(index)));
   }
 
   public DatastreamServer getPrimaryDatastreamServer() {

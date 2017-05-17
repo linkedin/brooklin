@@ -5,8 +5,15 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
-public class DatrastreamRestClientFactory {
+/**
+ * Factory class for creating  {@link DatastreamRestClient} objects.
+ * This factory is needed to allow mocking the DatastreamRestClient during test.
+ *
+ * The reason is that currently we inject the dmsUri as part of the configuration
+ * but we don't have a dependency injection framework that allows us to inject mock
+ * DatastreamRestClient, without doing a major refactoring of the code.
+ */
+public class DatastreamRestClientFactory {
   private static Map<String, DatastreamRestClient> overrides = new ConcurrentHashMap<>();
 
   public static DatastreamRestClient getClient(String dsmUri) {
@@ -24,13 +31,15 @@ public class DatrastreamRestClientFactory {
   }
 
   /**
-   * Used mainly for testing, to override the DatastreamRestClient returned for a given dsmUri
+   * Used mainly for testing, to override the DatastreamRestClient returned for a given dsmUri.
+   * Note that this is an static method, each test case should use its own dsmUri, to avoid conflicts
+   * in case the test are running in parallel.
    */
   public static void addOverride(String dsmUri, DatastreamRestClient restClient) {
     overrides.put(dsmUri, restClient);
   }
 
-  public static  Map<String, DatastreamRestClient> getOverrides() {
+  public static Map<String, DatastreamRestClient> getOverrides() {
     return Collections.unmodifiableMap(overrides);
   }
 }

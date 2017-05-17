@@ -117,8 +117,8 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
-    
-  =
+
+    _availabilityThresholdAlternateSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS,
             DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
 
