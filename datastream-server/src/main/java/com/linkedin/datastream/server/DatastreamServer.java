@@ -81,6 +81,7 @@ public class DatastreamServer {
   public static final String CONFIG_CONNECTOR_DEDUPER_FACTORY = "deduperFactory";
   public static final String DEFAULT_DEDUPER_FACTORY = SourceBasedDeduperFactory.class.getName();
   public static final String DOMAIN_DEDUPER = "deduper";
+  public static final String CONFIG_CONNECTOR_AUTHORIZER_NAME = "authorizerName";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
@@ -226,7 +227,11 @@ public class DatastreamServer {
 
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper);
+
+    String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
+
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing,
+        deduper, authorizerName);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }
