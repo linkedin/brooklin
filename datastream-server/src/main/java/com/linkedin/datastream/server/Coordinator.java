@@ -674,10 +674,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, List<Datastream>> streamsByTaskPrefix =
         allStreams.stream().collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
 
-    List<DatastreamGroup> datastreamGroups = streamsByTaskPrefix.keySet()
-        .stream()
-        .map(x -> new DatastreamGroup(streamsByTaskPrefix.get(x)))
-        .collect(Collectors.toList());
+    List<DatastreamGroup> datastreamGroups =
+        streamsByTaskPrefix.values().stream().map(DatastreamGroup::new).collect(Collectors.toList());
 
     _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", datastreamGroups);
 
