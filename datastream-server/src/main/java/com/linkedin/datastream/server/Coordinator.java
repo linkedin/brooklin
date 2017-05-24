@@ -172,8 +172,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _config = config;
     _clusterName = _config.getCluster();
 
-    _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getZkSessionTimeout(),
-        _config.getZkConnectionTimeout(), this);
+    _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
 
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
@@ -614,8 +614,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private void hardDeleteDatastream(Datastream ds, List<Datastream> allStreams) {
-    String taskPrefix = DatastreamUtils.getTaskPrefix(ds);
+    String taskPrefix;
+    if (DatastreamUtils.containsTaskPrefix(ds)) {
+      taskPrefix = DatastreamUtils.getTaskPrefix(ds);
+    } else {
+      taskPrefix = DatastreamTaskImpl.getTaskPrefix(ds);
+    }
+
     Optional<Datastream> duplicateStream = allStreams.stream()
+        .filter(DatastreamUtils::containsTaskPrefix)
         .filter(x -> !x.getName().equals(ds.getName()) && DatastreamUtils.getTaskPrefix(x).equals(taskPrefix))
         .findFirst();
 
@@ -633,11 +640,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private String createTopic(Datastream datastream) throws TransportException {
-    Properties datastreamProperties = new Properties();
-    if (datastream.hasMetadata()) {
-      datastreamProperties.putAll(datastream.getMetadata());
-    }
-
     _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
 
     // Set destination creation time and retention
@@ -657,11 +659,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return datastream.getDestination().getConnectionString();
   }
 
-  private void handleLeaderDoAssignment() {
-
-    // get all current live instances
-    List<String> liveInstances = _adapter.getLiveInstances();
-
+  private List<DatastreamGroup> fetchDatastreamGroups() {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
     //  2) status is READY
@@ -671,51 +669,43 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
         .collect(Collectors.toList());
 
-    Map<String, List<Datastream>> streamsByTaskPrefix =
-        allStreams.stream().collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
+    Set<Datastream> invalidDatastreams =
+        allStreams.stream().filter(s -> !DatastreamUtils.containsTaskPrefix(s)).collect(Collectors.toSet());
+    if (!invalidDatastreams.isEmpty()) {
+      _log.error("Datastreams {} are ignored during assignment because they didn't contain task prefixes",
+          invalidDatastreams);
+    }
 
-    List<DatastreamGroup> datastreamGroups = streamsByTaskPrefix.keySet()
+    // Process only the streams that contains the taskPrefix.
+    Map<String, List<Datastream>> streamsByTaskPrefix = allStreams.stream()
+        .filter(s -> !invalidDatastreams.contains(s))
+        .collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
+
+    return streamsByTaskPrefix.keySet()
         .stream()
         .map(x -> new DatastreamGroup(streamsByTaskPrefix.get(x)))
         .collect(Collectors.toList());
+  }
+
+  private void handleLeaderDoAssignment() {
+
+    List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
 
     _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", datastreamGroups);
 
-    // Map between Instance and the tasks
-    Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
+    // get all current live instances
+    List<String> liveInstances = _adapter.getLiveInstances();
 
     // Map between instance to tasks assigned to the instance.
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
 
-    _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
-
-    for (String connectorType : _connectors.keySet()) {
-      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
-      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
-          .filter(x -> x.getConnectorName().equals(connectorType))
-          .collect(Collectors.toList());
-
-      // Get the list of tasks per instance for the given connector type
-      // We need to call assign even if the number of datastreams are empty, This is to make sure that
-      // the assignments get cleaned up for the deleted datastreams.
-      Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, previousAssignmentByInstance);
-
-      for (String instance : tasksByConnectorAndInstance.keySet()) {
-        newAssignmentsByInstance.computeIfAbsent(instance, (x) -> new ArrayList<>());
-
-        // Add the tasks for this connector type to the instance
-        tasksByConnectorAndInstance.get(instance).forEach(task -> {
-          // Each task must have a valid zkAdapter
-          ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
-          newAssignmentsByInstance.get(instance).add(task);
-        });
-      }
-    }
+    // Map between Instance and the tasks
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance =
+        performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
 
     // persist the assigned result to zookeeper. This means we will need to compare with the current
-    // assignment and do remove and add znodes accordingly. In the case of zookeeper failure (when
-    // it failed to create or delete znodes), we will do our best to continue the current process
+    // assignment and do remove and add zNodes accordingly. In the case of zookeeper failure (when
+    // it failed to create or delete zNodes), we will do our best to continue the current process
     // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
     try {
@@ -745,6 +735,39 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
     }
+  }
+
+  private Map<String, List<DatastreamTask>> performAssignment(List<String> liveInstances,
+      Map<String, Set<DatastreamTask>> previousAssignmentByInstance, List<DatastreamGroup> datastreamGroups) {
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
+
+    _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
+
+    for (String connectorType : _connectors.keySet()) {
+      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
+          .filter(x -> x.getConnectorName().equals(connectorType))
+          .collect(Collectors.toList());
+
+      // Get the list of tasks per instance for the given connector type
+      // We need to call assign even if the number of datastreams are empty, This is to make sure that
+      // the assignments get cleaned up for the deleted datastreams.
+      Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
+          strategy.assign(datastreamsPerConnectorType, liveInstances, previousAssignmentByInstance);
+
+      for (String instance : tasksByConnectorAndInstance.keySet()) {
+        newAssignmentsByInstance.computeIfAbsent(instance, (x) -> new ArrayList<>());
+
+        // Add the tasks for this connector type to the instance
+        tasksByConnectorAndInstance.get(instance).forEach(task -> {
+          // Each task must have a valid zkAdapter
+          ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
+          newAssignmentsByInstance.get(instance).add(task);
+        });
+      }
+    }
+
+    return newAssignmentsByInstance;
   }
 
   /**
