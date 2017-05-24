@@ -26,6 +26,8 @@ import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Strings;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
@@ -94,6 +96,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  */
 
 public class ZkAdapter {
+  private final String _defaultTransportProviderName;
   private Logger _log = LoggerFactory.getLogger(ZkAdapter.class); // recreated after connect()
 
   private String _zkServers;
@@ -124,13 +127,14 @@ public class ZkAdapter {
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
 
-  public ZkAdapter(String zkServers, String cluster, int sessionTimeout, int connectionTimeout,
-      ZkAdapterListener listener) {
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
+      int connectionTimeout, ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeout = sessionTimeout;
     _connectionTimeout = connectionTimeout;
     _listener = listener;
+    _defaultTransportProviderName = defaultTransportProviderName;
   }
 
   public synchronized boolean isLeader() {
@@ -443,8 +447,22 @@ public class ZkAdapter {
   public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
     String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
     DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
+    // TODO Remove this after the upgrade
+    if (Strings.isNullOrEmpty(task.getTaskPrefix())) {
+      task.setTaskPrefix(parseTaskPrefix(task.getDatastreamTaskName()));
+    }
+
+    // TODO Remove this after the upgrade
+    if (Strings.isNullOrEmpty(task.getTransportProviderName())) {
+      task.setTransportProviderName(_defaultTransportProviderName);
+    }
+
     task.setZkAdapter(this);
     return task;
+  }
+
+  private String parseTaskPrefix(String datastreamTaskName) {
+    return datastreamTaskName.substring(0, datastreamTaskName.lastIndexOf("_"));
   }
 
   /**

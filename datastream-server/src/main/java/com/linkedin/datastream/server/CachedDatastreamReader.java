@@ -71,8 +71,9 @@ public class CachedDatastreamReader {
   public synchronized List<DatastreamGroup> getDatastreamGroups() {
     List<Datastream> allStreams = getAllDatastreams(false);
 
-    Map<String, List<Datastream>> streamsByTaskPrefix =
-        allStreams.stream().collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
+    Map<String, List<Datastream>> streamsByTaskPrefix = allStreams.stream()
+        .filter(DatastreamUtils::containsTaskPrefix)
+        .collect(Collectors.groupingBy(DatastreamUtils::getTaskPrefix, Collectors.toList()));
 
     return streamsByTaskPrefix.keySet()
         .stream()

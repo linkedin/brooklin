@@ -29,6 +29,8 @@ public class TestZookeeperCheckpointProvider {
 
   private EmbeddedZookeeper _zookeeper;
 
+  private String defaultTransportProviderName = "test";
+
   @BeforeMethod
   public void setup() throws IOException {
     DynamicMetricsManager.createInstance(new MetricRegistry());
@@ -57,7 +59,7 @@ public class TestZookeeperCheckpointProvider {
 
   @Test
   public void testUnassign() {
-    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
         ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
@@ -86,7 +88,7 @@ public class TestZookeeperCheckpointProvider {
 
   @Test
   public void testCommitAndReadCheckpoints() {
-    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
+    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
         ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
