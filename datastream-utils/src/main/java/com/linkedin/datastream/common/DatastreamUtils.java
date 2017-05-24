@@ -71,4 +71,8 @@ public final class DatastreamUtils {
   public static String getTaskPrefix(Datastream datastream) {
     return datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
   }
+
+  public static boolean containsTaskPrefix(Datastream datastream) {
+    return datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX);
+  }
 }
