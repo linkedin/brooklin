@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -212,15 +213,7 @@ public class KafkaConnectorTask implements Runnable {
             _eventCountsPerPoll.update(records.count());
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
-            if (_startOffsets.isPresent()) {
-              LOG.info("Datastream is configured with StartPosition. Trying to start from {}",
-                  _startOffsets.get());
-              seekToOffset(consumer, e.partitions(), _startOffsets.get());
-            } else {
-              //means we have no saved offsets for some partitions, reset it to latest for those
-              consumer.seekToEnd(e.partitions());
-            }
-
+            seekToStartPosition(consumer, e.partitions());
             continue;
           } catch (Exception e) {
             LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying.",
@@ -249,17 +242,24 @@ public class KafkaConnectorTask implements Runnable {
             LOG.info("sending the messages failed with exception. Trying to start processing from previous checkpoint.",
                 e);
             Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
+            Set<TopicPartition> tpWithNoCommits = new HashSet<>();
             //construct last checkpoint
             consumer.assignment().forEach(tp -> {
               OffsetAndMetadata offset =  consumer.committed(tp);
               // offset can be null if there was no prior commit
-              if (offset != null) {
+              if (offset == null) {
+                tpWithNoCommits.add(tp);
+              } else {
                 lastCheckpoint.put(tp, consumer.committed(tp));
               }
             });
             LOG.info("Seeking to previous checkpoints {} and start.", lastCheckpoint);
             //reset consumer to last checkpoint
             lastCheckpoint.forEach((tp, offsetAndMetadata) -> consumer.seek(tp, offsetAndMetadata.offset()));
+            if (!tpWithNoCommits.isEmpty()) {
+              LOG.info("Seeking to start position {} and start ", tpWithNoCommits);
+              seekToStartPosition(consumer, tpWithNoCommits);
+            }
           }
         }
 
@@ -273,6 +273,17 @@ public class KafkaConnectorTask implements Runnable {
     } finally {
       _stoppedLatch.countDown();
       LOG.info("{} stopped", _taskName);
+    }
+  }
+
+  private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions) {
+    if (_startOffsets.isPresent()) {
+      LOG.info("Datastream is configured with StartPosition. Trying to start from {}",
+          _startOffsets.get());
+      seekToOffset(consumer, partitions, _startOffsets.get());
+    } else {
+      //means we have no saved offsets for some partitions, reset it to latest for those
+      consumer.seekToEnd(partitions);
     }
   }
 
