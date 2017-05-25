@@ -250,7 +250,13 @@ public class KafkaConnectorTask implements Runnable {
                 e);
             Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
             //construct last checkpoint
-            consumer.assignment().forEach(tp -> lastCheckpoint.put(tp, consumer.committed(tp)));
+            consumer.assignment().forEach(tp -> {
+              OffsetAndMetadata offset =  consumer.committed(tp);
+              // offset can be null if there was no prior commit
+              if (offset != null) {
+                lastCheckpoint.put(tp, consumer.committed(tp));
+              }
+            });
             LOG.info("Seeking to previous checkpoints {} and start.", lastCheckpoint);
             //reset consumer to last checkpoint
             lastCheckpoint.forEach((tp, offsetAndMetadata) -> consumer.seek(tp, offsetAndMetadata.offset()));
