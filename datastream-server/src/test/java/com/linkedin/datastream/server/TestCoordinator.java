@@ -1361,6 +1361,23 @@ public class TestCoordinator {
     Assert.assertTrue(PollUtils.poll(() -> counter.get() >= 1, 1000, 30000));
   }
 
+  public void testIsLeader() throws Exception {
+    String testCluster = "testIsLeader";
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    instance1.start();
+    Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+    instance2.start();
+
+    Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance2.getIsLeader().getAsBoolean());
+
+    instance1.stop();
+    Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
+  }
+
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, String... datastreamNames)
