@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -956,6 +957,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public void addSerde(String serdeName, SerdeAdmin admin) {
     _serdeAdmins.put(serdeName, admin);
+  }
+
+  /**
+   * @return a boolean supplier which can be queried to check if the current
+   * Coordinator instance is a leader in the Brooklin server cluster. This
+   * allows other part of the server to perform cluster level operations only
+   * on the leader.
+   */
+  public BooleanSupplier getIsLeader() {
+    return () -> _adapter.isLeader();
   }
 
   private class CoordinatorEventProcessor extends Thread {

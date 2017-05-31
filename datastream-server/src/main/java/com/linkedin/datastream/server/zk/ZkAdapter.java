@@ -109,7 +109,7 @@ public class ZkAdapter {
   private String _liveInstanceName;
   private String _hostname;
 
-  private boolean _isLeader = false;
+  private volatile boolean _isLeader = false;
   private ZkAdapterListener _listener;
 
   // the current znode this node is listening to
