@@ -587,7 +587,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             shouldRetry = true;
           }
         } catch (Exception e) {
-          _log.warn("Failed to update the destination of new datastream {}", ds, e);
+          _log.warn("Failed to update the destination of new datastream " + ds, e);
           shouldRetry = true;
         }
       } else if (ds.getStatus() == DatastreamStatus.DELETING) {
@@ -856,9 +856,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       if (existingDatastream.isPresent()) {
         populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
-        datastream.getMetadata()
-            .put(DatastreamMetadataConstants.TASK_PREFIX,
-                existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+
+        // new datastream is immediately READY when it is de-duped
+        datastream.setStatus(DatastreamStatus.READY);
       } else {
         if (!_transportProviderAdmins.containsKey(datastream.getTransportProviderName())) {
           throw new DatastreamValidationException(
@@ -887,6 +887,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {
     DatastreamDestination destination = existingStream.getDestination();
     datastream.setDestination(destination);
+
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.TASK_PREFIX,
+            existingStream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
 
     // Copy destination-related metadata
     if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
