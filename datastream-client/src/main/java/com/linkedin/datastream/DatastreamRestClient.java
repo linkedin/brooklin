@@ -63,6 +63,16 @@ public class DatastreamRestClient {
     _restClient = new RestClient(r2Client, dsmUri);
   }
 
+  /**
+   * @deprecated Please use factory {@link DatastreamRestClientFactory}
+   */
+  @Deprecated
+  public DatastreamRestClient(RestClient restClient) {
+    Validate.notNull(restClient, "null restClient");
+    _builders = new DatastreamRequestBuilders();
+    _restClient = restClient;
+  }
+
   private Datastream doGetDatastream(String datastreamName) throws RemoteInvocationException {
     GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
