@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -46,6 +47,12 @@ import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.UpdateResponse;
 
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+
 
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
@@ -60,11 +67,16 @@ public class TestCoordinator {
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {
+    return createCoordinator(zkAddr, cluster, new Properties());
+  }
+
+  private Coordinator createCoordinator(String zkAddr, String cluster, Properties override) throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(client, cluster);
     Coordinator coordinator = new Coordinator(datastreamCache, props);
@@ -1319,6 +1331,34 @@ public class TestCoordinator {
     validateRetention(stream, setup._resource, KafkaTransportProviderAdmin.DEFAULT_RETENTION);
 
     setup._datastreamKafkaCluster.shutdown();
+  }
+
+  @Test
+  public void testHeartbeat() throws Exception {
+    // Use 1s heartbeat period for quicker execution
+    Properties override = new Properties();
+    override.put("brooklin.server.coordinator.heartbeatPeriodMs", "1000");
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, "testHeartbeat", override);
+
+    // Mock the DMM to avoid interference from other test cases
+    DynamicMetricsManager dynMM = mock(DynamicMetricsManager.class);
+
+    AtomicLong counter = new AtomicLong();
+    doAnswer((invocation) -> {
+      String metricName = (String) invocation.getArguments()[1];
+      if (metricName.equalsIgnoreCase("numHeartbeats")) {
+        counter.incrementAndGet();
+      }
+      return null;
+    }).when(dynMM).createOrUpdateCounter(anyString(), anyObject(), anyLong());
+
+    ReflectionUtils.setField(coordinator, "_dynamicMetricsManager", dynMM);
+
+    coordinator.start();
+
+    // Wait up to 30s for the first heartbeat
+    Assert.assertTrue(PollUtils.poll(() -> counter.get() >= 1, 1000, 30000));
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

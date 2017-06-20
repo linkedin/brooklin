@@ -42,6 +42,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -120,6 +121,8 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
+  private static final String MODULE = Coordinator.class.getSimpleName();
+
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
   private final CheckpointProvider _cpProvider;
@@ -129,6 +132,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
+
   public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private final CoordinatorEventBlockingQueue _eventQueue;
@@ -157,11 +161,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
+  private static final String NUM_HEARTBEATS = "numHeartbeats";
 
   // Connector common metrics
   private static final String NUM_DATASTREAMS = "numDatastreams";
   private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
-  private HashMap<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
+
+  // One coordinator heartbeat per minute, heartbeat helps detect dead/live-lock
+  // where no events can be handled if coordinator locks up. This can happen because
+  // handleEvent is synchronized and downstream code can misbehave.
+  private final Duration _heartbeatPeriod;
+
+  private Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -171,6 +182,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _datastreamCache = datastreamCache;
     _config = config;
     _clusterName = _config.getCluster();
+    _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
     _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
         _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
@@ -221,6 +233,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // now that instance is started, make sure it doesn't miss any assignment created during
     // the slow startup
     _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+
+    // Queue up one heartbeat per period with a initial delay of 3 periods
+    _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
+        _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
   public void stop() {
@@ -534,13 +550,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         case HANDLE_INSTANCE_ERROR:
           handleInstanceError((CoordinatorEvent.HandleInstanceError) event);
           break;
+
+        case HEARTBEAT:
+          handleHeartbeat();
+          break;
+
         default:
           String errorMessage = String.format("Unknown event type %s.", event.getType());
           ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
           break;
       }
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleEvent-" + event.getType(), NUM_ERRORS, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleEvent-" + event.getType(), NUM_ERRORS, 1);
       _log.error("ERROR: event + " + event + " failed.", e);
     }
 
@@ -554,6 +575,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private void handleInstanceError(CoordinatorEvent.HandleInstanceError event) {
     String msg = event.getEventData();
     _adapter.zkSaveInstanceError(msg);
+  }
+
+  /**
+   * Increment a heartbeat counter as a way to report liveliness of the coordinator
+   */
+  private void handleHeartbeat() {
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, NUM_HEARTBEATS, 1);
   }
 
   // when there are new datastreams defined in DSM, we need to decide its target from the corresponding
@@ -597,7 +625,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (shouldRetry) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
@@ -606,7 +634,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
         _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
-            _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+            _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
       }
     }
 
@@ -722,18 +750,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (succeeded) {
       _adapter.cleanupDeadInstanceAssignments(liveInstances);
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_REBALANCES, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
 
     // schedule retry if failure
     if (!succeeded && !leaderDoAssignmentScheduled.get()) {
       _log.info("Schedule retry for leader assigning tasks");
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "handleLeaderDoAssignment", NUM_RETRIES, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderDoAssignment", NUM_RETRIES, 1);
       leaderDoAssignmentScheduled.set(true);
       _executor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
         leaderDoAssignmentScheduled.set(false);
-      }, _config.getRetryIntervalMS(), TimeUnit.MILLISECONDS);
+      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
   }
 
@@ -877,7 +905,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             datastream.getName(), datastream.getDestination());
       }
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), "initializeDatastream", NUM_ERRORS, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "initializeDatastream", NUM_ERRORS, 1);
       throw e;
     }
 
@@ -907,6 +935,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinMeterInfo(buildMetricName(NUM_REBALANCES)));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_ERRORS));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_RETRIES));
+    _metrics.add(new BrooklinCounterInfo(buildMetricName(NUM_HEARTBEATS)));
 
     return Collections.unmodifiableList(_metrics);
   }
