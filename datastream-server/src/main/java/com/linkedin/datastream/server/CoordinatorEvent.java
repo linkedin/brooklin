@@ -6,12 +6,14 @@ public class CoordinatorEvent {
     LEADER_DO_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
-    HANDLE_INSTANCE_ERROR
+    HANDLE_INSTANCE_ERROR,
+    HEARTBEAT
   }
 
   public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT = new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT = new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT = new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
+  public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
 
   protected final EventType _eventType;
 
