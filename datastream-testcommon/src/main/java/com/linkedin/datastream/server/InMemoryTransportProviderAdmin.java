@@ -38,8 +38,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
     int numberOfPartitions = datastream.getDestination().getPartitions();
     if (_transportProvider.getTopics().containsKey(topicName)) {
       String msg = String.format("Topic %s already exists", topicName);
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
+      LOG.warn(msg);
     }
     _transportProvider.addTopic(topicName, numberOfPartitions);
   }
