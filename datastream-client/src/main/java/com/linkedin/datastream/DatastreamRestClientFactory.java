@@ -25,14 +25,35 @@ public class DatastreamRestClientFactory {
     return StringUtils.prependIfMissing(StringUtils.appendIfMissing(dmsUri, "/"), DEFAULT_URI_SCHEME);
   }
 
+  /**
+   * Get a DatastreamRestClient with default HTTP client
+   * @param dmsUri URI to DMS endpoint
+   * @return
+   */
   public static DatastreamRestClient getClient(String dmsUri) {
+    return getClient(dmsUri, Collections.<String, String>emptyMap());
+  }
+
+  /**
+   * Get a DatastreamRestClient with default HTTP client and custom HTTP configs
+   * @param dmsUri URI to DMS endpoint
+   * @param httpConfig custom config for HTTP client, please find the configs in {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
+   * @return
+   */
+  public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
     dmsUri = sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
       return overrides.get(dmsUri);
     }
-    return new DatastreamRestClient(dmsUri);
+    return new DatastreamRestClient(dmsUri, httpConfig);
   }
 
+  /**
+   * Get a DatastreamRestClient with an existing Rest.li R2Client
+   * @param dmsUri URI to DMS endpoint
+   * @param r2Client Rest.li R2Client
+   * @return
+   */
   public static DatastreamRestClient getClient(String dmsUri, Client r2Client) {
     dmsUri = sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
@@ -41,6 +62,12 @@ public class DatastreamRestClientFactory {
     return new DatastreamRestClient(dmsUri, r2Client);
   }
 
+  /**
+   * Get a DatastreamRestClient with an existing Rest.li RestClient (must bound to the same dmsUri).
+   * @param dmsUri URI to DMS endpoint
+   * @param restClient Rest.li RestClient
+   * @return
+   */
   public static DatastreamRestClient getClient(String dmsUri, RestClient restClient) {
     dmsUri = sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
@@ -59,6 +86,9 @@ public class DatastreamRestClientFactory {
     overrides.put(dmsUri, restClient);
   }
 
+  /**
+   * @return the current RestClient override mappings
+   */
   public static Map<String, DatastreamRestClient> getOverrides() {
     return Collections.unmodifiableMap(overrides);
   }
