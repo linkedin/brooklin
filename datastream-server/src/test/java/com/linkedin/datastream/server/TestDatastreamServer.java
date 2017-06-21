@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.server.api.security.Authorizer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +15,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import com.linkedin.datastream.common.*;
 import kafka.admin.RackAwareMode;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
@@ -46,6 +46,9 @@ import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
+
+import static com.linkedin.datastream.server.DatastreamServer.*;
+import static org.mockito.Mockito.*;
 
 
 @Test(singleThreaded = true)
@@ -126,6 +129,25 @@ public class TestDatastreamServer {
     initializeTestDatastreamServerWithDummyConnector(null);
     initializeTestDatastreamServerWithBootstrap();
     _datastreamCluster = initializeTestDatastreamServerWithFileConnector(2, BROADCAST_STRATEGY_FACTORY);
+  }
+
+  @Test
+  public void testDatastreamServerAuthorization() throws Exception {
+    Properties props = new Properties();
+    String authzName = "TestAuthz";
+    props.put(CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + CONFIG_CONNECTOR_AUTHORIZER_NAME, authzName);
+    _datastreamCluster = initializeTestDatastreamServerWithDummyConnector(props);
+    _datastreamCluster.startup();
+
+    Authorizer authz = mock(Authorizer.class);
+    when(authz.authorize(anyObject(), anyObject(), anyObject())).thenReturn(true);
+    _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().addAuthorizer(authzName, authz);
+
+    Datastream stream = DatastreamTestUtils.createDatastream(DUMMY_CONNECTOR, "A", DummyConnector.VALID_DUMMY_SOURCE);
+    DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
+    restClient.createDatastream(stream);
+
+    verify(authz, times(1)).authorize(anyObject(), anyObject(), anyObject());
   }
 
   @Test

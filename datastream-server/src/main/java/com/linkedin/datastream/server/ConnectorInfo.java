@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
+import java.util.Optional;
 
 
 /**
@@ -20,13 +21,19 @@ public class ConnectorInfo {
 
   private DatastreamDeduper _datastreamDeduper;
 
+  /**
+   * Store authorizerName because authorizer might be initialized later
+   */
+  private Optional<String> _authorizerName;
+
   public ConnectorInfo(String name, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing,
-      DatastreamDeduper deduper) {
+      DatastreamDeduper deduper, String authorizerName) {
     _name = name;
     _connector = new ConnectorWrapper(name, connector);
     _assignmentStrategy = strategy;
     _customCheckpointing = customCheckpointing;
     _datastreamDeduper = deduper;
+    _authorizerName = Optional.ofNullable(authorizerName);
   }
 
   public ConnectorWrapper getConnector() {
@@ -47,5 +54,9 @@ public class ConnectorInfo {
 
   public String getConnectorType() {
     return _connector.getConnectorType();
+  }
+
+  public Optional<String> getAuthorizerName() {
+    return _authorizerName;
   }
 }

@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -53,6 +54,8 @@ import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.security.AuthorizationException;
+import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportException;
@@ -173,6 +176,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Duration _heartbeatPeriod;
 
   private Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
+  private Map<String, Authorizer> _authorizers = new HashMap<>();
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -807,9 +811,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to the zookeeper.
+   * @param deduper the deduper used by connector
+   * @param authorizerName name of the authorizer configured by connector
+   *
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
-      boolean customCheckpointing, DatastreamDeduper deduper) {
+      boolean customCheckpointing, DatastreamDeduper deduper, String authorizerName) {
     Validate.notNull(strategy, "strategy cannot be null");
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
@@ -826,7 +833,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
     connectorMetrics.ifPresent(_metrics::addAll);
 
-    ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper);
+    ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper,
+        authorizerName);
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
@@ -872,6 +880,28 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     try {
+      if (connectorInfo.getAuthorizerName().isPresent()) {
+        Authorizer authz = _authorizers.getOrDefault(connectorInfo.getAuthorizerName().get(), null);
+
+        if (authz == null) {
+          String errMsg = String.format("No authorizer '%s' was configured", connectorInfo.getAuthorizerName().get());
+          _log.error(errMsg);
+          throw new DatastreamValidationException(errMsg);
+        }
+
+        // Security principals are passed in through OWNER metadata
+        // DatastreamResources has validated OWNER key is present
+        String principal = datastream.getMetadata().get(DatastreamMetadataConstants.OWNER_KEY);
+
+        // CREATE is already verified through the SSL layer of the HTTP framework (optional)
+        // READ is the operation for datastream source-level authorization
+        if (!authz.authorize(datastream, Authorizer.Operation.READ, () -> principal)) {
+          String errMsg = "Failed to authorize the consumers (OWNER) for datastream " + datastream;
+          _log.error(errMsg);
+          throw new AuthorizationException(errMsg);
+        }
+      }
+
       connector.initializeDatastream(datastream, allDatastreams);
 
       Optional<Datastream> existingDatastream = Optional.empty();
@@ -956,6 +986,31 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public void addSerde(String serdeName, SerdeAdmin admin) {
     _serdeAdmins.put(serdeName, admin);
+  }
+
+  /**
+   * @return a boolean supplier which can be queried to check if the current
+   * Coordinator instance is a leader in the Brooklin server cluster. This
+   * allows other part of the server to perform cluster level operations only
+   * on the leader.
+   */
+  public BooleanSupplier getIsLeader() {
+    return () -> _adapter.isLeader();
+  }
+
+  /**
+   * Set an authorizer implementation to enforce ACL on datastream CRUD operations.
+   * @param authorizer
+   */
+  public void addAuthorizer(String name, Authorizer authorizer) {
+    Validate.notNull(authorizer, "null authorizer");
+    if (_authorizers.containsKey(name)) {
+      _log.warn("Registering duplicate authorizer with name={}, auth={}", name, authorizer);
+    }
+    _authorizers.put(name, authorizer);
+    if (authorizer instanceof MetricsAware) {
+      Optional.ofNullable(((MetricsAware) authorizer).getMetricInfos()).ifPresent(_metrics::addAll);
+    }
   }
 
   private class CoordinatorEventProcessor extends Thread {

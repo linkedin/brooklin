@@ -16,7 +16,8 @@ public class DatastreamMetadataConstants {
   public static final String REUSE_EXISTING_DESTINATION_KEY = "system.reuseExistingDestination";
 
   /**
-   * Represents datastream owner
+   * Represents datastream owner which is also the security principal for authorization.
+   * NOTE that owner can be a list of entities.
    */
   public static final String OWNER_KEY = "owner";
 
