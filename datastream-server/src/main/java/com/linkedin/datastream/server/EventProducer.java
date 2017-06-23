@@ -146,8 +146,6 @@ public class EventProducer implements DatastreamEventProducer {
     for (Object event : record.getEvents()) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
       Validate.notNull(envelope, "null event");
-      Validate.notNull(envelope.getKey(), "null key");
-      Validate.notNull(envelope.getValue(), "null value");
     }
   }
 

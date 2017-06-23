@@ -73,7 +73,7 @@ public class TestMessageHandler {
     BrooklinEnvelope envelope = handler.generateBrooklinEnvelope(events.get(1));
 
     // validate basic encoding on key
-    byte[] keyByteArray = (byte[]) envelope.getKey();
+    byte[] keyByteArray = (byte[]) envelope.key().get();
     Assert.assertNotNull(keyByteArray);
     Assert.assertFalse(keyByteArray.length == 0);
     Assert.assertFalse(keyByteArray[0] > MAGIC_BYTE);

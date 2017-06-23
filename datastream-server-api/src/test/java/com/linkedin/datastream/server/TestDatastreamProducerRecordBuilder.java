@@ -28,8 +28,8 @@ public class TestDatastreamProducerRecordBuilder {
 
     DatastreamProducerRecord record = builder.build();
     Assert.assertEquals(record.getEvents().size(), 2);
-    Assert.assertEquals(record.getEvents().get(0).getValue(), event1.getValue());
-    Assert.assertEquals(record.getEvents().get(1).getValue(), event2.getValue());
+    Assert.assertEquals(record.getEvents().get(0).value().get(), event1.value().get());
+    Assert.assertEquals(record.getEvents().get(1).value().get(), event2.value().get());
     Assert.assertEquals(record.getPartition().get().intValue(), partition);
     Assert.assertEquals(record.getCheckpoint(), sourceCheckpoint);
     Assert.assertEquals(record.getEventsSourceTimestamp(), timestamp);
@@ -78,7 +78,7 @@ public class TestDatastreamProducerRecordBuilder {
     DatastreamProducerRecord record = builder.build();
 
     Assert.assertEquals(record.getEvents().size(), 1);
-    Assert.assertEquals(record.getEvents().get(0).getKey(), key);
-    Assert.assertEquals(record.getEvents().get(0).getValue(), payload);
+    Assert.assertEquals(record.getEvents().get(0).key().get(), key);
+    Assert.assertEquals(record.getEvents().get(0).value().get(), payload);
   }
 }
