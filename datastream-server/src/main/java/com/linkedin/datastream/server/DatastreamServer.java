@@ -19,12 +19,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
@@ -54,6 +51,10 @@ import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
@@ -68,6 +69,7 @@ public class DatastreamServer {
   public static final String CONFIG_CSV_METRICS_DIR = CONFIG_PREFIX + "csvMetricsDir";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
+  public static final String CONFIG_ENABLE_EMBEDDED_JETTY = "enableEmbeddedJetty";
   public static final String CONFIG_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
@@ -85,11 +87,11 @@ public class DatastreamServer {
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
-  private DatastreamNettyStandaloneLauncher _nettyLauncher;
+  private DatastreamJettyStandaloneLauncher _jettyLauncher;
   private JmxReporter _jmxReporter;
 
   private final String _csvMetricsDir;
-  private final int _httpPort;
+  private int _httpPort;
   private final Map<String, String> _bootstrapConnectors;
 
   private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
@@ -290,10 +292,17 @@ public class DatastreamServer {
     }
 
     _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
-    _httpPort =
-        verifiableProperties.getIntInRange(CONFIG_HTTP_PORT, 1024, 65535); // skipping well-known port range: (1~1023)
-    _nettyLauncher = new DatastreamNettyStandaloneLauncher(_httpPort, new DatastreamResourceFactory(this),
-        "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
+
+    boolean enableEmbeddedJetty = verifiableProperties.getBoolean(CONFIG_ENABLE_EMBEDDED_JETTY, true);
+
+    // Port will be updated after start() is called if it is 0
+    _httpPort = verifiableProperties.getInt(CONFIG_HTTP_PORT);
+    Validate.isTrue(_httpPort == 0 || _httpPort >= 1024, "Invalid port number: " + _httpPort);
+
+    if (enableEmbeddedJetty) {
+      _jettyLauncher = new DatastreamJettyStandaloneLauncher(_httpPort, new DatastreamResourceFactory(this),
+          "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
+    }
 
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
 
@@ -343,9 +352,10 @@ public class DatastreamServer {
 
     // Start the DMS rest endpoint.
     try {
-      _nettyLauncher.start();
+      _jettyLauncher.start();
+      _httpPort = _jettyLauncher.getPort();
       _isStarted = true;
-    } catch (IOException ex) {
+    } catch (Exception ex) {
       String errorMessage = "Failed to start netty.";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, ex);
     }
@@ -357,13 +367,13 @@ public class DatastreamServer {
       _coordinator = null;
     }
     _datastreamStore = null;
-    if (_nettyLauncher != null) {
+    if (_jettyLauncher != null) {
       try {
-        _nettyLauncher.stop();
-      } catch (IOException e) {
+        _jettyLauncher.stop();
+      } catch (Exception e) {
         LOG.error("Fail to stop netty launcher.", e);
       }
-      _nettyLauncher = null;
+      _jettyLauncher = null;
     }
 
     if (_jmxReporter != null) {

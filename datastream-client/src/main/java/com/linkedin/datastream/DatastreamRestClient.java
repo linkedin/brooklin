@@ -1,7 +1,7 @@
 package com.linkedin.datastream;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang3.StringUtils;
@@ -45,26 +45,31 @@ public class DatastreamRestClient {
 
   /**
    * @deprecated Please use factory {@link DatastreamRestClientFactory}
+   * @param dmsUri URI to DMS endpoint
+   * @param httpConfig custom config for HTTP client, please find the configs in {@link HttpClientFactory}
    */
   @Deprecated
-  public DatastreamRestClient(String dsmUri) {
-    this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(Collections.<String, String>emptyMap())));
+  public DatastreamRestClient(String dmsUri, Map<String, String> httpConfig) {
+    this(dmsUri, new TransportClientAdapter(new HttpClientFactory().getClient(httpConfig)));
   }
 
   /**
    * @deprecated Please use factory {@link DatastreamRestClientFactory}
+   * @param dmsUri URI to DMS endpoint
+   * @param r2Client pre-created R2Client
    */
   @Deprecated
-  public DatastreamRestClient(String dsmUri, Client r2Client) {
-    Validate.notEmpty(dsmUri, "invalid DSM URI");
+  public DatastreamRestClient(String dmsUri, Client r2Client) {
+    Validate.notEmpty(dmsUri, "invalid DSM URI");
     Validate.notNull(r2Client, "null R2 client");
-    dsmUri = StringUtils.appendIfMissing(dsmUri, "/");
+    dmsUri = StringUtils.appendIfMissing(dmsUri, "/");
     _builders = new DatastreamRequestBuilders();
-    _restClient = new RestClient(r2Client, dsmUri);
+    _restClient = new RestClient(r2Client, dmsUri);
   }
 
   /**
    * @deprecated Please use factory {@link DatastreamRestClientFactory}
+   * @param restClient pre-created RestClient
    */
   @Deprecated
   public DatastreamRestClient(RestClient restClient) {

@@ -1,5 +1,6 @@
 package com.linkedin.datastream;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,44 +28,51 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.NetworkUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.connectors.DummyBootstrapConnector;
-import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.client.RestLiResponseException;
 
 
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient {
-  private static final String TRANSPORT_FACTORY_CLASS = DummyTransportProviderAdminFactory.class.getTypeName();
-
   private static final String TRANSPORT_NAME = "default";
 
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
-  private static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
-  private static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
   private static final long WAIT_TIMEOUT_MS = Duration.ofMinutes(3).toMillis();
 
-  private DatastreamServer _datastreamServer;
-  private EmbeddedZookeeper _embeddedZookeeper;
+  private EmbeddedDatastreamCluster _datastreamCluster;
 
   @BeforeTest
   public void setUp() throws Exception {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
-    setupServer();
+
+    // Create a cluster with maximum 2 DMS instances
+    setupDatastreamCluster(2);
   }
 
   @AfterTest
   public void tearDown() throws Exception {
-    _datastreamServer.shutdown();
-    _embeddedZookeeper.shutdown();
+    _datastreamCluster.shutdown();
+  }
+
+  private void setupDatastreamCluster(int numServers) throws IOException, DatastreamException {
+    Properties connectorProps = new Properties();
+    connectorProps.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getCanonicalName());
+    connectorProps.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
+        BroadcastStrategyFactory.class.getTypeName());
+    connectorProps.put("dummyProperty", "dummyValue");
+
+    _datastreamCluster = EmbeddedDatastreamCluster.newTestDatastreamCluster(
+        Collections.singletonMap(DummyConnector.CONNECTOR_TYPE, connectorProps), null, numServers);
+
+    // NOTE: Only start the first instance by default
+    // Test case needing the 2nd one should start the 2nd instance
+    _datastreamCluster.startupServer(0);
   }
 
   public static Datastream generateDatastream(int seed) {
@@ -81,41 +89,13 @@ public class TestDatastreamRestClient {
     return ds;
   }
 
-  private void setupServer() throws Exception {
-    _embeddedZookeeper = new EmbeddedZookeeper();
-    _embeddedZookeeper.startup();
-    setupDatastreamServer(NetworkUtils.getAvailablePort());
-  }
-
+  /**
+   * Create a rest client with the default/leader DMS instance
+   * @return
+   */
   private DatastreamRestClient createRestClient() {
-    return DatastreamRestClientFactory.getClient("http://localhost:" + _datastreamServer.getHttpPort());
-  }
-
-  private void setupDatastreamServer(int port) throws DatastreamException {
-    String zkConnectionString = _embeddedZookeeper.getConnection();
-    Properties properties = new Properties();
-    properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "testCluster");
-    properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(port));
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, DUMMY_CONNECTOR + "," + DUMMY_BOOTSTRAP_CONNECTOR);
-    String tpPrefix = DatastreamServer.CONFIG_TRANSPORT_PROVIDER_PREFIX + TRANSPORT_NAME + ".";
-    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_NAMES, TRANSPORT_NAME);
-    properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, TRANSPORT_FACTORY_CLASS);
-    properties.put(
-        DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "." + DatastreamServer.CONFIG_FACTORY_CLASS_NAME,
-        DummyConnectorFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "."
-        + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
-        + DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
-    // DummyConnector will verify this value being correctly set
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + ".dummyProperty", "dummyValue");
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_CONNECTOR + "."
-        + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BroadcastStrategyFactory.class.getTypeName());
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + DUMMY_BOOTSTRAP_CONNECTOR + "."
-        + DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BroadcastStrategyFactory.class.getTypeName());
-    _datastreamServer = new DatastreamServer(properties);
-    _datastreamServer.startup();
+    String dmsUri = String.format("http://localhost:%d", _datastreamCluster.getDatastreamPorts().get(0));
+    return DatastreamRestClientFactory.getClient(dmsUri);
   }
 
   @Test
@@ -148,11 +128,14 @@ public class TestDatastreamRestClient {
 
   @Test
   public void testCreateDatastreamToNonLeader() throws Exception {
-    int httpPort = NetworkUtils.getAvailablePort();
-    setupDatastreamServer(httpPort);
+    // Start the second DMS instance to be the follower
+    _datastreamCluster.startupServer(1);
+
     Datastream datastream = generateDatastream(5);
     LOG.info("Datastream : " + datastream);
-    DatastreamRestClient restClient = DatastreamRestClientFactory.getClient("http://localhost:" + httpPort);
+
+    int followerDmsPort = _datastreamCluster.getDatastreamPorts().get(1);
+    DatastreamRestClient restClient = DatastreamRestClientFactory.getClient("http://localhost:" + followerDmsPort);
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
     LOG.info("Created Datastream : " + createdDatastream);
