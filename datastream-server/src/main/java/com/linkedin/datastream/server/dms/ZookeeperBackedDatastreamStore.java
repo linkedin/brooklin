@@ -70,7 +70,24 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   public void updateDatastream(String key, Datastream datastream) throws DatastreamException {
     // Updating a Datastream is still tricky for now. Changing either the
     // the source or target may result in failure on connector.
-    // We could possibly only allow updates on metadata field
+    // We only support changes of the "paused field"
+
+    Datastream oldDatastream = getDatastream(key);
+    if (oldDatastream == null) {
+      throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
+    }
+
+    if (datastream.hasPaused()) {
+      oldDatastream.setPaused(datastream.isPaused());
+    }
+
+    if (!datastream.equals(oldDatastream)) {
+      throw new DatastreamException("Only changes to the 'pause' field are supported at this time.");
+    }
+
+    String json = DatastreamUtils.toJSON(datastream);
+    _zkClient.writeData(getZnodePath(key), json);
+    notifyLeaderOfDataChange();
   }
 
   @Override
@@ -100,9 +117,13 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       String data = DatastreamUtils.toJSON(datastream);
       String path = getZnodePath(key);
       _zkClient.updateDataSerialized(path, old -> data);
-      String dmsPath = KeyBuilder.datastreams(_cluster);
-      // Update the /dms to notify that coordinator needs to act on the deleted datastream.
-      _zkClient.updateDataSerialized(dmsPath, old -> String.valueOf(System.currentTimeMillis()));
+      notifyLeaderOfDataChange();
     }
+  }
+
+  private void notifyLeaderOfDataChange() {
+    String dmsPath = KeyBuilder.datastreams(_cluster);
+    // Update the /dms to notify that coordinator needs to act on a deleted or changed datastream.
+    _zkClient.updateDataSerialized(dmsPath, old -> String.valueOf(System.currentTimeMillis()));
   }
 }

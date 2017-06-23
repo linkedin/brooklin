@@ -124,6 +124,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
+  public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   private static final String MODULE = Coordinator.class.getSimpleName();
 
   private final CachedDatastreamReader _datastreamCache;
@@ -145,10 +146,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
-  AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
+  private AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
 
   // make sure the scheduled retries are not duplicated
-  AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
+  private AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
 
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
@@ -594,8 +595,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // when the datastream definition can be updated in DSM.
   private void handleDatastreamAddOrDelete() {
     boolean shouldRetry = false;
-    // Allow further retry scheduling
-    leaderDatastreamAddOrDeleteEventScheduled.set(false);
 
     // Get the list of all datastreams
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true);
@@ -633,12 +632,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
-      // TODO(misanchez) This condition is always true beacuse we are running in syncronized mode.
-      //                 we should consider to remove this AtomicBoolean.
       if (leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
-        _executor.schedule(() -> _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent()),
-            _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+        _executor.schedule(() -> {
+          _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
+
+          // Allow further retry scheduling
+          leaderDatastreamAddOrDeleteEventScheduled.set(false);
+        }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
       }
     }
 
@@ -695,7 +696,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
     //  2) status is READY
-    List<Datastream> allStreams = _datastreamCache.getAllDatastreams()
+    List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true)
         .stream()
         .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY
             && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
@@ -742,7 +743,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean succeeded = true;
     try {
       _adapter.updateAllAssignments(newAssignmentsByInstance);
-      _adapter.updateAllAssignments(newAssignmentsByInstance);
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime Exception while updating Zookeeper.", e);
       succeeded = false;
@@ -752,7 +752,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
-      _adapter.cleanupDeadInstanceAssignments(liveInstances);
+      List<String> instances = new ArrayList<>(liveInstances);
+      instances.add(PAUSED_INSTANCE);
+      _adapter.cleanupDeadInstanceAssignments(instances);
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
@@ -775,10 +777,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
 
+    Set<DatastreamGroup> pausedDatastreamGroups = datastreamGroups.stream()
+        .filter(DatastreamGroup::isPaused)
+        .collect(Collectors.toSet());
+
+    // If a datastream group is paused, park tasks with the virtual PausedInstance.
+    newAssignmentsByInstance.put(PAUSED_INSTANCE, pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance));
+
     for (String connectorType : _connectors.keySet()) {
       AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
       List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
           .filter(x -> x.getConnectorName().equals(connectorType))
+          .filter(g -> !pausedDatastreamGroups.contains(g))
           .collect(Collectors.toList());
 
       // Get the list of tasks per instance for the given connector type
@@ -800,6 +810,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return newAssignmentsByInstance;
+  }
+
+  /**
+   * @Return tasks assigned to paused groups
+   */
+  private List<DatastreamTask> pausedTasks(Collection<DatastreamGroup> pausedDatastreamGroups,
+      Map<String, Set<DatastreamTask>> currentlyAssignedDatastream) {
+    List<DatastreamTask> currentlyAssignedDatastreamTasks =
+        currentlyAssignedDatastream.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+
+    List<DatastreamTask> pausedTasks = new ArrayList<>();
+    for (DatastreamGroup dg : pausedDatastreamGroups) {
+      currentlyAssignedDatastreamTasks.stream()
+          .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
+          .forEach(task -> pausedTasks.add(task));
+    }
+
+    return pausedTasks;
   }
 
   /**
@@ -1037,7 +1065,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // helper method for logging
   private String printAssignmentByType(Map<String, List<DatastreamTask>> assignment) {
     StringBuilder sb = new StringBuilder();
-    sb.append("Current assignment for instance: " + getInstanceName() + ":\n");
+    sb.append("Current assignment for instance: ").append(getInstanceName()).append(":\n");
     for (Map.Entry<String, List<DatastreamTask>> entry : assignment.entrySet()) {
       sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
     }

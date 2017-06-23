@@ -352,6 +352,33 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
 
+    // Pause the First Datastream.
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setPaused(true);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    // check that datastream2 is ok
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName2);
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastreamName2);
+
+    // Verify that the Tasks for Datastream1 are parked.
+    String path = KeyBuilder.instanceAssignments(testCluster, Coordinator.PAUSED_INSTANCE);
+    Assert.assertEquals(zkClient.getChildren(path).size(), 2);
+
+    // Resume the First Datastream.
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setPaused(false);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    //
+    // verify both instance1 and instance2 now have two datastreamtasks assigned
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    // Verify not paused Datastream.
+    Assert.assertEquals(zkClient.getChildren(path).size(), 0);
+
     //
     // clean up
     //

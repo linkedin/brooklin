@@ -54,4 +54,9 @@ public class DatastreamGroup {
   public Optional<Integer> getSourcePartitions() {
     return Optional.ofNullable(_datastreams.get(0).getSource()).map(x -> x.getPartitions(GetMode.NULL));
   }
+
+  // A Datastream Group is paused, only if ALL the datastreams in the group are in paused.
+  public boolean isPaused() {
+    return _datastreams.stream().allMatch(ds -> ds.isPaused(GetMode.DEFAULT));
+  }
 }
