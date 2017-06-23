@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.apache.avro.reflect.Nullable;
 import org.apache.commons.lang.Validate;
 
 
@@ -21,9 +22,8 @@ public class BrooklinEnvelope {
     this(key, value, null, metadata);
   }
 
-  public BrooklinEnvelope(Object key, Object value, Object previousValue, Map<String, String> metadata) {
-    Validate.notNull(key, "key cannot be null");
-    Validate.notNull(key, "value cannot be null");
+  public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
+      Map<String, String> metadata) {
     Validate.notNull(metadata, "metadata cannot be null");
     _key = key;
     _value = value;
@@ -48,13 +48,11 @@ public class BrooklinEnvelope {
     _previousValue = previousValue;
   }
 
-  public void setKey(Object key) {
-    Validate.notNull(key, "key cannot be null");
+  public void setKey(@Nullable Object key) {
     _key = key;
   }
 
-  public void setValue(Object value) {
-    Validate.notNull(value, "value cannot be null");
+  public void setValue(@Nullable Object value) {
     _value = value;
   }
 
@@ -62,12 +60,24 @@ public class BrooklinEnvelope {
     _metadata = metadata;
   }
 
+  @Nullable
+  @Deprecated
   public Object getKey() {
     return _key;
   }
 
+  public Optional<Object> key() {
+    return Optional.ofNullable(_key);
+  }
+
+  @Nullable
+  @Deprecated
   public Object getValue() {
     return _value;
+  }
+
+  public Optional<Object> value() {
+    return Optional.ofNullable(_value);
   }
 
   public Map<String, String> getMetadata() {
