@@ -9,12 +9,12 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -24,9 +24,13 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.data.template.GetMode;
+import com.linkedin.data.template.StringMap;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
 
 
@@ -55,10 +59,6 @@ public class TestDatastreamResources {
     if (!missingFields.contains("source")) {
       ds.setSource(new DatastreamSource());
       ds.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    }
-    if (!missingFields.contains("target")) {
-      String metadataBrokers = "kafkaBrokers_" + seed;
-      String targetTopic = "kafkaTopic_" + seed;
     }
     if (!missingFields.contains("metadata")) {
       StringMap metadata = new StringMap();
@@ -104,6 +104,47 @@ public class TestDatastreamResources {
     Assert.assertNotNull(ds);
 
     Assert.assertEquals(ds, datastreamToCreate);
+  }
+
+  @Test
+  public void testPauseDatastream() {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    datastreamToCreate.getDestination().setConnectionString("testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    Assert.assertFalse(datastreamToCreate.isPaused(GetMode.DEFAULT));
+    CreateResponse response = resource1.create(datastreamToCreate);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey  = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Pause datastream.
+    ActionResult<Boolean> pauseResponse = resource1.pause(pathKey);
+    Assert.assertEquals(pauseResponse.getValue(), Boolean.TRUE);
+    Assert.assertEquals(pauseResponse.getStatus(), HttpStatus.S_200_OK);
+
+    // Retrieve datastream and check that is in pause state.
+    Datastream ds = resource2.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertTrue(ds.isPaused(GetMode.DEFAULT));
+
+    // Resume datastream.
+    ActionResult<Boolean> resumeResponse = resource1.resume(pathKey);
+    Assert.assertEquals(resumeResponse.getValue(), Boolean.TRUE);
+    Assert.assertEquals(resumeResponse.getStatus(), HttpStatus.S_200_OK);
+
+    // Retrieve datastream and check that is not paused.
+    Datastream ds2 = resource2.get(datastreamName);
+    Assert.assertNotNull(ds2);
+    Assert.assertFalse(ds2.isPaused(GetMode.DEFAULT));
   }
 
   private <T> void checkBadRequest(Callable<T> verif) throws Exception {
