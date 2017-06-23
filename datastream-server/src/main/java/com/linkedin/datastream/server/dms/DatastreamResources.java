@@ -17,6 +17,7 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.RestliUtils;
@@ -28,13 +29,19 @@ import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.security.AuthorizationException;
+import com.linkedin.data.template.GetMode;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.ActionResult;
+import com.linkedin.restli.server.annotations.Action;
+import com.linkedin.restli.server.annotations.Context;
+import com.linkedin.restli.server.annotations.PathKeysParam;
+import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
-import com.linkedin.restli.server.UpdateResponse;
-import com.linkedin.restli.server.annotations.Context;
-import com.linkedin.restli.server.annotations.RestLiCollection;
+import com.linkedin.restli.server.PathKeys;
+import com.linkedin.restli.server.ResourceLevel;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
+import com.linkedin.restli.server.UpdateResponse;
 
 
 /*
@@ -42,8 +49,12 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
-@RestLiCollection(name = "datastream", namespace = "com.linkedin.datastream.server.dms")
+@RestLiCollection(
+    name = "datastream",
+    keyName = DatastreamResources.KEY_NAME,
+    namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
+  public static final String KEY_NAME = "datastreamId";
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
   private static final String CLASS_NAME = DatastreamResources.class.getSimpleName();
 
@@ -83,6 +94,57 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // TODO: behavior of updating a datastream is not fully defined yet; block this method for now
     return new UpdateResponse(HttpStatus.S_405_METHOD_NOT_ALLOWED);
   }
+
+  @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Boolean> pause(@PathKeysParam PathKeys pathKeys) {
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream to pause does not exist: " + datastreamName);
+    }
+
+    if (datastream.isPaused(GetMode.DEFAULT)) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Datastream already paused: " + datastreamName);
+    }
+
+    try {
+      datastream.setPaused(true);
+      _store.updateDatastream(datastreamName, datastream);
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream to pause: " + datastreamName);
+    }
+
+    return new ActionResult<>(true);
+  }
+
+  @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Boolean> resume(@PathKeysParam PathKeys pathKeys) {
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream to resume does not exist: " + datastreamName);
+    }
+
+    if (!datastream.isPaused(GetMode.DEFAULT)) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Datastream is not paused, cannot resume: " + datastreamName);
+    }
+
+    try {
+      datastream.setPaused(false);
+      _store.updateDatastream(datastreamName, datastream);
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream to resume: " + datastreamName);
+    }
+
+    return new ActionResult<>(true);
+  }
+
 
   @Override
   public UpdateResponse delete(String datastreamName) {
