@@ -130,4 +130,28 @@ public class DatastreamTestUtils {
     storeDatastreams(zkClient, cluster, datastreams);
     return datastreams;
   }
+
+  public static Datastream getDatastream(ZkClient zkClient, String cluster, String datastreamName) {
+    zkClient.ensurePath(KeyBuilder.datastreams(cluster));
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
+    return dsStore.getDatastream(datastreamName);
+  }
+
+  /**
+   * Update the datastreams into the appropriate locations in zookeeper.
+   * @param zkClient zookeeper client
+   * @param cluster name of the datastream cluster
+   * @param datastreams list of datastreams
+   * @throws DatastreamException the datastream exception
+   */
+  public static void updateDatastreams(ZkClient zkClient, String cluster, Datastream... datastreams)
+      throws DatastreamException {
+    for (Datastream datastream : datastreams) {
+      zkClient.ensurePath(KeyBuilder.datastreams(cluster));
+      CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
+      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
+      dsStore.updateDatastream(datastream.getName(), datastream);
+    }
+  }
 }

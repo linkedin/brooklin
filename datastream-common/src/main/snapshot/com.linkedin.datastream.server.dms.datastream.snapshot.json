@@ -74,6 +74,11 @@
         "INITIALIZING" : "Datastream is created, but not initialized yet."
       }
     }, {
+      "name" : "paused",
+      "type" : "boolean",
+      "doc" : "When true, the servers stop processing events for this datastream.",
+      "default" : false
+    }, {
       "name" : "destination",
       "type" : "DatastreamDestination",
       "doc" : "Datastream destination string that the transport provider will use to send the events",
@@ -112,7 +117,14 @@
         "method" : "get_all"
       } ],
       "entity" : {
-        "path" : "/datastream/{datastreamId}"
+        "path" : "/datastream/{datastreamId}",
+        "actions" : [ {
+          "name" : "pause",
+          "returns" : "boolean"
+        }, {
+          "name" : "resume",
+          "returns" : "boolean"
+        } ]
       }
     }
   }
