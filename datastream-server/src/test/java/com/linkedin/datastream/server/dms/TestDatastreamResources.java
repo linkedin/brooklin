@@ -24,7 +24,6 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.data.template.GetMode;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
@@ -115,10 +114,11 @@ public class TestDatastreamResources {
     Datastream datastreamToCreate = generateDatastream(0);
     String datastreamName = datastreamToCreate.getName();
     datastreamToCreate.setDestination(new DatastreamDestination());
-    datastreamToCreate.getDestination().setConnectionString("testDestination");
+    datastreamToCreate.getDestination()
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
     datastreamToCreate.getDestination().setPartitions(1);
-    Assert.assertFalse(datastreamToCreate.isPaused(GetMode.DEFAULT));
     CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
@@ -127,24 +127,23 @@ public class TestDatastreamResources {
     Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
 
     // Pause datastream.
-    ActionResult<Boolean> pauseResponse = resource1.pause(pathKey);
-    Assert.assertEquals(pauseResponse.getValue(), Boolean.TRUE);
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
+    ActionResult<Void> pauseResponse = resource1.pause(pathKey);
     Assert.assertEquals(pauseResponse.getStatus(), HttpStatus.S_200_OK);
 
     // Retrieve datastream and check that is in pause state.
     Datastream ds = resource2.get(datastreamName);
     Assert.assertNotNull(ds);
-    Assert.assertTrue(ds.isPaused(GetMode.DEFAULT));
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.PAUSED);
 
     // Resume datastream.
-    ActionResult<Boolean> resumeResponse = resource1.resume(pathKey);
-    Assert.assertEquals(resumeResponse.getValue(), Boolean.TRUE);
+    ActionResult<Void> resumeResponse = resource1.resume(pathKey);
     Assert.assertEquals(resumeResponse.getStatus(), HttpStatus.S_200_OK);
 
     // Retrieve datastream and check that is not paused.
     Datastream ds2 = resource2.get(datastreamName);
     Assert.assertNotNull(ds2);
-    Assert.assertFalse(ds2.isPaused(GetMode.DEFAULT));
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
   }
 
   private <T> void checkBadRequest(Callable<T> verif) throws Exception {

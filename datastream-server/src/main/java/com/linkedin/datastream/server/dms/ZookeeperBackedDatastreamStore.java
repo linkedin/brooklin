@@ -70,19 +70,17 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   public void updateDatastream(String key, Datastream datastream) throws DatastreamException {
     // Updating a Datastream is still tricky for now. Changing either the
     // the source or target may result in failure on connector.
-    // We only support changes of the "paused field"
+    // We only support changes of the "status field"
 
     Datastream oldDatastream = getDatastream(key);
     if (oldDatastream == null) {
       throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
     }
 
-    if (datastream.hasPaused()) {
-      oldDatastream.setPaused(datastream.isPaused());
-    }
+    oldDatastream.setStatus(datastream.getStatus());
 
     if (!datastream.equals(oldDatastream)) {
-      throw new DatastreamException("Only changes to the 'pause' field are supported at this time.");
+      throw new DatastreamException("Only changes to the 'status' field are supported at this time.");
     }
 
     String json = DatastreamUtils.toJSON(datastream);

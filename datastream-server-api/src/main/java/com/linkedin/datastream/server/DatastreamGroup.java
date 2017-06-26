@@ -3,6 +3,7 @@ package com.linkedin.datastream.server;
 import java.util.List;
 import java.util.Optional;
 
+import java.util.stream.Collectors;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.data.template.GetMode;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 
 
@@ -55,8 +57,24 @@ public class DatastreamGroup {
     return Optional.ofNullable(_datastreams.get(0).getSource()).map(x -> x.getPartitions(GetMode.NULL));
   }
 
-  // A Datastream Group is paused, only if ALL the datastreams in the group are in paused.
+  // A Datastream Group is paused, only if ALL the datastreams in the group are paused.
   public boolean isPaused() {
-    return _datastreams.stream().allMatch(ds -> ds.isPaused(GetMode.DEFAULT));
+    boolean anyPaused = _datastreams.stream().anyMatch(ds -> ds.getStatus() == DatastreamStatus.PAUSED);
+    boolean allPaused = _datastreams.stream().allMatch(ds -> ds.getStatus() == DatastreamStatus.PAUSED);
+    if (anyPaused && !allPaused) {
+      List<String> streamsWithStatus = _datastreams.stream()
+          .filter(ds -> ds.getStatus() == DatastreamStatus.PAUSED)
+          .map(ds -> ds.getName() + ds.getStatus())
+          .collect(Collectors.toList());
+
+      LOG.warn("Some datastreams are paused in a group, while others are not. " + "Datastreams: " + streamsWithStatus);
+    }
+    return allPaused;
+  }
+
+
+  // Returns true if the task belongs to this group.
+  public boolean belongsTo(DatastreamTask task) {
+    return  task.getTaskPrefix().equals(getTaskPrefix());
   }
 }

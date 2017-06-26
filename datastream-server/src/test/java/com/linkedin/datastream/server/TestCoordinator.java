@@ -26,6 +26,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -353,7 +354,7 @@ public class TestCoordinator {
 
     // Pause the First Datastream.
     Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
-    ds1.setPaused(true);
+    ds1.setStatus(DatastreamStatus.PAUSED);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
 
     // check that datastream2 is ok
@@ -366,7 +367,7 @@ public class TestCoordinator {
 
     // Resume the First Datastream.
     ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
-    ds1.setPaused(false);
+    ds1.setStatus(DatastreamStatus.READY);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
 
     //
