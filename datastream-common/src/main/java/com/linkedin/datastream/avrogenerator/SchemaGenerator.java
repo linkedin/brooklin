@@ -1,6 +1,5 @@
 package com.linkedin.datastream.avrogenerator;
 
-import java.sql.SQLException;
 import java.util.List;
 
 import org.apache.avro.Schema;
@@ -39,11 +38,12 @@ public class SchemaGenerator {
       _source.initializeConnection();
 
       // first generate an OracleTable
+      LOG.info("Generating schema for schema {}, table {}", _schemaName, _tableName);
       OracleTableFactory factory = new OracleTableFactory(_source);
       table = factory.buildOracleTable(_schemaName, _tableName, _primaryKey);
-    } catch (SQLException | SchemaGenerationException e) {
-      String msg = String.format("Failed to generate schema for schema %s table %s", _schemaName, _tableName);
-      LOG.error(msg);
+    } catch (Exception e) {
+      String msg = String.format("Failed to generate schema for schema %s, table %s", _schemaName, _tableName);
+      LOG.error(msg, e);
       throw new SchemaGenerationException(msg, e);
     } finally {
       if (_source != null) {

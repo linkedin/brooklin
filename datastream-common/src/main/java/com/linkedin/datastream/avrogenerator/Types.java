@@ -13,6 +13,7 @@ public enum Types {
   DOUBLE("double"),
   RAW("bytes"),
   CLOB("string"),
+  NCLOB("string"),
   VARCHAR("string"),
   VARCHAR2("string"),
   NVARCHAR("string"),
