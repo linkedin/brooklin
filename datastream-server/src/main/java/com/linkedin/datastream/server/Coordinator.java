@@ -699,9 +699,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
     //  2) status is READY
-    List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true)
+    // Note: We do not need to flush the cache, because the datastreams should have been read as part of the
+    //       handleDatastreamAddOrDelete event (that should occur before handleLeaderDoAssignment)
+    List<Datastream> allStreams = _datastreamCache.getAllDatastreams(false)
         .stream()
-        .filter(datastream -> datastream.hasStatus() && datastream.getStatus() == DatastreamStatus.READY
+        .filter(datastream -> datastream.hasStatus()
+            && (datastream.getStatus() == DatastreamStatus.READY || datastream.getStatus() == DatastreamStatus.PAUSED)
             && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
         .collect(Collectors.toList());
 
@@ -785,7 +788,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toSet());
 
     // If a datastream group is paused, park tasks with the virtual PausedInstance.
-    newAssignmentsByInstance.put(PAUSED_INSTANCE, pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance));
+    List<DatastreamTask> pausedTasks = pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance);
+    if (!pausedTasks.isEmpty()) {
+      _log.info("Paused Task count:" + pausedTasks.size() + "; Task list: " + pausedTasks);
+    }
+    newAssignmentsByInstance.put(PAUSED_INSTANCE, pausedTasks);
 
     for (String connectorType : _connectors.keySet()) {
       AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
@@ -825,9 +832,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     List<DatastreamTask> pausedTasks = new ArrayList<>();
     for (DatastreamGroup dg : pausedDatastreamGroups) {
-      currentlyAssignedDatastreamTasks.stream()
-          .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
-          .forEach(task -> pausedTasks.add(task));
+      currentlyAssignedDatastreamTasks.stream().filter(dg::belongsTo).forEach(pausedTasks::add);
     }
 
     return pausedTasks;

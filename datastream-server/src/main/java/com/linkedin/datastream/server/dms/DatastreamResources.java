@@ -20,6 +20,7 @@ import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -29,7 +30,6 @@ import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.security.AuthorizationException;
-import com.linkedin.data.template.GetMode;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.annotations.Action;
@@ -96,7 +96,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
-  public ActionResult<Boolean> pause(@PathKeysParam PathKeys pathKeys) {
+  public ActionResult<Void> pause(@PathKeysParam PathKeys pathKeys) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
@@ -104,24 +104,24 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to pause does not exist: " + datastreamName);
     }
 
-    if (datastream.isPaused(GetMode.DEFAULT)) {
+    if (datastream.getStatus() != DatastreamStatus.READY) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Datastream already paused: " + datastreamName);
+          "Can only pause a datastream in READY state: " + datastreamName);
     }
 
     try {
-      datastream.setPaused(true);
+      datastream.setStatus(DatastreamStatus.PAUSED);
       _store.updateDatastream(datastreamName, datastream);
     } catch (DatastreamException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Could not update datastream to pause: " + datastreamName);
+          "Could not update datastream to paused state: " + datastreamName);
     }
 
-    return new ActionResult<>(true);
+    return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
   @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
-  public ActionResult<Boolean> resume(@PathKeysParam PathKeys pathKeys) {
+  public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
@@ -129,20 +129,20 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to resume does not exist: " + datastreamName);
     }
 
-    if (!datastream.isPaused(GetMode.DEFAULT)) {
+    if (datastream.getStatus() != DatastreamStatus.PAUSED) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
           "Datastream is not paused, cannot resume: " + datastreamName);
     }
 
     try {
-      datastream.setPaused(false);
+      datastream.setStatus(DatastreamStatus.READY);
       _store.updateDatastream(datastreamName, datastream);
     } catch (DatastreamException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Could not update datastream to resume: " + datastreamName);
     }
 
-    return new ActionResult<>(true);
+    return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
 

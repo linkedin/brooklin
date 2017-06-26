@@ -44,17 +44,11 @@
       "type" : {
        "type" : "enum",
        "name" : "DatastreamStatus",
-       "symbols" : [ "INITIALIZING", "READY", "DELETING" ]
+       "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING" ]
       },
       "name" : "Status",
       "doc" : "Status of the datastream",
       "symbolDocs" : { "INITIALIZING":"Datastream is created, but not initialized yet.", "READY": "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption."}
-    },
-    {
-      "name": "paused",
-      "doc" : "When true, the servers stop processing events for this datastream.",
-      "type" : "boolean",
-      "default": false
     },
     {
       "name": "destination",

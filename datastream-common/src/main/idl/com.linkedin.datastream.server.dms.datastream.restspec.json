@@ -24,11 +24,9 @@
     "entity" : {
       "path" : "/datastream/{datastreamId}",
       "actions" : [ {
-        "name" : "pause",
-        "returns" : "boolean"
+        "name" : "pause"
       }, {
-        "name" : "resume",
-        "returns" : "boolean"
+        "name" : "resume"
       } ]
     }
   }
