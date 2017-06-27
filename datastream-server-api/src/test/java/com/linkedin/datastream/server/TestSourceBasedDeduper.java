@@ -83,8 +83,8 @@ public class TestSourceBasedDeduper {
   @Test
   public void testDatastreamWithSameSourceButNoTopicReuse() {
     Datastream datastream = generateDatastream(0, false);
-    Datastream datastream1 = generateDatastream(0, true);
-    Datastream datastream2 = generateDatastream(1, true);
+    Datastream datastream1 = generateDatastream(1, true);
+    Datastream datastream2 = generateDatastream(2, true);
     datastream1.getMetadata().put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, "false");
     SourceBasedDeduper deduper = new SourceBasedDeduper();
     Optional<Datastream> foundDatastream =

@@ -90,6 +90,7 @@ public class DatastreamTestUtils {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
     metadata.put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    metadata.put(DatastreamMetadataConstants.TASK_PREFIX, datastreamName);
     ds.setMetadata(metadata);
     return ds;
   }
