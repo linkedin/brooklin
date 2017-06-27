@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -170,6 +171,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_RETRIES = "numRetries";
   private static final String NUM_HEARTBEATS = "numHeartbeats";
 
+  private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
+  private static final Gauge<Long> NUM_PAUSED_GAUGE = () -> _pausedDatastreamsGroups.get();
+  private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
+
   // Connector common metrics
   private static final String NUM_DATASTREAMS = "numDatastreams";
   private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
@@ -200,6 +205,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventThread.setDaemon(true);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _dynamicMetricsManager.registerMetric(getClass(), NUM_PAUSED_DATASTREAMS_GROUPS, NUM_PAUSED_GAUGE);
 
     // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
@@ -787,6 +793,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(DatastreamGroup::isPaused)
         .collect(Collectors.toSet());
 
+    _pausedDatastreamsGroups.set(pausedDatastreamGroups.size());
+
     // If a datastream group is paused, park tasks with the virtual PausedInstance.
     List<DatastreamTask> pausedTasks = pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance);
     if (!pausedTasks.isEmpty()) {
@@ -1002,6 +1010,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_ERRORS));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_RETRIES));
     _metrics.add(new BrooklinCounterInfo(buildMetricName(NUM_HEARTBEATS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
 
     return Collections.unmodifiableList(_metrics);
   }
