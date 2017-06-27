@@ -23,6 +23,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +77,7 @@ public class KafkaConnectorTask implements Runnable {
   private volatile String _taskName;
   private String _srcValue;
   private DatastreamEventProducer _producer;
+  private Consumer<?, ?> _consumer;
 
   private static final Duration POLL_RETRY_SLEEP_DURATION = Duration.ofSeconds(5);
   private static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
@@ -187,12 +189,15 @@ public class KafkaConnectorTask implements Runnable {
       _taskName = srcConnString + "-to-" + dstConnString;
 
       try (Consumer<?, ?> consumer = createConsumer(_consumerFactory, _consumerProps, _taskName, srcConnString)) {
+        _consumer = consumer;
         ConsumerRecords<?, ?> records;
         consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
           @Override
           public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
             LOG.trace("Partition ownership revoked for {}, checkpointing.", partitions);
-            maybeCommitOffsets(consumer, true); //happens inline as part of poll
+            if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
+              maybeCommitOffsets(consumer, true); //happens inline as part of poll
+            }
           }
 
           @Override
@@ -213,11 +218,20 @@ public class KafkaConnectorTask implements Runnable {
             _eventCountsPerPoll.update(records.count());
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
+            if (_shouldDie) {
+              continue;
+            }
             seekToStartPosition(consumer, e.partitions());
             continue;
+          } catch (WakeupException e) {
+            LOG.warn("Got a Wakeup Exception, shutdown in progress {}.", e);
+            continue;
+
           } catch (Exception e) {
-            LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying.",
-                POLL_RETRY_SLEEP_DURATION.getSeconds(), e);
+            LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying.", POLL_RETRY_SLEEP_DURATION.getSeconds(), e);
+            if (_shouldDie) {
+              continue;
+            }
             Thread.sleep(POLL_RETRY_SLEEP_DURATION.toMillis());
             continue;
           }
@@ -234,13 +248,23 @@ public class KafkaConnectorTask implements Runnable {
             //send the batch out the other end
             long readTime = System.currentTimeMillis();
             String strReadTime = String.valueOf(readTime);
+            // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
+            //                  in case the _shouldDie signal is set (similar to kafka wakeup)
             translateAndSendBatch(records, readTime, strReadTime);
+
+            if (_shouldDie) {
+              continue;
+            }
 
             //potentially commit our offsets (if its been long enough and all sends were successful)
             maybeCommitOffsets(consumer, false);
           } catch (Exception e) {
-            LOG.info("sending the messages failed with exception. Trying to start processing from previous checkpoint.",
-                e);
+            LOG.info("sending the messages failed with exception.");
+            if (_shouldDie) {
+              LOG.warn("Exiting without commit, not point to try to recover in shouldDie mode.");
+              return; // Return to skip the commit after the while loop.
+            }
+            LOG.info("Trying to start processing from previous checkpoint.", e);
             Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
             Set<TopicPartition> tpWithNoCommits = new HashSet<>();
             //construct last checkpoint
@@ -305,6 +329,9 @@ public class KafkaConnectorTask implements Runnable {
   public void stop() {
     LOG.info("{} stopping", _taskName);
     _shouldDie = true;
+    if (_consumer != null) {
+      _consumer.wakeup();
+    }
     _thread.interrupt();
   }
 
