@@ -234,7 +234,7 @@ public class MessageHandler implements SendCallback {
 
   private DatastreamProducerRecord buildProducerRecord(BrooklinEnvelope brooklinEnvelope) {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-    builder.setPartitionKey(new String((byte[]) brooklinEnvelope.getKey()));
+    builder.setPartitionKey(new String((byte[]) brooklinEnvelope.key().get()));
     builder.addEvent(brooklinEnvelope);
 
     long sourceTimestamp =
