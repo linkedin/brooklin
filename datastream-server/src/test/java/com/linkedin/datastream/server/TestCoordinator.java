@@ -36,6 +36,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.connector.NoOpDeduper;
 import com.linkedin.datastream.server.api.connector.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
@@ -1423,6 +1424,58 @@ public class TestCoordinator {
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
 
     Assert.assertFalse(authz.authorize(stream, Authorizer.Operation.READ, () -> "dummy"));
+  }
+
+  @Test
+  public void testNoDeduper() throws Exception {
+    String clusterName = "testNoDeduper";
+
+    // Testing NoOp deduper first
+    Coordinator coordinator = createCoordinator(_zkConnectionString, clusterName);
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, mock(Connector.class), new BroadcastStrategy(),
+        false, new NoOpDeduper(), null);
+
+    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "s1", "s2");
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.storeDatastreams(zkClient, clusterName, streams[0]);
+
+    // Make both streams to have the same source
+    streams[1].setSource(streams[0].getSource());
+
+    // Remove destination to trigger de-duper logic
+    streams[1].getDestination().removeConnectionString();
+
+    coordinator.initializeDatastream(streams[1]);
+
+    // stream1 should not have been deduped stream0
+    Assert.assertNotEquals(streams[1].getDestination(), streams[0].getDestination());
+  }
+
+  @Test
+  public void testSourceBasedDeduper() throws Exception {
+    String clusterName = "testSourceBasedDeduper";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, clusterName);
+
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, mock(Connector.class), new BroadcastStrategy(),
+        false, new SourceBasedDeduper(), null);
+
+    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "s1", "s2");
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.storeDatastreams(zkClient, clusterName, streams[0]);
+
+    // Make both streams to have the same source
+    streams[1].setSource(streams[0].getSource());
+
+    // Remove destination to trigger de-duper logic
+    streams[1].getDestination().removeConnectionString();
+
+    coordinator.initializeDatastream(streams[1]);
+
+    // stream1 should not have been deduped stream0
+    Assert.assertEquals(streams[1].getDestination(), streams[0].getDestination());
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
