@@ -14,6 +14,11 @@ public class DatastreamMetadataConstants {
    * Whether the datastream should reuse existing datastream's destination if it is available.
    */
   public static final String REUSE_EXISTING_DESTINATION_KEY = "system.reuseExistingDestination";
+  
+  /**
+   * Prefix any event metadata with this if transport supports sending metadata with events.
+   */
+  public static final String EVENT_METADATA_PREFIX = "system.event.metadata";
 
   /**
    * Represents datastream owner which is also the security principal for authorization.
@@ -45,9 +50,4 @@ public class DatastreamMetadataConstants {
    * Position at which the ingestion should start for the datastream.
    */
   public static final String START_POSITION = "system.start.position";
-
-  /**
-   * Prefix any event metadata with this if transport supports sending metadata with events.
-   */
-  public static final String EVENT_METADATA_PREFIX = "event.metadata";
 }
