@@ -1,11 +1,12 @@
 package com.linkedin.datastream;
 
-import com.linkedin.r2.transport.common.Client;
-import com.linkedin.restli.client.RestClient;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.commons.lang3.StringUtils;
+
+import com.linkedin.datastream.common.RestliUtils;
+import com.linkedin.r2.transport.common.Client;
+import com.linkedin.restli.client.RestClient;
 
 
 /**
@@ -17,13 +18,9 @@ import org.apache.commons.lang3.StringUtils;
  * DatastreamRestClient, without doing a major refactoring of the code.
  */
 public class DatastreamRestClientFactory {
-  private static final String DEFAULT_URI_SCHEME = "http://";
 
   private static Map<String, DatastreamRestClient> overrides = new ConcurrentHashMap<>();
 
-  private static String sanitizeUri(String dmsUri) {
-    return StringUtils.prependIfMissing(StringUtils.appendIfMissing(dmsUri, "/"), DEFAULT_URI_SCHEME);
-  }
 
   /**
    * Get a DatastreamRestClient with default HTTP client
@@ -41,7 +38,7 @@ public class DatastreamRestClientFactory {
    * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
-    dmsUri = sanitizeUri(dmsUri);
+    dmsUri = RestliUtils.sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
       return overrides.get(dmsUri);
     }
@@ -55,7 +52,7 @@ public class DatastreamRestClientFactory {
    * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, Client r2Client) {
-    dmsUri = sanitizeUri(dmsUri);
+    dmsUri = RestliUtils.sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
       return overrides.get(dmsUri);
     }
@@ -69,7 +66,7 @@ public class DatastreamRestClientFactory {
    * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, RestClient restClient) {
-    dmsUri = sanitizeUri(dmsUri);
+    dmsUri = RestliUtils.sanitizeUri(dmsUri);
     if (overrides.containsKey(dmsUri)) {
       return overrides.get(dmsUri);
     }
@@ -82,7 +79,7 @@ public class DatastreamRestClientFactory {
    * in case the test are running in parallel.
    */
   public static void addOverride(String dmsUri, DatastreamRestClient restClient) {
-    dmsUri = sanitizeUri(dmsUri);
+    dmsUri = RestliUtils.sanitizeUri(dmsUri);
     overrides.put(dmsUri, restClient);
   }
 

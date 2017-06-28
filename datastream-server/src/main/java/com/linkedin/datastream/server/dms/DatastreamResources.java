@@ -25,6 +25,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.server.ErrorLogger;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;

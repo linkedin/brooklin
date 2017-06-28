@@ -95,6 +95,10 @@ public class ConnectorWrapper {
     logApiEnd("stop");
   }
 
+  public Connector  getConnectorInstance() {
+    return _connector;
+  }
+
   public String getConnectorType() {
     return _connectorType;
   }

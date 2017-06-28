@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server.dms;
+package com.linkedin.datastream.server;
 
 import java.util.UUID;
 
@@ -14,7 +14,7 @@ import com.linkedin.restli.server.RestLiServiceException;
  * A shortened random UUID, as well as the server instance name,
  * is attached to each error message to facilitate the trouble shooting
  */
-final class ErrorLogger {
+public final class ErrorLogger {
   private final Logger _logger;
   private final String _instance;
 

@@ -1045,4 +1045,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     String result = sb.toString();
     return result.substring(0, result.length() - 1);
   }
+
+  public Connector getConnector(String name) {
+    if (!_connectors.containsKey(name)) {
+      return null;
+    }
+    return _connectors.get(name).getConnector().getConnectorInstance();
+  }
+
 }

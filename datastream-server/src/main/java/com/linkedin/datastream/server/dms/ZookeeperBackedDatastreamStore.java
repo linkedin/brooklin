@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.dms;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang.Validate;
@@ -36,6 +37,10 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
   private String getZnodePath(String key) {
     return KeyBuilder.datastream(_cluster, key);
+  }
+
+  private List<String> getInstances() {
+    return _zkClient.getChildren(KeyBuilder.liveInstances(_cluster));
   }
 
   @Override

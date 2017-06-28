@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "ServerComponentHealth",
+  "namespace": "com.linkedin.datastream.diagnostics",
+  "doc": "Datastream server component health",
+  "fields": [
+    {
+      "name" : "status",
+      "doc" : "Status of the datastream server component",
+      "type": "string"
+    }
+  ]
+}
