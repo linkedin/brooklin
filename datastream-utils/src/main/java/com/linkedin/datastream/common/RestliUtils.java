@@ -4,10 +4,19 @@ import com.linkedin.restli.server.PagingContext;
 
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.StringUtils;
+
+
 /**
  * Utility class to simplify usage of Restli.
  */
 public final class RestliUtils {
+
+  private static final String DEFAULT_URI_SCHEME = "http://";
+
+  public static String sanitizeUri(String dmsUri) {
+    return StringUtils.prependIfMissing(StringUtils.appendIfMissing(dmsUri, "/"), DEFAULT_URI_SCHEME);
+  }
 
   /**
    * Applies a Paging Context to a Stream.

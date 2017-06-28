@@ -306,6 +306,7 @@ project(':datastream-server') {
     compile project(':datastream-server-api')
     compile project(':datastream-common')
     compile project(':datastream-utils')
+    compile project(':datastream-client')
 
     testCompile project(':datastream-kafka')
     testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"

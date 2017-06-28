@@ -1,13 +1,11 @@
 package com.linkedin.datastream;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -19,33 +17,23 @@ import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.linkedin.TestRestliClientBase;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.connectors.DummyConnectorFactory;
-import com.linkedin.datastream.server.DatastreamServer;
-import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
-import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.restli.client.RestLiResponseException;
 
 
 @Test(singleThreaded = true)
-public class TestDatastreamRestClient {
-  private static final String TRANSPORT_NAME = "default";
-
+public class TestDatastreamRestClient extends TestRestliClientBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
-
-  private static final long WAIT_TIMEOUT_MS = Duration.ofMinutes(3).toMillis();
-
-  private EmbeddedDatastreamCluster _datastreamCluster;
 
   @BeforeTest
   public void setUp() throws Exception {
@@ -58,21 +46,6 @@ public class TestDatastreamRestClient {
   @AfterTest
   public void tearDown() throws Exception {
     _datastreamCluster.shutdown();
-  }
-
-  private void setupDatastreamCluster(int numServers) throws IOException, DatastreamException {
-    Properties connectorProps = new Properties();
-    connectorProps.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getCanonicalName());
-    connectorProps.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
-        BroadcastStrategyFactory.class.getTypeName());
-    connectorProps.put("dummyProperty", "dummyValue");
-
-    _datastreamCluster = EmbeddedDatastreamCluster.newTestDatastreamCluster(
-        Collections.singletonMap(DummyConnector.CONNECTOR_TYPE, connectorProps), null, numServers);
-
-    // NOTE: Only start the first instance by default
-    // Test case needing the 2nd one should start the 2nd instance
-    _datastreamCluster.startupServer(0);
   }
 
   public static Datastream generateDatastream(int seed) {

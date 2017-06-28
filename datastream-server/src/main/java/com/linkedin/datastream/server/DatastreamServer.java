@@ -22,6 +22,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
@@ -45,6 +46,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
+import com.linkedin.datastream.server.diagnostics.ServerComponentHealthAggregator;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
@@ -83,11 +85,16 @@ public class DatastreamServer {
   public static final String DEFAULT_DEDUPER_FACTORY = SourceBasedDeduperFactory.class.getName();
   public static final String DOMAIN_DEDUPER = "deduper";
   public static final String CONFIG_CONNECTOR_AUTHORIZER_NAME = "authorizerName";
+  // Restli port and path might be different in the staging or prod fabrics, so make it configurable.
+  public static final String DOMAIN_DIAG = CONFIG_PREFIX + "diag";
+  public static final String CONFIG_DIAG_PORT = "port";
+  public static final String CONFIG_DIAG_PATH = "path";
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
   private DatastreamJettyStandaloneLauncher _jettyLauncher;
   private JmxReporter _jmxReporter;
+  private ServerComponentHealthAggregator _serverComponentHealthAggregator;
 
   private final String _csvMetricsDir;
   private int _httpPort;
@@ -126,6 +133,10 @@ public class DatastreamServer {
 
   public int getHttpPort() {
     return _httpPort;
+  }
+
+  public ServerComponentHealthAggregator getServerComponentHealthAggregator() {
+    return _serverComponentHealthAggregator;
   }
 
   private void initializeSerde(String serdeName, Properties serdeConfig) {
@@ -302,6 +313,12 @@ public class DatastreamServer {
           "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
     }
 
+    Properties diagProperties = verifiableProperties.getDomainProperties(DOMAIN_DIAG);
+    String diagPortStr = diagProperties.getProperty(CONFIG_DIAG_PORT, "");
+    int diagPort = diagPortStr.isEmpty() ? _httpPort : Integer.valueOf(diagPortStr);
+    String diagPath = diagProperties.getProperty(CONFIG_DIAG_PATH, "");
+    _serverComponentHealthAggregator = new ServerComponentHealthAggregator(zkClient, coordinatorConfig.getCluster(), diagPort, diagPath);
+
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
 
     verifiableProperties.verify();
@@ -352,6 +369,8 @@ public class DatastreamServer {
     try {
       _jettyLauncher.start();
       _httpPort = _jettyLauncher.getPort();
+      // httpPort might be modified when _jettyLauncher start, so set the port of _serverComponentHealthAggregator.
+      _serverComponentHealthAggregator.setPort(_httpPort);
       _isStarted = true;
     } catch (Exception ex) {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to start embedded Jetty.", ex);
