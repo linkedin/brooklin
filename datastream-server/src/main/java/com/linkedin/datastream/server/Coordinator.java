@@ -65,6 +65,9 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
+import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
+
 
 /**
  *
@@ -906,9 +909,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       Optional<Datastream> existingDatastream = Optional.empty();
 
-      // Find the duplicate datastream only when the destination is not populated.
-      if (!datastream.hasDestination() || !datastream.getDestination().hasConnectionString() || StringUtils.isEmpty(
-          datastream.getDestination().getConnectionString())) {
+      // Dedup datastream only when its destination is not populated and allows reuse
+      if (!hasValidDestination(datastream) && isReuseAllowed(datastream)) {
         existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
       }
 
