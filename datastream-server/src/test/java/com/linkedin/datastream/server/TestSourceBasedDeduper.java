@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -13,12 +12,10 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.server.api.connector.SourceBasedDeduper;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
 public class TestSourceBasedDeduper {
-
-  private static final Duration RETENTION = Duration.ofDays(3);
   private static final String CONNECTOR_TYPE = "test";
 
   public static Datastream generateDatastream(int seed, boolean withDestination) {
@@ -31,6 +28,7 @@ public class TestSourceBasedDeduper {
     ds.setDestination(new DatastreamDestination());
     if (withDestination) {
       ds.getDestination().setConnectionString("Destination_" + seed);
+      ds.getDestination().setPartitions(4);
     }
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
@@ -39,26 +37,15 @@ public class TestSourceBasedDeduper {
   }
 
   @Test
-  public void testEmptyExistingDatastreams() {
+  public void testEmptyExistingDatastreams() throws DatastreamValidationException {
     Datastream datastream = generateDatastream(0, false);
     SourceBasedDeduper deduper = new SourceBasedDeduper();
+    Assert.assertFalse(deduper.findExistingDatastream(datastream, null).isPresent());
     Assert.assertFalse(deduper.findExistingDatastream(datastream, Collections.emptyList()).isPresent());
-
-    try {
-      deduper.findExistingDatastream(null, Collections.emptyList());
-      Assert.fail("Expected exception");
-    } catch (IllegalArgumentException e) {
-    }
-
-    try {
-      deduper.findExistingDatastream(datastream, null);
-      Assert.fail("Expected exception");
-    } catch (IllegalArgumentException e) {
-    }
   }
 
   @Test
-  public void testDatastreamWithSameSource() {
+  public void testDatastreamWithSameSource() throws DatastreamValidationException {
     Datastream datastream = generateDatastream(0, false);
     Datastream datastream1 = generateDatastream(0, true);
     Datastream datastream2 = generateDatastream(1, true);
@@ -70,40 +57,32 @@ public class TestSourceBasedDeduper {
   }
 
   @Test
-  public void testDatastreamWithDifferentSource() {
+  public void testDatastreamWithDifferentSource() throws DatastreamValidationException {
     Datastream datastream = generateDatastream(0, false);
     Datastream datastream1 = generateDatastream(1, true);
     Datastream datastream2 = generateDatastream(2, true);
     SourceBasedDeduper deduper = new SourceBasedDeduper();
-    Optional<Datastream> foundDatastream =
-        deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2));
+    Optional<Datastream> foundDatastream = deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2));
     Assert.assertFalse(foundDatastream.isPresent());
   }
 
   @Test
-  public void testDatastreamWithSameSourceButNoTopicReuse() {
+  public void testDatastreamWithSameSourceButNoTopicReuse() throws DatastreamValidationException {
     Datastream datastream = generateDatastream(0, false);
     Datastream datastream1 = generateDatastream(0, true);
     Datastream datastream2 = generateDatastream(1, true);
     datastream1.getMetadata().put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, "false");
     SourceBasedDeduper deduper = new SourceBasedDeduper();
-    Optional<Datastream> foundDatastream =
-        deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2));
+    Optional<Datastream> foundDatastream = deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2));
     Assert.assertFalse(foundDatastream.isPresent());
   }
 
   @Test
-  public void testDifferentDatastreamsWithSameSource() {
+  public void testDifferentDatastreamsWithSameSource() throws DatastreamValidationException {
     Datastream datastream = generateDatastream(0, false);
     Datastream datastream1 = generateDatastream(0, true);
     Datastream datastream2 = generateDatastream(1, true);
-    datastream1.setConnectorName("foo");
     SourceBasedDeduper deduper = new SourceBasedDeduper();
-    Optional<Datastream> foundDatastream =
-        deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2));
-    Assert.assertFalse(foundDatastream.isPresent());
-
-    datastream1.setConnectorName(datastream.getConnectorName());
     Assert.assertTrue(deduper.findExistingDatastream(datastream, Arrays.asList(datastream1, datastream2)).isPresent());
 
     datastream1.setTransportProviderName("foo");
