@@ -39,7 +39,6 @@ import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduperFactory;
-import com.linkedin.datastream.server.api.connector.SourceBasedDeduperFactory;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.serde.SerdeAdminFactory;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
@@ -296,7 +295,7 @@ public class DatastreamServer {
     boolean enableEmbeddedJetty = verifiableProperties.getBoolean(CONFIG_ENABLE_EMBEDDED_JETTY, true);
 
     // Port will be updated after start() is called if it is 0
-    _httpPort = verifiableProperties.getInt(CONFIG_HTTP_PORT);
+    _httpPort = verifiableProperties.getInt(CONFIG_HTTP_PORT, 0);
     Validate.isTrue(_httpPort == 0 || _httpPort >= 1024, "Invalid port number: " + _httpPort);
 
     if (enableEmbeddedJetty) {

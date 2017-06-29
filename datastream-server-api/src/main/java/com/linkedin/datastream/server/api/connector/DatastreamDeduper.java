@@ -11,12 +11,13 @@ import com.linkedin.datastream.common.Datastream;
  * Any datastreams that can share the destination are considered as duplicate datastreams.
  */
 public interface DatastreamDeduper {
-
   /**
    * Find an existing datastream that is a duplicate of the new datastream being created.
    * @param newDatastream new datastream being created.
    * @param allDatastream all the existing datastreams in the system includes the new datastream as well.
    * @return the existing datastream which is a duplicate of the new datastream being created or Optional.empty()
+   * @throws DatastreamValidationException when deduper detects any invalidity of the new stream (optional)
    */
-  Optional<Datastream> findExistingDatastream(Datastream newDatastream, List<Datastream> allDatastream);
+  Optional<Datastream> findExistingDatastream(Datastream newDatastream, List<Datastream> allDatastream)
+      throws DatastreamValidationException;
 }

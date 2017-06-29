@@ -18,6 +18,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -156,8 +157,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       // rest.li has done this mandatory field check in the latest version.
       // Just in case we roll back to an earlier version, let's do the validation here anyway
+      DatastreamUtils.validateNewDatastream(datastream);
       Validate.isTrue(datastream.hasName(), "Must specify name of Datastream!");
       Validate.isTrue(datastream.hasConnectorName(), "Must specify connectorType!");
+      Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasMetadata()
           && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
