@@ -64,5 +64,6 @@ public abstract class AbstractDatastreamDeduper implements DatastreamDeduper {
    * @param candidates existings streams meeting basic requirements for reuse
    * @return optional wrapper of the reusable stream
    */
-  protected abstract Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates);
+  protected abstract Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates)
+      throws DatastreamValidationException;
 }

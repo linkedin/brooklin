@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
 /**
@@ -17,7 +18,8 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   private static final Logger LOG = LoggerFactory.getLogger(SourceBasedDeduper.class);
 
   @Override
-  public Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates) {
+  public Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates)
+      throws DatastreamValidationException {
     List<Datastream> duplicateDatastreams = candidates.stream()
         .filter(d -> d.getSource().equals(stream.getSource()))
         .collect(Collectors.toList());
