@@ -822,6 +822,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         tasksByConnectorAndInstance.get(instance).forEach(task -> {
           // Each task must have a valid zkAdapter
           ((DatastreamTaskImpl) task).setZkAdapter(_adapter);
+          if (task.getStatus() != null && DatastreamTaskStatus.Code.PAUSED.equals(task.getStatus().getCode())) {
+            // Removed the Paused Status.
+            task.setStatus(DatastreamTaskStatus.ok());
+          }
           newAssignmentsByInstance.get(instance).add(task);
         });
       }
@@ -840,7 +844,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     List<DatastreamTask> pausedTasks = new ArrayList<>();
     for (DatastreamGroup dg : pausedDatastreamGroups) {
-      currentlyAssignedDatastreamTasks.stream().filter(dg::belongsTo).forEach(pausedTasks::add);
+      currentlyAssignedDatastreamTasks.stream().filter(dg::belongsTo).forEach(task -> {
+        if (task.getStatus() == null || DatastreamTaskStatus.Code.OK.equals(task.getStatus().getCode())) {
+          // Set task status to Paused.
+          task.setStatus(DatastreamTaskStatus.paused());
+        }
+        pausedTasks.add(task);
+      });
     }
 
     return pausedTasks;

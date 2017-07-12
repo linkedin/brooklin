@@ -1,12 +1,13 @@
 package com.linkedin.datastream.server;
 
+import java.util.Objects;
 import org.apache.commons.lang.Validate;
 
 /**
  * Represent the status of a DatastreamTask with a code and message.
  */
 public class DatastreamTaskStatus {
-  public enum Code { OK, ERROR, COMPLETE }
+  public enum Code { OK, ERROR, COMPLETE, PAUSED }
 
   private Code _code;
   private String _message;
@@ -58,6 +59,14 @@ public class DatastreamTaskStatus {
   }
 
   /**
+   * Helper method to create a Paused status.
+   * @return PAUSED task status
+   */
+  public static DatastreamTaskStatus paused() {
+    return new DatastreamTaskStatus(Code.PAUSED, "Paused");
+  }
+
+  /**
    * @return kind of the status
    */
   public Code getCode() {
@@ -85,6 +94,21 @@ public class DatastreamTaskStatus {
    */
   public void setMessage(String message) {
     _message = message;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj == null || !(obj instanceof DatastreamTaskStatus)) {
+      return false;
+    }
+
+    DatastreamTaskStatus that = (DatastreamTaskStatus) obj;
+    return Objects.equals(this.getCode(), that.getCode()) || Objects.equals(this.getMessage(), that.getMessage());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.getCode(), this.getMessage());
   }
 
   @Override
