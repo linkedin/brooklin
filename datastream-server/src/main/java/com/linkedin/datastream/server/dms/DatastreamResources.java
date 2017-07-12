@@ -114,7 +114,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _store.updateDatastream(datastreamName, datastream);
     } catch (DatastreamException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Could not update datastream to paused state: " + datastreamName);
+          "Could not update datastream to paused state: " + datastreamName, e);
     }
 
     return new ActionResult<>(HttpStatus.S_200_OK);
@@ -139,7 +139,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _store.updateDatastream(datastreamName, datastream);
     } catch (DatastreamException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Could not update datastream to resume: " + datastreamName);
+          "Could not update datastream to resume: " + datastreamName, e);
     }
 
     return new ActionResult<>(HttpStatus.S_200_OK);
