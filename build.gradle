@@ -121,6 +121,7 @@ project(':datastream-common') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotations"
     compile group: 'com.google.guava', name: 'guava', version: '19.0'
+    testCompile 'org.mockito:mockito-core:1.+'
   }
 }
 
