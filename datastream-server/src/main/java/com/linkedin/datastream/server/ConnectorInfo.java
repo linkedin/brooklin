@@ -1,10 +1,12 @@
 package com.linkedin.datastream.server;
 
+import java.util.Optional;
+
+import org.apache.commons.lang.StringUtils;
+
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
-import java.util.Optional;
-
 
 /**
  * Metadata related to the connector.
@@ -33,7 +35,11 @@ public class ConnectorInfo {
     _assignmentStrategy = strategy;
     _customCheckpointing = customCheckpointing;
     _datastreamDeduper = deduper;
-    _authorizerName = Optional.ofNullable(authorizerName);
+    if (StringUtils.isBlank(authorizerName)) {
+      _authorizerName = Optional.empty();
+    } else {
+      _authorizerName = Optional.of(authorizerName);
+    }
   }
 
   public ConnectorWrapper getConnector() {

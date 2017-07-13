@@ -230,7 +230,6 @@ public class DatastreamServer {
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
 
     String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
-
     _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing,
         deduper, authorizerName);
 
@@ -355,8 +354,7 @@ public class DatastreamServer {
       _httpPort = _jettyLauncher.getPort();
       _isStarted = true;
     } catch (Exception ex) {
-      String errorMessage = "Failed to start netty.";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, ex);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to start embedded Jetty.", ex);
     }
   }
 
@@ -370,7 +368,7 @@ public class DatastreamServer {
       try {
         _jettyLauncher.stop();
       } catch (Exception e) {
-        LOG.error("Fail to stop netty launcher.", e);
+        LOG.error("Failed to shutdown embedded Jetty.", e);
       }
       _jettyLauncher = null;
     }

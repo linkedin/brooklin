@@ -79,15 +79,15 @@ public final class DatastreamUtils {
   }
 
   public static Optional<String> getPayloadSerDe(Datastream datastream) {
-    return Optional.ofNullable(datastream.getDestination().getPayloadSerDe(GetMode.NULL));
+    return Optional.ofNullable(datastream.getDestination()).map(d -> d.getPayloadSerDe(GetMode.NULL));
   }
 
   public static Optional<String> getKeySerDe(Datastream datastream) {
-    return Optional.ofNullable(datastream.getDestination().getKeySerDe(GetMode.NULL));
+    return Optional.ofNullable(datastream.getDestination()).map(d -> d.getKeySerDe(GetMode.NULL));
   }
 
   public static Optional<String> getEnvelopeSerDe(Datastream datastream) {
-    return Optional.ofNullable(datastream.getDestination().getEnvelopeSerDe(GetMode.NULL));
+    return Optional.ofNullable(datastream.getDestination()).map(d -> d.getEnvelopeSerDe(GetMode.NULL));
   }
 
   public static boolean hasValidSource(Datastream stream) {

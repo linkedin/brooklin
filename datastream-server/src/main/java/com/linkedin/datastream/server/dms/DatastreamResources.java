@@ -27,6 +27,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
@@ -163,7 +164,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasMetadata()
-          && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
+              && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
@@ -176,7 +177,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       _coordinator.initializeDatastream(datastream);
 
-      LOG.debug("Persisting initialized datastream to zookeeper: %s",  datastream);
+      LOG.debug("Persisting initialized datastream to zookeeper: %s", datastream);
 
       _store.createDatastream(datastream.getName(), datastream);
 
@@ -197,6 +198,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
           "Datastream with the same name already exists: " + datastream, e);
+    } catch (AuthorizationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_401_UNAUTHORIZED,
+          "Datastream creation denied due to insufficient authorization: " + datastream, e);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
