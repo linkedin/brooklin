@@ -899,8 +899,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // CREATE is already verified through the SSL layer of the HTTP framework (optional)
         // READ is the operation for datastream source-level authorization
         if (!authz.authorize(datastream, Authorizer.Operation.READ, () -> principal)) {
-          String errMsg = "Failed to authorize the consumers (OWNER) for datastream " + datastream;
-          _log.error(errMsg);
+          String errMsg = String.format("Consumer %s has not been approved for %s over %s",
+              principal, datastream.getSource(), datastream.getTransportProviderName());
+          _log.warn(errMsg);
           throw new AuthorizationException(errMsg);
         }
       }
