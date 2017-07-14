@@ -1012,6 +1012,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
               existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
     }
+
+    // If the existing datastream group is paused, also pause this datastream.
+    // This is to avoid the creation of a datastream to RESUME event production.
+    if (existingStream.getStatus().equals(DatastreamStatus.PAUSED)) {
+      datastream.setStatus(DatastreamStatus.PAUSED);
+
+    }
   }
 
   @Override
