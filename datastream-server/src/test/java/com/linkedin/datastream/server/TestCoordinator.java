@@ -400,6 +400,8 @@ public class TestCoordinator {
     ds3.setStatus(DatastreamStatus.INITIALIZING);
     ds3.getMetadata().clear();
     ds3.getMetadata().put("owner", "SecondOwner");
+    ds3.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX,
+        ds1.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds3);
 
     // Wait for DS3 to be ready
@@ -430,7 +432,36 @@ public class TestCoordinator {
     // Verify that the Tasks for Datastream1 are parked. (both DS1 and DS3 are paused)
     Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 2);
 
-    //
+    // Create a Fourth instance, that should be deduped with datastream1 and datastream3
+    String datastreamName4 = "datastream4";
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1);
+    Datastream ds4 = ds1.copy();
+    ds4.setName(datastreamName4);
+    ds4.getMetadata().clear();
+    ds4.getMetadata().put("owner", "SecondOwner");
+    ds4.removeDestination();
+    instance1.initializeDatastream(ds4);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds4);
+
+    // Wait for DS4 to be created paused
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.PAUSED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName4).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Create a Fifth instance, that should be deduped with datastream2
+    String datastreamName5 = "datastream5";
+    Datastream ds2 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName2);
+    Datastream ds5 = ds2.copy();
+    ds5.setName(datastreamName5);
+    ds5.getMetadata().clear();
+    ds5.getMetadata().put("owner", "SecondOwner");
+    ds5.removeDestination();
+    instance1.initializeDatastream(ds5);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds5);
+
+    // Wait for DS5 to be created in Ready state.
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName5).getStatus()), 200, WAIT_TIMEOUT_MS));
+
     // clean up
     //
     instance1.stop();
