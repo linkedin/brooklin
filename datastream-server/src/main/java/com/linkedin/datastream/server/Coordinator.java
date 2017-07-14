@@ -128,6 +128,17 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
  */
 
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
+  /*
+     There are situation where we need to pause a Datastream without taking down the Brooklin Server.
+     For example to temporary stop a misbehaving datastream, or to fix some connectivity issues.
+
+     The coordinator reassign the tasks of the paused datastream to a dummy instance  "PAUSED_INSTANCE",
+     effectively suspending processing of the current tasks.
+       - In case a datastream is dedupped, the tasks are reassigned only if all the datastreams are paused.
+       - The tasks status are changed from OK to Paused.
+
+     For more details, see: https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Pausing+a+Datastream
+   */
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   private static final String MODULE = Coordinator.class.getSimpleName();
 
