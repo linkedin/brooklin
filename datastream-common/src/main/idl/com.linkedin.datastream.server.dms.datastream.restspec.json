@@ -21,12 +21,30 @@
     }, {
       "method" : "get_all"
     } ],
+    "finders" : [ {
+      "name" : "findGroup",
+      "doc" : "You can access this FINDER method via /resources/datastream?q=findDuplicates&datastreamName=name",
+      "parameters" : [ {
+        "name" : "datastreamName",
+        "type" : "string"
+      } ]
+    } ],
     "entity" : {
       "path" : "/datastream/{datastreamId}",
       "actions" : [ {
-        "name" : "pause"
+        "name" : "pause",
+        "parameters" : [ {
+          "name" : "force",
+          "type" : "boolean",
+          "default" : "false"
+        } ]
       }, {
-        "name" : "resume"
+        "name" : "resume",
+        "parameters" : [ {
+          "name" : "force",
+          "type" : "boolean",
+          "default" : "false"
+        } ]
       } ]
     }
   }

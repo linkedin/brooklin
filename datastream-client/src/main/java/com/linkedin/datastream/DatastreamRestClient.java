@@ -20,8 +20,10 @@ import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
 import com.linkedin.r2.transport.http.client.HttpClientFactory;
+import com.linkedin.restli.client.ActionRequest;
 import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.DeleteRequest;
+import com.linkedin.restli.client.FindRequest;
 import com.linkedin.restli.client.GetAllRequest;
 import com.linkedin.restli.client.GetRequest;
 import com.linkedin.restli.client.ResponseFuture;
@@ -283,5 +285,98 @@ public class DatastreamRestClient {
    */
   public void shutdown() {
     _restClient.shutdown(new FutureCallback<>());
+  }
+
+  /**
+   * Pause a datastream, by changing its status to PAUSED. In case there are multiple datastreams
+   * in a group, the group is PAUSED if ALL the datastreams are paused
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void pause(String datastreamName) throws RemoteInvocationException {
+    pause(datastreamName, false);
+  }
+
+  /**
+   * Pause a datastream, by changing its status to PAUSED. In case there are multiple datastreams
+   * in a group, the group is PAUSED if ALL the datastreams are paused
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @param force
+   *    If true, change all the datastreams in the same group to PAUSED, forcing the group to pause.
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void pause(String datastreamName, boolean force) {
+    try {
+      ActionRequest<Void> request = _builders.actionPause().id(datastreamName).forceParam(force).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage = String.format("Pause Datastream {%s} failed with error.", datastreamName);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+  }
+
+  /**
+   * Resume a datastream, by changing its status from PAUSED to READY.
+   * @param datastreamName
+   *    Name of the datastream to resume.
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void resume(String datastreamName) throws RemoteInvocationException {
+    resume(datastreamName, false);
+  }
+
+  /**
+   * Resume a datastream, by changing its status from PAUSED to READY.
+   * @param datastreamName
+   *    Name of the datastream to resume.
+   * @param force
+   *    If true, changes all the datastreams in the same group to READY.
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void resume(String datastreamName, boolean force) throws RemoteInvocationException {
+    try {
+      ActionRequest<Void> request = _builders.actionResume().id(datastreamName).forceParam(force).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage = String.format("Resume Datastream {%s} failed with error.", datastreamName);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+  }
+
+  /**
+   * Get all the datastream objects that are in the same group that "datastreamName". This method makes a GET rest call
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
+   * Entries will be return in lexicographical based on their getName() property.
+   *
+   * @return all the Datastream objects that are in the same group than the passed datastreamName
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public List<Datastream> findGroup(String datastreamName) {
+    try {
+      FindRequest<Datastream> request = _builders.findByFindGroup().datastreamNameParam(datastreamName).build();
+      return _restClient.sendRequest(request).getResponse().getEntity().getElements();
+    } catch (RemoteInvocationException e) {
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "findGroup failed with error.", e);
+    }
+    return null;
   }
 }
