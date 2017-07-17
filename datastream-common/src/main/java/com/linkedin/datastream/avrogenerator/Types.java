@@ -12,6 +12,7 @@ public enum Types {
   LONG("long"),
   DOUBLE("double"),
   RAW("bytes"),
+  LONG_RAW("bytes"),
   CLOB("string"),
   NCLOB("string"),
   VARCHAR("string"),
