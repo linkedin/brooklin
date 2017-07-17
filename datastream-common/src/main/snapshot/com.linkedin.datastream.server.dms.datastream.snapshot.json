@@ -17,7 +17,7 @@
     "type" : "enum",
     "name" : "DatastreamStatus",
     "namespace" : "com.linkedin.datastream.common",
-    "symbols" : [ "INITIALIZING", "READY", "DELETING" ]
+    "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING" ]
   }, {
     "type" : "record",
     "name" : "DatastreamDestination",
@@ -112,7 +112,12 @@
         "method" : "get_all"
       } ],
       "entity" : {
-        "path" : "/datastream/{datastreamId}"
+        "path" : "/datastream/{datastreamId}",
+        "actions" : [ {
+          "name" : "pause"
+        }, {
+          "name" : "resume"
+        } ]
       }
     }
   }

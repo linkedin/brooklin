@@ -22,7 +22,12 @@
       "method" : "get_all"
     } ],
     "entity" : {
-      "path" : "/datastream/{datastreamId}"
+      "path" : "/datastream/{datastreamId}",
+      "actions" : [ {
+        "name" : "pause"
+      }, {
+        "name" : "resume"
+      } ]
     }
   }
 }

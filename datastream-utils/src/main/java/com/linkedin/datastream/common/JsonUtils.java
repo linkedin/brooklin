@@ -26,6 +26,7 @@ public final class JsonUtils {
     MAPPER.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     final DeserializationConfig config = MAPPER.getDeserializationConfig();
+    config.addMixInAnnotations(Datastream.class, IgnoreDatastreamSetPausedMixIn.class);
     config.addMixInAnnotations(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
     config.addMixInAnnotations(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
   }
@@ -38,6 +39,11 @@ public final class JsonUtils {
   private static abstract class IgnoreDatastreamDestinationSetPartitionsMixIn {
     @JsonIgnore
     public abstract DatastreamDestination setPartitions(int value);
+  }
+
+  private abstract class IgnoreDatastreamSetPausedMixIn {
+    @JsonIgnore
+    public abstract void setPaused(Boolean value);
   }
 
   /**

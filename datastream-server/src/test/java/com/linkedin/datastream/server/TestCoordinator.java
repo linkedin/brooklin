@@ -26,6 +26,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -351,7 +353,115 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
 
+    // Pause the First Datastream.
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setStatus(DatastreamStatus.PAUSED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    // check that datastream2 is ok
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName2);
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastreamName2);
+
+    // Verify that the Tasks for Datastream1 are parked.
+    String pausedPath = KeyBuilder.instanceAssignments(testCluster, Coordinator.PAUSED_INSTANCE);
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 2);
+
+    // Check that the task status is Paused
+    String task1Name = zkClient.getChildren(pausedPath).get(0);
+    String json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
+        task1Name, "STATUS"), true);
+    Assert.assertEquals(JsonUtils.fromJson(json, DatastreamTaskStatus.class), DatastreamTaskStatus.paused());
+
+    // Resume the First Datastream.
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
     //
+    // verify both instance1 and instance2 now have two datastreamtasks assigned
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    // Verify not paused Datastream.
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 0);
+
+    // Check that the task status is OK or null (for broadcast datastream the coordinator sometimes create new ones)
+    json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
+        task1Name, "STATUS"), true);
+    Assert.assertTrue(
+        json == null || JsonUtils.fromJson(json, DatastreamTaskStatus.class).equals(DatastreamTaskStatus.ok()));
+
+    // Create a Third instance, that should be deduped with datastream1
+    String datastreamName3 = "datastream3";
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1);
+    Datastream ds3 = ds1.copy();
+    ds3.setName(datastreamName3);
+    ds3.setStatus(DatastreamStatus.INITIALIZING);
+    ds3.getMetadata().clear();
+    ds3.getMetadata().put("owner", "SecondOwner");
+    ds3.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX,
+        ds1.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds3);
+
+    // Wait for DS3 to be ready
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName3).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Pause Again the First Datastream
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setStatus(DatastreamStatus.PAUSED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    // Check that the datastream are running.
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    // Verify that No Tasks are parked (because DS1 and DS3 are in the same group, and DS3 is not paused)
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 0);
+
+    // Pause The third Datastream.
+    ds3 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream3");
+    ds3.setStatus(DatastreamStatus.PAUSED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds3);
+
+    // check that datastream2 is ok
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName2);
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastreamName2);
+
+    // Verify that the Tasks for Datastream1 are parked. (both DS1 and DS3 are paused)
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 2);
+
+    // Create a Fourth instance, that should be deduped with datastream1 and datastream3
+    String datastreamName4 = "datastream4";
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1);
+    Datastream ds4 = ds1.copy();
+    ds4.setName(datastreamName4);
+    ds4.getMetadata().clear();
+    ds4.getMetadata().put("owner", "SecondOwner");
+    ds4.removeDestination();
+    instance1.initializeDatastream(ds4);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds4);
+
+    // Wait for DS4 to be created paused
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.PAUSED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName4).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Create a Fifth instance, that should be deduped with datastream2
+    String datastreamName5 = "datastream5";
+    Datastream ds2 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName2);
+    Datastream ds5 = ds2.copy();
+    ds5.setName(datastreamName5);
+    ds5.getMetadata().clear();
+    ds5.getMetadata().put("owner", "SecondOwner");
+    ds5.removeDestination();
+    instance1.initializeDatastream(ds5);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds5);
+
+    // Wait for DS5 to be created in Ready state.
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName5).getStatus()), 200, WAIT_TIMEOUT_MS));
+
     // clean up
     //
     instance1.stop();
@@ -540,7 +650,7 @@ public class TestCoordinator {
   @Test
   public void testSimpleAssignmentReassignWithNewInstances() throws Exception {
     String testCluster = "testSimpleAssignmentReassignWithNewInstances";
-    String testConnectoryType = "testConnectoryType";
+    String testConnectorType = "testConnectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     LOG.info("Creating the first coordinator and connector instance");
@@ -548,8 +658,8 @@ public class TestCoordinator {
     // create 1 instance
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectoryType);
-    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false,
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new LoadbalancingStrategy(), false,
         new SourceBasedDeduper(), null);
     instance1.start();
 
@@ -558,8 +668,8 @@ public class TestCoordinator {
     //
     // create 2 datastreams, [datastream0, datastream1]
     //
-    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream0");
-    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectoryType, "datastream1");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream0");
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream1");
 
     //
     // verify both datastreams are assigned to instance1
@@ -572,8 +682,8 @@ public class TestCoordinator {
     // add a new live instance instance2
     //
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectoryType);
-    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false,
+    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
+    instance2.addConnector(testConnectorType, connector2, new LoadbalancingStrategy(), false,
         new SourceBasedDeduper(), null);
     instance2.start();
 
@@ -589,8 +699,8 @@ public class TestCoordinator {
     // add instance3
     //
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector3 = new TestHookConnector("connector3", testConnectoryType);
-    instance3.addConnector(testConnectoryType, connector3, new LoadbalancingStrategy(), false,
+    TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
+    instance3.addConnector(testConnectorType, connector3, new LoadbalancingStrategy(), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -601,6 +711,46 @@ public class TestCoordinator {
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1");
     Assert.assertTrue(connector3.getTasks().isEmpty());
 
+    // Pause "datastream0"
+    Datastream ds0 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream0");
+    ds0.setStatus(DatastreamStatus.PAUSED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds0);
+
+    //
+    // verify new assignment. instance1 : [datastream1], instance2: []
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1");
+    Assert.assertTrue(connector2.getTasks().isEmpty());
+    Assert.assertTrue(connector3.getTasks().isEmpty());
+
+    // Verify that the Tasks for Datastream0 are parked.
+    String pausedPath = KeyBuilder.instanceAssignments(testCluster, Coordinator.PAUSED_INSTANCE);
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 1);
+
+    // Check that the task status is Paused
+    String task0Name = zkClient.getChildren(pausedPath).get(0);
+    String json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType,
+        task0Name, "STATUS"), true);
+    Assert.assertEquals(JsonUtils.fromJson(json, DatastreamTaskStatus.class), DatastreamTaskStatus.paused());
+
+    // Resume "datastream0"
+    ds0 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream0");
+    ds0.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds0);
+
+    //
+    // verify new assignment. instance1 : [datastream0], instance2: [datastream1]
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1");
+    Assert.assertTrue(connector3.getTasks().isEmpty());
+
+    // Verify no Datastream Tasks Parked.
+    Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 0);
+
+    Assert.assertEquals(connector1.getTasks().get(0).getStatus(), DatastreamTaskStatus.ok());
+
+    System.out.println("XXXX   value :: " + connector1.getTasks().get(0).getStatus());
     //
     // clean up
     //
