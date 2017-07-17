@@ -33,7 +33,17 @@ public class FieldMetadata {
     _numberScale = numberScale;
   }
 
-  public static FieldMetadata fromString(String meta) {
+  /**
+   * Parses a "meta" String into a map of key-value pairs.
+   *
+   * Ex. input of "dbTableName=ANET_TOPICS;pk=anetId;" will return a map of:
+   *     "dbTableName" -> "ANET_TOPICS"
+   *     "pk" -> "anetId"
+   *
+   * @param meta the metadata String
+   * @return map of key-value pairs
+   */
+  public static Map<String, String> parseMetadata(String meta) {
     // cut off the trailing delimiter ";"
     if (meta.endsWith(META_LIST_DELIMITER)) {
       meta = meta.substring(0, meta.length() - 1);
@@ -51,6 +61,12 @@ public class FieldMetadata {
 
       metas.put(key, value);
     }
+
+    return metas;
+  }
+
+  public static FieldMetadata fromString(String meta) {
+    Map<String, String> metas = parseMetadata(meta);
 
     // field name, field position, and field type are mandatory
     String fieldName = Preconditions.checkNotNull(metas.get(OracleColumn.COL_NAME),
