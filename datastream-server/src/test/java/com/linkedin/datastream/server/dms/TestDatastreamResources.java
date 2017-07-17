@@ -15,6 +15,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -128,7 +130,7 @@ public class TestDatastreamResources {
 
     // Pause datastream.
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
-    ActionResult<Void> pauseResponse = resource1.pause(pathKey);
+    ActionResult<Void> pauseResponse = resource1.pause(pathKey, false);
     Assert.assertEquals(pauseResponse.getStatus(), HttpStatus.S_200_OK);
 
     // Retrieve datastream and check that is in pause state.
@@ -137,7 +139,7 @@ public class TestDatastreamResources {
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.PAUSED);
 
     // Resume datastream.
-    ActionResult<Void> resumeResponse = resource1.resume(pathKey);
+    ActionResult<Void> resumeResponse = resource1.resume(pathKey, false);
     Assert.assertEquals(resumeResponse.getStatus(), HttpStatus.S_200_OK);
 
     // Retrieve datastream and check that is not paused.
@@ -145,6 +147,55 @@ public class TestDatastreamResources {
     Assert.assertNotNull(ds2);
     Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
   }
+
+  @Test
+  public void testPauseDatastreamGroup() throws Exception {
+    // Create Two datastreams in the Same Group
+    DatastreamRestClient restClient = createRestClient();
+    Datastream ds1 = generateDatastream(1);
+    restClient.createDatastream(ds1);
+    restClient.waitTillDatastreamIsInitialized(ds1.getName(), 10000);
+
+    Datastream ds2 = ds1.copy();
+    ds2.setName("name_2");
+    restClient.createDatastream(ds2);
+    restClient.waitTillDatastreamIsInitialized(ds2.getName(), 10000);
+
+    // Pause Datastream1 (normal)
+    restClient.pause(ds1.getName(), false);
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.PAUSED);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+
+    // Resume Datastream1 (Normal)
+    restClient.resume(ds1.getName(), false);
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.READY);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+
+    // Pause Datastream1 (Force)
+    restClient.pause(ds1.getName(), true);
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.PAUSED);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.PAUSED);
+
+    // Resume Datastream1 (Force)
+    restClient.resume(ds1.getName(), true);
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.READY);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+
+    // Do a call to find a datastream group
+    List<Datastream> result = restClient.findGroup(ds2.getName());
+    Assert.assertEquals(result.size(), 2);
+    Assert.assertEquals(result.get(0).getName(), ds1.getName());
+    Assert.assertEquals(result.get(1).getName(), ds2.getName());
+  }
+
 
   private <T> void checkBadRequest(Callable<T> verif) throws Exception {
     checkBadRequest(verif, HttpStatus.S_400_BAD_REQUEST);
@@ -296,5 +347,10 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         datastreams.stream().map(Datastream::getName).skip(skip).limit(limit).collect(Collectors.toSet()),
         queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
+  }
+
+  private DatastreamRestClient createRestClient() {
+    String dmsUri = String.format("http://localhost:%d", _datastreamKafkaCluster.getDatastreamPorts().get(0));
+    return DatastreamRestClientFactory.getClient(dmsUri);
   }
 }

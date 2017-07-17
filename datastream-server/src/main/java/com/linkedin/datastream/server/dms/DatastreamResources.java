@@ -5,9 +5,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +36,12 @@ import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.annotations.Action;
+import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.Context;
+import com.linkedin.restli.server.annotations.Finder;
+import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PathKeysParam;
+import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
@@ -69,6 +75,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final String GET_ALL_CALL = "getAllCall";
   private static final String CREATE_CALL = "createCall";
   private static final String CALL_ERROR = "callError";
+  private static final String FINDER_CALL = "finderCall";
 
   private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
   private static AtomicLong _deleteCallLatencyMs = new AtomicLong(0L);
@@ -97,7 +104,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
-  public ActionResult<Void> pause(@PathKeysParam PathKeys pathKeys) {
+  public ActionResult<Void> pause(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("force") @Optional("false") boolean force) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
@@ -105,24 +113,31 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to pause does not exist: " + datastreamName);
     }
 
-    if (datastream.getStatus() != DatastreamStatus.READY) {
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
           "Can only pause a datastream in READY state: " + datastreamName);
     }
 
-    try {
-      datastream.setStatus(DatastreamStatus.PAUSED);
-      _store.updateDatastream(datastreamName, datastream);
-    } catch (DatastreamException e) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Could not update datastream to paused state: " + datastreamName, e);
+    List<Datastream> datastreamsToPause =
+        force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    for (Datastream d : datastreamsToPause) {
+      try {
+        if (DatastreamStatus.READY.equals(datastream.getStatus())) {
+          d.setStatus(DatastreamStatus.PAUSED);
+          _store.updateDatastream(d.getName(), d);
+        }
+      } catch (DatastreamException e) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+            "Could not update datastream to paused state: " + d.getName(), e);
+      }
     }
 
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
   @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
-  public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys) {
+  public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("force") @Optional("false") boolean force) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
@@ -130,17 +145,23 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to resume does not exist: " + datastreamName);
     }
 
-    if (datastream.getStatus() != DatastreamStatus.PAUSED) {
+    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
           "Datastream is not paused, cannot resume: " + datastreamName);
     }
 
-    try {
-      datastream.setStatus(DatastreamStatus.READY);
-      _store.updateDatastream(datastreamName, datastream);
-    } catch (DatastreamException e) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          "Could not update datastream to resume: " + datastreamName, e);
+    List<Datastream> datastreamsToResume =
+        force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    for (Datastream d : datastreamsToResume) {
+      try {
+        if (DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+          d.setStatus(DatastreamStatus.READY);
+          _store.updateDatastream(d.getName(), d);
+        }
+      } catch (DatastreamException e) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+            "Could not update datastream to resume:  " + d.getName(), e);
+      }
     }
 
     return new ActionResult<>(HttpStatus.S_200_OK);
@@ -195,10 +216,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), GET_ALL_CALL, 1);
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
-        .filter(stream -> stream != null).collect(Collectors.toList());
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Result collected for getAll: %s" + ret);
-      }
+        .filter(Objects::nonNull).collect(Collectors.toList());
+      LOG.debug("Result collected for getAll {}", ret);
       return ret;
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
@@ -206,6 +225,34 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
     }
 
+    return Collections.emptyList();
+  }
+
+  /**
+   * You can access this FINDER method via /resources/datastream?q=findDuplicates&datastreamName=name
+   */
+  @SuppressWarnings("deprecated")
+  @Finder("findGroup")
+  public List<Datastream> findGroup(@Context PagingContext pagingContext,
+      @QueryParam("datastreamName") String datastreamName) {
+    try {
+      LOG.info(String.format("findDuplicates called with paging context %s", pagingContext));
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), FINDER_CALL, 1);
+      Datastream datastream = _store.getDatastream(datastreamName);
+      if (datastream == null) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+            "Datastream not found: " + datastreamName);
+      }
+      List<Datastream> ret = RestliUtils.withPaging(getGroupedDatastreams(datastream).stream(), pagingContext)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+      LOG.debug("Result collected for findDuplicates: {}", ret);
+      return ret;
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Call findDuplicates failed.", e);
+    }
     return Collections.emptyList();
   }
 
@@ -289,5 +336,17 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING)));
 
     return Collections.unmodifiableList(metrics);
+  }
+
+  private List<Datastream> getGroupedDatastreams(Datastream datastream) {
+    String taskPrefix = DatastreamUtils.getTaskPrefix(datastream);
+    if (StringUtils.isEmpty(taskPrefix)) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_412_PRECONDITION_FAILED,
+          "Datastream does not have Task Prefix: " + datastream.getName());
+    }
+    return _store.getAllDatastreams()
+        .map(_store::getDatastream)
+        .filter(d -> taskPrefix.equals(DatastreamUtils.getTaskPrefix(d)))
+        .collect(Collectors.toList());
   }
 }
