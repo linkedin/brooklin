@@ -37,4 +37,16 @@ public enum Types {
     return _avroType;
   }
 
+  /**
+   * Use instead of Types.valueOf(String) because this properly handles spaces in the String.
+   */
+  public static Types fromString(String str) {
+    return Types.valueOf(str.replace(" ", "_"));
+  }
+
+  @Override
+  public String toString() {
+    return this.name().replace("_", " ");
+  }
+
 }

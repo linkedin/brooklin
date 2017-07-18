@@ -35,7 +35,7 @@ public class OraclePrimitiveType implements FieldType {
       fieldTypeName = fieldTypeName.substring(4);
     }
 
-    _type = Types.valueOf(fieldTypeName);
+    _type = Types.fromString(fieldTypeName);
   }
 
   @Override
