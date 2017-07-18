@@ -73,7 +73,7 @@ public class FieldMetadata {
         String.format("Missing metadata %s from meta string %s", OracleColumn.COL_NAME, meta));
     int fieldPosition = Integer.valueOf(Preconditions.checkNotNull(metas.get(OracleColumn.COL_POSITION),
         String.format("Missing metadata %s from meta string %s", OracleColumn.COL_POSITION, meta)));
-    Types fieldType = Types.valueOf(Preconditions.checkNotNull(metas.get(FieldType.FIELD_TYPE_NAME),
+    Types fieldType = Types.fromString(Preconditions.checkNotNull(metas.get(FieldType.FIELD_TYPE_NAME),
         String.format("Missing metadata %s from meta string %s", FieldType.FIELD_TYPE_NAME, meta)));
 
     Optional<Integer> numberPrecision =

@@ -32,6 +32,10 @@ public class TestFieldMetadata {
     Assert.assertEquals(fieldMetadata.getDbFieldType(), Types.FLOAT, "Incorrectly parsed dbFieldType");
     Assert.assertEquals(fieldMetadata.getNumberPrecision(), Optional.of(3), "Incorrectly parsed numberPrecision");
     Assert.assertEquals(fieldMetadata.getNumberScale(), Optional.of(2), "Incorrectly parsed numberScale");
+
+    meta = "dbFieldName=ARTICLE;dbFieldPosition=1;dbFieldType=LONG RAW;";
+    fieldMetadata = FieldMetadata.fromString(meta);
+    Assert.assertEquals(fieldMetadata.getDbFieldType(), Types.LONG_RAW, "Incorrectly parsed dbFieldType");
   }
 
   public void testFromStringNegative() throws Exception {
