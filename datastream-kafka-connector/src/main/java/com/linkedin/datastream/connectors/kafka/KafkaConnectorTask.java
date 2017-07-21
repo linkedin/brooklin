@@ -3,6 +3,7 @@ package com.linkedin.datastream.connectors.kafka;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +59,8 @@ public class KafkaConnectorTask implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
 
+  public static final String CFG_SKIP_BAD_MESSAGE = "skipBadMessage";
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final Properties _consumerProps;
   private final DynamicMetricsManager _dynamicMetricsManager;
@@ -72,6 +75,10 @@ public class KafkaConnectorTask implements Runnable {
   //config
   private final DatastreamTask _task;
   private final long _offsetCommitInterval;
+  private final Duration _retrySleepDuration;
+  private final boolean _skipBadMessagesEnabled;
+  private final int _retryCount;
+
   //state
   private volatile Thread _thread;
   private volatile String _taskName;
@@ -79,11 +86,11 @@ public class KafkaConnectorTask implements Runnable {
   private DatastreamEventProducer _producer;
   private Consumer<?, ?> _consumer;
 
-  private static final Duration POLL_RETRY_SLEEP_DURATION = Duration.ofSeconds(5);
   private static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
   private static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
   private static final String AGGREGATE = "aggregate";
   private static final String ERROR_RATE = "errorRate";
+  private static final String SKIPPED_BAD_MESSAGES_RATE = "skippedBadMessagesRate";
   private static final String REBALANCE_RATE = "rebalanceRate";
   private static final String NUM_KAFKA_POLLS = "numKafkaPolls";
   private static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
@@ -99,6 +106,7 @@ public class KafkaConnectorTask implements Runnable {
   private final Meter _eventsProcessedRate = new Meter();
   private final Meter _bytesProcessedRate = new Meter();
   private final Meter _errorRate = new Meter();
+  private final Meter _skippedBadMessagesRate = new Meter();
   private final Meter _rebalanceRate = new Meter();
   private final Meter _numKafkaPolls = new Meter();
   private final Gauge<Long> _timeSinceLastEventReceived =
@@ -115,19 +123,22 @@ public class KafkaConnectorTask implements Runnable {
   private long _lastCommittedTime = System.currentTimeMillis();
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
-      long commitIntervalMillis) {
+      long commitIntervalMillis, Duration retrySleepDuration, int retryCount) {
     LOG.info("Creating kafka connector task for datastream task {} with commit interval {}Ms", task,
         commitIntervalMillis);
     _consumerProps = consumerProps;
     _consumerFactory = factory;
     _datastream = task.getDatastreams().get(0);
     _task = task;
+    _skipBadMessagesEnabled = skipBadMessageEnabled(task);
+    _retryCount = retryCount;
 
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
 
     _offsetCommitInterval = commitIntervalMillis;
+    _retrySleepDuration = retrySleepDuration;
     _datastreamName = task.getDatastreams().get(0).getName();
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -135,6 +146,10 @@ public class KafkaConnectorTask implements Runnable {
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_PROCESSED_RATE, _eventsProcessedRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_BYTE_PROCESSED_RATE, _bytesProcessedRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, ERROR_RATE, _errorRate);
+    if (_skipBadMessagesEnabled) {
+      _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, SKIPPED_BAD_MESSAGES_RATE,
+          _skippedBadMessagesRate);
+    }
 
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, REBALANCE_RATE, _rebalanceRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, NUM_KAFKA_POLLS, _numKafkaPolls);
@@ -228,11 +243,12 @@ public class KafkaConnectorTask implements Runnable {
             continue;
 
           } catch (Exception e) {
-            LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying.", POLL_RETRY_SLEEP_DURATION.getSeconds(), e);
+            LOG.warn("Poll threw an exception. Sleeping for {} seconds and retrying. Exception: {}",
+                _retrySleepDuration.getSeconds(), e);
             if (_shouldDie) {
               continue;
             }
-            Thread.sleep(POLL_RETRY_SLEEP_DURATION.toMillis());
+            Thread.sleep(_retrySleepDuration.toMillis());
             continue;
           }
 
@@ -259,12 +275,12 @@ public class KafkaConnectorTask implements Runnable {
             //potentially commit our offsets (if its been long enough and all sends were successful)
             maybeCommitOffsets(consumer, false);
           } catch (Exception e) {
-            LOG.info("sending the messages failed with exception.");
+            LOG.info("sending the messages failed with exception: {}", e);
             if (_shouldDie) {
               LOG.warn("Exiting without commit, not point to try to recover in shouldDie mode.");
               return; // Return to skip the commit after the while loop.
             }
-            LOG.info("Trying to start processing from previous checkpoint.", e);
+            LOG.info("Trying to start processing from previous checkpoint.");
             Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
             Set<TopicPartition> tpWithNoCommits = new HashSet<>();
             //construct last checkpoint
@@ -368,9 +384,44 @@ public class KafkaConnectorTask implements Runnable {
     }
   }
 
-  private void translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime, String strReadTime) {
-    try {
-      records.forEach(record -> {
+  private void translateAndSendBatch(ConsumerRecords<?, ?> records, long readTime, String strReadTime)
+      throws InterruptedException {
+    for (ConsumerRecord<?, ?> record : records) {
+      try {
+        sendMessage(record, readTime, strReadTime);
+      } catch (RuntimeException e) {
+        _errorRate.mark();
+        AGGREGATED_ERROR_RATE.mark();
+        // If flag _skipBadMessagesEnabled is set, then message are skipped after unsuccessfully
+        // trying to send it "_retryCount" times. Example of problems:
+        // - Message is above the message size supported by the destination.
+        // - The message can not be encoded to conform to the destination format (e.g. missing a field).
+        //
+        // Unfortunately the error could be a transient network problem, and not a problem with the message itself.
+        // For this reason is strongly recommended to put alerts in the _skippedBadMessagesRate and page the oncall
+        // in case of errors.
+        //
+        // This flag should only be set to true for use cases that tolerate messages lost.
+        // TODO: Try to define a special exception for "badMessage" so we can differenciate between a send error,
+        // or a message compliance error. Right now is very hard to do that, because  will require to refactor a lot
+        // of library and code we do not control.
+        if (_skipBadMessagesEnabled) {
+          LOG.error("Skipping Message. task: {} ;  error: {}", _taskName, e.toString());
+          _skippedBadMessagesRate.mark();
+          // Continue to next message
+        } else {
+          // Throw the exception and let the connector rewind and retry.
+          throw e;
+        }
+      }
+    }
+  }
+
+  private void sendMessage(ConsumerRecord<?, ?> record, long readTime, String strReadTime) throws InterruptedException {
+    int count = 0;
+    while (true) {
+      count++;
+      try {
         _lastEventReceivedTime = Instant.now();
         _eventsProcessedRate.mark();
         AGGREGATED_EVENTS_PROCESSED_RATE.mark();
@@ -378,11 +429,18 @@ public class KafkaConnectorTask implements Runnable {
         _bytesProcessedRate.mark(numBytes);
         AGGREGATED_BYTES_PROCESSED_RATE.mark(numBytes);
         _producer.send(translate(record, readTime, strReadTime), null);
-      });
-    } catch (Exception e) {
-      _errorRate.mark();
-      AGGREGATED_ERROR_RATE.mark();
-      throw e;
+        return; // Break the retry loop and exit.
+      } catch (RuntimeException e) {
+        LOG.error("Error sending Message. task: {} ; error: {};", _taskName, e.toString());
+        LOG.error("Stack Trace: {}", Arrays.toString(e.getStackTrace()));
+        if (_shouldDie || count >= _retryCount) {
+          LOG.info("Send messages failed with exception: {}", e);
+          throw e;
+        }
+        LOG.warn("Sleeping for {} seconds before retrying. Retry {} of {}",
+            _retrySleepDuration.getSeconds(), count, _retryCount);
+        Thread.sleep(_retrySleepDuration.toMillis());
+      }
     }
   }
 
@@ -404,5 +462,18 @@ public class KafkaConnectorTask implements Runnable {
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
+  }
+
+  /**
+   * Look for config {@value CFG_SKIP_BAD_MESSAGE} in the datastream metadata and returns its value.
+   * Default value is false.
+   */
+  private static boolean skipBadMessageEnabled(DatastreamTask task) {
+    return task.getDatastreams()
+        .stream()
+        .findFirst()
+        .map(Datastream::getMetadata)
+        .map(metadata -> metadata.getOrDefault(CFG_SKIP_BAD_MESSAGE, "false").toLowerCase().equals("true"))
+        .orElse(false);
   }
 }

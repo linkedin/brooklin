@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import java.io.UnsupportedEncodingException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -13,6 +14,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -30,11 +32,15 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 
 public class TestKafkaConnectorTask {
 
@@ -42,6 +48,7 @@ public class TestKafkaConnectorTask {
 
   private EmbeddedZookeeperKafkaCluster _kafkaCluster;
   private ZkUtils _zkUtils;
+  private String _broker;
 
   @BeforeTest
   public void setup() throws Exception {
@@ -54,6 +61,7 @@ public class TestKafkaConnectorTask {
     _zkUtils =
         new ZkUtils(new ZkClient(_kafkaCluster.getZkConnection()), new ZkConnection(_kafkaCluster.getZkConnection()),
             false);
+    _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
   }
 
   @AfterTest
@@ -74,9 +82,7 @@ public class TestKafkaConnectorTask {
     props.put("key.serializer", ByteArraySerializer.class.getCanonicalName());
     props.put("value.serializer", ByteArraySerializer.class.getCanonicalName());
 
-    if (!AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
-    }
+    createTopic(zkUtils, topic);
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
       for (int i = 0; i < numEvents; i++) {
         final int finalIndex = index;
@@ -94,10 +100,16 @@ public class TestKafkaConnectorTask {
     }
   }
 
+  private static void createTopic(ZkUtils zkUtils, String topic) {
+    if (!AdminUtils.topicExists(zkUtils, topic)) {
+      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+    }
+  }
+
   @Test
-  public void testConsume() throws Exception {
-    String topic = "pizza";
-    String broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
+  public void testConsumeWithStartingOffset() throws Exception {
+    String topic = "pizza1";
+    createTopic(_zkUtils, topic);
 
     LOG.info("Sending first set of events");
 
@@ -112,26 +124,152 @@ public class TestKafkaConnectorTask {
 
     //start
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
-    DatastreamSource source = new DatastreamSource();
-    source.setConnectionString("kafka://" + broker + "/pizza");
-    DatastreamDestination destination = new DatastreamDestination();
-    destination.setConnectionString("whatever://bob");
-    Datastream datastream = new Datastream();
-    datastream.setName("bob");
-    datastream.setConnectorName("whatever");
-    datastream.setSource(source);
-    datastream.setDestination(destination);
-    datastream.setTransportProviderName("default");
-    datastream.setMetadata(new StringMap());
-    datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+    Datastream datastream = getDatastream(_broker, topic);
 
     // Unable to set the start position, OffsetToTimestamp is returning null in the embedded kafka cluster.
     datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(startOffsets));
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+
+    LOG.info("Sending third set of events");
+
+    //send 100 more msgs
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, 5000)) {
+      Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testConsumerBaseCase() throws Exception {
+    String topic = "Pizza2";
+    createTopic(_zkUtils, topic);
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    Datastream datastream = getDatastream(_broker, topic);
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+
+    LOG.info("Producing 100 msgs to topic: " + topic);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, 5000)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testFlakyProducer() throws Exception {
+    String topic = "pizza3";
+    createTopic(_zkUtils, topic);
+
+    class State {
+       int messagesProcessed = 0;
+       int pendingErrors = 3;
+    }
+    State state = new State();
+
+    DatastreamEventProducer datastreamProducer = Mockito.mock(DatastreamEventProducer.class);
+    doAnswer(invocation -> {
+      if (state.pendingErrors > 0) {
+        state.pendingErrors--;
+        throw new RuntimeException("Flaky Exception");
+      }
+      state.messagesProcessed++;
+      state.pendingErrors = 3;
+      return null;
+    }).when(datastreamProducer).send(any(), any());
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    Datastream datastream = getDatastream(_broker, topic);
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+
+    LOG.info("Producing 100 msgs to topic: " + topic);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> state.messagesProcessed == 100, 100, 5000)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testSkipMessagesProducer() throws Exception {
+    String topic = "pizza4";
+    createTopic(_zkUtils, topic);
+
+    class State {
+      int messagesProcessed = 0;
+      int pendingErrors = 50;
+    }
+    State state = new State();
+
+    DatastreamEventProducer datastreamProducer = Mockito.mock(DatastreamEventProducer.class);
+    doAnswer(invocation -> {
+      if (state.pendingErrors > 0) {
+        state.pendingErrors--;
+        throw new RuntimeException("Permanent Error for Message");
+      }
+      state.messagesProcessed++;
+      return null;
+    }).when(datastreamProducer).send(any(), any());
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    Datastream datastream = getDatastream(_broker, topic);
+    datastream.getMetadata().put(KafkaConnectorTask.CFG_SKIP_BAD_MESSAGE, "true");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+
+    LOG.info("Producing 100 msgs to topic: " + topic);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> state.messagesProcessed == 90, 100, 5000)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
+    }
+
+    Assert.assertEquals(state.pendingErrors, 0);
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  private Datastream getDatastream(String broker, String topic) {
+    DatastreamSource source = new DatastreamSource();
+    source.setConnectionString("kafka://" + broker + "/" + topic);
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString("whatever://bob_" + topic);
+    Datastream datastream = new Datastream();
+    datastream.setName("datastream_for_" + topic);
+    datastream.setConnectorName("whatever");
+    datastream.setSource(source);
+    datastream.setDestination(destination);
+    datastream.setTransportProviderName("default");
+    datastream.setMetadata(new StringMap());
+    datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+    return datastream;
+  }
+
+  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
     KafkaConnectorTask connectorTask =
-        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000);
+        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000, Duration.ofSeconds(0), 5);
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> {
@@ -141,23 +279,6 @@ public class TestKafkaConnectorTask {
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
     }
-
-    LOG.info("Sending third set of events");
-
-    //send 100 more msgs
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
-
-    long timeout = System.currentTimeMillis() + 5000;
-    while (datastreamProducer.getEvents().size() != 200) {
-      if (System.currentTimeMillis() > timeout) {
-        Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
-      }
-      Thread.sleep(50);
-    }
-
-    Assert.assertEquals(200, datastreamProducer.getEvents().size());
-
-    connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStart(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    return connectorTask;
   }
 }
