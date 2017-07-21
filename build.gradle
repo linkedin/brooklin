@@ -121,7 +121,7 @@ project(':datastream-common') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotations"
     compile group: 'com.google.guava', name: 'guava', version: '19.0'
-    testCompile 'org.mockito:mockito-core:1.+'
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
@@ -148,7 +148,7 @@ project(':datastream-file-connector') {
     compile project(':datastream-utils')
     testCompile project(':datastream-server')
     testCompile project(':datastream-testcommon')
-    testCompile 'org.mockito:mockito-core:1.+'
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
@@ -157,7 +157,7 @@ project(':datastream-mysql-connector') {
     compile project(':datastream-server-api')
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.zendesk:open-replicator:1.4.2"
-    testCompile 'org.mockito:mockito-core:1.+'
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
     testCompile project(':datastream-testcommon')
   }
   test {
@@ -169,7 +169,7 @@ project(':brooklin-oracle-tb-connector') {
   dependencies {
     compile project(':datastream-server-api')
     compile "org.apache.avro:avro:$avroVersion"
-    testCompile 'org.mockito:mockito-core:1.+'
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
     testCompile project(':datastream-testcommon')
     test {
       workingDir(project.projectDir.toString() + "/..")
@@ -214,6 +214,7 @@ project(':datastream-kafka-connector') {
     compile "commons-validator:commons-validator:1.5.1"
 
     testCompile project(':datastream-kafka')
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
@@ -313,7 +314,7 @@ project(':datastream-server') {
     testCompile project(':datastream-client')
     testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
-    testCompile "org.mockito:mockito-core:1.+"
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 
   tasks.create(name: "copyDependantLibs", type: Copy) {
