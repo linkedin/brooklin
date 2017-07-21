@@ -39,6 +39,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 
 public class KafkaConnector implements Connector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnector.class);
+  private static final Duration RETRY_SLEEP_DURATION = Duration.ofSeconds(5);
+  private static final int DEFAULT_RETRY_COUNT = 5;
 
   public static final String CONNECTOR_NAME = "kafka";
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
@@ -47,6 +49,7 @@ public class KafkaConnector implements Connector {
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
   public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
+  public static final String CONFIG_RETRY_COUNT = "retryCount";
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
@@ -62,6 +65,7 @@ public class KafkaConnector implements Connector {
     _defaultValueSerde = verifiableProperties.getString(CONFIG_DEFAULT_VALUE_SERDE, "");
     _commitIntervalMillis = verifiableProperties.getLongInRange(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS,
         Duration.ofMinutes(1).toMillis(), 0, Long.MAX_VALUE);
+    _retryCount = verifiableProperties.getInt(CONFIG_RETRY_COUNT, DEFAULT_RETRY_COUNT);
 
     String factory = verifiableProperties.getString(KafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS,
         KafkaConsumerFactoryImpl.class.getName());
@@ -81,6 +85,7 @@ public class KafkaConnector implements Connector {
 
   private final String _name;
   private final long _commitIntervalMillis;
+  private final int _retryCount;
   private final ExecutorService _executor = Executors.newCachedThreadPool(new ThreadFactory() {
     private AtomicInteger threadCounter = new AtomicInteger(0);
 
@@ -131,7 +136,8 @@ public class KafkaConnector implements Connector {
       }
       LOG.info("creating task for {}.", task);
       KafkaConnectorTask connectorTask =
-          new KafkaConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis);
+          new KafkaConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis, RETRY_SLEEP_DURATION,
+              _retryCount);
       _runningTasks.put(task, connectorTask);
       _executor.submit(connectorTask);
     }
