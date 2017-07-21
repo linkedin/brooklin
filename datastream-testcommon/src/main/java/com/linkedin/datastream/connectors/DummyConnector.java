@@ -1,9 +1,11 @@
 package com.linkedin.datastream.connectors;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -13,7 +15,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 /**
  * A trivial implementation of connector interface
  */
-public class DummyConnector implements Connector {
+public class DummyConnector implements Connector, DiagnosticsAware {
 
   public static final String VALID_DUMMY_SOURCE = "DummyConnector://DummySource";
   public static final String CONNECTOR_TYPE = "DummyConnector";
@@ -55,5 +57,15 @@ public class DummyConnector implements Connector {
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
+  }
+
+  @Override
+  public String process(String query) {
+    return "HEALTHY";
+  }
+
+  @Override
+  public String reduce(String query, Map<String, String> responses) {
+    return "DummyStatus";
   }
 }
