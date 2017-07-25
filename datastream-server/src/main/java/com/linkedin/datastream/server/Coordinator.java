@@ -1085,7 +1085,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw e;
     }
 
-    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    datastream.getMetadata().putIfAbsent(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
   }
 
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {
