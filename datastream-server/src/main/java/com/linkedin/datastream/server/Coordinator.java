@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -66,8 +66,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
-import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
-import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
+import static com.linkedin.datastream.common.DatastreamUtils.*;
 
 
 /**
@@ -84,7 +83,7 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
  *     <li>{@link Coordinator#onBecomeLeader()} This callback is triggered when this instance becomes the
  *     leader of the Datastream cluster</li>
  *
- *     <li>{@link Coordinator#onDatastreamChange()} Only the Coordinator leader monitors the Datastream definitions
+ *     <li>{@link Coordinator#onDatastreamAddOrDrop()} Only the Coordinator leader monitors the Datastream definitions
  *     in ZooKeeper. When there are changes made to datastream definitions through Datastream Management Service,
  *     this callback will be triggered on the Coordinator Leader so it can reassign datastream tasks among
  *     live instances..</li>
@@ -173,7 +172,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, ConnectorInfo> _connectors = new HashMap<>();
 
   // Currently assigned datastream tasks by taskName
-  private Map<String, DatastreamTask> _assignedDatastreamTasks = new HashMap<>();
+  private final Map<String, DatastreamTask> _assignedDatastreamTasks = new ConcurrentHashMap<>();
 
   private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
   private final DynamicMetricsManager _dynamicMetricsManager;
@@ -236,7 +235,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Starting coordinator");
     _eventThread.start();
     _adapter.connect();
-    _log = LoggerFactory.getLogger(String.format("%s:%s", Coordinator.class.getName(), _adapter.getInstanceName()));
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
@@ -297,6 +295,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator stopped");
   }
 
+  /**
+   * Notify all instances in the cluster that some datastreams get updated. We need this because currently
+   * Coordinator wouldn't watch the data change within a datastream. So they won't be able to react to
+   * a datastream update unless explicitly get notified.
+   */
+  public synchronized void broadcastDatastreamUpdate() {
+    _adapter.touchAllInstanceAssignments();
+  }
+
   public String getInstanceName() {
     return _adapter.getInstanceName();
   }
@@ -333,12 +340,38 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * This method is called when a new datastream is created. Right now we do not handle datastream updates/deletes.
    */
   @Override
-  public void onDatastreamChange() {
-    _log.info("Coordinator::onDatastreamChange is called");
+  public void onDatastreamAddOrDrop() {
+    _log.info("Coordinator::onDatastreamAddOrDrop is called");
     // if there are new datastreams created, we need to trigger the topic creation logic
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    _log.info("Coordinator::onDatastreamChange completed successfully");
+    _log.info("Coordinator::onDatastreamAddOrDrop completed successfully");
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void onDatastreamUpdate() {
+    _log.info("Coordinator::onDatastreamUpdate is called");
+    // We need this synchronization to protect the updates on _assignedDatastreamTasks
+    synchronized (_assignedDatastreamTasks) {
+      // On datastream update the CachedDatastreamReader won't refresh its data, so we need to invalidate the cache
+      _datastreamCache.invalidateAllCache();
+      List<DatastreamGroup> datastreamGroups = _datastreamCache.getDatastreamGroups();
+      // Refresh the datastream task
+      _assignedDatastreamTasks.values().forEach(task -> {
+        Optional<DatastreamGroup> dg =
+            datastreamGroups.stream().filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix())).findFirst();
+        if (dg.isPresent()) {
+          ((DatastreamTaskImpl) task).setDatastreams(dg.get().getDatastreams());
+        } else {
+          _log.warn("Can't find datastream group for task {}", task);
+        }
+      });
+    }
+    _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
+    _log.info("Coordinator::onDatastreamUpdate completed successfully");
   }
 
   /**
@@ -357,7 +390,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onAssignmentChange completed successfully");
   }
 
-  private void handleAssignmentChange() throws TimeoutException {
+  private void handleAssignmentChange(boolean isDatastreamUpdate) throws TimeoutException {
     long startAt = System.currentTimeMillis();
 
     // when there is any change to the assignment for this instance. Need to find out what is the connector
@@ -365,7 +398,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     List<String> assignment = _adapter.getInstanceAssignment(_adapter.getInstanceName());
 
     _log.info("START: Coordinator::handleAssignmentChange. Instance: " + _adapter.getInstanceName() + ", assignment: "
-        + assignment);
+        + assignment + " isDatastreamUpdate: " + isDatastreamUpdate);
 
     // all datastream tasks for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
@@ -404,21 +437,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
-    List<Future<Void>> assignmentChangeFutures = deactivated.stream()
-        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>()))
+    List<Future<Boolean>> assignmentChangeFutures = deactivated.stream()
+        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>(), isDatastreamUpdate))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
     // case (2) - Dispatch all the assignment changes in a separate thread
     assignmentChangeFutures.addAll(newConnectorList.stream()
-        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType)))
+        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType),
+            isDatastreamUpdate))
         .filter(Objects::nonNull)
         .collect(Collectors.toList()));
 
     // Wait till all the futures are complete or timeout.
     Instant start = Instant.now();
     try {
-      for (Future<Void> assignmentChangeFuture : assignmentChangeFutures) {
+      for (Future<Boolean> assignmentChangeFuture : assignmentChangeFutures) {
         if (Duration.between(start, Instant.now()).compareTo(ASSIGNMENT_TIMEOUT) > 0) {
           throw new TimeoutException("Timeout doing assignment");
         }
@@ -430,7 +464,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     } catch (TimeoutException e) {
       // if it's timeout then we will retry
-      _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+      if (isDatastreamUpdate) {
+        _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
+      } else {
+        _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+      }
       throw e;
     } catch (InterruptedException e) {
       _log.warn("onAssignmentChange call got interrupted", e);
@@ -440,10 +478,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // now save the current assignment
     _assignedDatastreamTasks.clear();
-    _assignedDatastreamTasks = currentAssignment.values()
+    _assignedDatastreamTasks.putAll(currentAssignment.values()
         .stream()
         .flatMap(Collection::stream)
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
 
     long endAt = System.currentTimeMillis();
 
@@ -466,7 +504,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  private Future<Void> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment) {
+  private Future<Boolean> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment, boolean isDatastreamUpdate) {
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
@@ -483,12 +521,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     oldAssignment.removeAll(assignment);
     removedTasks = oldAssignment;
 
-    if (!addedTasks.isEmpty() || !removedTasks.isEmpty()) {
+    if (isDatastreamUpdate || !addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(this::initializeTask);
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
-      return _assignmentChangeThreadPool.submit((Callable<Void>) () -> {
+      return _assignmentChangeThreadPool.submit(() -> {
         try {
           connector.onAssignmentChange(assignment);
           // Unassign tasks with producers
@@ -496,11 +534,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
+          // TODO: should have some delays between CoordinatorEvents to avoid constant retires that drain CPUs
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
-          _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+          if (isDatastreamUpdate) {
+            _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
+          } else {
+            _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+          }
+          return false;
         }
-
-        return null;
+        return true;
       });
     }
 
@@ -565,7 +608,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
 
         case HANDLE_ASSIGNMENT_CHANGE:
-          handleAssignmentChange();
+          // synchronize between this and onDatastreamUpdate. See more comments there
+          synchronized (_assignedDatastreamTasks) {
+            handleAssignmentChange(false);
+          }
+          break;
+
+        case HANDLE_DATASTREAM_CHANGE_WITH_UPDATE:
+          // synchronize between this and onDatastreamUpdate. See more comments there
+          synchronized (_assignedDatastreamTasks) {
+            handleAssignmentChange(true);
+          }
           break;
 
         case HANDLE_ADD_OR_DELETE_DATASTREAM:
@@ -747,7 +800,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
 
-    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: %s", datastreamGroups);
+    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
 
     // get all current live instances
     List<String> liveInstances = _adapter.getLiveInstances();
@@ -912,6 +965,34 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     String className = connectorClass.getSimpleName();
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
+  }
+
+  public void validateDatastreamsUpdate(List<Datastream> datastreams) throws DatastreamValidationException {
+    _log.info("About to validate datastreams update: " + datastreams);
+    // TODO: validate that the datastream updates won't break the current task assignment (e.g. new datastream group
+    // is created which requires a new datastream task)
+    try {
+      List<String> connectorTypes =
+          datastreams.stream().map(Datastream::getConnectorName).distinct().collect(Collectors.toList());
+      if (connectorTypes.size() != 1) {
+        throw new DatastreamValidationException(
+            "Expecting exactly one type of connectors for datastreams update: " + connectorTypes);
+      }
+      String connectorName = connectorTypes.get(0);
+      ConnectorInfo connectorInfo = _connectors.get(connectorName);
+      if (connectorInfo == null) {
+        throw new DatastreamValidationException("Invalid connector: " + connectorName);
+      }
+
+      connectorInfo.getConnector()
+          .validateUpdateDatastreams(datastreams, _datastreamCache.getAllDatastreams()
+              .stream()
+              .filter(d -> d.getConnectorName().equals(connectorName))
+              .collect(Collectors.toList()));
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "validateDatastreamsUpdate", NUM_ERRORS, 1);
+      throw e;
+    }
   }
 
   /**

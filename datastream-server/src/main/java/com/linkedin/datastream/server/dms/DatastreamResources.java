@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -21,8 +22,8 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -35,6 +36,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
+import com.linkedin.restli.server.BatchUpdateRequest;
+import com.linkedin.restli.server.BatchUpdateResult;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.Context;
@@ -47,8 +50,8 @@ import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.ResourceLevel;
-import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 import com.linkedin.restli.server.UpdateResponse;
+import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
 /*
@@ -87,8 +90,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private final DynamicMetricsManager _dynamicMetricsManager;
 
   public DatastreamResources(DatastreamServer datastreamServer) {
-    _store = datastreamServer.getDatastreamStore();
-    _coordinator = datastreamServer.getCoordinator();
+    this(datastreamServer.getDatastreamStore(), datastreamServer.getCoordinator());
+  }
+
+  public DatastreamResources(DatastreamStore store, Coordinator coordinator) {
+    _store = store;
+    _coordinator = coordinator;
     _errorLogger = new ErrorLogger(LOG, _coordinator.getInstanceName());
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -96,11 +103,99 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _dynamicMetricsManager.registerMetric(getClass(), DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
   }
 
+  /*
+   * Update multiple datastreams. Throw exception if any of the updates is not valid:
+   * 1. datastream doesn't exist
+   * 2. status or destination is not present or gets modified
+   * 3. more than one connector type in the batch update
+   * 4. connector type doesn't support datastream updates or fails to validate the update
+   */
+  private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
+    LOG.info("Update datastream call with request: ", datastreamMap);
+    _dynamicMetricsManager.createOrUpdateMeter(getClass(), UPDATE_CALL, 1);
+    if (datastreamMap.isEmpty()) {
+      LOG.warn("Update datastream call with empty input.");
+      return;
+    }
+    datastreamMap.forEach((key, datastream) -> {
+      if (!key.equals(datastream.getName())) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because datastream name doesn't match. datastream: %s",
+                key, datastream));
+      }
+      Datastream oldDatastream = _store.getDatastream(key);
+      if (oldDatastream == null) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+            "Datastream to update does not exist: " + key);
+      }
+
+      // We support update datastreams for various use cases. But we don't support modifying the
+      // destination or status (use pause/resume to update status). Writing into a different destination
+      // should essentially be for a new datastream.
+      if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because destination is not set. Are they initialized? old: %s, new: %s",
+                key, oldDatastream, datastream));
+      }
+      if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because destination is immutable. old: %s new: %s", key, oldDatastream,
+                datastream));
+      }
+
+      if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because status is not present. Are they valid? old: %s, new: %s", key,
+                oldDatastream, datastream));
+      }
+      if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
+        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s. Can't update status in update request. old: %s new: %s", key,
+                oldDatastream, datastream));
+      }
+    });
+
+    try {
+      _coordinator.validateDatastreamsUpdate(new ArrayList<>(datastreamMap.values()));
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to validate datastream updates: ", e);
+    }
+
+    try {
+      // Zookeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
+      // are updated before we touch the "assignments" node to avoid race condition
+      for (String key : datastreamMap.keySet()) {
+        _store.updateDatastream(key, datastreamMap.get(key), false);
+      }
+      _coordinator.broadcastDatastreamUpdate();
+    } catch (DatastreamException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not complete datastreams update ", e);
+    }
+  }
+
+  @Override
+  public BatchUpdateResult<String, Datastream> batchUpdate(final BatchUpdateRequest<String, Datastream> entities) {
+    doUpdateDatastreams(entities.getData());
+    return new BatchUpdateResult<>(entities.getData()
+        .keySet()
+        .stream()
+        .collect(Collectors.toMap(key -> key, key -> new UpdateResponse(HttpStatus.S_200_OK))));
+  }
+
   @Override
   public UpdateResponse update(String key, Datastream datastream) {
-    _dynamicMetricsManager.createOrUpdateMeter(getClass(), UPDATE_CALL, 1);
-    // TODO: behavior of updating a datastream is not fully defined yet; block this method for now
-    return new UpdateResponse(HttpStatus.S_405_METHOD_NOT_ALLOWED);
+    doUpdateDatastreams(Collections.singletonMap(key, datastream));
+    return new UpdateResponse(HttpStatus.S_200_OK);
   }
 
   @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
@@ -124,7 +219,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       try {
         if (DatastreamStatus.READY.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.PAUSED);
-          _store.updateDatastream(d.getName(), d);
+          _store.updateDatastream(d.getName(), d, true);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
@@ -156,7 +251,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       try {
         if (DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
-          _store.updateDatastream(d.getName(), d);
+          _store.updateDatastream(d.getName(), d, true);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,

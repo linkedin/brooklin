@@ -1,7 +1,9 @@
 package com.linkedin.datastream;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang3.StringUtils;
@@ -20,6 +22,7 @@ import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
 import com.linkedin.r2.transport.http.client.HttpClientFactory;
+import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.ActionRequest;
 import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.DeleteRequest;
@@ -29,10 +32,12 @@ import com.linkedin.restli.client.GetRequest;
 import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 import com.linkedin.restli.client.RestLiResponseException;
+import com.linkedin.restli.client.response.BatchKVResponse;
 import com.linkedin.restli.common.CollectionResponse;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.common.IdResponse;
+import com.linkedin.restli.common.UpdateStatus;
 
 
 /**
@@ -232,6 +237,34 @@ public class DatastreamRestClient {
         String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
       }
+    }
+  }
+
+  /**
+   * Update a datastream. Validation will be performed on the server side to ensure certain conditions are met.
+   * (e.g. datastream is valid, the connector type supports datastream updates, etc.)
+   * @param datastream datastream to be updated
+   */
+  public void updateDatastream(Datastream datastream) {
+    updateDatastream(Collections.singletonList(datastream));
+  }
+
+  /**
+   * Update datastreams in batch. Either all datastreams get updated or none get updated. Validation will be
+   * performed on the server side to ensure certain conditions are met. (e.g. datastreams are valid, the connector
+   * type supports datastream updates, etc.)
+   * @param datastreams list of datastreams to be updated
+   */
+  public void updateDatastream(List<Datastream> datastreams) {
+    BatchUpdateRequest<String, Datastream> request = _builders.batchUpdate()
+        .inputs(datastreams.stream().collect(Collectors.toMap(Datastream::getName, ds -> ds)))
+        .build();
+    ResponseFuture<BatchKVResponse<String, UpdateStatus>> datastreamResponseFuture = _restClient.sendRequest(request);
+    try {
+      // we wont' support partial success. so ignore the result
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to update datastreams", e);
     }
   }
 

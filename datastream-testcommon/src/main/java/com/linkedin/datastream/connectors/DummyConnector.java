@@ -55,6 +55,11 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   }
 
   @Override
+  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+  }
+
+  @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }

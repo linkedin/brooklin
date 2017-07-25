@@ -151,7 +151,7 @@ public class DatastreamTestUtils {
       zkClient.ensurePath(KeyBuilder.datastreams(cluster));
       CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
-      dsStore.updateDatastream(datastream.getName(), datastream);
+      dsStore.updateDatastream(datastream.getName(), datastream, true);
     }
   }
 }
