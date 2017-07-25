@@ -14,7 +14,7 @@ public class DatastreamMetadataConstants {
    * Whether the datastream should reuse existing datastream's destination if it is available.
    */
   public static final String REUSE_EXISTING_DESTINATION_KEY = "system.reuseExistingDestination";
-  
+
   /**
    * Prefix any event metadata with this if transport supports sending metadata with events.
    */
@@ -50,4 +50,10 @@ public class DatastreamMetadataConstants {
    * Position at which the ingestion should start for the datastream.
    */
   public static final String START_POSITION = "system.start.position";
+
+  /**
+   * UID is added and reserved for the future usage. If set, it could be used
+   * to identity the datastream/topic name to prevent duplications.
+   */
+   public static final String UID = "uid";
 }
