@@ -136,6 +136,13 @@ public class ConnectorWrapper {
     logApiEnd("initializeDatastream");
   }
 
+  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    logApiStart("validateUpdateDatastreams");
+    _connector.validateUpdateDatastreams(datastreams, allDatastreams);
+    logApiEnd("validateUpdateDatastreams");
+  }
+
   public long getNumDatastreams() {
     return _numDatastreams.get();
   }

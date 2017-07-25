@@ -27,11 +27,12 @@ public interface DatastreamStore {
 
   /**
    * Updates the datastream associated with the given key with the provided one.
-   * @param key
-   * @param datastream
+   * @param key datastream name of the original datastream to be updated
+   * @param datastream content of the updated datastream
+   * @param notifyleader whether to notify leader about the update
    * @throws DatastreamException
    */
-  void updateDatastream(String key, Datastream datastream) throws DatastreamException;
+  void updateDatastream(String key, Datastream datastream, boolean notifyLeader) throws DatastreamException;
 
   /**
    * Creates a new datastream and associates it with the provided key.

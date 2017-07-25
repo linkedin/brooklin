@@ -2,11 +2,11 @@ package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import org.I0Itec.zkclient.IZkChildListener;
@@ -32,7 +32,7 @@ public class CachedDatastreamReader {
 
   private final String _cluster;
   private List<String> _datastreamNames = Collections.emptyList();
-  private Map<String, Datastream> _datastreams = new HashMap<>();
+  private Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
   private final ZkClient _zkclient;
 
   public CachedDatastreamReader(ZkClient zkclient, String cluster) {
@@ -95,6 +95,17 @@ public class CachedDatastreamReader {
     }
 
     return _datastreamNames.stream().map(x -> this.getDatastream(x, flushCache)).collect(Collectors.toList());
+  }
+
+  /**
+   * Invalidate all cache entries to force the reader to get fresh copy of the data from zk.
+   * While the list of datastreams is always up-to-date, there is no guarantee that the CacheDatastreamReader
+   * is keeping a fresh copy of the actual content. Calling this function would effectively make
+   * sure any following getDatastream calls get a newer copy of data.
+   */
+  public synchronized void invalidateAllCache() {
+    LOG.info("About to invalidate all cache entries...");
+    _datastreams.clear();
   }
 
   Datastream getDatastream(String datastreamName, boolean flushCache) {

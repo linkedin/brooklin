@@ -10,6 +10,7 @@ import org.testng.annotations.Test;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -43,13 +44,17 @@ public class TestZookeeperBackedDatastreamStore {
     String name = "name_" + seed;
     String connectorType = seed % 2 == 0 ? "Oracle-Change" : "Oracle-Bootstrap";
     String source = "db_" + seed;
+    String dest = "topic_" + seed;
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     DatastreamSource datastreamSource = new DatastreamSource();
     datastreamSource.setConnectionString(source);
+    DatastreamDestination datastreamDestination = new DatastreamDestination();
+    datastreamDestination.setConnectionString(dest);
     Datastream ds = new Datastream().setName(name)
         .setConnectorName(connectorType)
         .setSource(datastreamSource)
+        .setDestination(datastreamDestination)
         .setMetadata(metadata);
     return ds;
   }
@@ -83,6 +88,29 @@ public class TestZookeeperBackedDatastreamStore {
     Assert.assertEquals(_store.getDatastream(ds.getName()).getStatus(), DatastreamStatus.DELETING);
 
     Assert.assertNull(_store.getDatastream(null));
+  }
+
+  @Test
+  public void testUpdateDatastream() throws Exception {
+    Datastream ds = generateDatastream(0);
+
+    Assert.assertNull(_store.getDatastream(ds.getName()));
+
+    // creating a Datastream
+    _store.createDatastream(ds.getName(), ds);
+
+    // get the same Datastream back
+    Datastream ds2 = _store.getDatastream(ds.getName());
+    Assert.assertNotNull(ds2);
+    Assert.assertTrue(ds.equals(ds2));
+
+    // update the datastream
+    ds.getMetadata().put("key", "value");
+    ds.getSource().setConnectionString("updated");
+    _store.updateDatastream(ds.getName(), ds, false);
+
+    ds2 = _store.getDatastream(ds.getName());
+    Assert.assertEquals(ds, ds2);
   }
 
   /**

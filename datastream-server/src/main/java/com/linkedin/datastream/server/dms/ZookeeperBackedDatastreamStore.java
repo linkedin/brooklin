@@ -72,25 +72,17 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   }
 
   @Override
-  public void updateDatastream(String key, Datastream datastream) throws DatastreamException {
-    // Updating a Datastream is still tricky for now. Changing either the
-    // the source or target may result in failure on connector.
-    // We only support changes of the "status field"
-
+  public void updateDatastream(String key, Datastream datastream, boolean notifyLeader) throws DatastreamException {
     Datastream oldDatastream = getDatastream(key);
     if (oldDatastream == null) {
       throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
     }
 
-    oldDatastream.setStatus(datastream.getStatus());
-
-    if (!datastream.equals(oldDatastream)) {
-      throw new DatastreamException("Only changes to the 'status' field are supported at this time.");
-    }
-
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(getZnodePath(key), json);
-    notifyLeaderOfDataChange();
+    if (notifyLeader) {
+      notifyLeaderOfDataChange();
+    }
   }
 
   @Override
