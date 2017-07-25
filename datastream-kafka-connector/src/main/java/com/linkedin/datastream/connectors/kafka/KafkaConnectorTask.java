@@ -364,6 +364,7 @@ public class KafkaConnectorTask implements Runnable {
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_PROCESSED_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_BYTE_PROCESSED_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + ERROR_RATE));
+    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + SKIPPED_BAD_MESSAGES_RATE));
 
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + REBALANCE_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + NUM_KAFKA_POLLS));
