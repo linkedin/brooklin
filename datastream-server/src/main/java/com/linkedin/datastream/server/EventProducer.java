@@ -128,6 +128,10 @@ public class EventProducer implements DatastreamEventProducer {
     _logger.info(String.format("Created event producer with customCheckpointing=%s", customCheckpointing));
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    // provision some metrics to force them to create
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 0);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+        EVENTS_PRODUCED_OUTSIDE_SLA, 0);
   }
 
   public int getProducerId() {
@@ -197,6 +201,9 @@ public class EventProducer implements DatastreamEventProducer {
             EVENTS_PRODUCED_WITHIN_SLA, 1);
       } else {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+            EVENTS_PRODUCED_OUTSIDE_SLA, 1);
         _logger.debug(
             String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
                 sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(),

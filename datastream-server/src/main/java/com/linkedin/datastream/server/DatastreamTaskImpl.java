@@ -45,7 +45,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
 
   private static final String STATUS = "STATUS";
-  private List<Datastream> _datastreams;
+  private volatile List<Datastream> _datastreams;
 
   private HashMap<Integer, String> _checkpoints = new HashMap<>();
 
@@ -176,6 +176,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _checkpoints;
   }
 
+  /**
+   * Get the list of datastreams for the datastream task. Note that the datastreams may change
+   * between onAssignmentChange (because of datastream update for example). It's connector's
+   * responsibility to re-fetch the datastream list even when it receives the exact same set
+   * of datastream tasks.
+   */
   @JsonIgnore
   @Override
   public List<Datastream> getDatastreams() {
@@ -202,6 +208,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   public void setDatastreams(List<Datastream> datastreams) {
     _datastreams = datastreams;
+    // destination and connector type should be immutable
     _transportProviderName = _datastreams.get(0).getTransportProviderName();
     _connectorType = _datastreams.get(0).getConnectorName();
   }

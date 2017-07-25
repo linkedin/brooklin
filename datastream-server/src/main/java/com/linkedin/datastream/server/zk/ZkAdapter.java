@@ -48,18 +48,18 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  * │  |  |- i002         │  └───────┼▶  ZkBackedInstanceAssignmentList   │    │         │   ┌────────────────┐
  * │  |                  │          │└───────────────────────────────────┘    │         │───▶ onBecomeLeader*│
  * │  |- liveinstances ──┼───┐      │┌───────────────────────────────────┐    │         │   └────────────────┘
- * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌────────────────────┐
- * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onDatastreamChange*│
- * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └────────────────────┘
+ * │  |  |- i001         │   └──────▶│ ZkBackedLiveInstanceListProvider  │    │         │   ┌───────────────────────┐
+ * │  |  |- i002─────────┼┐         │└───────────────────────────────────┘    │         │───▶ onDatastreamAddOrDrop*│
+ * │  |                  ││         │┌───────────────────────────────────┐    │ZkAdapter│   └───────────────────────┘
  * │  |- connectors      │└─────────▶│     ZkLeaderElectionListener      │    │Listener │   ┌────────────────────┐
  * │  |  |- Espresso ────┼───┐      │└───────────────────────────────────┘    │         │───▶ onAssignmentChange │
  * │  |  |- Oracle ──────┼──┐│      │┌───────────────────────────────────┐    │         │   └────────────────────┘
  * │                     │  └┴──────┼▶    ZkBackedDatastreamTasksMap     │    │         │   ┌───────────────────────┐
  * │                     │          │└───────────────────────────────────┘    │         │───▶ onLiveInstancesChange*│
  * │                     │          │                                         │         │   └───────────────────────┘
- * │                     │          │                                         └─────────┤
- * │                     │          │                                                   │
- * │                     │          │                                                   │
+ * │                     │          │                                         └─────────┤   ┌────────────────────┐
+ * │                     │          │                                                   │───▶ onDatastreamUpdate │
+ * │                     │          │                                                   │   └────────────────────┘
  * │                     │          │                                                   │
  * └─────────────────────┘          │                                                   │
  *                                  └───────────────────────────────────────────────────┘
@@ -96,8 +96,9 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  */
 
 public class ZkAdapter {
+  private static final Logger LOG = LoggerFactory.getLogger(ZkAdapter.class);
+
   private final String _defaultTransportProviderName;
-  private Logger _log = LoggerFactory.getLogger(ZkAdapter.class); // recreated after connect()
 
   private String _zkServers;
   private String _cluster;
@@ -154,7 +155,7 @@ public class ZkAdapter {
       try {
         // remove the liveinstance node
         String liveInstancePath = KeyBuilder.liveInstance(_cluster, _liveInstanceName);
-        _log.info("deleting live instance node: " + liveInstancePath);
+        LOG.info("deleting live instance node: " + liveInstancePath);
         _zkclient.delete(liveInstancePath);
 
         // NOTE: we should not delete the instance node which still holds the
@@ -185,9 +186,8 @@ public class ZkAdapter {
 
     // create a globally uniq instance name and create a live instance node in zookeeper
     _instanceName = createLiveInstanceNode();
-    _log = LoggerFactory.getLogger("ZkAdapter:" + _instanceName);
 
-    _log.info("Coordinator instance " + _instanceName + " is online");
+    LOG.info("Coordinator instance " + _instanceName + " is online");
 
     // both leader and follower needs to listen to its own instance change
     // under /{cluster}/instances/{instance}
@@ -197,12 +197,12 @@ public class ZkAdapter {
     onBecomeFollower();
     joinLeaderElection();
 
-    _log.info("Instance " + _instanceName + " is ready.");
+    LOG.info("Instance " + _instanceName + " is ready.");
     // populate the instance name.
   }
 
   private void onBecomeLeader() {
-    _log.info("Instance " + _instanceName + " becomes leader");
+    LOG.info("Instance " + _instanceName + " becomes leader");
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
@@ -219,7 +219,7 @@ public class ZkAdapter {
   }
 
   private void onBecomeFollower() {
-    _log.info("Instance " + _instanceName + " becomes follower");
+    LOG.info("Instance " + _instanceName + " becomes follower");
 
     if (_datastreamList != null) {
       _datastreamList.close();
@@ -273,7 +273,7 @@ public class ZkAdapter {
     if (index < 0) {
       // only when the zookeeper session already expired by the time this adapter joins for leader election.
       // mostly because the zkclient session expiration timeout.
-      _log.error("Failed to join leader election. Try reconnect the zookeeper");
+      LOG.error("Failed to join leader election. Try reconnect the zookeeper");
       connect();
       return;
     }
@@ -322,7 +322,7 @@ public class ZkAdapter {
   public boolean updateDatastream(Datastream datastream) {
     String path = KeyBuilder.datastream(_cluster, datastream.getName());
     if (!_zkclient.exists(path)) {
-      _log.warn("trying to update znode of datastream that does not exist. Datastream name: " + datastream.getName());
+      LOG.warn("trying to update znode of datastream that does not exist. Datastream name: " + datastream.getName());
       return false;
     }
 
@@ -344,7 +344,7 @@ public class ZkAdapter {
       List<String> deadTasks = allTasks.stream().filter(tasksToDelete::contains).collect(Collectors.toList());
 
       if (deadTasks.size() > 0) {
-        _log.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
+        LOG.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
         for (String task : deadTasks) {
           deleteConnectorTask(connector, task);
         }
@@ -353,11 +353,11 @@ public class ZkAdapter {
   }
 
   private void deleteConnectorTask(String connector, String taskName) {
-    _log.info("Trying to delete task" + taskName);
+    LOG.info("Trying to delete task" + taskName);
     String path = KeyBuilder.connectorTask(_cluster, connector, taskName);
     if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
       // Ignore such failure for now
-      _log.warn("Failed to remove connector task: " + path);
+      LOG.warn("Failed to remove connector task: " + path);
     }
   }
 
@@ -365,11 +365,11 @@ public class ZkAdapter {
     String path = KeyBuilder.datastream(_cluster, datastreamName);
 
     if (!_zkclient.exists(path)) {
-      _log.warn("trying to delete znode of datastream that does not exist. Datastream name: " + datastreamName);
+      LOG.warn("trying to delete znode of datastream that does not exist. Datastream name: " + datastreamName);
       return;
     }
 
-    _log.info("Deleting the zk path", path);
+    LOG.info("Deleting the zk path", path);
     _zkclient.delete(path);
   }
 
@@ -380,6 +380,30 @@ public class ZkAdapter {
    */
   public List<String> getAllInstances() {
     return _zkclient.getChildren(KeyBuilder.instances(_cluster));
+  }
+
+  /**
+   * Touch all assignment nodes for every instance. So that all instances get notified that some datastreams
+   * get updated.
+   */
+  public void touchAllInstanceAssignments() {
+    List<String> allInstances = getAllInstances();
+    LOG.info("About to touch all instances' assignments node. instances = {}", allInstances);
+    // since all the requests below talk to the same zk server, we don't benefit a lot from parallelism
+    for (String instance : allInstances) {
+      // Ensure that the instance and instance/Assignment paths are ready before writing the task
+      if (_zkclient.exists(KeyBuilder.instance(_cluster, instance)) && _zkclient.exists(
+          KeyBuilder.instanceAssignments(_cluster, instance))) {
+        try {
+          _zkclient.writeData(KeyBuilder.instanceAssignments(_cluster, instance),
+              String.valueOf(System.currentTimeMillis()));
+        } catch (Exception e) {
+          // we don't need to do an atomic update; if the node gets update by others somehow or get deleted by
+          // leader, it's ok to ignore the failure
+          LOG.warn("Failed to touch the assignment node for instance " + instance, e);
+        }
+      }
+    }
   }
 
   public List<String> getLiveInstances() {
@@ -431,7 +455,7 @@ public class ZkAdapter {
    * @return a map of all existing DatastreamTasks
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
-    _log.info("All live tasks: " + _liveTaskMap);
+    LOG.info("All live tasks: " + _liveTaskMap);
     return new HashMap<>(_liveTaskMap);
   }
 
@@ -475,7 +499,7 @@ public class ZkAdapter {
    *  If any one failed, RuntimeException will be thrown.
    */
   private void addTaskNodes(String instance, DatastreamTaskImpl task) {
-    _log.info("Adding Task Node: " + instance + ", task: " + task);
+    LOG.info("Adding Task Node: " + instance + ", task: " + task);
     String name = task.getDatastreamTaskName();
 
     // Must add task node under connector first because as soon as we update the
@@ -499,7 +523,7 @@ public class ZkAdapter {
     } catch (IOException e) {
       // This should never happen
       String errorMessage = "Failed to serialize task into JSON.";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, e);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
     // Ensure that the instance and instance/Assignment paths are ready before writing the task
@@ -508,11 +532,11 @@ public class ZkAdapter {
     String created = _zkclient.create(instancePath, json, CreateMode.PERSISTENT);
 
     if (created != null && !created.isEmpty()) {
-      _log.info("create zookeeper node: " + instancePath);
+      LOG.info("create zookeeper node: " + instancePath);
     } else {
       // FIXME: we should do some error handling
       String errorMessage = "failed to create zookeeper node: " + instancePath;
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, errorMessage, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
   }
 
@@ -525,7 +549,7 @@ public class ZkAdapter {
    *  If either failed, RuntimeException will be thrown.
    */
   private void removeTaskNodes(String instance, String name) {
-    _log.info("Removing Task Node: " + instance + ", task: " + name);
+    LOG.info("Removing Task Node: " + instance + ", task: " + name);
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
 
     // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
@@ -566,7 +590,7 @@ public class ZkAdapter {
     for (String instance : nodesToAdd.keySet()) {
       Set<String> added = nodesToAdd.get(instance);
       if (added.size() > 0) {
-        _log.info("Instance: " + instance + ", adding assignments: " + setToString(added));
+        LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
         for (String name : added) {
           addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
         }
@@ -577,7 +601,7 @@ public class ZkAdapter {
     for (String instance : nodesToRemove.keySet()) {
       Set<String> removed = nodesToRemove.get(instance);
       if (removed.size() > 0) {
-        _log.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
+        LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
         for (String name : removed) {
           removeTaskNodes(instance, name);
         }
@@ -665,14 +689,14 @@ public class ZkAdapter {
     try {
       _hostname = InetAddress.getLocalHost().getHostName();
     } catch (UnknownHostException uhe) {
-      _log.error(uhe.getMessage());
+      LOG.error(uhe.getMessage());
     }
 
     //
     // create an ephemeral sequential node under /{cluster}/liveinstances for leader election
     //
     String electionPath = KeyBuilder.liveInstance(_cluster, "");
-    _log.info("Creating ephemeral node " + electionPath);
+    LOG.info("Creating ephemeral node " + electionPath);
     String liveInstancePath = _zkclient.create(electionPath, _hostname, CreateMode.EPHEMERAL_SEQUENTIAL);
     _liveInstanceName = liveInstancePath.substring(electionPath.length());
 
@@ -700,7 +724,7 @@ public class ZkAdapter {
   public void zkSaveInstanceError(String message) {
     String path = KeyBuilder.instanceErrors(_cluster, _instanceName);
     if (!_zkclient.exists(path)) {
-      _log.warn("failed to persist instance error because znode does not exist:" + path);
+      LOG.warn("failed to persist instance error because znode does not exist:" + path);
       return;
     }
 
@@ -713,9 +737,9 @@ public class ZkAdapter {
     if (numberOfExistingErrors < 10) {
       try {
         String errorNode = _zkclient.createPersistentSequential(path + "/", message);
-        _log.info("created error node at: " + errorNode);
+        LOG.info("created error node at: " + errorNode);
       } catch (RuntimeException ex) {
-        _log.error("failed to create instance error node: " + path);
+        LOG.error("failed to create instance error node: " + path);
       }
     }
   }
@@ -758,14 +782,14 @@ public class ZkAdapter {
     List<String> deadInstances = getAllInstances();
     deadInstances.removeAll(liveInstances);
     if (deadInstances.size() > 0) {
-      _log.info("Cleaning up assignments for dead instances: " + deadInstances);
+      LOG.info("Cleaning up assignments for dead instances: " + deadInstances);
 
       for (String instance : deadInstances) {
         String path = KeyBuilder.instance(_cluster, instance);
-        _log.info("Deleting zk path recursively: " + path);
+        LOG.info("Deleting zk path recursively: " + path);
         if (!_zkclient.deleteRecursive(path)) {
           // Ignore such failure for now
-          _log.warn("Failed to remove zk path: " + path);
+          LOG.warn("Failed to remove zk path: " + path);
         }
 
         if (_liveTaskMap.containsKey(instance)) {
@@ -790,7 +814,7 @@ public class ZkAdapter {
         previousAssignmentByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
     List<DatastreamTask> unusedTasks =
         oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toList());
-    _log.warn("Deleting the unused tasks {} found between previous {} and new assignment {}. ", unusedTasks,
+    LOG.warn("Deleting the unused tasks {} found between previous {} and new assignment {}. ", unusedTasks,
         previousAssignmentByInstance, newAssignmentsByInstance);
 
     // Delete the connector tasks.
@@ -815,7 +839,7 @@ public class ZkAdapter {
         _zkclient.subscribeChildChanges(taskPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        _log.warn("Unexpectedly interrupted during task acquire.", e);
+        LOG.warn("Unexpectedly interrupted during task acquire.", e);
       } finally {
         _zkclient.unsubscribeChildChanges(taskPath, listener);
       }
@@ -828,7 +852,7 @@ public class ZkAdapter {
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.ensureReadData(lockPath);
       if (owner.equals(_instanceName)) {
-        _log.info(String.format("%s already owns the lock on %s", _instanceName, task));
+        LOG.info(String.format("%s already owns the lock on %s", _instanceName, task));
         return;
       }
 
@@ -837,29 +861,29 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.createEphemeral(lockPath, _instanceName);
-      _log.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
+      LOG.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
     } else {
       String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
           timeout.toMillis(), owner);
-      ErrorLogger.logAndThrowDatastreamRuntimeException(_log, msg, null);
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
   }
 
   public void releaseTask(DatastreamTaskImpl task) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     if (!_zkclient.exists(lockPath)) {
-      _log.info(String.format("There is no lock on %s", task));
+      LOG.info(String.format("There is no lock on %s", task));
       return;
     }
 
     String owner = _zkclient.ensureReadData(lockPath);
     if (!owner.equals(_instanceName)) {
-      _log.warn(String.format("%s does not have the lock on %s", _instanceName, task));
+      LOG.warn(String.format("%s does not have the lock on %s", _instanceName, task));
       return;
     }
 
     _zkclient.delete(lockPath);
-    _log.info(String.format("%s successfully released the lock on %s", _instanceName, task));
+    LOG.info(String.format("%s successfully released the lock on %s", _instanceName, task));
   }
 
   /**
@@ -888,11 +912,17 @@ public class ZkAdapter {
     void onAssignmentChange();
 
     /**
-     * onDatastreamChange is called when there are changes to the datastreams under
-     * zookeeper path /{cluster}/datastream. This method is called only when the Coordinator
+     * onDatastreamAddOrDrop is called when there are changes to the datastreams under
+     * zookeeper path /{cluster}/dms. This method is called only when the Coordinator
      * is the leader.
      */
-    void onDatastreamChange();
+    void onDatastreamAddOrDrop();
+
+    /**
+     * onDatastreamUpdate is triggered when the /{cluster}/instances/{instance-name}/assignments
+     * node gets updated, which will happen after a datastream update
+     */
+    void onDatastreamUpdate();
   }
 
   /**
@@ -908,22 +938,22 @@ public class ZkAdapter {
     public ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
-      _log.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
+      LOG.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
       _zkclient.subscribeDataChanges(_path, this);
     }
 
     public void close() {
-      _log.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
+      LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _log.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
+      LOG.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
           + "parentPath %s,children %s", parentPath, currentChildren));
       if (_listener != null && ZkAdapter.this.isLeader()) {
-        _listener.onDatastreamChange();
+        _listener.onDatastreamAddOrDrop();
       }
     }
 
@@ -931,10 +961,10 @@ public class ZkAdapter {
     // due to datastream add or delete.
     @Override
     public void handleDataChange(String dataPath, Object data) throws Exception {
-      _log.info(String.format("ZkBackedDMSDatastreamList::Received Data change notification on the path %s, data %s.",
+      LOG.info(String.format("ZkBackedDMSDatastreamList::Received Data change notification on the path %s, data %s.",
           dataPath, data.toString()));
       if (_listener != null) {
-        _listener.onDatastreamChange();
+        _listener.onDatastreamAddOrDrop();
       }
     }
 
@@ -969,7 +999,7 @@ public class ZkAdapter {
     public ZkBackedLiveInstanceListProvider() {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
-      _log.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
+      LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
     }
@@ -982,7 +1012,7 @@ public class ZkAdapter {
         String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
         if (hostname != null) {
           // hostname can be null if a node dies immediately after reading all live instances
-          _log.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
+          LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
           liveInstances.add(hostname + "-" + n);
         }
       }
@@ -990,7 +1020,7 @@ public class ZkAdapter {
     }
 
     public void close() {
-      _log.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
+      LOG.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
@@ -1000,7 +1030,7 @@ public class ZkAdapter {
 
     @Override
     public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _log.info(String.format(
+      LOG.info(String.format(
           "ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
               + "parentPath %s,children %s", parentPath, currentChildren));
 
@@ -1029,28 +1059,46 @@ public class ZkAdapter {
    * grouped by the connector type. In addition, it notifies the listener about changes happened to
    * task node changes under the connector node.
    */
-  public class ZkBackedTaskListProvider implements IZkChildListener {
+  public class ZkBackedTaskListProvider implements IZkChildListener, IZkDataListener {
     private final String _path;
 
     public ZkBackedTaskListProvider(String cluster, String instanceName) {
       _path = KeyBuilder.instanceAssignments(cluster, instanceName);
-      _log.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
+      LOG.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
+      _zkclient.subscribeDataChanges(_path, this);
     }
 
     public void close() {
-      _log.info("ZkBackedTaskListProvider::Unsubscribing to the changes under the path " + _path);
+      LOG.info("ZkBackedTaskListProvider::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(KeyBuilder.instanceAssignments(_cluster, _instanceName), this);
     }
 
     @Override
     public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
-      _log.info(String.format(
+      LOG.info(String.format(
           "ZkBackedTaskListProvider::Received Child change notification on the datastream task list "
               + "parentPath %s,children %s", parentPath, currentChildren));
       if (_listener != null) {
         _listener.onAssignmentChange();
       }
+    }
+
+    // Triggered when the /assignments is updated. We want to handle this when the datastreams behind the tasks get
+    // updated, but the list of tasks may remain the same
+    @Override
+    public void handleDataChange(String dataPath, Object data) throws Exception {
+      LOG.info(String.format("ZkBackedTaskListProvider::Received Data change notification on the path %s, data %s.",
+          dataPath, data));
+      if (_listener != null && data != null && !data.toString().isEmpty()) {
+        // only care about the data change when there is an update in the data node
+        _listener.onDatastreamUpdate();
+      }
+    }
+
+    @Override
+    public void handleDataDeleted(String dataPath) throws Exception {
+      // do nothing
     }
   }
 }

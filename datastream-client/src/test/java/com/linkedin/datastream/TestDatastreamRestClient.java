@@ -1,6 +1,7 @@
 package com.linkedin.datastream;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -236,6 +237,49 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     Assert.assertNotNull(restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS));
     Assert.assertTrue(restClient.datastreamExists(datastream.getName()));
     Assert.assertFalse(restClient.datastreamExists("No Such Datastream"));
+  }
+
+  @Test
+  public void testDatastreamUpdate() throws Exception {
+    Datastream datastream = generateDatastream(1200);
+    DatastreamRestClient restClient = createRestClient();
+    restClient.createDatastream(datastream);
+
+    try {
+      restClient.updateDatastream(generateDatastream(1201));
+      Assert.fail("Update should fail for non exist datastream");
+    } catch (DatastreamRuntimeException e) {
+      // do nothing
+    }
+
+    Datastream initializedDatastream =
+        restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
+    initializedDatastream.getMetadata().put("key", "testDatastreamUpdate");
+    restClient.updateDatastream(initializedDatastream);
+    Assert.assertTrue(PollUtils.poll(() -> restClient.getDatastream(initializedDatastream.getName())
+        .getMetadata()
+        .get("key")
+        .equals("testDatastreamUpdate"), 100, 10000));
+
+    Datastream datastream2 = generateDatastream(1201);
+    restClient.createDatastream(datastream2);
+
+    Datastream initializedDatastream2 =
+        restClient.waitTillDatastreamIsInitialized(datastream2.getName(), WAIT_TIMEOUT_MS);
+    initializedDatastream2.getMetadata().put("key", "testDatastreamUpdate2");
+    initializedDatastream.getMetadata().put("key", "testDatastreamUpdate3");
+    restClient.updateDatastream(Arrays.asList(initializedDatastream, initializedDatastream2));
+
+    Assert.assertTrue(PollUtils.poll(() -> restClient.getDatastream(initializedDatastream.getName())
+        .getMetadata()
+        .get("key")
+        .equals("testDatastreamUpdate3"), 100, 10000));
+
+    Assert.assertTrue(PollUtils.poll(() -> restClient.getDatastream(initializedDatastream2.getName())
+        .getMetadata()
+        .get("key")
+        .equals("testDatastreamUpdate2"), 100, 10000));
+    restClient.shutdown();
   }
 
   @Test

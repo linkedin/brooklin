@@ -99,7 +99,7 @@
         "name" : "datastreamId",
         "type" : "string"
       },
-      "supports" : [ "create", "delete", "get", "get_all", "update" ],
+      "supports" : [ "batch_update", "create", "delete", "get", "get_all", "update" ],
       "methods" : [ {
         "method" : "create"
       }, {
@@ -108,6 +108,8 @@
         "method" : "update"
       }, {
         "method" : "delete"
+      }, {
+        "method" : "batch_update"
       }, {
         "method" : "get_all"
       } ],

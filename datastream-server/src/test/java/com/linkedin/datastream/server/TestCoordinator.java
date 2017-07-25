@@ -42,6 +42,7 @@ import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
+import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -103,6 +104,7 @@ public class TestCoordinator {
 
   public class TestHookConnector implements Connector {
     boolean _isStarted = false;
+    boolean _allowDatastreamUpdate = true;
     String _connectorType = "TestConnector";
     List<DatastreamTask> _tasks = new ArrayList<>();
     String _instance = "";
@@ -155,6 +157,14 @@ public class TestCoordinator {
 
     @Override
     public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
+    }
+
+    @Override
+    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+      if (!_allowDatastreamUpdate) {
+        throw new DatastreamValidationException("not allowed");
+      }
     }
 
     @Override
@@ -466,6 +476,111 @@ public class TestCoordinator {
     //
     instance1.stop();
     zkClient.close();
+  }
+
+  private void assertConnectorReceiveDatastreamUpdate(TestHookConnector connector, Datastream updatedDatastream)
+      throws Exception {
+    assertConnectorAssignment(connector, WAIT_TIMEOUT_MS, updatedDatastream.getName());
+    Assert.assertTrue(
+        PollUtils.poll(() -> connector.getTasks().get(0).getDatastreams().get(0).equals(updatedDatastream), 1000,
+            WAIT_TIMEOUT_MS));
+  }
+
+  @Test
+  public void testValidateDatastreamsUpdate() throws Exception {
+    String testCluster = "testValidateDatastreamsUpdate";
+
+    String connectorType1 = "connectorType1";
+    String connectorType2 = "connectorType2";
+    String connectorType3 = "connectorType3";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType1);
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.addConnector(connectorType1, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
+        null);
+    coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
+        null);
+    coordinator.start();
+
+    Datastream ds1 = DatastreamTestUtils.createDatastream(connectorType1, "name1", "source1");
+    Datastream ds2 = DatastreamTestUtils.createDatastream(connectorType2, "name2", "source2");
+    Datastream ds3 = DatastreamTestUtils.createDatastream(connectorType3, "name3", "source3");
+    Datastream ds4 = DatastreamTestUtils.createDatastream(connectorType2, "name4", "source4");
+
+    try {
+      coordinator.validateDatastreamsUpdate(Arrays.asList(ds1, ds2));
+      Assert.fail("Should fail validation when there are multiple connector types");
+    } catch (DatastreamValidationException e) {
+      // do nothing
+    }
+
+    try {
+      coordinator.validateDatastreamsUpdate(Collections.singletonList(ds3));
+      Assert.fail("Should fail validation when connector type is invalid");
+    } catch (DatastreamValidationException e) {
+      // do nothing
+    }
+
+    connector1._allowDatastreamUpdate = false;
+
+    try {
+      coordinator.validateDatastreamsUpdate(Collections.singletonList(ds1));
+      Assert.fail("Should fail validation when update is not allowed");
+    } catch (DatastreamValidationException e) {
+      // do nothing
+    }
+
+    coordinator.validateDatastreamsUpdate(Arrays.asList(ds2, ds4));
+  }
+
+  @Test
+  public void testCoordinatorHandleUpdateDatastream() throws Exception {
+    String testCluster = "testCoordinatorHandleUpdateDatastream";
+
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType);
+
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
+        null);
+    coordinator1.start();
+
+    Coordinator coordinator2 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
+        null);
+    coordinator2.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream[] list =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "datastream1");
+    Datastream datastream = list[0];
+    LOG.info("Created datastream: {}", datastream);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    datastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastream.getName());
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastream.getName());
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastream.getName());
+
+    // update datastream
+    datastream.getMetadata().put("key", "value");
+    datastream.getSource().setConnectionString("newSource");
+
+    LOG.info("Updating datastream: {}", datastream);
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    DatastreamResources datastreamResources = new DatastreamResources(dsStore, coordinator1);
+    datastreamResources.update(datastream.getName(), datastream);
+
+    assertConnectorReceiveDatastreamUpdate(connector1, datastream);
+    assertConnectorReceiveDatastreamUpdate(connector2, datastream);
   }
 
   @Test
@@ -1606,7 +1721,7 @@ public class TestCoordinator {
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
 
     if (assignment.size() != datastreamNames.length) {
-      LOG.error("Expected size: " + datastreamNames.length + ", Actual size: " + assignment.size());
+      LOG.warn("Expected size: " + datastreamNames.length + ", Actual size: " + assignment.size());
       return false;
     }
 
