@@ -8,11 +8,9 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.I0Itec.zkclient.ZkConnection;
-import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -45,6 +43,7 @@ import static org.mockito.Mockito.doAnswer;
 public class TestKafkaConnectorTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
+  private static final int POLL_TIMEOUT_MS = 25000;
 
   private EmbeddedZookeeperKafkaCluster _kafkaCluster;
   private ZkUtils _zkUtils;
@@ -88,12 +87,7 @@ public class TestKafkaConnectorTask {
         final int finalIndex = index;
         producer.send(
             new ProducerRecord<>(topic, ("key-" + index).getBytes("UTF-8"), ("value-" + index).getBytes("UTF-8")),
-            new Callback() {
-              @Override
-              public void onCompletion(RecordMetadata metadata, Exception exception) {
-                LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset());
-              }
-            });
+            (metadata, exception) -> LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset()));
         index++;
       }
       producer.flush();
@@ -138,7 +132,7 @@ public class TestKafkaConnectorTask {
     //send 100 more msgs
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, 5000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
@@ -151,6 +145,9 @@ public class TestKafkaConnectorTask {
     String topic = "Pizza2";
     createTopic(_zkUtils, topic);
 
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+
     LOG.info("Creating and Starting KafkaConnectorTask");
     Datastream datastream = getDatastream(_broker, topic);
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
@@ -162,7 +159,7 @@ public class TestKafkaConnectorTask {
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, 5000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
@@ -174,6 +171,9 @@ public class TestKafkaConnectorTask {
   public void testFlakyProducer() throws Exception {
     String topic = "pizza3";
     createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
 
     class State {
        int messagesProcessed = 0;
@@ -202,7 +202,7 @@ public class TestKafkaConnectorTask {
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
-    if (!PollUtils.poll(() -> state.messagesProcessed == 100, 100, 5000)) {
+    if (!PollUtils.poll(() -> state.messagesProcessed == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
     }
 
@@ -214,6 +214,9 @@ public class TestKafkaConnectorTask {
   public void testSkipMessagesProducer() throws Exception {
     String topic = "pizza4";
     createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
 
     class State {
       int messagesProcessed = 0;
@@ -242,7 +245,7 @@ public class TestKafkaConnectorTask {
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
-    if (!PollUtils.poll(() -> state.messagesProcessed == 90, 100, 5000)) {
+    if (!PollUtils.poll(() -> state.messagesProcessed == 90, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
     }
 
