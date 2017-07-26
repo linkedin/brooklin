@@ -209,7 +209,7 @@ public class KafkaConnectorTask implements Runnable {
         consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
           @Override
           public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-            LOG.trace("Partition ownership revoked for {}, checkpointing.", partitions);
+            LOG.info("Partition ownership revoked for {}, checkpointing.", partitions);
             if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
               maybeCommitOffsets(consumer, true); //happens inline as part of poll
             }
@@ -220,7 +220,7 @@ public class KafkaConnectorTask implements Runnable {
             _rebalanceRate.mark();
             AGGREGATED_REBALANCE_RATE.mark();
             //nop
-            LOG.trace("Partition ownership assigned for {}.", partitions);
+            LOG.info("Partition ownership assigned for {}.", partitions);
           }
         });
 
