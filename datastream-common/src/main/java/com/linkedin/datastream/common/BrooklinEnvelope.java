@@ -25,10 +25,10 @@ public class BrooklinEnvelope {
   public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
       Map<String, String> metadata) {
     Validate.notNull(metadata, "metadata cannot be null");
-    _key = key;
-    _value = value;
-    _previousValue = previousValue;
-    _metadata = metadata;
+    setKey(key);
+    setValue(value);
+    setPreviousValue(previousValue);
+    setMetadata(metadata);
   }
 
   /**
@@ -45,15 +45,15 @@ public class BrooklinEnvelope {
   }
 
   public void setPreviousValue(Object previousValue) {
-    _previousValue = previousValue;
+    _previousValue = previousValue instanceof Optional ? ((Optional<?>) previousValue).orElse(null) : previousValue;
   }
 
   public void setKey(@Nullable Object key) {
-    _key = key;
+    _key = key instanceof Optional ? ((Optional<?>) key).orElse(null) : key;
   }
 
   public void setValue(@Nullable Object value) {
-    _value = value;
+    _value = value instanceof Optional ? ((Optional<?>) value).orElse(null) : value;
   }
 
   public void setMetadata(Map<String, String> metadata) {
