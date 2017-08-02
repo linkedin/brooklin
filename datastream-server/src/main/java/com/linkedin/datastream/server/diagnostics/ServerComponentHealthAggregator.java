@@ -29,7 +29,7 @@ public class ServerComponentHealthAggregator {
   private static final Logger LOG = LoggerFactory.getLogger(ServerComponentHealthAggregator.class.getName());
 
   private static final String HTTP_REQUEST_TIMEOUT = "http.requestTimeout";
-  private static final String HTTP_TIMEOUT = String.valueOf(Duration.ofMinutes(2).toMillis());
+  private static final String HTTP_TIMEOUT = String.valueOf(Duration.ofSeconds(15).toMillis());
 
   private final ZkClient _zkClient;
   private final String _cluster;
@@ -61,18 +61,26 @@ public class ServerComponentHealthAggregator {
         restClient = ServerComponentHealthRestClientFactory.getClient(dmsUri, Collections.singletonMap(
             HttpClientFactory.HTTP_REQUEST_TIMEOUT, HTTP_TIMEOUT));
 
-        ServerComponentHealth response =
-            restClient.getStatus(componentType, componentScope, componentInputs);
-
-        // No response received from a host, set error message
-        if (response == null) {
-          String errorMessage = "No restli response from the host: " + dmsUri;
-          LOG.error(errorMessage);
-          responses.put(hostName, errorMessage);
-        } else {
-          String message = "Get restli response from the host: " + dmsUri + " with status: " + response.getStatus();
-          LOG.info(message);
-          responses.put(hostName, response.getStatus());
+        ServerComponentHealth response = null;
+        String errorMessage = "";
+        try {
+          response = restClient.getStatus(componentType, componentScope, componentInputs);
+        } catch (Exception e) {
+          errorMessage = "Received REST exception: " + e.toString() +  " from the host: " + dmsUri;
+          LOG.error("Received REST exception from the host: {}", dmsUri, e);
+        } finally {
+          // No response received from a host, set error message
+          if (response == null && errorMessage.isEmpty()) {
+            errorMessage = "Failed to receive REST response from the host: " + dmsUri;
+            LOG.error(errorMessage);
+          }
+          if (!errorMessage.isEmpty()) {
+            responses.put(hostName, errorMessage);
+          } else {
+            String message = "Received REST response from the host: " + dmsUri + " with status: " + response.getStatus();
+            LOG.info(message);
+            responses.put(hostName, response.getStatus());
+          }
         }
       } finally {
         if (restClient != null) {
