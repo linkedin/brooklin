@@ -43,5 +43,8 @@ public class TestOracleTable {
     Assert.assertEquals(fullSchema.getNamespace(), "com.linkedin.events.schemaname");
     Assert.assertEquals(fullSchema.getProp("meta"), "dbTableName=tableName;pk=primaryKey;");
     Assert.assertTrue(fullSchema.getType().equals(Schema.Type.RECORD));
+    for (Schema.Field field : fullSchema.getFields()) {
+      Assert.assertNotNull(field.defaultValue());
+    }
   }
 }
