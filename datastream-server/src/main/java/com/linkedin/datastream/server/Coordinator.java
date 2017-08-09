@@ -737,6 +737,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "No datastream left in the datastream group with taskPrefix {}. Deleting all tasks corresponding to the datastream.",
           taskPrefix);
       _adapter.deleteTasksWithPrefix(_connectors.keySet(), taskPrefix);
+      deleteTopic(ds);
     } else {
       _log.info("Found duplicate datastream {} for the datastream to be deleted {}. Not deleting the tasks.",
           duplicateStream.get().getName(), ds.getName());
@@ -763,6 +764,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return datastream.getDestination().getConnectionString();
+  }
+
+  private void deleteTopic(Datastream datastream) {
+    try {
+      if (StringUtils.equals(datastream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
+          "true")) {
+        _log.info("BYOT(bring your own topic), topic will not be deleted");
+      } else {
+        _transportProviderAdmins.get(datastream.getTransportProviderName()).dropDestination(datastream);
+      }
+    } catch (Exception e) {
+      _log.error("Runtime Exception while delete topic", e);
+    }
   }
 
   private List<DatastreamGroup> fetchDatastreamGroups() {
