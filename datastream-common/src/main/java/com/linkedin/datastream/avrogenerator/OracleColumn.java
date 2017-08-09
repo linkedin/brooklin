@@ -74,7 +74,7 @@ public class OracleColumn {
    */
   public AvroJson toAvro() {
     AvroJson typeAvro = getFieldType().toAvro();
-
+    typeAvro.nullDefault();
     typeAvro.setName(lowerCamel(getColName()));
     typeAvro.setMeta(buildMetadata(getColName(), getColPosition(), getFieldType().getMetadata()));
 
