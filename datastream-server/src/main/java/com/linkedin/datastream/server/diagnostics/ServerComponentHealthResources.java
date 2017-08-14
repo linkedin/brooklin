@@ -1,5 +1,7 @@
 package com.linkedin.datastream.server.diagnostics;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -93,7 +95,24 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
 
     DiagnosticsAware component = getComponent(componentType, componentScope);
     if (component != null) {
-      serverComponentHealth.setStatus(component.process(componentInputs));
+      try {
+        String status = component.process(componentInputs);
+        serverComponentHealth.setStatus(status);
+        serverComponentHealth.setSucceeded(true);
+        serverComponentHealth.setErrorMessages("");
+      } catch (Exception e) {
+        serverComponentHealth.setStatus("");
+        serverComponentHealth.setSucceeded(false);
+        serverComponentHealth.setErrorMessages(e.toString());
+      }
+
+      String localhostName = "";
+      try {
+        localhostName = InetAddress.getLocalHost().getHostName();
+      } catch (UnknownHostException uhe) {
+        LOG.error("Could not get localhost Name", uhe.getMessage());
+      }
+      serverComponentHealth.setInstanceName(localhostName);
       List<ServerComponentHealth> response = Arrays.asList(serverComponentHealth);
       return response;
     } else {
