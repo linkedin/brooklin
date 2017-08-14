@@ -49,7 +49,9 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     ServerComponentHealthRestClient restClient = createRestClient();
     ServerComponentHealth response =  restClient.getStatus(name, type, content);
 
+    Assert.assertEquals(response.isSucceeded(), Boolean.TRUE);
     Assert.assertEquals(response.getStatus(), expectedStatus);
+    Assert.assertTrue(response.getErrorMessages().isEmpty());
 
     // invalid name, null response.
     name = "NonExistComponent";
@@ -58,6 +60,11 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
 
     // invalid type, null response.
     type = "NonExistConnector";
+    response = restClient.getStatus(name, type, content);
+    Assert.assertEquals(response, null);
+
+    // Connector throws exception, null response
+    type = "BrokenConnector";
     response = restClient.getStatus(name, type, content);
     Assert.assertEquals(response, null);
   }
@@ -72,16 +79,23 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     ServerComponentHealthRestClient restClient = createRestClient();
     ServerComponentHealth response =  restClient.getAllStatus(name, type, content);
 
+    Assert.assertEquals(response.isSucceeded(), Boolean.TRUE);
     Assert.assertEquals(response.getStatus(), expectedStatus);
+    Assert.assertEquals(response.getErrorMessages(), "{}");
 
     // invalid name, null response.
     name = "NonExistComponent";
-    response = restClient.getStatus(name, type, content);
+    response = restClient.getAllStatus(name, type, content);
     Assert.assertEquals(response, null);
 
     // invalid type, null response.
     type = "NonExistConnector";
-    response = restClient.getStatus(name, type, content);
+    response = restClient.getAllStatus(name, type, content);
+    Assert.assertEquals(response, null);
+
+    // Connector throws exception, null response
+    type = "BrokenConnector";
+    response = restClient.getAllStatus(name, type, content);
     Assert.assertEquals(response, null);
   }
 }

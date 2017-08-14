@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.connectors.BrokenConnector;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
+import com.linkedin.datastream.connectors.BrokenConnectorFactory;
 import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
@@ -59,6 +61,7 @@ public class TestDatastreamServer {
   public static final String BROADCAST_STRATEGY_FACTORY = BroadcastStrategyFactory.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
+  public static final String BROKEN_CONNECTOR = BrokenConnector.CONNECTOR_TYPE;
   public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_NAME;
 
   private EmbeddedDatastreamCluster _datastreamCluster;
@@ -67,6 +70,7 @@ public class TestDatastreamServer {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
+    connectorProperties.put(BROKEN_CONNECTOR, getDummyConnectorProperties(true));
     return EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
         new Properties());
   }
@@ -89,6 +93,7 @@ public class TestDatastreamServer {
       throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
+    connectorProperties.put(BROKEN_CONNECTOR, getBrokenConnectorProperties());
     EmbeddedDatastreamCluster datastreamKafkaCluster =
         EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
             override);
@@ -102,6 +107,14 @@ public class TestDatastreamServer {
     if (bootstrap) {
       props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     }
+    props.put("dummyProperty", "dummyValue");
+    return props;
+  }
+
+  private static Properties getBrokenConnectorProperties() {
+    Properties props = new Properties();
+    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
+    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, BrokenConnectorFactory.class.getTypeName());
     props.put("dummyProperty", "dummyValue");
     return props;
   }

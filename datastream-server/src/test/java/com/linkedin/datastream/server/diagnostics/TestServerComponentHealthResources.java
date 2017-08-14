@@ -47,9 +47,48 @@ public class TestServerComponentHealthResources {
 
     List<ServerComponentHealth> response = resource.getStatus(NO_PAGING, name, type, content);
     for (ServerComponentHealth sch : response) {
-      //Assert.assertEquals(sch.getName(), type + name);
+      Assert.assertEquals(sch.isSucceeded(), Boolean.TRUE);
       Assert.assertEquals(sch.getStatus(), expectedStatus);
-      //Assert.assertEquals(sch.getStatusDetail().get(0), content);
+      Assert.assertEquals(sch.getErrorMessages(), "");
+    }
+
+    type = "BrokenConnector";
+    expectedStatus = "";
+    // Exception thrown in connector process
+    response = resource.getStatus(NO_PAGING, name, type, content);
+    for (ServerComponentHealth sch : response) {
+      Assert.assertEquals(sch.isSucceeded(), Boolean.FALSE);
+      Assert.assertEquals(sch.getStatus(), expectedStatus);
+    }
+
+  }
+
+
+  @Test
+  public void testGetAlltatus() {
+    ServerComponentHealthResources resource =
+        new ServerComponentHealthResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    String name = "Connector";
+    String type = "DummyConnector";
+    String content = "topic=datastream";
+    String expectedStatus = "DummyStatus";
+
+    List<ServerComponentHealth> response = resource.getAllStatus(NO_PAGING, name, type, content);
+    for (ServerComponentHealth sch : response) {
+      Assert.assertEquals(sch.isSucceeded(), Boolean.TRUE);
+      Assert.assertEquals(sch.getStatus(), expectedStatus);
+      Assert.assertEquals(sch.getErrorMessages(), "{}");
+    }
+
+    type = "BrokenConnector";
+    expectedStatus = "";
+
+    // Exception thrown in connector reduce
+    response = resource.getAllStatus(NO_PAGING, name, type, content);
+    for (ServerComponentHealth sch : response) {
+      Assert.assertEquals(sch.isSucceeded(), Boolean.FALSE);
+      Assert.assertEquals(sch.getStatus(), expectedStatus);
     }
 
   }

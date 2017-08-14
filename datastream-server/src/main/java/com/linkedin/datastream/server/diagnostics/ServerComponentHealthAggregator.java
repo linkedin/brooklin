@@ -1,12 +1,14 @@
 package com.linkedin.datastream.server.diagnostics;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +51,8 @@ public class ServerComponentHealthAggregator {
   public List<ServerComponentHealth> getResponses(String componentType, String componentScope,
       String componentInputs, DiagnosticsAware component) {
     List<String> hosts = getLiveInstances();
-    ConcurrentMap<String, String> responses = new ConcurrentHashMap<>();
+    Map<String, String> responses = new ConcurrentHashMap<>();
+    Map<String, String> errorResponses = new ConcurrentHashMap<>();
 
     hosts.parallelStream().forEach(hostName ->
     {
@@ -75,7 +78,7 @@ public class ServerComponentHealthAggregator {
             LOG.error(errorMessage);
           }
           if (!errorMessage.isEmpty()) {
-            responses.put(hostName, errorMessage);
+            errorResponses.put(hostName, errorMessage);
           } else {
             String message = "Received REST response from the host: " + dmsUri + " with status: " + response.getStatus();
             LOG.info(message);
@@ -90,7 +93,25 @@ public class ServerComponentHealthAggregator {
     });
 
     ServerComponentHealth serverComponentHealth = new ServerComponentHealth();
-    serverComponentHealth.setStatus(component.reduce(componentInputs, responses));
+    serverComponentHealth.setSucceeded(true);
+    if (!errorResponses.isEmpty()) {
+      serverComponentHealth.setSucceeded(false);
+    }
+    String localhostName = "UNKNOWN HOST";
+    try {
+      localhostName = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException uhe) {
+      LOG.error("Could not get localhost Name", uhe.getMessage());
+    }
+    serverComponentHealth.setInstanceName(localhostName);
+    serverComponentHealth.setErrorMessages(errorResponses.toString());
+    try {
+      String status = component.reduce(componentInputs, responses);
+      serverComponentHealth.setStatus(status);
+    } catch (Exception e) {
+      serverComponentHealth.setSucceeded(false);
+      serverComponentHealth.setStatus("");
+    }
 
     return Arrays.asList(serverComponentHealth);
   }
