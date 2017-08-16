@@ -66,7 +66,10 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
-import static com.linkedin.datastream.common.DatastreamUtils.*;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
+import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
+import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 
 
 /**
@@ -92,6 +95,9 @@ import static com.linkedin.datastream.common.DatastreamUtils.*;
  *     live instances in the cluster. If there are any instances go online or offline, this callback is triggered
  *     so the Coordinator leader can reassign datastream tasks among live instances.</li>
  *
+ *     <li>{@link Coordinator#onDatastreamUpdate()} This callback is triggered when any updates have been made
+ *     to existing datastreams to schedule an AssignmentChange event for task reassignment if necessary. </li>
+ *
  *     <li>{@link Coordinator#onAssignmentChange()} </li> All Coordinators, including the leader instance, will
  *     get notified if the datastream tasks assigned to it is updated through this callback. This is where
  *     the Coordinator can trigger the Connector API to notify corresponding connectors
@@ -116,16 +122,15 @@ import static com.linkedin.datastream.common.DatastreamUtils.*;
  * │              │       │ │          │  ┌───────────────────────┐ │    │                 │
  * │              │       │ │          ├──▶ onLiveInstancesChange │ │    │                 │
  * │              ├───────┼─▶          │  └───────────────────────┘ │    │                 │
- * │              │       │ │          │                            │    │                 │
- * │              │       │ │          │                            │    │                 │
- * │              │       │ │          │                            │    │                 │
+ * │              │       │ │          │  ┌────────────────────┐    │    │                 │
+ * │              │       │ │          ├──▶ onDatastreamUpdate ├────┼────▶                 │
+ * │              │       │ │          │  └────────────────────┘    │    │                 │
  * │              │       │ └──────────┘                            │    │                 │
  * │              │       │                                         │    │                 │
  * └──────────────┘       │                                         │    │                 │
  *                        └─────────────────────────────────────────┘    └─────────────────┘
  *
  */
-
 public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   /*
      There are situation where we need to pause a Datastream without taking down the Brooklin Server.
@@ -313,8 +318,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * This method is called when the current datastream server instance becomes a leader.
-   * There can only be only one leader in a datastream cluster.
+   * {@inheritDoc}
+   * There can only be one leader in a datastream cluster.
    */
   @Override
   public void onBecomeLeader() {
@@ -327,6 +332,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
+   * {@inheritDoc}
    * This method is called when a new datastream server is added or existing datastream server goes down.
    */
   @Override
@@ -337,7 +343,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * This method is called when a new datastream is created. Right now we do not handle datastream updates/deletes.
+   * {@inheritDoc}
+   * This method is called when a new datastream is created/deleted.
    */
   @Override
   public void onDatastreamAddOrDrop() {
@@ -375,9 +382,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
+   * {@inheritDoc}
    *
-   * This method is called when the coordinator is notified that there are datastreamtask assignment changes
-   * for this instance. To handle this change, we need to take the following steps:
+   * To handle assignment change, we need to take the following steps:
    * (1) get a list of all current assignment.
    * (2) inspect the task to find out which connectors are responsible for handling the changed assignment
    * (3) call corresponding connector API so that the connectors can handle the assignment changes.
@@ -662,10 +669,46 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, NUM_HEARTBEATS, 1);
   }
 
-  // when there are new datastreams defined in DSM, we need to decide its target from the corresponding
-  // connector, and write back the target to dsm tree in zookeeper. The assumption is that we only
-  // detect the target of a datastream when it is first added. We do not handle the case at this point
-  // when the datastream definition can be updated in DSM.
+  /**
+   * Check if a datastream is either marked as deleting or its TTL has expired
+   */
+  private boolean isDeletingOrExpired(Datastream stream) {
+    boolean isExpired = false;
+
+    // Check TTL
+    if (stream.getMetadata().containsKey(TTL_MS) &&
+        stream.getMetadata().containsKey(CREATION_MS)) {
+      try {
+        long ttlMs = Long.parseLong(stream.getMetadata().get(TTL_MS));
+        long creationMs = Long.parseLong(stream.getMetadata().get(CREATION_MS));
+        if (System.currentTimeMillis() - creationMs >= ttlMs) {
+          isExpired = true;
+        }
+      } catch (NumberFormatException e) {
+        _log.error("Ignoring TTL as some metadata is not numeric, CREATION_MS={}, TTL_MS={}",
+            stream.getMetadata().get(CREATION_MS), stream.getMetadata().get(TTL_MS), e);
+      }
+    }
+
+    return isExpired || stream.getStatus() == DatastreamStatus.DELETING;
+  }
+
+  /**
+   * This method performs two tasks:
+   * 1) initializes destination for a newly created datastream and update it in zookeeper
+   * 2) delete an existing datastream if it is marked as deleted or its TTL has expired.
+   *
+   * If #2 occurs, it also invalidates the datastream cache for the next assignment.
+   *
+   * This means TTL is enforced only for below events:
+   *  1) new learder is elected
+   *  2) a new stream is added
+   *  3) an existing stream is deleted
+   *
+   * Note that expired streams are not handled during rebalancing which is okay because
+   * if there are no more streams getting created there is no pressure to delete streams
+   * either. Also, expired streams are excluded from any future task assigments.
+   */
   private void handleDatastreamAddOrDelete() {
     boolean shouldRetry = false;
 
@@ -694,8 +737,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
           shouldRetry = true;
         }
-      } else if (ds.getStatus() == DatastreamStatus.DELETING) {
-        _log.info("Trying to hard delete datastream {}", ds.getName());
+      } else if (isDeletingOrExpired(ds)) {
+        _log.info("Trying to hard delete datastream {} (reason={})", ds,
+            ds.getStatus() == DatastreamStatus.DELETING ? "deleting" : "expired");
+
         hardDeleteDatastream(ds, allStreams);
       }
     }
@@ -782,14 +827,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private List<DatastreamGroup> fetchDatastreamGroups() {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
-    //  2) status is READY
+    //  2) status is READY or PAUSED
+    //  3) TTL has not expired
     // Note: We do not need to flush the cache, because the datastreams should have been read as part of the
     //       handleDatastreamAddOrDelete event (that should occur before handleLeaderDoAssignment)
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(false)
         .stream()
         .filter(datastream -> datastream.hasStatus()
             && (datastream.getStatus() == DatastreamStatus.READY || datastream.getStatus() == DatastreamStatus.PAUSED)
-            && datastream.hasDestination() && datastream.getDestination().hasConnectionString())
+            && hasValidDestination(datastream)
+            && !isDeletingOrExpired(datastream))
         .collect(Collectors.toList());
 
     Set<Datastream> invalidDatastreams =
@@ -1099,7 +1146,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw e;
     }
 
-    datastream.getMetadata().putIfAbsent(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    datastream.getMetadata().putIfAbsent(CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
   }
 
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {

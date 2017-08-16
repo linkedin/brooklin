@@ -18,7 +18,7 @@ import java.util.concurrent.TimeoutException;
  * Helper class for writing unit tests with EmbeddedKafka.
  */
 public final class KafkaTestUtils {
-  private static final int DEFAULT_TIMEOUT_MS = 30000;
+  private static final int DEFAULT_TIMEOUT_MS = 60000;
 
   public interface ReaderCallback {
     boolean onMessage(byte[] key, byte[] value) throws IOException;
