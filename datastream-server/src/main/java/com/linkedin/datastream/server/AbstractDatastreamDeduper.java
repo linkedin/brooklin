@@ -24,6 +24,10 @@ import static com.linkedin.datastream.common.DatastreamUtils.getPayloadSerDe;
  *
  * Deduper subclasses should override {@link AbstractDatastreamDeduper#dedupStreams}
  * to apply any additional dedup logic.
+ *
+ * Note that {@link com.linkedin.datastream.common.DatastreamMetadataConstants#TTL_MS}
+ * is not considered by the base deduper such that it is up to the sub deduper to
+ * choose the most appropriate action for duping streams with different TTLs.
  */
 public abstract class AbstractDatastreamDeduper implements DatastreamDeduper {
   @Override

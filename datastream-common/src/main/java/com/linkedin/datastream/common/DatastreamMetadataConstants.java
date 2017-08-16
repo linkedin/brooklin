@@ -56,4 +56,10 @@ public class DatastreamMetadataConstants {
    * to identity the datastream/topic name to prevent duplications.
    */
    public static final String UID = "uid";
+
+  /**
+   * Connector can use this for datastreams with finite set of events such that
+   * can be deleted after TTL expires. The TTL is expressed as miliseconds.
+   */
+  public static final String TTL_MS = "system.ttl.ms";
 }
