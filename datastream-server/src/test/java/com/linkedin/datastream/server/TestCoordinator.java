@@ -2,6 +2,7 @@ package com.linkedin.datastream.server;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,6 +51,8 @@ import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.UpdateResponse;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
@@ -1687,6 +1690,135 @@ public class TestCoordinator {
     stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
 
     Assert.assertFalse(authz.authorize(stream, Authorizer.Operation.READ, () -> "dummy"));
+  }
+
+  @Test
+  public void testDatastreamDeleteUponTTLExpire() throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    String [] streamNames = { "TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2" };
+    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
+    streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[0].getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic1", false).getDestinationURI());
+    streams[1].getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic2", false).getDestinationURI());
+
+    // stream1 expires after 500ms and should get deleted when stream2 is created
+    long threeDaysAgo = Instant.now().minus(Duration.ofDays(3)).toEpochMilli();
+    streams[0].getMetadata().put(CREATION_MS, String.valueOf(threeDaysAgo));
+    long oneDayTTLMs = Duration.ofDays(1).toMillis();
+    streams[0].getMetadata().put(TTL_MS, String.valueOf(oneDayTTLMs));
+
+    // Creation should go through as TTL is not considered for freshly created streams (INITIALIZING)
+    CreateResponse createResponse = setup._resource.create(streams[0]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Creating a stream2 which should trigger stream1 to be deleted
+    createResponse = setup._resource.create(streams[1]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Poll up to 30s for stream1 to get deleted
+    PollUtils.poll(() -> setup._resource.get(streams[0].getName()) == null, 200, Duration.ofSeconds(30).toMillis());
+  }
+
+  @Test
+  public void testDoNotAssignExpiredStreams() throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    String [] streamNames = { "TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2" };
+    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
+    streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[0].getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic1", false).getDestinationURI());
+    streams[1].getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestDatastreamTopic2", false).getDestinationURI());
+
+    // stream2 expires after 500ms and should not get assigned
+    long threeDaysAgo = Instant.now().minus(Duration.ofDays(3)).toEpochMilli();
+    streams[1].getMetadata().put(CREATION_MS, String.valueOf(threeDaysAgo));
+    long oneDayTTLMs = Duration.ofDays(1).toMillis();
+    streams[1].getMetadata().put(TTL_MS, String.valueOf(oneDayTTLMs));
+
+    // Creation of stream1 should go through
+    CreateResponse createResponse = setup._resource.create(streams[0]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Creating a stream2 which should go through as TTL is not considered for freshly created streams (INITIALIZING)
+    createResponse = setup._resource.create(streams[1]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Only stream1 should have been assigned as stream2 is expired already
+    assertConnectorAssignment(setup._connector, WAIT_TIMEOUT_MS, streamNames[0]);
+  }
+
+  @Test
+  public void testCachedDatastreamReader() throws Exception {
+    TestSetup setup = createTestCoordinator();
+    String testCluster = setup._coordinator.getClusterName();
+
+    String [] streamNames = { "testCachedDatastreamReader1", "testCachedDatastreamReader2" };
+    ZkClient zkClient = new ZkClient(setup._datastreamKafkaCluster.getZkConnection());
+
+    CachedDatastreamReader reader = new CachedDatastreamReader(zkClient, testCluster);
+    Assert.assertTrue(reader.getAllDatastreams().isEmpty());
+    Assert.assertTrue(reader.getAllDatastreams(false).isEmpty());
+    Assert.assertTrue(reader.getAllDatastreams(true).isEmpty());
+    Assert.assertTrue(reader.getAllDatastreamNames().isEmpty());
+    Assert.assertTrue(reader.getDatastreamGroups().isEmpty());
+    Assert.assertNull(reader.getDatastream("foo", true));
+
+    Datastream [] streams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster,
+        DummyConnector.CONNECTOR_TYPE, streamNames);
+
+    // Flush and cache should be populated
+    Assert.assertFalse(reader.getAllDatastreams(true).isEmpty());
+    Assert.assertFalse(reader.getAllDatastreams().isEmpty());
+    Assert.assertFalse(reader.getAllDatastreamNames().isEmpty());
+    Assert.assertFalse(reader.getDatastreamGroups().isEmpty());
+
+    Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader1", false));
+    Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader2", false));
+
+    // Update stream1 to test cache invalidation
+    streams[1].getMetadata().put("owner", "foo222");
+    setup._resource.update("testCachedDatastreamReader2", streams[1]);
+
+    reader.invalidateAllCache();
+
+    // After invalidation, cache should be re-populated
+    Assert.assertFalse(reader.getAllDatastreams().isEmpty());
+    Assert.assertFalse(reader.getAllDatastreamNames().isEmpty());
+    Assert.assertFalse(reader.getDatastreamGroups().isEmpty());
+    Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader1", false));
+    Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader2", false));
+    Assert.assertEquals(reader.getDatastream("testCachedDatastreamReader2", false).getMetadata().get("owner"), "foo222");
+
+    // Delete one stream
+    setup._resource.delete("testCachedDatastreamReader1");
+
+    // Make sure datastream is indeed deleted from ZK
+    // _resource.delete only mark it as DELETING and only
+    // later Coordinator does the actual deletion from ZK
+    // through ZkAdapter.
+    String path = KeyBuilder.datastream(testCluster, "testCachedDatastreamReader1");
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
+
+    // Even without flush, testCachedDatastreamReader1 should eventally be evicted from cache
+    Assert.assertTrue(PollUtils.poll(() -> reader.getDatastream("testCachedDatastreamReader1", false) == null,
+        200, WAIT_TIMEOUT_MS));
+    Assert.assertFalse(reader.getAllDatastreams(false).isEmpty());
+    Assert.assertEquals(reader.getDatastreamGroups().size(), 1);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

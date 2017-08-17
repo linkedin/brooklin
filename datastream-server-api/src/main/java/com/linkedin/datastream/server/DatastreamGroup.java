@@ -77,4 +77,10 @@ public class DatastreamGroup {
   public boolean belongsTo(DatastreamTask task) {
     return  task.getTaskPrefix().equals(getTaskPrefix());
   }
+
+  @Override
+  public String toString() {
+    String streamNames = _datastreams.stream().map(Datastream::getName).collect(Collectors.joining(","));
+    return "DatastreamGroup{" + "taskPrefix='" + _taskPrefix + '\'' + ", datastreams=" + streamNames + '}';
+  }
 }
