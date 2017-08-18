@@ -232,6 +232,7 @@ project(':datastream-testcommon') {
     compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+    compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
   }
 }

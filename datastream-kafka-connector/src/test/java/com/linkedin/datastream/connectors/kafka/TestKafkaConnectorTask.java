@@ -36,6 +36,7 @@ import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.testutil.KafkaTestUtils;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -74,36 +75,48 @@ public class TestKafkaConnectorTask {
     Properties props = new Properties();
     props.put("bootstrap.servers", cluster.getBrokers());
     props.put("acks", "all");
-    props.put("retries", 0);
+    props.put("retries", String.valueOf(Integer.MAX_VALUE));
+    props.put("max.in.flight.requests.per.connection", 1);
     props.put("batch.size", 16384);
     props.put("linger.ms", 1);
     props.put("buffer.memory", 33554432);
     props.put("key.serializer", ByteArraySerializer.class.getCanonicalName());
     props.put("value.serializer", ByteArraySerializer.class.getCanonicalName());
 
-    createTopic(zkUtils, topic);
+    createTopic(cluster.getBrokers(), zkUtils, topic);
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
       for (int i = 0; i < numEvents; i++) {
         final int finalIndex = index;
         producer.send(
             new ProducerRecord<>(topic, ("key-" + index).getBytes("UTF-8"), ("value-" + index).getBytes("UTF-8")),
-            (metadata, exception) -> LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset()));
+            (metadata, exception) -> {
+              if (exception == null) {
+                LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset());
+              } else {
+                LOG.error("unexpected send failure", exception);
+              }
+            });
         index++;
       }
       producer.flush();
     }
   }
 
-  private static void createTopic(ZkUtils zkUtils, String topic) {
+  private static void createTopic(String brokers, ZkUtils zkUtils, String topic) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
       AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+      KafkaTestUtils.ensureTopicIsReady(brokers, topic, 1);
     }
+  }
+
+  private void createTopic(String topic) {
+    createTopic(_broker, _zkUtils, topic);
   }
 
   @Test
   public void testConsumeWithStartingOffset() throws Exception {
     String topic = "pizza1";
-    createTopic(_zkUtils, topic);
+    createTopic(topic);
 
     LOG.info("Sending first set of events");
 
@@ -143,7 +156,7 @@ public class TestKafkaConnectorTask {
   @Test
   public void testConsumerBaseCase() throws Exception {
     String topic = "Pizza2";
-    createTopic(_zkUtils, topic);
+    createTopic(topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
     produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
@@ -170,7 +183,7 @@ public class TestKafkaConnectorTask {
   @Test
   public void testFlakyProducer() throws Exception {
     String topic = "pizza3";
-    createTopic(_zkUtils, topic);
+    createTopic(topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
     produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
@@ -213,7 +226,7 @@ public class TestKafkaConnectorTask {
   @Test
   public void testSkipMessagesProducer() throws Exception {
     String topic = "pizza4";
-    createTopic(_zkUtils, topic);
+    createTopic(topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
     produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
