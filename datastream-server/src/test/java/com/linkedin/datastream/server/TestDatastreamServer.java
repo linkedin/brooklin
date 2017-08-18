@@ -45,6 +45,7 @@ import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import com.linkedin.datastream.testutil.KafkaTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
 
 import static com.linkedin.datastream.server.DatastreamServer.*;
@@ -204,6 +205,7 @@ public class TestDatastreamServer {
     ZkConnection zkConnection = new ZkConnection(_datastreamCluster.getZkConnection());
     ZkUtils zkUtils = new ZkUtils(zkClient, zkConnection, false);
     AdminUtils.createTopic(zkUtils, destinationTopic, numberOfPartitions, 1, new Properties(), RackAwareMode.Disabled$.MODULE$);
+    KafkaTestUtils.ensureTopicIsReady(_datastreamCluster.getKafkaCluster().getBrokers(), destinationTopic, numberOfPartitions);
 
     Datastream fileDatastream1 = createFileDatastream(fileName1, destinationTopic, 2);
     Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 2);

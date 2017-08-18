@@ -1,6 +1,7 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.testutil;
 
 import java.util.Collections;
+
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -10,8 +11,11 @@ import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
+
+import com.linkedin.datastream.common.PollUtils;
 
 
 /**
@@ -64,7 +68,6 @@ public final class KafkaTestUtils {
   }
 
   private static KafkaConsumer<byte[], byte[]> createConsumer(String brokerList) {
-
     Properties props = new Properties();
     props.put("bootstrap.servers", brokerList);
     props.put("group.id", "test");
@@ -75,5 +78,26 @@ public final class KafkaTestUtils {
 
     KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(props);
     return consumer;
+  }
+
+  /**
+   * Ensure a topic is ready, by listing the topic from this cluster, and making sure it is present
+   * with the right number of partitions.
+   * @param topicName
+   * @param partitions
+   * @throws AssertionError if the topic is not ready after {@code DEFAULT_TIMEOUT_MS}
+   */
+  public static void ensureTopicIsReady(String brokers, String topicName, int partitions) {
+    final KafkaConsumer<?, ?> kafkaConsumer = createConsumer(brokers);
+    if (!PollUtils.poll(() -> isTopicReady(topicName, partitions, kafkaConsumer), 1000, DEFAULT_TIMEOUT_MS)) {
+      throw new RuntimeException(String.format(
+          "Topic %s is not ready after waiting for %d milliseconds. existingTopics=%s",
+          topicName, DEFAULT_TIMEOUT_MS, kafkaConsumer.listTopics()));
+    }
+  }
+
+  private static boolean isTopicReady(String topicName, int partitions, KafkaConsumer<?, ?> consumer) {
+    Map<String, List<PartitionInfo>> list = consumer.listTopics();
+    return list.containsKey(topicName) && list.get(topicName).size() == partitions;
   }
 }
