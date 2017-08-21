@@ -76,7 +76,6 @@ public class KafkaConnectorTask implements Runnable {
   private final DatastreamTask _task;
   private final long _offsetCommitInterval;
   private final Duration _retrySleepDuration;
-  private final boolean _skipBadMessagesEnabled;
   private final int _retryCount;
 
   //state
@@ -90,7 +89,6 @@ public class KafkaConnectorTask implements Runnable {
   private static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
   private static final String AGGREGATE = "aggregate";
   private static final String ERROR_RATE = "errorRate";
-  private static final String SKIPPED_BAD_MESSAGES_RATE = "skippedBadMessagesRate";
   private static final String REBALANCE_RATE = "rebalanceRate";
   private static final String NUM_KAFKA_POLLS = "numKafkaPolls";
   private static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
@@ -106,7 +104,6 @@ public class KafkaConnectorTask implements Runnable {
   private final Meter _eventsProcessedRate = new Meter();
   private final Meter _bytesProcessedRate = new Meter();
   private final Meter _errorRate = new Meter();
-  private final Meter _skippedBadMessagesRate = new Meter();
   private final Meter _rebalanceRate = new Meter();
   private final Meter _numKafkaPolls = new Meter();
   private final Gauge<Long> _timeSinceLastEventReceived =
@@ -130,7 +127,6 @@ public class KafkaConnectorTask implements Runnable {
     _consumerFactory = factory;
     _datastream = task.getDatastreams().get(0);
     _task = task;
-    _skipBadMessagesEnabled = skipBadMessageEnabled(task);
     _retryCount = retryCount;
 
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
@@ -146,11 +142,6 @@ public class KafkaConnectorTask implements Runnable {
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_PROCESSED_RATE, _eventsProcessedRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_BYTE_PROCESSED_RATE, _bytesProcessedRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, ERROR_RATE, _errorRate);
-    if (_skipBadMessagesEnabled) {
-      _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, SKIPPED_BAD_MESSAGES_RATE,
-          _skippedBadMessagesRate);
-    }
-
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, REBALANCE_RATE, _rebalanceRate);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, NUM_KAFKA_POLLS, _numKafkaPolls);
     _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENT_COUNTS_PER_POLL, _eventCountsPerPoll);
@@ -364,8 +355,6 @@ public class KafkaConnectorTask implements Runnable {
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_PROCESSED_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_BYTE_PROCESSED_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + ERROR_RATE));
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + SKIPPED_BAD_MESSAGES_RATE));
-
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + REBALANCE_RATE));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + NUM_KAFKA_POLLS));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX_REGEX + EVENT_COUNTS_PER_POLL));
@@ -393,27 +382,8 @@ public class KafkaConnectorTask implements Runnable {
       } catch (RuntimeException e) {
         _errorRate.mark();
         AGGREGATED_ERROR_RATE.mark();
-        // If flag _skipBadMessagesEnabled is set, then message are skipped after unsuccessfully
-        // trying to send it "_retryCount" times. Example of problems:
-        // - Message is above the message size supported by the destination.
-        // - The message can not be encoded to conform to the destination format (e.g. missing a field).
-        //
-        // Unfortunately the error could be a transient network problem, and not a problem with the message itself.
-        // For this reason is strongly recommended to put alerts in the _skippedBadMessagesRate and page the oncall
-        // in case of errors.
-        //
-        // This flag should only be set to true for use cases that tolerate messages lost.
-        // TODO: Try to define a special exception for "badMessage" so we can differenciate between a send error,
-        // or a message compliance error. Right now is very hard to do that, because  will require to refactor a lot
-        // of library and code we do not control.
-        if (_skipBadMessagesEnabled) {
-          LOG.error("Skipping Message. task: {} ;  error: {}", _taskName, e.toString());
-          _skippedBadMessagesRate.mark();
-          // Continue to next message
-        } else {
-          // Throw the exception and let the connector rewind and retry.
-          throw e;
-        }
+        // Throw the exception and let the connector rewind and retry.
+        throw e;
       }
     }
   }
@@ -463,18 +433,5 @@ public class KafkaConnectorTask implements Runnable {
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
-  }
-
-  /**
-   * Look for config {@value CFG_SKIP_BAD_MESSAGE} in the datastream metadata and returns its value.
-   * Default value is false.
-   */
-  private static boolean skipBadMessageEnabled(DatastreamTask task) {
-    return task.getDatastreams()
-        .stream()
-        .findFirst()
-        .map(Datastream::getMetadata)
-        .map(metadata -> metadata.getOrDefault(CFG_SKIP_BAD_MESSAGE, "false").toLowerCase().equals("true"))
-        .orElse(false);
   }
 }

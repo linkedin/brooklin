@@ -7,7 +7,10 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.diagnostics.ServerComponentHealth;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.server.PagingContext;
@@ -26,6 +29,7 @@ public class TestServerComponentHealthResources {
   @BeforeMethod
   public void setUp()
       throws Exception {
+    DynamicMetricsManager.createInstance(new MetricRegistry());
     _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     _datastreamKafkaCluster.startup();
   }
