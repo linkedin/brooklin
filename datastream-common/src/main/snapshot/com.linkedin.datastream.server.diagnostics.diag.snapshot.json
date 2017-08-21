@@ -5,9 +5,21 @@
     "namespace" : "com.linkedin.datastream.diagnostics",
     "doc" : "Datastream server component health",
     "fields" : [ {
+      "name" : "succeeded",
+      "type" : "boolean",
+      "doc" : "Whether the framework is succeeded to receive the responses from all instances"
+    }, {
       "name" : "status",
       "type" : "string",
       "doc" : "Status of the datastream server component"
+    }, {
+      "name" : "instanceName",
+      "type" : "string",
+      "doc" : "Instance that handles the request"
+    }, {
+      "name" : "errorMessages",
+      "type" : "string",
+      "doc" : "Error messages that are returned by framework"
     } ]
   } ],
   "schema" : {
