@@ -24,6 +24,9 @@ import com.codahale.metrics.MetricRegistry;
 import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -37,8 +40,6 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
 
 public class TestKafkaConnectorTask {
 
@@ -206,50 +207,6 @@ public class TestKafkaConnectorTask {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
     }
 
-    connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
-  }
-
-  @Test
-  public void testSkipMessagesProducer() throws Exception {
-    String topic = "pizza4";
-    createTopic(_zkUtils, topic);
-
-    LOG.info("Sending first event, to avoid an empty topic.");
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
-
-    class State {
-      int messagesProcessed = 0;
-      int pendingErrors = 50;
-    }
-    State state = new State();
-
-    DatastreamEventProducer datastreamProducer = Mockito.mock(DatastreamEventProducer.class);
-    doAnswer(invocation -> {
-      if (state.pendingErrors > 0) {
-        state.pendingErrors--;
-        throw new RuntimeException("Permanent Error for Message");
-      }
-      state.messagesProcessed++;
-      return null;
-    }).when(datastreamProducer).send(any(), any());
-
-    LOG.info("Creating and Starting KafkaConnectorTask");
-    Datastream datastream = getDatastream(_broker, topic);
-    datastream.getMetadata().put(KafkaConnectorTask.CFG_SKIP_BAD_MESSAGE, "true");
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
-    task.setEventProducer(datastreamProducer);
-
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
-
-    LOG.info("Producing 100 msgs to topic: " + topic);
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
-
-    if (!PollUtils.poll(() -> state.messagesProcessed == 90, 100, POLL_TIMEOUT_MS)) {
-      Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
-    }
-
-    Assert.assertEquals(state.pendingErrors, 0);
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
