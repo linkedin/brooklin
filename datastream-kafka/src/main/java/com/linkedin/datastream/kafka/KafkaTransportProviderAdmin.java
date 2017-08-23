@@ -1,17 +1,15 @@
 package com.linkedin.datastream.kafka;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
-import kafka.admin.RackAwareMode;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import kafka.admin.AdminUtils;
+import kafka.admin.RackAwareMode;
 import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
 
@@ -82,7 +80,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   @Override
-  public void initializeDestinationForDatastream(Datastream datastream) {
+  public void initializeDestinationForDatastream(Datastream datastream, String destinationName) {
     if (!datastream.hasDestination()) {
       datastream.setDestination(new DatastreamDestination());
     }
@@ -91,8 +89,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     DatastreamSource source = datastream.getSource();
 
     if (!destination.hasConnectionString() || destination.getConnectionString().isEmpty()) {
-      String topicName = getTopicName(datastream.getName());
-      destination.setConnectionString(getDestination(topicName));
+      destination.setConnectionString(getDestination(destinationName));
     }
 
     if (!destination.hasPartitions() || destination.getPartitions() <= 0) {
@@ -191,11 +188,5 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       LOG.error(String.format("Deleting topic %s failed with exception %s", topicName, e));
       throw e;
     }
-  }
-
-  private String getTopicName(String datastreamName) {
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    String currentTime = formatter.format(LocalDateTime.now());
-    return String.format("%s_%s", datastreamName, currentTime);
   }
 }

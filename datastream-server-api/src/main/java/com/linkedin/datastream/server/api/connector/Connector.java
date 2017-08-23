@@ -1,8 +1,15 @@
 package com.linkedin.datastream.server.api.connector;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
+
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
@@ -58,6 +65,30 @@ public interface Connector extends MetricsAware {
   default void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     throw new DatastreamValidationException("Datastream update is not supported");
+  }
+
+  /**
+   * Compute the topic name, the default implement is based on datastream name and current time.
+   * @param datastream the current assignment.
+   */
+  default String getDestinationName(Datastream datastream) {
+    String datastreamName = datastream.getName();
+    String uid = datastream.getMetadata().get(DatastreamMetadataConstants.UID);
+    // if uid is set, append this to the datastreamName
+    if (!StringUtils.isBlank(uid)) {
+      return String.format("%s_%s", datastreamName, uid);
+    }
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    LocalDateTime localDateTime = null;
+    String createTime = datastream.getMetadata().get(DatastreamMetadataConstants.CREATION_MS);
+    if (!StringUtils.isEmpty(createTime)) {
+      // convert createTime to localDateTime and append it to the datastream name.
+      localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(createTime)), ZoneOffset.UTC);
+    } else {
+      localDateTime = LocalDateTime.now();
+    }
+    String currentTime = formatter.format(localDateTime);
+    return String.format("%s_%s", datastreamName, currentTime);
   }
 
 }
