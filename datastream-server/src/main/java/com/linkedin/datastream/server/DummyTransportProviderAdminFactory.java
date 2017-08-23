@@ -58,7 +58,7 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
   }
 
   @Override
-  public void initializeDestinationForDatastream(Datastream datastream) throws DatastreamValidationException {
+  public void initializeDestinationForDatastream(Datastream datastream, String destinationName) throws DatastreamValidationException {
 
     if (!datastream.hasDestination()) {
       datastream.setDestination(new DatastreamDestination());

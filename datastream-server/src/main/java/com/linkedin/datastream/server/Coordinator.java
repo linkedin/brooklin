@@ -1129,9 +1129,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           throw new DatastreamValidationException(
               String.format("Transport provider \"%s\" is undefined", datastream.getTransportProviderName()));
         }
+        String destinationName = connector.getDestinationName(datastream);
         _transportProviderAdmins.get(datastream.getTransportProviderName())
-            .initializeDestinationForDatastream(datastream);
-
+            .initializeDestinationForDatastream(datastream, destinationName);
         // Populate the task prefix if it is not already present.
         if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
           datastream.getMetadata()

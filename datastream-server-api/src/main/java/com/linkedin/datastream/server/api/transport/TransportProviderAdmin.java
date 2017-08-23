@@ -34,8 +34,10 @@ public interface TransportProviderAdmin extends MetricsAware {
    * If the datastream has destination already filled. Transport provider performs the necessary validations.
    * @param datastream
    *   Datastream whose destination needs to be validated.
+   * @param destinationName
+   *   destinationName that are computed by the connector and needed to set the ConnectionString
    */
-  void initializeDestinationForDatastream(Datastream datastream) throws DatastreamValidationException;
+  void initializeDestinationForDatastream(Datastream datastream, String destinationName) throws DatastreamValidationException;
 
   /**
    * create the destination for the datastream.
