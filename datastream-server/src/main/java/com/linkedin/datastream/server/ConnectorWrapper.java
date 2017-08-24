@@ -150,4 +150,12 @@ public class ConnectorWrapper {
   public long getNumDatastreamTasks() {
     return _numDatastreamTasks.get();
   }
+
+  public String getDestinationName(Datastream datastream) {
+    logApiStart("getDestinationName");
+    String destinationName = _connector.getDestinationName(datastream);
+    logApiEnd("getDestinationName");
+    return destinationName;
+  }
+
 }

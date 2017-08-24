@@ -64,7 +64,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   @Override
-  public void initializeDestinationForDatastream(Datastream datastream) {
+  public void initializeDestinationForDatastream(Datastream datastream, String destinationName) {
 
     if (!datastream.hasDestination()) {
       datastream.setDestination(new DatastreamDestination());
