@@ -42,6 +42,11 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_RETENION_MS = "system.destination.retention.ms";
 
   /**
+   * The name of the schema used to serialize the messages in the destination
+   */
+  public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = "system.destination.payloadSchemaName";
+
+  /**
    * Timestamp of datastream creation in epoch-milis
    */
   public static final String CREATION_MS = "system.creation.ms";
