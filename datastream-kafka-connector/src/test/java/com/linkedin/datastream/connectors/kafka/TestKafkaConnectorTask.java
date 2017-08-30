@@ -75,7 +75,7 @@ public class TestKafkaConnectorTask {
     Properties props = new Properties();
     props.put("bootstrap.servers", cluster.getBrokers());
     props.put("acks", "all");
-    props.put("retries", 0);
+    props.put("retries", 100);
     props.put("batch.size", 16384);
     props.put("linger.ms", 1);
     props.put("buffer.memory", 33554432);
@@ -88,7 +88,13 @@ public class TestKafkaConnectorTask {
         final int finalIndex = index;
         producer.send(
             new ProducerRecord<>(topic, ("key-" + index).getBytes("UTF-8"), ("value-" + index).getBytes("UTF-8")),
-            (metadata, exception) -> LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset()));
+            (metadata, exception) -> {
+              if (exception == null) {
+                LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset());
+              } else {
+                throw new RuntimeException("Failed to send message.", exception);
+              }
+            });
         index++;
       }
       producer.flush();
@@ -97,7 +103,7 @@ public class TestKafkaConnectorTask {
 
   private static void createTopic(ZkUtils zkUtils, String topic) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+      AdminUtils.createTopic(zkUtils, topic, 1, 2, new Properties(), null);
     }
   }
 
