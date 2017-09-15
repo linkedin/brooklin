@@ -28,12 +28,6 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.SlidingTimeWindowReservoir;
-
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.Datastream;
@@ -42,11 +36,9 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
-import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
-import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.connector.CommonConnectorMetrics;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -58,12 +50,16 @@ import com.linkedin.datastream.server.DatastreamTaskStatus;
 public class KafkaConnectorTask implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
+  // Regular expression to capture all metrics by this kafka connector.
+  private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
 
   public static final String CFG_SKIP_BAD_MESSAGE = "skipBadMessage";
+  public static final String PROCESSING_DELAY_LOG_TRESHOLD_MS = "processingDelayLogThreshold";
+  public static final long DEFAULT_PROCESSING_DELAY_LOG_TRESHOLD_MS = Duration.ofMinutes(1).toMillis();
+  private final long _processingDelayLogThresholdMs;
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final Properties _consumerProps;
-  private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _datastreamName;
   private final Datastream _datastream;
   private final Optional<Map<Integer, Long>> _startOffsets;
@@ -85,45 +81,20 @@ public class KafkaConnectorTask implements Runnable {
   private DatastreamEventProducer _producer;
   private Consumer<?, ?> _consumer;
 
-  private static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
-  private static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
-  private static final String AGGREGATE = "aggregate";
-  private static final String ERROR_RATE = "errorRate";
-  private static final String REBALANCE_RATE = "rebalanceRate";
-  private static final String NUM_KAFKA_POLLS = "numKafkaPolls";
-  private static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
-  private static final String TIME_SINCE_LAST_EVENT_RECEIVED = "timeSinceLastEventReceivedMs";
-  private static final String TIME_SINCE_LAST_EVENT_PROCESSED = "timeSinceLastEventProcessedMs";
-
-  // Regular expression to capture all metrics by this kafka connector.
-  private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
-
-  private Instant _lastEventReceivedTime = Instant.now();
-  private Instant _lastEventProcessedTime = Instant.now();
-  // Per consumer metrics
-  private final Meter _eventsProcessedRate = new Meter();
-  private final Meter _bytesProcessedRate = new Meter();
-  private final Meter _errorRate = new Meter();
-  private final Meter _rebalanceRate = new Meter();
-  private final Meter _numKafkaPolls = new Meter();
-  private final Gauge<Long> _timeSinceLastEventReceived =
-      () -> Duration.between(Instant.now(), _lastEventReceivedTime).toMillis();
-  private final Gauge<Long> _timeSinceLastEventProcessed =
-      () -> Duration.between(Instant.now(), _lastEventProcessedTime).toMillis();
-  private final Histogram _eventCountsPerPoll = new Histogram(new SlidingTimeWindowReservoir(1, TimeUnit.MINUTES));
-
-  // Aggregated metrics
-  private static final Meter AGGREGATED_EVENTS_PROCESSED_RATE = new Meter();
-  private static final Meter AGGREGATED_BYTES_PROCESSED_RATE = new Meter();
-  private static final Meter AGGREGATED_ERROR_RATE = new Meter();
-  private static final Meter AGGREGATED_REBALANCE_RATE = new Meter();
   private long _lastCommittedTime = System.currentTimeMillis();
+  private final CommonConnectorMetrics _consumerMetrics;
+
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
       long commitIntervalMillis, Duration retrySleepDuration, int retryCount) {
     LOG.info("Creating kafka connector task for datastream task {} with commit interval {}Ms", task,
         commitIntervalMillis);
     _consumerProps = consumerProps;
+    VerifiableProperties properties = new VerifiableProperties(_consumerProps);
+
+    _processingDelayLogThresholdMs = properties.containsKey(PROCESSING_DELAY_LOG_TRESHOLD_MS) ?
+        properties.getLong(PROCESSING_DELAY_LOG_TRESHOLD_MS) : DEFAULT_PROCESSING_DELAY_LOG_TRESHOLD_MS;
+
     _consumerFactory = factory;
     _datastream = task.getDatastreams().get(0);
     _task = task;
@@ -137,27 +108,10 @@ public class KafkaConnectorTask implements Runnable {
     _retrySleepDuration = retrySleepDuration;
     _datastreamName = task.getDatastreams().get(0).getName();
 
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_PROCESSED_RATE, _eventsProcessedRate);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENTS_BYTE_PROCESSED_RATE, _bytesProcessedRate);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, ERROR_RATE, _errorRate);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, REBALANCE_RATE, _rebalanceRate);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, NUM_KAFKA_POLLS, _numKafkaPolls);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, EVENT_COUNTS_PER_POLL, _eventCountsPerPoll);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, TIME_SINCE_LAST_EVENT_RECEIVED,
-        _timeSinceLastEventReceived);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, _datastreamName, TIME_SINCE_LAST_EVENT_PROCESSED,
-        _timeSinceLastEventProcessed);
-
-    // Register Aggregated metric if not register by another instance.
-
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, AGGREGATE, EVENTS_PROCESSED_RATE,
-        AGGREGATED_EVENTS_PROCESSED_RATE);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE,
-        AGGREGATED_BYTES_PROCESSED_RATE);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, AGGREGATE, ERROR_RATE, AGGREGATED_ERROR_RATE);
-    _dynamicMetricsManager.registerMetric(CLASS_NAME, AGGREGATE, REBALANCE_RATE, AGGREGATED_REBALANCE_RATE);
+    _consumerMetrics = new CommonConnectorMetrics(CLASS_NAME, _datastreamName);
+    _consumerMetrics.createEventProcessingMetrics();
+    _consumerMetrics.createPollMetrics();
+    _consumerMetrics.createPartitionMetrics();
   }
 
   public static Consumer<?, ?> createConsumer(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
@@ -208,8 +162,7 @@ public class KafkaConnectorTask implements Runnable {
 
           @Override
           public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-            _rebalanceRate.mark();
-            AGGREGATED_REBALANCE_RATE.mark();
+            _consumerMetrics.updateRebalanceRate(1);
             //nop
             LOG.info("Partition ownership assigned for {}.", partitions);
           }
@@ -220,8 +173,8 @@ public class KafkaConnectorTask implements Runnable {
           //read a batch of records
           try {
             records = consumer.poll(pollInterval);
-            _numKafkaPolls.mark();
-            _eventCountsPerPoll.update(records.count());
+            _consumerMetrics.updateNumKafkaPolls(1);
+            _consumerMetrics.updateEventCountsPerPoll(records.count());
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
             if (_shouldDie) {
@@ -258,6 +211,10 @@ public class KafkaConnectorTask implements Runnable {
             // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
             //                  in case the _shouldDie signal is set (similar to kafka wakeup)
             translateAndSendBatch(records, readTime, strReadTime);
+
+            if (System.currentTimeMillis() - readTime > _processingDelayLogThresholdMs) {
+              _consumerMetrics.updateProcessingAboveThreshold(1);
+            }
 
             if (_shouldDie) {
               continue;
@@ -352,14 +309,9 @@ public class KafkaConnectorTask implements Runnable {
 
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_PROCESSED_RATE));
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + EVENTS_BYTE_PROCESSED_RATE));
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + ERROR_RATE));
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + REBALANCE_RATE));
-    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX_REGEX + NUM_KAFKA_POLLS));
-    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX_REGEX + EVENT_COUNTS_PER_POLL));
-    metrics.add(new BrooklinGaugeInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_RECEIVED));
-    metrics.add(new BrooklinGaugeInfo(METRICS_PREFIX_REGEX + TIME_SINCE_LAST_EVENT_PROCESSED));
+    metrics.addAll(CommonConnectorMetrics.getEventProcessingMetrics(METRICS_PREFIX_REGEX));
+    metrics.addAll(CommonConnectorMetrics.getEventPollMetrics(METRICS_PREFIX_REGEX));
+    metrics.addAll(CommonConnectorMetrics.getPartitionSpecificMetrics(METRICS_PREFIX_REGEX));
     return metrics;
   }
 
@@ -380,8 +332,7 @@ public class KafkaConnectorTask implements Runnable {
       try {
         sendMessage(record, readTime, strReadTime);
       } catch (RuntimeException e) {
-        _errorRate.mark();
-        AGGREGATED_ERROR_RATE.mark();
+        _consumerMetrics.updateErrorRate(1);
         // Throw the exception and let the connector rewind and retry.
         throw e;
       }
@@ -393,12 +344,9 @@ public class KafkaConnectorTask implements Runnable {
     while (true) {
       count++;
       try {
-        _lastEventReceivedTime = Instant.now();
-        _eventsProcessedRate.mark();
-        AGGREGATED_EVENTS_PROCESSED_RATE.mark();
+        _consumerMetrics.updateLastEventReceivedTime(Instant.now());
         int numBytes = record.serializedKeySize() + record.serializedValueSize();
-        _bytesProcessedRate.mark(numBytes);
-        AGGREGATED_BYTES_PROCESSED_RATE.mark(numBytes);
+        _consumerMetrics.updateBytesProcessedRate(numBytes);
         _producer.send(translate(record, readTime, strReadTime), null);
         return; // Break the retry loop and exit.
       } catch (RuntimeException e) {
