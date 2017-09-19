@@ -3,6 +3,7 @@ package com.linkedin.datastream.connectors;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,6 +36,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 public class CommonConnectorMetrics {
   public static final String AGGREGATE = "aggregate";
   private static final Logger LOG = LoggerFactory.getLogger(CommonConnectorMetrics.class);
+  private final Logger _errorLogger;
 
   // Event processing related metrics
   public static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
@@ -88,7 +90,8 @@ public class CommonConnectorMetrics {
    *                   DynamicMetricsManager uses both the className and metricsKey is used to construct
    *                   the full metric name.
    */
-  public CommonConnectorMetrics(String className, String metricsKey) {
+  public CommonConnectorMetrics(String className, String metricsKey, Logger errorLogger) {
+    _errorLogger = errorLogger;
     _className = className;
     _metricsKey = metricsKey;
   }
@@ -175,8 +178,8 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateErrorRate(long val) {
-    // TODO: Logs should be per connector choice right?
-    // LOG.error("updateErrorRate with {}. Look for error logs right before this message to see what happened", val);
+    // TODO: Move logging out of this class; possibly to a common abstract base task handler class in the future
+    _errorLogger.error("updateErrorRate with {}. Look for error logs right before this message to see what happened", val);
     updateErrorRate(val, null, null);
   }
 
@@ -188,7 +191,7 @@ public class CommonConnectorMetrics {
    */
   public void updateErrorRate(long val, String message, Exception e) {
     if (!StringUtils.isEmpty(message)) {
-      LOG.error("updateErrorRate with message: " + message, e);
+      _errorLogger.error("updateErrorRate with message: " + message, e);
     }
     _errorRate.mark(val);
     _aggregatedErrorRate.mark(val);
@@ -281,7 +284,7 @@ public class CommonConnectorMetrics {
     metrics.add(new BrooklinMeterInfo(prefix + ERROR_RATE));
     metrics.add(new BrooklinMeterInfo(prefix + NUM_PROCESSING_ABOVE_THRESHOLD));
     metrics.add(new BrooklinGaugeInfo(prefix + TIME_SINCE_LAST_EVENT_RECEIVED));
-    return metrics;
+    return Collections.unmodifiableList(metrics);
   }
 
   /**
@@ -296,7 +299,7 @@ public class CommonConnectorMetrics {
     metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_OVER_TIMEOUT));
     metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT));
     metrics.add(new BrooklinHistogramInfo(prefix + EVENT_COUNTS_PER_POLL));
-    return metrics;
+    return Collections.unmodifiableList(metrics);
   }
 
   /**
@@ -309,6 +312,6 @@ public class CommonConnectorMetrics {
     prefix = Strings.nullToEmpty(prefix);
     metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE));
     metrics.add(new BrooklinMeterInfo(prefix + STUCK_PARTITIONS));
-    return metrics;
+    return Collections.unmodifiableList(metrics);
   }
 }

@@ -109,7 +109,7 @@ public class KafkaConnectorTask implements Runnable {
     _retrySleepDuration = retrySleepDuration;
     _datastreamName = task.getDatastreams().get(0).getName();
 
-    _consumerMetrics = new CommonConnectorMetrics(CLASS_NAME, _datastreamName);
+    _consumerMetrics = new CommonConnectorMetrics(CLASS_NAME, _datastreamName, LOG);
     _consumerMetrics.createEventProcessingMetrics();
     _consumerMetrics.createPollMetrics();
     _consumerMetrics.createPartitionMetrics();
