@@ -10,7 +10,6 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Reservoir;
 
 
 /**
@@ -218,43 +217,6 @@ public class DynamicMetricsManager {
    */
   public void createOrUpdateMeter(Class<?> clazz, String metricName, long value) {
     createOrUpdateMeter(clazz, null, metricName, value);
-  }
-
-  /**
-   * Create a histogram for the specified key/metricName pair by the given value if it doesnt exist
-   * @param classSimpleName the simple name of the underlying class
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param reservoir the value to update on the histogram
-   */
-  public void createHistogram(String classSimpleName, String key, String metricName, Reservoir reservoir) {
-    validateArguments(classSimpleName, metricName);
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-
-    // create and register the metric if it does not exist
-    if (!checkCache(classSimpleName, fullMetricName).isPresent()) {
-      Histogram histogram = new Histogram(reservoir);
-      _metricRegistry.register(fullMetricName, histogram);
-      updateCache(classSimpleName, fullMetricName, histogram);
-    }
-  }
-
-  /**
-   * Update the histogram if it exists for the specified key/metricName pair by the given value.
-   * @param classSimpleName the simple name of the underlying class
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param value the value to update on the histogram
-   */
-  public void updateHistogram(String classSimpleName, String key, String metricName, long value) {
-    validateArguments(classSimpleName, metricName);
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-    Optional<Metric> metric = checkCache(classSimpleName, fullMetricName);
-    if (metric.isPresent()) {
-      Histogram histogram = (Histogram) metric.get();
-      histogram.update(value);
-      updateCache(classSimpleName, fullMetricName, histogram);
-    }
   }
 
   /**

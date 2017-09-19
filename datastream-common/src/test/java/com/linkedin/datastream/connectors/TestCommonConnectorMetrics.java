@@ -1,4 +1,4 @@
-package com.linkedin.datastream.connector;
+package com.linkedin.datastream.connectors;
 
 import java.time.Instant;
 
@@ -6,13 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 public class TestCommonConnectorMetrics {
   private static final Logger LOG = LoggerFactory.getLogger(TestCommonConnectorMetrics.class);
@@ -103,8 +104,8 @@ public class TestCommonConnectorMetrics {
     CONNECTOR_CONSUMER2.createPollMetrics();
 
     for (int i = 0; i < 10; i++) {
-      CONNECTOR_CONSUMER1.updateNumKafkaPolls(1);
-      CONNECTOR_CONSUMER2.updateNumKafkaPolls(5);
+      CONNECTOR_CONSUMER1.updateNumPolls(1);
+      CONNECTOR_CONSUMER2.updateNumPolls(5);
       CONNECTOR_CONSUMER1.updateEventCountsPerPoll(1 * i);
       CONNECTOR_CONSUMER2.updateEventCountsPerPoll(5 * i);
       CONNECTOR_CONSUMER1.updateClientPollOverTimeout(1);
@@ -113,9 +114,9 @@ public class TestCommonConnectorMetrics {
       CONNECTOR_CONSUMER2.updateClientPollIntervalOverSessionTimeout(4);
     }
     Assert.assertEquals(((Meter) METRICS_MANAGER.getMetric(CLASS_NAME +
-        DELIMITED_CONSUMER1_NAME + CommonConnectorMetrics.NUM_KAFKA_POLLS)).getCount(), 10);
+        DELIMITED_CONSUMER1_NAME + CommonConnectorMetrics.NUM_POLLS)).getCount(), 10);
     Assert.assertEquals(((Meter) METRICS_MANAGER.getMetric(CLASS_NAME +
-        DELIMITED_CONSUMER2_NAME + CommonConnectorMetrics.NUM_KAFKA_POLLS)).getCount(), 50);
+        DELIMITED_CONSUMER2_NAME + CommonConnectorMetrics.NUM_POLLS)).getCount(), 50);
     Assert.assertEquals(((Histogram) METRICS_MANAGER.getMetric(CLASS_NAME +
         DELIMITED_CONSUMER1_NAME + CommonConnectorMetrics.EVENT_COUNTS_PER_POLL)).getSnapshot().get99thPercentile(), 9.0);
     Assert.assertEquals(((Histogram) METRICS_MANAGER.getMetric(CLASS_NAME +

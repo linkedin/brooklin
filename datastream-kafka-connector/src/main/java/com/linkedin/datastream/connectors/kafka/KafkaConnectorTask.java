@@ -37,7 +37,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.connector.CommonConnectorMetrics;
+import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamEventProducer;
@@ -52,6 +52,7 @@ public class KafkaConnectorTask implements Runnable {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
   // Regular expression to capture all metrics by this kafka connector.
   private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
+  private static final long POLL_BUFFER_TIME_MS = 1000;
 
   public static final String CFG_SKIP_BAD_MESSAGE = "skipBadMessage";
   public static final String PROCESSING_DELAY_LOG_TRESHOLD_MS = "processingDelayLogThreshold";
@@ -169,11 +170,18 @@ public class KafkaConnectorTask implements Runnable {
         });
 
         while (!_shouldDie) {
-
           //read a batch of records
           try {
+            long curPollTime = System.currentTimeMillis();
             records = consumer.poll(pollInterval);
-            _consumerMetrics.updateNumKafkaPolls(1);
+            long pollDurationMs = System.currentTimeMillis() - curPollTime;
+            if (pollDurationMs > pollInterval + POLL_BUFFER_TIME_MS) {
+              // Record poll time exceeding client poll timeout
+              LOG.warn(String.format("ConsumerId: %s, Kafka client poll took %d ms (> poll timeout %d + buffer time %d ms)",
+                  _taskName, pollDurationMs, pollInterval, POLL_BUFFER_TIME_MS));
+              _consumerMetrics.updateClientPollOverTimeout(1);
+            }
+            _consumerMetrics.updateNumPolls(1);
             _consumerMetrics.updateEventCountsPerPoll(records.count());
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
