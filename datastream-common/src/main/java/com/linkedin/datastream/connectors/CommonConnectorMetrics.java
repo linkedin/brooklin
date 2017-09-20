@@ -312,8 +312,8 @@ public class CommonConnectorMetrics {
   public static List<BrooklinMetricInfo> getPartitionSpecificMetrics(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);
-    // Specify the attribute to expose to the final metric registry.
-    //TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
+    // Specify the attributes to expose to the final metric registry.
+    // TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
     metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
         Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
     metrics.add(new BrooklinMeterInfo(prefix + STUCK_PARTITIONS));
