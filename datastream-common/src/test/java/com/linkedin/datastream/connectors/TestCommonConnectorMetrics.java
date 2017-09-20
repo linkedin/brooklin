@@ -27,9 +27,9 @@ public class TestCommonConnectorMetrics {
   private static final DynamicMetricsManager METRICS_MANAGER = DynamicMetricsManager.createInstance(new MetricRegistry());
 
   private static final CommonConnectorMetrics CONNECTOR_CONSUMER1 =
-      new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME);
+      new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
   private static final CommonConnectorMetrics CONNECTOR_CONSUMER2 =
-      new CommonConnectorMetrics(CLASS_NAME, CONSUMER2_NAME);
+      new CommonConnectorMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
 
   @Test
   public void testConnectorEventProcessingMetrics() {
