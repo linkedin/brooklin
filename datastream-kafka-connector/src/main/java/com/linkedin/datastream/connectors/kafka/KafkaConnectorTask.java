@@ -28,6 +28,7 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.Datastream;
@@ -183,6 +184,9 @@ public class KafkaConnectorTask implements Runnable {
             }
             _consumerMetrics.updateNumPolls(1);
             _consumerMetrics.updateEventCountsPerPoll(records.count());
+            if (!records.isEmpty()) {
+              _consumerMetrics.updateLastEventReceivedTime(Instant.now());
+            }
           } catch (NoOffsetForPartitionException e) {
             LOG.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
             if (_shouldDie) {
@@ -352,7 +356,6 @@ public class KafkaConnectorTask implements Runnable {
     while (true) {
       count++;
       try {
-        _consumerMetrics.updateLastEventReceivedTime(Instant.now());
         int numBytes = record.serializedKeySize() + record.serializedValueSize();
         _consumerMetrics.updateBytesProcessedRate(numBytes);
         _producer.send(translate(record, readTime, strReadTime), null);
