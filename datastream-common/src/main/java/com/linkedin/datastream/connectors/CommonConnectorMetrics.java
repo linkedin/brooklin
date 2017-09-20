@@ -3,8 +3,10 @@ package com.linkedin.datastream.connectors;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -310,7 +312,10 @@ public class CommonConnectorMetrics {
   public static List<BrooklinMetricInfo> getPartitionSpecificMetrics(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);
-    metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE));
+    // Specify the attribute to expose to the final metric registry.
+    //TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
+    metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
+        Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
     metrics.add(new BrooklinMeterInfo(prefix + STUCK_PARTITIONS));
     return Collections.unmodifiableList(metrics);
   }
