@@ -858,30 +858,32 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private void handleLeaderDoAssignment() {
-
-    List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
-
-    _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
-
-    // get all current live instances
-    List<String> liveInstances = _adapter.getLiveInstances();
-
-    // Map between instance to tasks assigned to the instance.
-    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
-
-    // Map between Instance and the tasks
-    Map<String, List<DatastreamTask>> newAssignmentsByInstance =
-        performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
-
-    // persist the assigned result to zookeeper. This means we will need to compare with the current
-    // assignment and do remove and add zNodes accordingly. In the case of zookeeper failure (when
-    // it failed to create or delete zNodes), we will do our best to continue the current process
-    // and schedule a retry. The retry should be able to diff the remaining zookeeper work
     boolean succeeded = true;
+    List<String> liveInstances = Collections.emptyList();
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
+
     try {
+      List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
+
+      _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
+
+      // get all current live instances
+      liveInstances = _adapter.getLiveInstances();
+
+      // Map between instance to tasks assigned to the instance.
+      previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+
+      // Map between Instance and the tasks
+      newAssignmentsByInstance = performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
+
+      // persist the assigned result to zookeeper. This means we will need to compare with the current
+      // assignment and do remove and add zNodes accordingly. In the case of zookeeper failure (when
+      // it failed to create or delete zNodes), we will do our best to continue the current process
+      // and schedule a retry. The retry should be able to diff the remaining zookeeper work
       _adapter.updateAllAssignments(newAssignmentsByInstance);
     } catch (RuntimeException e) {
-      _log.error("handleLeaderDoAssignment: runtime Exception while updating Zookeeper.", e);
+      _log.error("handleLeaderDoAssignment: runtime exception.", e);
       succeeded = false;
     }
 
