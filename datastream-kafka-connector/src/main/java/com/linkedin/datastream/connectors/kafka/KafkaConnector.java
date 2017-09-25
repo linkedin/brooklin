@@ -14,6 +14,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.IntStream;
 
 import org.apache.commons.lang.StringUtils;
@@ -53,13 +55,11 @@ public class KafkaConnector implements Connector {
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
-  private final Properties _connectorProprs;
   private final Properties _consumerProps;
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
   public KafkaConnector(String name, Properties config) {
     _name = name;
-    _connectorProprs = config;
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
     _defaultValueSerde = verifiableProperties.getString(CONFIG_DEFAULT_VALUE_SERDE, "");
@@ -185,40 +185,49 @@ public class KafkaConnector implements Connector {
         LOG.error(msg);
         throw new DatastreamValidationException(msg);
       }
-      try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
-          "partitionFinder", parsed)) {
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(parsed.getTopicName());
-        if (partitionInfos == null) {
-          throw new DatastreamValidationException(
-              "Can't get partition info from kafka. Very likely that auto topic creation "
-                  + "is disabled on the broker and the topic doesn't exist: " + parsed.getTopicName());
+      if (parsed.isPattern()) {
+        try {
+          // Checking if the regular expression is valid.
+          Pattern.compile(parsed.getTopicPattern());
+        } catch (PatternSyntaxException e) {
+          throw new DatastreamValidationException("Invalid kafka Topic Pattern.", e);
         }
-        int numPartitions = partitionInfos.size();
-        if (!source.hasPartitions()) {
-          LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
-          source.setPartitions(numPartitions);
-        } else {
-          if (source.getPartitions() != numPartitions) {
-            String msg =
-                String.format("Source is configured with %d partitions, But the topic %s actually has %d partitions",
-                    source.getPartitions(), parsed.getTopicName(), numPartitions);
-            LOG.error(msg);
-            throw new DatastreamValidationException(msg);
+      } else {
+        try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
+            "partitionFinder", parsed)) {
+          List<PartitionInfo> partitionInfos = consumer.partitionsFor(parsed.getTopicName());
+          if (partitionInfos == null) {
+            throw new DatastreamValidationException(
+                "Can't get partition info from kafka. Very likely that auto topic creation "
+                    + "is disabled on the broker and the topic doesn't exist: " + parsed.getTopicName());
           }
-        }
+          int numPartitions = partitionInfos.size();
+          if (!source.hasPartitions()) {
+            LOG.info("Kafka source {} has {} partitions.", parsed, numPartitions);
+            source.setPartitions(numPartitions);
+          } else {
+            if (source.getPartitions() != numPartitions) {
+              String msg =
+                  String.format("Source is configured with %d partitions, But the topic %s actually has %d partitions",
+                      source.getPartitions(), parsed.getTopicName(), numPartitions);
+              LOG.error(msg);
+              throw new DatastreamValidationException(msg);
+            }
+          }
 
-        // Try to see if the start positions requested are valid.
-        // Value is a json string encoding partition to offset, like {"0":23,"1":15,"2":88}
-        if (stream.getMetadata().containsKey(DatastreamMetadataConstants.START_POSITION)) {
-          String json = stream.getMetadata().get(DatastreamMetadataConstants.START_POSITION);
-          Map<Integer, Long> offsetMap = JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
-          });
-          if (offsetMap.size() != numPartitions || IntStream.range(0, numPartitions)
-              .anyMatch(x -> !offsetMap.containsKey(x))) {
-            String msg =
-                String.format("Missing partitions starting offset for datastream %s, json value %s", stream, json);
-            LOG.warn(msg);
-            throw new DatastreamValidationException(msg);
+          // Try to see if the start positions requested are valid.
+          // Value is a json string encoding partition to offset, like {"0":23,"1":15,"2":88}
+          if (stream.getMetadata().containsKey(DatastreamMetadataConstants.START_POSITION)) {
+            String json = stream.getMetadata().get(DatastreamMetadataConstants.START_POSITION);
+            Map<Integer, Long> offsetMap = JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
+            });
+            if (offsetMap.size() != numPartitions || IntStream.range(0, numPartitions)
+                .anyMatch(x -> !offsetMap.containsKey(x))) {
+              String msg =
+                  String.format("Missing partitions starting offset for datastream %s, json value %s", stream, json);
+              LOG.warn(msg);
+              throw new DatastreamValidationException(msg);
+            }
           }
         }
       }

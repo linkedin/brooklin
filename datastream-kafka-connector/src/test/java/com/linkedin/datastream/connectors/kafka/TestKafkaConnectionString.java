@@ -51,29 +51,30 @@ public class TestKafkaConnectionString {
   @Test
   public void testSimpleString() {
     Assert.assertEquals(
-        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)), "topic"),
-        KafkaConnectionString.valueOf("kafka://somewhere:666/topic")
-    );
+        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)), false, "topic"),
+        KafkaConnectionString.valueOf("kafka://somewhere:666/topic"));
   }
 
   @Test
   public void testMultipleBrokers() {
-    Assert.assertEquals(
-        new KafkaConnectionString(
-            Arrays.asList(
-              new KafkaBrokerAddress("somewhere", 666),
-              new KafkaBrokerAddress("somewhereElse", 667)
-            ),
-            "topic"
-        ),
-        KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse:667/topic")
-    );
+    Assert.assertEquals(new KafkaConnectionString(
+        Arrays.asList(new KafkaBrokerAddress("somewhere", 666), new KafkaBrokerAddress("somewhereElse", 667)), false,
+        "topic"), KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse:667/topic"));
   }
 
   @Test
   public void testBrokerListSorting() {
     KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/topic");
     Assert.assertEquals("kafka://a:666,a:667,b:665/topic", connectionString.toString());
+    Assert.assertFalse(connectionString.isPattern());
+    Assert.assertNull(connectionString.getTopicPattern());
+  }
+
+  @Test void testTopicPattern() {
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/pattern:topic.*");
+    Assert.assertTrue(connectionString.isPattern());
+    Assert.assertNull(connectionString.getTopicName());
+    Assert.assertEquals(connectionString.getTopicPattern(), "topic.*");
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
