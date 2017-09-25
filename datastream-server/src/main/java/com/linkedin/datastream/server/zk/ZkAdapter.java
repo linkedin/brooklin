@@ -9,7 +9,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -119,11 +118,11 @@ public class ZkAdapter {
   private Random randomGenerator = new Random();
 
   private ZkLeaderElectionListener _leaderElectionListener = new ZkLeaderElectionListener();
-  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
-
-  // only the leader should maintain this list
-  private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedTaskListProvider _assignmentList = null;
+
+  // only the leader should maintain this list and listen to the changes of live instances
+  private ZkBackedDMSDatastreamList _datastreamList = null;
+  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
@@ -379,7 +378,9 @@ public class ZkAdapter {
    * been fully populated by the leader Coordinator via strategies.
    */
   public List<String> getAllInstances() {
-    return _zkclient.getChildren(KeyBuilder.instances(_cluster));
+    String path = KeyBuilder.instances(_cluster);
+    _zkclient.ensurePath(path);
+    return _zkclient.getChildren(path);
   }
 
   /**
@@ -417,13 +418,16 @@ public class ZkAdapter {
    */
   public List<String> getInstanceAssignment(String instance) {
     String path = KeyBuilder.instanceAssignments(_cluster, instance);
+    if (!_zkclient.exists(path)) {
+      return Collections.emptyList();
+    }
     return _zkclient.getChildren(path);
   }
 
   /**
    * When previous leader dies, we lose all the cached tasks.
    * As the current leader, we should try to load tasks from ZK.
-   * This is very likely to be one time operation, so it should
+   * This is very likely to be one time operation, so it should be
    * okay to hit ZK.
    */
   private void loadAllDatastreamTasks() {
@@ -590,7 +594,7 @@ public class ZkAdapter {
     for (String instance : nodesToAdd.keySet()) {
       Set<String> added = nodesToAdd.get(instance);
       if (added.size() > 0) {
-        LOG.info("Instance: " + instance + ", adding assignments: " + setToString(added));
+        LOG.info("Instance: {}, adding assignments: {}", instance, added);
         for (String name : added) {
           addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
         }
@@ -601,7 +605,7 @@ public class ZkAdapter {
     for (String instance : nodesToRemove.keySet()) {
       Set<String> removed = nodesToRemove.get(instance);
       if (removed.size() > 0) {
-        LOG.info("Instance: " + instance + ", removing assignments: " + setToString(removed));
+        LOG.info("Instance: {}, removing assignments: ", instance, removed);
         for (String name : removed) {
           removeTaskNodes(instance, name);
         }
@@ -654,27 +658,6 @@ public class ZkAdapter {
     }
   }
 
-  // helper method for generating human readable log message, from a set of strings to a string
-  private String setToString(Set<String> list) {
-    StringBuffer sb = new StringBuffer();
-    sb.append("[");
-
-    Iterator<String> it = list.iterator();
-    boolean isFirst = true;
-
-    while (it.hasNext()) {
-      if (!isFirst) {
-        sb.append(", ");
-      } else {
-        isFirst = false;
-      }
-      sb.append(it.next());
-    }
-    sb.append("]");
-
-    return sb.toString();
-  }
-
   // create a live instance node, in the form of a sequence number with the znode path
   // /{cluster}/liveinstances/{sequenceNuber}
   // also write the hostname as the content of the node. This allows us to map this node back
@@ -696,9 +679,10 @@ public class ZkAdapter {
     // create an ephemeral sequential node under /{cluster}/liveinstances for leader election
     //
     String electionPath = KeyBuilder.liveInstance(_cluster, "");
-    LOG.info("Creating ephemeral node " + electionPath);
+    LOG.info("Creating ephemeral node on path: {}", electionPath);
     String liveInstancePath = _zkclient.create(electionPath, _hostname, CreateMode.EPHEMERAL_SEQUENTIAL);
     _liveInstanceName = liveInstancePath.substring(electionPath.length());
+    LOG.info("Getting live instance name as: {}", _liveInstanceName);
 
     //
     // create instance node /{cluster}/instance/{instanceName} for keeping instance
@@ -774,7 +758,7 @@ public class ZkAdapter {
    * NOTE: this should only be called after the valid tasks have been
    * reassigned or safe to discard per strategy requirement.
    *
-   * Coordinator is expect to cache the "current" assignment before
+   * Coordinator is expected to cache the "current" assignment before
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
    */
@@ -789,7 +773,7 @@ public class ZkAdapter {
         LOG.info("Deleting zk path recursively: " + path);
         if (!_zkclient.deleteRecursive(path)) {
           // Ignore such failure for now
-          LOG.warn("Failed to remove zk path: " + path);
+          LOG.warn("Failed to remove zk path: {} Very likely that the zk node doesn't exist anymore", path);
         }
 
         if (_liveTaskMap.containsKey(instance)) {

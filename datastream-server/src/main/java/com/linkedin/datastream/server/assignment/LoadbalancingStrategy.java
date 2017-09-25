@@ -1,7 +1,7 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -63,8 +63,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
     int maxTasksPerDatastream = Math.max(instances.size() * overPartitioningFactor, minTasks);
     List<DatastreamTask> datastreamTasks = getDatastreamTasks(datastreams, currentAssignment, maxTasksPerDatastream);
-    Collections.sort(datastreamTasks, (a, b) -> a.getDatastreamTaskName().compareTo(b.getDatastreamTaskName()));
-    Collections.sort(instances);
+    datastreamTasks.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
+    instances.sort(String::compareTo);
 
     Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
     instances.forEach(i -> assignment.put(i, new HashSet<>()));
