@@ -316,7 +316,7 @@ public class CommonConnectorMetrics {
     // TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
     metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
         Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
-    metrics.add(new BrooklinMeterInfo(prefix + STUCK_PARTITIONS));
+    metrics.add(new BrooklinGaugeInfo(prefix + STUCK_PARTITIONS));
     return Collections.unmodifiableList(metrics);
   }
 }
