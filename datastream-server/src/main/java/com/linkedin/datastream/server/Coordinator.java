@@ -814,8 +814,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private void deleteTopic(Datastream datastream) {
     try {
-      if (StringUtils.equals(datastream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
-          "true")) {
+      if (DatastreamUtils.isUserManagedDestination(datastream)) {
         _log.info("BYOT(bring your own topic), topic will not be deleted");
       } else {
         _transportProviderAdmins.get(datastream.getTransportProviderName()).dropDestination(datastream);
@@ -1131,8 +1130,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
 
       // For a BYOT datastream, check that the destination is not already in use by other streams
-      if (StringUtils.equals(datastream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
-          "true")) {
+      if (DatastreamUtils.isUserManagedDestination(datastream)) {
         List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
             ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
             .collect(Collectors.toList());
