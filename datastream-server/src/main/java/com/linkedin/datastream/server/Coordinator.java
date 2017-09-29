@@ -1121,6 +1121,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
       }
 
+      // For a BYOT datastream, check that the destination is not already in use by other streams
+      if (StringUtils.equals(datastream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
+          "true")) {
+        List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
+            ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
+            .collect(Collectors.toList());
+        // If other streams exist with same destination and is not the same datastream then return validation exception.
+        // If a Datastream create request is made for an existing datastream we should return DatastreamAlreadyExistsException
+        // and is handled in createDatastream of DMS service
+        if (!sameDestinationDatastreams.isEmpty() && !sameDestinationDatastreams.get(0).getName().equals(datastream.getName())) {
+          String errMsg = String.format("Cannot create a BYOT datastream where the destination is being used " + " by other datastream(s): %s",
+              sameDestinationDatastreams);
+          _log.error(errMsg);
+          throw new DatastreamValidationException(errMsg);
+        }
+      }
+
       if (existingDatastream.isPresent()) {
         populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
         datastream.getMetadata()

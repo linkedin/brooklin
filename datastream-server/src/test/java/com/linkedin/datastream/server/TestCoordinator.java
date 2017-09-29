@@ -12,8 +12,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-
 import java.util.concurrent.atomic.AtomicLong;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -43,12 +43,14 @@ import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
+import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
@@ -65,6 +67,7 @@ public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
   private static final int WAIT_TIMEOUT_MS = 30000;
+  private CachedDatastreamReader _cachedDatastreamReader;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -85,8 +88,8 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
-    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(client, cluster);
-    Coordinator coordinator = new Coordinator(datastreamCache, props);
+    _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
+    Coordinator coordinator = new Coordinator(_cachedDatastreamReader, props);
     DummyTransportProviderAdminFactory factory = new DummyTransportProviderAdminFactory();
     coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
         factory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
@@ -479,6 +482,46 @@ public class TestCoordinator {
     //
     instance1.stop();
     zkClient.close();
+  }
+
+  /**
+    * Test Datastream create with BYOT where destination is in use by another datastream
+    * @throws Exception
+    */
+  @Test
+  public void testBYOTDatastreamWithUsedDestination() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConectorType = "testConnectorType";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
+    coordinator.addConnector(testConectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
+        null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream ds1 = DatastreamTestUtils.createDatastream(testConectorType, "testDatastream1", "testSource1",
+        "testDestination1", 32);
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+    resource.create(ds1);
+
+    Thread.sleep(1000000);
+
+    Datastream ds2 = DatastreamTestUtils.createDatastream(testConectorType, "testDatastream2", "testSource2",
+        "testDestination1", 32);
+
+    try {
+      resource.create(ds2);
+      Assert.fail("DatastreamValidationException expected on creation of testDatastream2 with a pre-used destination");
+    } catch (RestLiServiceException e) {
+      Assert.assertTrue(e.getMessage().contains("DatastreamValidationException"));
+    }
+
+    ds2.getDestination().setConnectionString("testDestination2"); // Should succeed with a different destination
+    resource.create(ds2);
   }
 
   private void assertConnectorReceiveDatastreamUpdate(TestHookConnector connector, Datastream updatedDatastream)
