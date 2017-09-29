@@ -508,8 +508,6 @@ public class TestCoordinator {
     DatastreamResources resource = new DatastreamResources(store, coordinator);
     resource.create(ds1);
 
-    Thread.sleep(1000000);
-
     Datastream ds2 = DatastreamTestUtils.createDatastream(testConectorType, "testDatastream2", "testSource2",
         "testDestination1", 32);
 

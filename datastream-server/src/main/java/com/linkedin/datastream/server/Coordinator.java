@@ -37,6 +37,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -1082,6 +1083,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
 
+    // If datastream of name already exists return error
+    if (!allDatastreams.stream().filter(x -> x.getName().equals(datastream.getName())).collect(
+        Collectors.toList()).isEmpty()) {
+      String errMsg = String.format("Datastream with name %s already exists", datastream.getName());
+      _log.error(errMsg);
+      throw new DatastreamAlreadyExistsException(errMsg);
+    }
+
     if (!StringUtils.isEmpty(_config.getDefaultTransportProviderName())) {
       if (!datastream.hasTransportProviderName() || StringUtils.isEmpty(datastream.getTransportProviderName())) {
         datastream.setTransportProviderName(_config.getDefaultTransportProviderName());
@@ -1127,12 +1136,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
             ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
             .collect(Collectors.toList());
-        // If other streams exist with same destination and is not the same datastream then return validation exception.
-        // If a Datastream create request is made for an existing datastream we should return DatastreamAlreadyExistsException
-        // and is handled in createDatastream of DMS service
-        if (!sameDestinationDatastreams.isEmpty() && !sameDestinationDatastreams.get(0).getName().equals(datastream.getName())) {
-          String errMsg = String.format("Cannot create a BYOT datastream where the destination is being used " + " by other datastream(s): %s",
-              sameDestinationDatastreams);
+        if (!sameDestinationDatastreams.isEmpty()) {
+          String errMsg = ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
+          for (Datastream x : sameDestinationDatastreams) {
+            errMsg = errMsg + " " + x.getName();
+          }
           _log.error(errMsg);
           throw new DatastreamValidationException(errMsg);
         }
