@@ -37,6 +37,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -813,8 +814,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private void deleteTopic(Datastream datastream) {
     try {
-      if (StringUtils.equals(datastream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
-          "true")) {
+      if (DatastreamUtils.isUserManagedDestination(datastream)) {
         _log.info("BYOT(bring your own topic), topic will not be deleted");
       } else {
         _transportProviderAdmins.get(datastream.getTransportProviderName()).dropDestination(datastream);
@@ -1082,6 +1082,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
 
+    // If datastream of name already exists return error
+    if (!allDatastreams.stream().filter(x -> x.getName().equals(datastream.getName())).collect(
+        Collectors.toList()).isEmpty()) {
+      String errMsg = String.format("Datastream with name %s already exists", datastream.getName());
+      _log.error(errMsg);
+      throw new DatastreamAlreadyExistsException(errMsg);
+    }
+
     if (!StringUtils.isEmpty(_config.getDefaultTransportProviderName())) {
       if (!datastream.hasTransportProviderName() || StringUtils.isEmpty(datastream.getTransportProviderName())) {
         datastream.setTransportProviderName(_config.getDefaultTransportProviderName());
@@ -1119,6 +1127,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Dedup datastream only when its destination is not populated and allows reuse
       if (!hasValidDestination(datastream) && isReuseAllowed(datastream)) {
         existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
+      }
+
+      // For a BYOT datastream, check that the destination is not already in use by other streams
+      if (DatastreamUtils.isUserManagedDestination(datastream)) {
+        List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
+            ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
+            .collect(Collectors.toList());
+        if (!sameDestinationDatastreams.isEmpty()) {
+          String errMsg = ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
+          for (Datastream x : sameDestinationDatastreams) {
+            errMsg = errMsg + " " + x.getName();
+          }
+          _log.error(errMsg);
+          throw new DatastreamValidationException(errMsg);
+        }
       }
 
       if (existingDatastream.isPresent()) {
