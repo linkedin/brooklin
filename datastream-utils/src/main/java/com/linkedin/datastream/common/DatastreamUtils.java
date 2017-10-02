@@ -116,7 +116,6 @@ public final class DatastreamUtils {
       return Boolean.parseBoolean(DEFAULT_TOPIC_REUSE);
     } else {
       return Boolean.parseBoolean(
-
           stream.getMetadata().getOrDefault(REUSE_EXISTING_DESTINATION_KEY, DEFAULT_TOPIC_REUSE));
     }
   }
