@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 import java.util.Optional;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 
 import com.linkedin.data.template.GetMode;
@@ -117,5 +118,10 @@ public final class DatastreamUtils {
       return Boolean.parseBoolean(
           stream.getMetadata().getOrDefault(REUSE_EXISTING_DESTINATION_KEY, DEFAULT_TOPIC_REUSE));
     }
+  }
+
+  public static boolean isUserManagedDestination(Datastream stream) {
+    return StringUtils.equals(stream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
+        "true");
   }
 }
