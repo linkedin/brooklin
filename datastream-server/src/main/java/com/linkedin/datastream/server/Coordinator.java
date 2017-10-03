@@ -702,7 +702,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * If #2 occurs, it also invalidates the datastream cache for the next assignment.
    *
    * This means TTL is enforced only for below events:
-   *  1) new learder is elected
+   *  1) new leader is elected
    *  2) a new stream is added
    *  3) an existing stream is deleted
    *
