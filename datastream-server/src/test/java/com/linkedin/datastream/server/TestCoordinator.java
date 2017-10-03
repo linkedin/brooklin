@@ -55,6 +55,7 @@ import com.linkedin.restli.server.UpdateResponse;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
@@ -240,8 +241,8 @@ public class TestCoordinator {
       }
     };
 
-    coordinator.addConnector(testConectorType, testConnector, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator.addConnector(testConectorType, testConnector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator.start();
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     //
@@ -291,8 +292,8 @@ public class TestCoordinator {
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
-    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -327,8 +328,8 @@ public class TestCoordinator {
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
-    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -348,8 +349,8 @@ public class TestCoordinator {
     //
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConectorType);
-    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     //
@@ -384,8 +385,8 @@ public class TestCoordinator {
 
     // Check that the task status is Paused
     String task1Name = zkClient.getChildren(pausedPath).get(0);
-    String json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-        task1Name, "STATUS"), true);
+    String json =
+        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, task1Name, "STATUS"), true);
     Assert.assertEquals(JsonUtils.fromJson(json, DatastreamTaskStatus.class), DatastreamTaskStatus.paused());
 
     // Resume the First Datastream.
@@ -403,8 +404,8 @@ public class TestCoordinator {
     Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 0);
 
     // Check that the task status is OK or null (for broadcast datastream the coordinator sometimes create new ones)
-    json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType,
-        task1Name, "STATUS"), true);
+    json =
+        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConectorType, task1Name, "STATUS"), true);
     Assert.assertTrue(
         json == null || JsonUtils.fromJson(json, DatastreamTaskStatus.class).equals(DatastreamTaskStatus.ok()));
 
@@ -416,8 +417,8 @@ public class TestCoordinator {
     ds3.setStatus(DatastreamStatus.INITIALIZING);
     ds3.getMetadata().clear();
     ds3.getMetadata().put("owner", "SecondOwner");
-    ds3.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX,
-        ds1.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+    ds3.getMetadata()
+        .put(DatastreamMetadataConstants.TASK_PREFIX, ds1.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, ds3);
 
     // Wait for DS3 to be ready
@@ -485,9 +486,9 @@ public class TestCoordinator {
   }
 
   /**
-    * Test Datastream create with BYOT where destination is in use by another datastream
-    * @throws Exception
-    */
+   * Test Datastream create with BYOT where destination is in use by another datastream
+   * @throws Exception
+   */
   @Test
   public void testBYOTDatastreamWithUsedDestination() throws Exception {
     String testCluster = "testCoordinationSmoke";
@@ -495,21 +496,23 @@ public class TestCoordinator {
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
-    coordinator.addConnector(testConectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
-    Datastream ds1 = DatastreamTestUtils.createDatastream(testConectorType, "testDatastream1", "testSource1",
-        "testDestination1", 32);
+    Datastream ds1 =
+        DatastreamTestUtils.createDatastream(testConectorType, "testDatastream1", "testSource1", "testDestination1",
+            32);
 
     DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
     DatastreamResources resource = new DatastreamResources(store, coordinator);
     resource.create(ds1);
 
-    Datastream ds2 = DatastreamTestUtils.createDatastream(testConectorType, "testDatastream2", "testSource2",
-        "testDestination1", 32);
+    Datastream ds2 =
+        DatastreamTestUtils.createDatastream(testConectorType, "testDatastream2", "testSource2", "testDestination1",
+            32);
 
     try {
       resource.create(ds2);
@@ -542,10 +545,10 @@ public class TestCoordinator {
     TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
-    coordinator.addConnector(connectorType1, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
-    coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator.addConnector(connectorType1, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator.start();
 
     Datastream ds1 = DatastreamTestUtils.createDatastream(connectorType1, "name1", "source1");
@@ -589,13 +592,13 @@ public class TestCoordinator {
     TestHookConnector connector2 = new TestHookConnector("connector2", connectorType);
 
     Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
-    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator1.start();
 
     Coordinator coordinator2 = createCoordinator(_zkConnectionString, testCluster);
-    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator2.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -646,17 +649,17 @@ public class TestCoordinator {
     TestHookConnector connector22 = new TestHookConnector("connector22", connectorType2);
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-    instance1.addConnector(connectorType1, connector11, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
-    instance1.addConnector(connectorType2, connector12, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(connectorType1, connector11, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    instance1.addConnector(connectorType2, connector12, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
-    instance2.addConnector(connectorType1, connector21, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
-    instance2.addConnector(connectorType2, connector22, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance2.addConnector(connectorType1, connector21, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    instance2.addConnector(connectorType2, connector22, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -769,15 +772,15 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
-    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
 
     TestHookConnector connector2 = new TestHookConnector("connector2", testConectorType);
-    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance2.addConnector(testConectorType, connector2, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     String[] datastreamNames = new String[concurrencyLevel];
@@ -818,8 +821,8 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
-    instance1.addConnector(testConnectorType, connector1, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectorType, connector1, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance1.start();
 
     LOG.info("Creating two datastream");
@@ -842,8 +845,8 @@ public class TestCoordinator {
     //
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
-    instance2.addConnector(testConnectorType, connector2, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectorType, connector2, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance2.start();
 
     //
@@ -859,8 +862,8 @@ public class TestCoordinator {
     //
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
-    instance3.addConnector(testConnectorType, connector3, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance3.addConnector(testConnectorType, connector3, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance3.start();
 
     //
@@ -888,8 +891,8 @@ public class TestCoordinator {
 
     // Check that the task status is Paused
     String task0Name = zkClient.getChildren(pausedPath).get(0);
-    String json = zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType,
-        task0Name, "STATUS"), true);
+    String json =
+        zkClient.readData(KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType, task0Name, "STATUS"), true);
     Assert.assertEquals(JsonUtils.fromJson(json, DatastreamTaskStatus.class), DatastreamTaskStatus.paused());
 
     // Resume "datastream0"
@@ -937,15 +940,15 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectoryType);
-    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance1.start();
 
     // make sure the instance2 can be taken offline cleanly with session expiration
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectoryType);
-    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance2.start();
 
     LOG.info("Create four datastreams");
@@ -1021,15 +1024,15 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectoryType);
-    instance1.addConnector(testConnectoryType, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(testConnectoryType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     // make sure the instance2 can be taken offline cleanly with session expiration
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectoryType);
-    instance2.addConnector(testConnectoryType, connector2, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance2.addConnector(testConnectoryType, connector2, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     LOG.info("Create two datastreams");
@@ -1103,20 +1106,20 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectoryType);
-    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectoryType);
-    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector("connector3", testConnectoryType);
-    instance3.addConnector(testConnectoryType, connector3, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance3.addConnector(testConnectoryType, connector3, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance3.start();
 
     LOG.info("Creating six datastreams");
@@ -1282,14 +1285,14 @@ public class TestCoordinator {
     //
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectoryType);
-    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectoryType, connector1, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectoryType);
-    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectoryType, connector2, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
     instance2.start();
 
     LOG.info("Create two datastreams.");
@@ -1357,8 +1360,8 @@ public class TestCoordinator {
     TestHookConnector connector1b = new TestHookConnector("connector1b", connectoryType2);
     instance1.addConnector(connectoryType1, connector1a, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
         null);
-    instance1.addConnector(connectoryType2, connector1b, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(connectoryType2, connector1b, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
@@ -1366,8 +1369,8 @@ public class TestCoordinator {
     TestHookConnector connector2b = new TestHookConnector("connector2b", connectoryType2);
     instance2.addConnector(connectoryType1, connector2a, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
         null);
-    instance2.addConnector(connectoryType2, connector2b, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance2.addConnector(connectoryType2, connector2b, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     LOG.info("Create three datastreams of connectorType1 and three datastreams of connectorType2");
@@ -1444,8 +1447,8 @@ public class TestCoordinator {
 
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     BadConnector connector1 = new BadConnector();
-    instance1.addConnector(connectoryType1, connector1, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    instance1.addConnector(connectoryType1, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     //
@@ -1492,8 +1495,8 @@ public class TestCoordinator {
     String connectorName = "TestConnector";
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector = new TestHookConnector("connector1", connectorName);
-    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(), false, new SourceBasedDeduper(),
-        null);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
     coordinator.start();
 
     // Create 1st datastream
@@ -1584,7 +1587,7 @@ public class TestCoordinator {
 
     TestHookConnector connector = new TestHookConnector("connector1", DummyConnector.CONNECTOR_TYPE);
 
-    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy(), false,
+    coordinator.addConnector(DummyConnector.CONNECTOR_TYPE, connector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
         new SourceBasedDeduper(), null);
 
     coordinator.start();
@@ -1737,8 +1740,8 @@ public class TestCoordinator {
   public void testDatastreamDeleteUponTTLExpire() throws Exception {
     TestSetup setup = createTestCoordinator();
 
-    String [] streamNames = { "TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2" };
-    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
+    String[] streamNames = {"TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2"};
+    Datastream[] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
     streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     streams[0].getDestination()
@@ -1772,8 +1775,8 @@ public class TestCoordinator {
   public void testDoNotAssignExpiredStreams() throws Exception {
     TestSetup setup = createTestCoordinator();
 
-    String [] streamNames = { "TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2" };
-    Datastream [] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
+    String[] streamNames = {"TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2"};
+    Datastream[] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
     streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     streams[0].getDestination()
@@ -1808,7 +1811,7 @@ public class TestCoordinator {
     TestSetup setup = createTestCoordinator();
     String testCluster = setup._coordinator.getClusterName();
 
-    String [] streamNames = { "testCachedDatastreamReader1", "testCachedDatastreamReader2" };
+    String[] streamNames = {"testCachedDatastreamReader1", "testCachedDatastreamReader2"};
     ZkClient zkClient = new ZkClient(setup._datastreamKafkaCluster.getZkConnection());
 
     CachedDatastreamReader reader = new CachedDatastreamReader(zkClient, testCluster);
@@ -1819,8 +1822,9 @@ public class TestCoordinator {
     Assert.assertTrue(reader.getDatastreamGroups().isEmpty());
     Assert.assertNull(reader.getDatastream("foo", true));
 
-    Datastream [] streams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster,
-        DummyConnector.CONNECTOR_TYPE, streamNames);
+    Datastream[] streams =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, DummyConnector.CONNECTOR_TYPE,
+            streamNames);
 
     // Flush and cache should be populated
     Assert.assertFalse(reader.getAllDatastreams(true).isEmpty());
@@ -1843,7 +1847,8 @@ public class TestCoordinator {
     Assert.assertFalse(reader.getDatastreamGroups().isEmpty());
     Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader1", false));
     Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader2", false));
-    Assert.assertEquals(reader.getDatastream("testCachedDatastreamReader2", false).getMetadata().get("owner"), "foo222");
+    Assert.assertEquals(reader.getDatastream("testCachedDatastreamReader2", false).getMetadata().get("owner"),
+        "foo222");
 
     // Delete one stream
     setup._resource.delete("testCachedDatastreamReader1");
@@ -1856,8 +1861,8 @@ public class TestCoordinator {
     Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
 
     // Even without flush, testCachedDatastreamReader1 should eventally be evicted from cache
-    Assert.assertTrue(PollUtils.poll(() -> reader.getDatastream("testCachedDatastreamReader1", false) == null,
-        200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(
+        PollUtils.poll(() -> reader.getDatastream("testCachedDatastreamReader1", false) == null, 200, WAIT_TIMEOUT_MS));
     Assert.assertFalse(reader.getAllDatastreams(false).isEmpty());
     Assert.assertEquals(reader.getDatastreamGroups().size(), 1);
   }

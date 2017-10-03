@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -21,6 +22,9 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
+
 
 public class TestBroadcastStrategy {
 
@@ -30,12 +34,48 @@ public class TestBroadcastStrategy {
   public void testBroadcastStrategyCreatesAssignmentAcrossAllInstances() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy();
+    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
     }
+  }
+
+  @Test
+  public void testBroadcastStrategyMaxTasks() {
+    int numDatastreams = 10;
+    int numInstances = 20;
+    int maxTasks = 7;
+    int expectedTotalTasks = numDatastreams * maxTasks;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    doTestMaxTasks(new BroadcastStrategy(maxTasks), numInstances, expectedTotalTasks, datastreams);
+  }
+
+  @Test
+  public void testBroadcastStrategyMaxTasks2() {
+    int numDatastreams = 25;
+    int numInstances = 32;
+    int maxTasks = 6;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "18");
+
+    int expectedTotalTasks = numDatastreams * maxTasks + (18 - maxTasks);
+    doTestMaxTasks(new BroadcastStrategy(maxTasks), numInstances, expectedTotalTasks, datastreams);
+  }
+
+  private void doTestMaxTasks(BroadcastStrategy strategy, int numInstances, int expectedTotalTasks,
+      List<DatastreamGroup> datastreams) {
+    String[] instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).toArray(String[]::new);
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    int taskPerInstances = (int) Math.ceil((double) expectedTotalTasks / numInstances);
+    int totalTasks = 0;
+    for (String instance : instances) {
+      Assert.assertTrue(assignment.get(instance).size() <= taskPerInstances);
+      totalTasks += assignment.get(instance).size();
+    }
+    Assert.assertEquals(totalTasks, expectedTotalTasks);
   }
 
   private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams) {
@@ -54,7 +94,7 @@ public class TestBroadcastStrategy {
   public void testBroadcastStrategyDoesntCreateNewTasksWhenCalledSecondTime() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy();
+    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
@@ -72,7 +112,7 @@ public class TestBroadcastStrategy {
   public void testBroadcastStrategyRemovesDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy();
+    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     datastreams.remove(0);
@@ -91,7 +131,7 @@ public class TestBroadcastStrategy {
   public void testBroadcastStrategyCreatesNewTasksOnlyForNewDatastreamWhenDatastreamIsCreated() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy();
+    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
@@ -115,7 +155,7 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy();
+    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
