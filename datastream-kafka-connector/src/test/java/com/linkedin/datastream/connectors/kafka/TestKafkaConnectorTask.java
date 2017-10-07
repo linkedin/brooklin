@@ -175,6 +175,45 @@ public class TestKafkaConnectorTask {
   }
 
   @Test
+  public void testConsumerRegEx() throws Exception {
+    String topic21 = "Pizza21";
+    String topic22 = "Pizza22";
+    createTopic(_zkUtils, topic21);
+    createTopic(_zkUtils, topic22);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic21, 0, 1);
+    produceEvents(_kafkaCluster, _zkUtils, topic22, 0, 1);
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    Datastream datastream = getDatastream(_broker, "pattern:Pizza2.*");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+
+    LOG.info("Producing 100 msgs to topic: " + topic21);
+    produceEvents(_kafkaCluster, _zkUtils, topic21, 1000, 100);
+
+    LOG.info("Producing 100 msgs to topic: " + topic22);
+    produceEvents(_kafkaCluster, _zkUtils, topic22, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    datastreamProducer.getEvents().forEach(x -> x.getEvents().forEach(envelope -> {
+      Assert.assertTrue(envelope.getMetadata().containsKey("kafka-origin-topic"));
+      String topic = envelope.getMetadata().get("kafka-origin-topic");
+      Assert.assertTrue(topic.equals(topic21) || topic.equals(topic22));
+    }));
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
   public void testFlakyProducer() throws Exception {
     String topic = "pizza3";
     createTopic(_zkUtils, topic);

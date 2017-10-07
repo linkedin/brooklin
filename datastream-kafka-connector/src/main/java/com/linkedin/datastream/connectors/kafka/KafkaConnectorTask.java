@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -153,22 +154,12 @@ public class KafkaConnectorTask implements Runnable {
       try (Consumer<?, ?> consumer = createConsumer(_consumerFactory, _consumerProps, _taskName, srcConnString)) {
         _consumer = consumer;
         ConsumerRecords<?, ?> records;
-        consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
-          @Override
-          public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-            LOG.info("Partition ownership revoked for {}, checkpointing.", partitions);
-            if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
-              maybeCommitOffsets(consumer, true); //happens inline as part of poll
-            }
-          }
-
-          @Override
-          public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-            _consumerMetrics.updateRebalanceRate(1);
-            //nop
-            LOG.info("Partition ownership assigned for {}.", partitions);
-          }
-        });
+        if (srcConnString.isPattern()) {
+          consumer.subscribe(Pattern.compile(srcConnString.getTopicPattern()), getConsumerRebalanceListener(consumer));
+        } else {
+          consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()),
+              getConsumerRebalanceListener(consumer));
+        }
 
         while (!_shouldDie) {
           //read a batch of records
@@ -274,6 +265,25 @@ public class KafkaConnectorTask implements Runnable {
       _stoppedLatch.countDown();
       LOG.info("{} stopped", _taskName);
     }
+  }
+
+  private ConsumerRebalanceListener getConsumerRebalanceListener(Consumer<?, ?> consumer) {
+    return new ConsumerRebalanceListener() {
+      @Override
+      public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+        LOG.info("Partition ownership revoked for {}, checkpointing.", partitions);
+        if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
+          maybeCommitOffsets(consumer, true); //happens inline as part of poll
+        }
+      }
+
+      @Override
+      public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+        _consumerMetrics.updateRebalanceRate(1);
+        //nop
+        LOG.info("Partition ownership assigned for {}.", partitions);
+      }
+    };
   }
 
   private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions) {
@@ -382,6 +392,7 @@ public class KafkaConnectorTask implements Runnable {
     metadata.put("kafka-origin-partition", partitionStr);
     String offsetStr = String.valueOf(fromKafka.offset());
     metadata.put("kafka-origin-offset", offsetStr);
+    metadata.put("kafka-origin-topic", fromKafka.topic());
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, strReadTime);
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     //TODO - copy over headers if/when they are ever supported

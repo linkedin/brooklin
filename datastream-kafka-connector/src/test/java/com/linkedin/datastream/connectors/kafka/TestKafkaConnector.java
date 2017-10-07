@@ -103,6 +103,22 @@ public class TestKafkaConnector {
   }
 
   @Test
+  public void testInitializeDatastreamWithRegEx() throws UnsupportedEncodingException, DatastreamValidationException {
+    Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic",  "pattern:startWith.*");
+    KafkaConnector connector =
+        new KafkaConnector("test", getDefaultConfig(null));
+    connector.initializeDatastream(ds, Collections.emptyList());
+  }
+
+  @Test(expectedExceptions = DatastreamValidationException.class)
+  public void testInitializeDatastreamInvalidRegEx() throws UnsupportedEncodingException, DatastreamValidationException {
+    Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic",  "pattern:testWithInvalidRegEx[");
+    KafkaConnector connector =
+        new KafkaConnector("test", getDefaultConfig(null));
+    connector.initializeDatastream(ds, Collections.emptyList());
+  }
+
+  @Test
   public void testPopulatingDefaultSerde() throws Exception {
     String topicName = "testPopulatingDefaultSerde";
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 100);
