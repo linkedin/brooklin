@@ -241,9 +241,6 @@ public class DatastreamRestClientCli {
     } catch (Exception e) {
       System.out.println(e.toString());
     } finally {
-      if (datastreamRestClient != null) {
-        datastreamRestClient.shutdown();
-      }
       System.exit(0);
     }
   }

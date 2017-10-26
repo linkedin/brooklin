@@ -2,10 +2,8 @@ package com.linkedin.datastream.server.diagnostics;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,7 +17,6 @@ import com.linkedin.datastream.diagnostics.ServerComponentHealth;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.diagnostics.ServerComponentHealthRestClient;
 import com.linkedin.diagnostics.ServerComponentHealthRestClientFactory;
-import com.linkedin.r2.transport.http.client.HttpClientFactory;
 
 
 /**
@@ -29,9 +26,6 @@ import com.linkedin.r2.transport.http.client.HttpClientFactory;
 public class ServerComponentHealthAggregator {
 
   private static final Logger LOG = LoggerFactory.getLogger(ServerComponentHealthAggregator.class.getName());
-
-  private static final String HTTP_REQUEST_TIMEOUT = "http.requestTimeout";
-  private static final String HTTP_TIMEOUT = String.valueOf(Duration.ofSeconds(15).toMillis());
 
   private final ZkClient _zkClient;
   private final String _cluster;
@@ -56,38 +50,30 @@ public class ServerComponentHealthAggregator {
 
     hosts.parallelStream().forEach(hostName ->
     {
-      ServerComponentHealthRestClient restClient = null;
-      try {
-        // Send requests to all the server live instances
-        String dmsUri = getDmsUri(hostName);
-        LOG.info("Send restli status request to " + dmsUri);
-        restClient = ServerComponentHealthRestClientFactory.getClient(dmsUri, Collections.singletonMap(
-            HttpClientFactory.HTTP_REQUEST_TIMEOUT, HTTP_TIMEOUT));
+      // Send requests to all the server live instances
+      String dmsUri = getDmsUri(hostName);
+      LOG.info("Send restli status request to " + dmsUri);
+      ServerComponentHealthRestClient restClient = ServerComponentHealthRestClientFactory.getClient(dmsUri);
 
-        ServerComponentHealth response = null;
-        String errorMessage = "";
-        try {
-          response = restClient.getStatus(componentType, componentScope, componentInputs);
-        } catch (Exception e) {
-          errorMessage = "Received REST exception: " + e.toString() +  " from the host: " + dmsUri;
-          LOG.error("Received REST exception from the host: {}", dmsUri, e);
-        } finally {
-          // No response received from a host, set error message
-          if (response == null && errorMessage.isEmpty()) {
-            errorMessage = "Failed to receive REST response from the host: " + dmsUri;
-            LOG.error(errorMessage);
-          }
-          if (!errorMessage.isEmpty()) {
-            errorResponses.put(hostName, errorMessage);
-          } else {
-            String message = "Received REST response from the host: " + dmsUri + " with status: " + response.getStatus();
-            LOG.info(message);
-            responses.put(hostName, response.getStatus());
-          }
-        }
+      ServerComponentHealth response = null;
+      String errorMessage = "";
+      try {
+        response = restClient.getStatus(componentType, componentScope, componentInputs);
+      } catch (Exception e) {
+        errorMessage = "Received REST exception: " + e.toString() +  " from the host: " + dmsUri;
+        LOG.error("Received REST exception from the host: {}", dmsUri, e);
       } finally {
-        if (restClient != null) {
-          restClient.shutdown();
+        // No response received from a host, set error message
+        if (response == null && errorMessage.isEmpty()) {
+          errorMessage = "Failed to receive REST response from the host: " + dmsUri;
+          LOG.error(errorMessage);
+        }
+        if (!errorMessage.isEmpty()) {
+          errorResponses.put(hostName, errorMessage);
+        } else {
+          String message = "Received REST response from the host: " + dmsUri + " with status: " + response.getStatus();
+          LOG.info(message);
+          responses.put(hostName, response.getStatus());
         }
       }
     });
