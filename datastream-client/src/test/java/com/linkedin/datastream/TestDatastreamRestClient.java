@@ -279,7 +279,6 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
         .getMetadata()
         .get("key")
         .equals("testDatastreamUpdate2"), 100, 10000));
-    restClient.shutdown();
   }
 
   @Test

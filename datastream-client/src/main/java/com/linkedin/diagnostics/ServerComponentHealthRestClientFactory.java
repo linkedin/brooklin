@@ -2,69 +2,43 @@ package com.linkedin.diagnostics;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import com.linkedin.datastream.common.RestliUtils;
+import com.linkedin.datastream.BaseRestClientFactory;
 import com.linkedin.restli.client.RestClient;
 
 
 /**
- * ServerComponentHealth Resource Factory that is used to create the ServerComponentHealth restli resources.
+ * Factory class for obtaining {@link ServerComponentHealthRestClient} objects.
  */
-public class ServerComponentHealthRestClientFactory {
+public final class ServerComponentHealthRestClientFactory {
+  private static final BaseRestClientFactory<ServerComponentHealthRestClient> FACTORY =
+      new BaseRestClientFactory<>(ServerComponentHealthRestClient.class);
 
-  private static Map<String, ServerComponentHealthRestClient> overrides = new ConcurrentHashMap<>();
-
+  /**
+   * Get a ServerComponentHealthRestClient with default HTTP client
+   * @param dmsUri URI to DMS endpoint
+   * @return
+   */
   public static ServerComponentHealthRestClient getClient(String dmsUri) {
-    dmsUri = RestliUtils.sanitizeUri(dmsUri);
-    if (overrides.containsKey(dmsUri)) {
-      return overrides.get(dmsUri);
-    }
-    return new ServerComponentHealthRestClient(dmsUri);
+    return FACTORY.getClient(dmsUri, Collections.emptyMap());
   }
 
   /**
-   * Get a ServerComponentHealthRestClient with default HTTP client and custom HTTP configs
+   * Get a ServerComponentHealthRestClient with custom HTTP configs
+   * @see BaseRestClientFactory#getClient(String, Map)
    * @param dmsUri URI to DMS endpoint
-   * @param httpConfig custom config for HTTP client, please find the configs in {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
+   * @param httpConfig custom config for HTTP client, please find the configs in
+   *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
    * @return
    */
   public static ServerComponentHealthRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
-    dmsUri = RestliUtils.sanitizeUri(dmsUri);
-    if (overrides.containsKey(dmsUri)) {
-      return overrides.get(dmsUri);
-    }
-    return new ServerComponentHealthRestClient(dmsUri, httpConfig);
+    return FACTORY.getClient(dmsUri, httpConfig);
   }
 
   /**
-   * Get a ServerComponentHealthRestClient with an existing Rest.li RestClient (must bound to the same dmsUri).
-   * @param dmsUri URI to DMS endpoint
-   * @param restClient Rest.li RestClient
-   * @return
+   * @see BaseRestClientFactory#registerRestClient(String, RestClient)
    */
-  public static ServerComponentHealthRestClient getClient(String dmsUri, RestClient restClient) {
-    dmsUri = RestliUtils.sanitizeUri(dmsUri);
-    if (overrides.containsKey(dmsUri)) {
-      return overrides.get(dmsUri);
-    }
-    return new ServerComponentHealthRestClient(restClient);
-  }
-
-  /**
-   * Used mainly for testing, to override the ServerComponentHealthRestClient returned for a given dmsUri.
-   * Note that this is an static method, each test case should use its own dmsUri, to avoid conflicts
-   * in case the test are running in parallel.
-   */
-  public static void addOverride(String dmsUri, ServerComponentHealthRestClient restClient) {
-    dmsUri = RestliUtils.sanitizeUri(dmsUri);
-    overrides.put(dmsUri, restClient);
-  }
-
-  /**
-   * @return the current RestClient override mappings
-   */
-  public static Map<String, ServerComponentHealthRestClient> getOverrides() {
-    return Collections.unmodifiableMap(overrides);
+  public static void registerRestClient(String dmsUri, RestClient restClient) {
+    FACTORY.registerRestClient(dmsUri, restClient);
   }
 }

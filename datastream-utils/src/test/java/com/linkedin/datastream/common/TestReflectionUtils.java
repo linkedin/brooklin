@@ -50,7 +50,7 @@ public class TestReflectionUtils {
 
     boolean exception = false;
     try {
-      ReflectionUtils.createInstance(null);
+      ReflectionUtils.createInstance((String) null);
     } catch (Exception e) {
       exception = true;
     }
