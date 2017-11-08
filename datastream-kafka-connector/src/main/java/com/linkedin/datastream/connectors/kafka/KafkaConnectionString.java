@@ -13,16 +13,19 @@ import java.util.StringJoiner;
  * kafka://[host1:port1,host2:port2...]/topicName
  */
 public class KafkaConnectionString {
-  private final static String PREFIX = KafkaConnector.CONNECTOR_NAME + "://";
+  public static final String PREFIX_SCHEME_KAFKA = "kafka://";
+  public static final String PREFIX_SCHEME_SECURE_KAFKA = "kafkassl://";
 
   private final List<KafkaBrokerAddress> _brokers;
   private final String _topicName;
+  private final boolean _isSecure;
 
-  public KafkaConnectionString(List<KafkaBrokerAddress> brokers, String topicName) {
+  public KafkaConnectionString(List<KafkaBrokerAddress> brokers, String topicName, boolean isSecure) {
     ArrayList<KafkaBrokerAddress> brokersCopy = new ArrayList<>(brokers);
     Collections.sort(brokersCopy, KafkaBrokerAddress.BY_URL);
     this._brokers = Collections.unmodifiableList(brokersCopy);
     this._topicName = topicName.trim();
+    _isSecure = isSecure;
   }
 
   public List<KafkaBrokerAddress> getBrokers() {
@@ -33,11 +36,15 @@ public class KafkaConnectionString {
     return _topicName;
   }
 
+  public boolean isSecure() {
+    return _isSecure;
+  }
+
   @Override
   public String toString() {
     StringJoiner joiner = new StringJoiner(",");
     _brokers.forEach(kafkaBrokerAddress -> joiner.add(kafkaBrokerAddress.toString()));
-    return PREFIX + joiner.toString() + "/" + _topicName;
+    return (_isSecure ? PREFIX_SCHEME_SECURE_KAFKA : PREFIX_SCHEME_KAFKA) + joiner.toString() + "/" + _topicName;
   }
 
   @Override
@@ -50,12 +57,13 @@ public class KafkaConnectionString {
     }
     KafkaConnectionString that = (KafkaConnectionString) o;
     //note this is order-sensitive
-    return Objects.equals(_brokers, that._brokers) && Objects.equals(_topicName, that._topicName);
+    return Objects.equals(_brokers, that._brokers) && Objects.equals(_topicName, that._topicName)
+        && Objects.equals(_isSecure, that._isSecure);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_brokers, _topicName);
+    return Objects.hash(_brokers, _topicName, _isSecure);
   }
 
   public static KafkaConnectionString valueOf(String connectionString) throws IllegalArgumentException {
@@ -64,10 +72,16 @@ public class KafkaConnectionString {
       badArg(connectionString);
     }
     String str = connectionString.trim();
-    if (str.isEmpty() || !str.startsWith(PREFIX)) {
+    boolean isSecure = false;
+    if (str.startsWith(PREFIX_SCHEME_KAFKA)) {
+      str = str.substring(PREFIX_SCHEME_KAFKA.length());
+      isSecure = false;
+    } else if (str.startsWith(PREFIX_SCHEME_SECURE_KAFKA)) {
+      str = str.substring(PREFIX_SCHEME_SECURE_KAFKA.length());
+      isSecure = true;
+    } else {
       badArg(connectionString);
     }
-    str = str.substring(PREFIX.length());
     int topicIndex = str.lastIndexOf("/");
     if (topicIndex < 0) {
       badArg(connectionString);
@@ -78,7 +92,7 @@ public class KafkaConnectionString {
     }
     str = str.substring(0, topicIndex);
     List<KafkaBrokerAddress> brokers = parseBrokers(str);
-    return new KafkaConnectionString(brokers, topicName);
+    return new KafkaConnectionString(brokers, topicName, isSecure);
   }
 
   public static List<KafkaBrokerAddress> parseBrokers(String brokersValue) {
