@@ -119,6 +119,13 @@ public class KafkaConnectorTask implements Runnable {
   public static Consumer<?, ?> createConsumer(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
       String groupId, KafkaConnectionString connectionString) {
 
+    Properties props = getKafkaConsumerProperties(consumerProps, groupId, connectionString);
+    return consumerFactory.createConsumer(props);
+  }
+
+  // Visible for testing
+  static Properties getKafkaConsumerProperties(Properties consumerProps, String groupId,
+      KafkaConnectionString connectionString) {
     StringJoiner csv = new StringJoiner(",");
     connectionString.getBrokers().forEach(broker -> csv.add(broker.toString()));
     String bootstrapValue = csv.toString();
@@ -128,8 +135,9 @@ public class KafkaConnectorTask implements Runnable {
     props.put("group.id", groupId);
     props.put("enable.auto.commit", "false"); //auto-commits are unsafe
     props.put("auto.offset.reset", "none");
+    props.put("security.protocol", connectionString.isSecure() ? "SSL" : "PLAINTEXT");
     props.putAll(consumerProps);
-    return consumerFactory.createConsumer(props);
+    return props;
   }
 
   @Override

@@ -24,7 +24,7 @@ public class TestKafkaConnectionString {
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
-  public void testParseWringPrefix() {
+  public void testParseWrongPrefix() {
     KafkaConnectionString.valueOf("notKafka://hostname:666/topic");
   }
 
@@ -51,9 +51,17 @@ public class TestKafkaConnectionString {
   @Test
   public void testSimpleString() {
     Assert.assertEquals(
-        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)), "topic"),
-        KafkaConnectionString.valueOf("kafka://somewhere:666/topic")
-    );
+        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)),
+            "topic", false),
+        KafkaConnectionString.valueOf("kafka://somewhere:666/topic"));
+  }
+
+  @Test
+  public void testSimpleSslString() {
+    Assert.assertEquals(
+        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)),
+            "topic", true),
+        KafkaConnectionString.valueOf("kafkassl://somewhere:666/topic"));
   }
 
   @Test
@@ -64,7 +72,8 @@ public class TestKafkaConnectionString {
               new KafkaBrokerAddress("somewhere", 666),
               new KafkaBrokerAddress("somewhereElse", 667)
             ),
-            "topic"
+            "topic",
+            false
         ),
         KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse:667/topic")
     );
@@ -73,7 +82,13 @@ public class TestKafkaConnectionString {
   @Test
   public void testBrokerListSorting() {
     KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/topic");
-    Assert.assertEquals("kafka://a:666,a:667,b:665/topic", connectionString.toString());
+    Assert.assertEquals(connectionString.toString(), "kafka://a:666,a:667,b:665/topic");
+  }
+
+  @Test
+  public void testSslBrokerListSorting() {
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://a:667,b:665,a:666/topic");
+    Assert.assertEquals(connectionString.toString(), "kafkassl://a:666,a:667,b:665/topic");
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
