@@ -175,6 +175,41 @@ public class TestKafkaConnectorTask {
   }
 
   @Test
+  public void testConsumerProperties() {
+    Properties overrides = new Properties();
+    String groupId = "groupId";
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://MyBroker:10251/MyTopic");
+    Properties actual = KafkaConnectorTask.getKafkaConsumerProperties(overrides, groupId, connectionString);
+
+    Properties expected = new Properties();
+    expected.put("auto.offset.reset", "none");
+    expected.put("bootstrap.servers", "MyBroker:10251");
+    expected.put("enable.auto.commit", "false");
+    expected.put("group.id", "groupId");
+    expected.put("security.protocol", "PLAINTEXT");
+
+    Assert.assertEquals(actual, expected);
+  }
+
+
+  @Test
+  public void testSslConsumerProperties() {
+    Properties overrides = new Properties();
+    String groupId = "groupId";
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://MyBroker:10251/MyTopic");
+    Properties actual = KafkaConnectorTask.getKafkaConsumerProperties(overrides, groupId, connectionString);
+
+    Properties expected = new Properties();
+    expected.put("auto.offset.reset", "none");
+    expected.put("bootstrap.servers", "MyBroker:10251");
+    expected.put("enable.auto.commit", "false");
+    expected.put("group.id", "groupId");
+    expected.put("security.protocol", "SSL");
+
+    Assert.assertEquals(actual, expected);
+  }
+
+  @Test
   public void testFlakyProducer() throws Exception {
     String topic = "pizza3";
     createTopic(_zkUtils, topic);
