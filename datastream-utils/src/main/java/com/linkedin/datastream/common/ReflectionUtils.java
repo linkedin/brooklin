@@ -19,19 +19,39 @@ public class ReflectionUtils {
   /**
    * Create an instance of the specified class with constuctor
    * matching the argument array.
+   * @param className name of the class
+   * @param args argument array
+   * @param <T> type fo the class
+   * @return instance of the class, or null if anything went wrong
+   */
+  @SuppressWarnings("unchecked")
+  public static <T> T createInstance(String className, Object... args) {
+    Validate.notNull(className, "null class name");
+    Class<T> clazz;
+    try {
+      clazz = (Class<T>) Class.forName(className);
+    } catch (Exception e) {
+      LOG.warn("Failed to find class with name: " + className, e);
+      return null;
+    }
+    return createInstance(clazz, args);
+  }
+
+  /**
+   * Create an instance of the specified class with constuctor
+   * matching the argument array.
    * @param clazz name of the class
    * @param args argument array
    * @param <T> type fo the class
    * @return instance of the class, or null if anything went wrong
    */
   @SuppressWarnings("unchecked")
-  public static <T> T createInstance(String clazz, Object... args) {
+  public static <T> T createInstance(Class<T> clazz, Object... args) {
     Validate.notNull(clazz, "null class name");
     try {
-      Class<T> classObj = (Class<T>) Class.forName(clazz);
       Class<?>[] argTypes = new Class<?>[args.length];
       IntStream.range(0, args.length).forEach(i -> argTypes[i] = args[i].getClass());
-      Constructor<T> ctor = classObj.getDeclaredConstructor(argTypes);
+      Constructor<T> ctor = clazz.getDeclaredConstructor(argTypes);
       return ctor.newInstance(args);
     } catch (Exception e) {
       LOG.warn("Failed to create instance for: " + clazz, e);

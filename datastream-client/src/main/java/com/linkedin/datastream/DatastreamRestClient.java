@@ -2,15 +2,12 @@ package com.linkedin.datastream;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
@@ -19,9 +16,6 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
-import com.linkedin.r2.transport.common.Client;
-import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
-import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.ActionRequest;
 import com.linkedin.restli.client.CreateIdRequest;
@@ -47,32 +41,9 @@ import com.linkedin.restli.common.UpdateStatus;
  */
 public class DatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
+
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
-
-  /**
-   * @deprecated Please use factory {@link DatastreamRestClientFactory}
-   * @param dmsUri URI to DMS endpoint
-   * @param httpConfig custom config for HTTP client, please find the configs in {@link HttpClientFactory}
-   */
-  @Deprecated
-  public DatastreamRestClient(String dmsUri, Map<String, String> httpConfig) {
-    this(dmsUri, new TransportClientAdapter(new HttpClientFactory().getClient(httpConfig)));
-  }
-
-  /**
-   * @deprecated Please use factory {@link DatastreamRestClientFactory}
-   * @param dmsUri URI to DMS endpoint
-   * @param r2Client pre-created R2Client
-   */
-  @Deprecated
-  public DatastreamRestClient(String dmsUri, Client r2Client) {
-    Validate.notEmpty(dmsUri, "invalid DSM URI");
-    Validate.notNull(r2Client, "null R2 client");
-    dmsUri = StringUtils.appendIfMissing(dmsUri, "/");
-    _builders = new DatastreamRequestBuilders();
-    _restClient = new RestClient(r2Client, dmsUri);
-  }
 
   /**
    * @deprecated Please use factory {@link DatastreamRestClientFactory}
@@ -311,13 +282,6 @@ public class DatastreamRestClient {
       }
     }
     return false;
-  }
-
-  /**
-   * Shutdown the DatastreamRestClient
-   */
-  public void shutdown() {
-    _restClient.shutdown(new FutureCallback<>());
   }
 
   /**

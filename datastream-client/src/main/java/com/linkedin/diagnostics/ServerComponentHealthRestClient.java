@@ -1,21 +1,14 @@
 package com.linkedin.diagnostics;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.commons.lang.Validate;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.common.callback.FutureCallback;
 import com.linkedin.datastream.diagnostics.ServerComponentHealth;
 import com.linkedin.datastream.server.diagnostics.DiagRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
-import com.linkedin.r2.transport.common.Client;
-import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
-import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.FindRequest;
 import com.linkedin.restli.client.RestClient;
 
@@ -27,22 +20,6 @@ public class ServerComponentHealthRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(ServerComponentHealthRestClient.class);
   private final DiagRequestBuilders _builders;
   private final RestClient _restClient;
-
-  public ServerComponentHealthRestClient(String dsmUri) {
-    this(dsmUri, new TransportClientAdapter(new HttpClientFactory().getClient(Collections.<String, String>emptyMap())));
-  }
-
-  public ServerComponentHealthRestClient(String dmsUri, Map<String, String> httpConfig) {
-    this(dmsUri, new TransportClientAdapter(new HttpClientFactory().getClient(httpConfig)));
-  }
-
-  public ServerComponentHealthRestClient(String dsmUri, Client r2Client) {
-    Validate.notEmpty(dsmUri, "invalid DSM URI");
-    Validate.notNull(r2Client, "null R2 client");
-    dsmUri = StringUtils.appendIfMissing(dsmUri, "/");
-    _builders = new DiagRequestBuilders();
-    _restClient = new RestClient(r2Client, dsmUri);
-  }
 
   public ServerComponentHealthRestClient(RestClient restClient) {
     Validate.notNull(restClient, "null restClient");
@@ -112,12 +89,5 @@ public class ServerComponentHealthRestClient {
       LOG.error("Get serverComponentHealthAllStatus {%s} {%s} failed with error.", type, scope);
       return null;
     }
-  }
-
-  /**
-   * Shutdown the ServerComponentHealthRestClient
-   */
-  public void shutdown() {
-    _restClient.shutdown(new FutureCallback<>());
   }
 }
