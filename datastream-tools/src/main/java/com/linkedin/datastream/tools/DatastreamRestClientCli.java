@@ -158,24 +158,23 @@ public class DatastreamRestClientCli {
     DatastreamRestClient datastreamRestClient = null;
     try {
       datastreamRestClient = DatastreamRestClientFactory.getClient(dmsUri);
+      String datastreamName;
       switch (op) {
-        case READ: {
-          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+        case READ:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           Datastream stream = datastreamRestClient.getDatastream(datastreamName);
           printDatastreams(noformat, Collections.singletonList(stream));
-          return;
-        }
+          break;
         case READALL:
           printDatastreams(noformat, datastreamRestClient.getAllDatastreams());
-          return;
-        case DELETE: {
-          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          break;
+        case DELETE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
           System.out.println("Success");
-          return;
-        }
-        case CREATE: {
-          String datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          break;
+        case CREATE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           String sourceUri = getOptionValue(cmd, OptionConstants.OPT_SHORT_SOURCE_URI, options);
           String connectorName = getOptionValue(cmd, OptionConstants.OPT_SHORT_CONNECTOR_NAME, options);
 
@@ -234,14 +233,13 @@ public class DatastreamRestClientCli {
               datastreamRestClient.waitTillDatastreamIsInitialized(datastreamName, (int) timeout.toMillis());
           System.out.printf("Initialized %s datastream: %s\n", connectorName, completeDatastream);
           break;
-        }
         default:
           // do nothing
       }
     } catch (Exception e) {
       System.out.println(e.toString());
     } finally {
-      System.exit(0);
+      DatastreamRestClientFactory.shutdown(null, Duration.ofSeconds(30));
     }
   }
 
