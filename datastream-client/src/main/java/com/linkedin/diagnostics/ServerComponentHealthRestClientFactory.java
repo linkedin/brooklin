@@ -1,9 +1,16 @@
 package com.linkedin.diagnostics;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.linkedin.common.callback.Callback;
+import com.linkedin.common.util.None;
 import com.linkedin.datastream.BaseRestClientFactory;
+import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.restli.client.RestClient;
 
 
@@ -11,8 +18,9 @@ import com.linkedin.restli.client.RestClient;
  * Factory class for obtaining {@link ServerComponentHealthRestClient} objects.
  */
 public final class ServerComponentHealthRestClientFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClientFactory.class);
   private static final BaseRestClientFactory<ServerComponentHealthRestClient> FACTORY =
-      new BaseRestClientFactory<>(ServerComponentHealthRestClient.class);
+      new BaseRestClientFactory<>(ServerComponentHealthRestClient.class, LOG);
 
   /**
    * Get a ServerComponentHealthRestClient with default HTTP client
@@ -40,5 +48,12 @@ public final class ServerComponentHealthRestClientFactory {
    */
   public static void registerRestClient(String dmsUri, RestClient restClient) {
     FACTORY.registerRestClient(dmsUri, restClient);
+  }
+
+  /**
+   * @see BaseRestClientFactory#shutdown(Callback, Duration)
+   */
+  public static void shutdown(Callback<None> callback, Duration timeout) {
+    FACTORY.shutdown(callback, timeout);
   }
 }

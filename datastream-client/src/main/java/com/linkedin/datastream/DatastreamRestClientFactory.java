@@ -1,8 +1,14 @@
 package com.linkedin.datastream;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.linkedin.common.callback.Callback;
+import com.linkedin.common.util.None;
 import com.linkedin.restli.client.RestClient;
 
 
@@ -14,8 +20,9 @@ import com.linkedin.restli.client.RestClient;
  * DatastreamRestClient, without doing a major refactoring of the code.
  */
 public final class DatastreamRestClientFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClientFactory.class);
   private static final BaseRestClientFactory<DatastreamRestClient> FACTORY =
-      new BaseRestClientFactory<>(DatastreamRestClient.class);
+      new BaseRestClientFactory<>(DatastreamRestClient.class, LOG);
 
   /**
    * Get a DatastreamRestClient with default HTTP client
@@ -50,5 +57,12 @@ public final class DatastreamRestClientFactory {
    */
   public static void registerRestClient(String dmsUri, RestClient restClient) {
     FACTORY.registerRestClient(dmsUri, restClient);
+  }
+
+  /**
+   * @see BaseRestClientFactory#shutdown(Callback, Duration)
+   */
+  public static void shutdown(Callback<None> callback, Duration timeout) {
+    FACTORY.shutdown(callback, timeout);
   }
 }
