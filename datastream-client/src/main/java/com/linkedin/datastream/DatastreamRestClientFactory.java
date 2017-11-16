@@ -1,14 +1,11 @@
 package com.linkedin.datastream;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.common.callback.Callback;
-import com.linkedin.common.util.None;
 import com.linkedin.restli.client.RestClient;
 
 
@@ -57,12 +54,5 @@ public final class DatastreamRestClientFactory {
    */
   public static void registerRestClient(String dmsUri, RestClient restClient) {
     FACTORY.registerRestClient(dmsUri, restClient);
-  }
-
-  /**
-   * @see BaseRestClientFactory#shutdown(Callback, Duration)
-   */
-  public static void shutdown(Callback<None> callback, Duration timeout) {
-    FACTORY.shutdown(callback, timeout);
   }
 }

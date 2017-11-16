@@ -238,8 +238,6 @@ public class DatastreamRestClientCli {
       }
     } catch (Exception e) {
       System.out.println(e.toString());
-    } finally {
-      DatastreamRestClientFactory.shutdown(null, Duration.ofSeconds(30));
     }
   }
 
