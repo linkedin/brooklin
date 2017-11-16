@@ -1,23 +1,23 @@
 package com.linkedin.datastream;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 
-import com.linkedin.common.callback.Callback;
-import com.linkedin.common.callback.FutureCallback;
-import com.linkedin.common.util.None;
+import io.netty.channel.nio.NioEventLoopGroup;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;
 import com.linkedin.r2.transport.http.client.HttpClientFactory;
+import com.linkedin.r2.util.NamedThreadFactory;
 import com.linkedin.restli.client.RestClient;
 
 
@@ -49,13 +49,13 @@ import com.linkedin.restli.client.RestClient;
  * @param <T> type of the specific Rest.li client wrapper (eg. DatastreamRestClient).
  */
 public final class BaseRestClientFactory<T> {
-  private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
-
   private final Logger _logger;
   private final Class<T> _restClientClass;
   private final Map<String, T> _overrides = new ConcurrentHashMap<>();
   private final Map<String, RestClient> _restClients = new ConcurrentHashMap<>();
-  private HttpClientFactory _httpClientFactory = new HttpClientFactory();
+
+  // Created lazily
+  private HttpClientFactory _httpClientFactory;
 
   /**
    * @param clazz Class object of the Rest.li client wrapper
@@ -106,68 +106,6 @@ public final class BaseRestClientFactory<T> {
     _overrides.put(uri, restliClient);
   }
 
-  /**
-   * This must be called to allow JVM to shutdown cleanly. This is necessary because
-   * R2 HttpClientFactory creates non-daemon threads for RestClient. Default shutdown
-   * timeout is 5000ms (see: {@link HttpClientFactory#DEFAULT_SHUTDOWN_TIMEOUT}. For
-   * HttpClientFactory shutdown, we use @param timeout.
-   * @param callback callback to receive shutdown status
-   * @param timeout timeout wait for two times of this duration before giving up
-   */
-  public synchronized void shutdown(Callback<None> callback, Duration timeout) {
-    if (_httpClientFactory == null) {
-      return;
-    }
-
-    if (!_restClients.isEmpty()) {
-      // We are not interested in individual client shutdown status
-      // given R2 client already has sufficient logging for such.
-      FutureCallback<None> noopCallback = new FutureCallback<>();
-
-      _logger.info("Initiating asynchronous shutdown of all RestClients ...");
-      for (RestClient restClient : _restClients.values()) {
-        restClient.shutdown(noopCallback);
-      }
-      _restClients.clear();
-      _logger.info("All RestClients are shutdown successfully ...");
-    }
-
-    final CountDownLatch shutdownLatch = new CountDownLatch(1);
-
-    // HttpClientFactory actually reference counts all RestClients managed by itself.
-    // Once the count reaches zero, the factory self shuts down as such below code is
-    // most likely be an noop unless some RestClients failed to shutdown above.
-    _httpClientFactory.shutdown(new Callback<None>() {
-      @Override
-      public void onSuccess(None none) {
-        shutdownLatch.countDown();
-        _logger.info("Shutdown complete");
-        if (callback != null) {
-          callback.onSuccess(none);
-        }
-      }
-
-      @Override
-      public void onError(Throwable e) {
-        shutdownLatch.countDown();
-        _logger.error("Error during shutdown", e);
-        if (callback != null) {
-          callback.onError(e);
-        }
-      }
-    }, timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-    try {
-      shutdownLatch.await(timeout.toMillis() * 2, TimeUnit.MILLISECONDS);
-    } catch (Exception e) {
-      _logger.error("HttpClientFactory failed to shutdown properly.", e);
-    } finally {
-      // Always nullify the factory as we do not know the state of the
-      // factory in case if fails to properly shutdown.
-      _httpClientFactory = null;
-    }
-  }
-
   private T getOverride(String uri) {
     uri = RestliUtils.sanitizeUri(uri);
     return _overrides.getOrDefault(uri, null);
@@ -177,12 +115,50 @@ public final class BaseRestClientFactory<T> {
     return String.format("%s-%d", uri, httpConfig.hashCode());
   }
 
+  /**
+   * Special ThreadFactory to be used with HttpClientFactory:
+   *  - add brooklin prefix to the threads
+   *  - create daemon threads to prevent jvm unclean shutdown
+   *
+   * By default, HttpClientFactory creates deamon threads with NamedThreadFactory.
+   * Such threads will block JVM from shutting down when they are not fully stopped.
+   * We do not have nor plan to support use cases where we need to access DMS during
+   * shutdown, hence it is okay for us to make the threads daemon.
+   */
+  private class DaemonNamedThreadFactory extends NamedThreadFactory {
+    public DaemonNamedThreadFactory(String name) {
+      super(name + " " + StringUtils.substringAfterLast(_logger.getName(), "."));
+    }
+
+    @Override
+    public Thread newThread(Runnable runnable) {
+      Thread thread = super.newThread(runnable);
+      thread.setDaemon(true);
+      return thread;
+    }
+  }
+
+  private void initHttpClientFactory() {
+    ThreadFactory eventLoopThreadFactory = new DaemonNamedThreadFactory("R2 Nio Event Loop");
+    ThreadFactory schedExecThreadFactory = new DaemonNamedThreadFactory("R2 Netty Scheduler");
+    _httpClientFactory = new HttpClientFactory.Builder()
+        .setNioEventLoopGroup(new NioEventLoopGroup(0, eventLoopThreadFactory))
+        .setScheduleExecutorService(Executors.newSingleThreadScheduledExecutor(schedExecThreadFactory))
+        .build();
+  }
+
   private RestClient getRestClient(String uri, Map<String, String> httpConfig) {
     String canonicalUri = RestliUtils.sanitizeUri(uri);
     RestClient restClient;
     String key = getKey(uri, httpConfig);
-    restClient = _restClients.computeIfAbsent(key, (k) ->
-      new RestClient(new TransportClientAdapter(_httpClientFactory.getClient(httpConfig)), canonicalUri));
+    restClient = _restClients.computeIfAbsent(key, (k) -> {
+      if (_httpClientFactory == null) {
+        initHttpClientFactory();
+      }
+
+      _logger.info("Creating RestClient for {} with {}, count={}", canonicalUri, httpConfig, _restClients.size() + 1);
+      return new RestClient(new TransportClientAdapter(_httpClientFactory.getClient(httpConfig)), canonicalUri);
+    });
     return restClient;
   }
 
