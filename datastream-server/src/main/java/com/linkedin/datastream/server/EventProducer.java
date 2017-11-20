@@ -327,10 +327,12 @@ public class EventProducer implements DatastreamEventProducer {
     String className = EventProducer.class.getSimpleName();
 
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_SLA));
+    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + TOTAL_EVENTS_PRODUCED));
     metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + EVENT_PRODUCE_RATE));
     metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + SKIPPED_BAD_MESSAGES_RATE));
     metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA));
+    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinHistogramInfo(className + MetricsAware.KEY_REGEX + EVENTS_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.MEAN, BrooklinHistogramInfo.MAX, BrooklinHistogramInfo.PERCENTILE_50,
             BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
