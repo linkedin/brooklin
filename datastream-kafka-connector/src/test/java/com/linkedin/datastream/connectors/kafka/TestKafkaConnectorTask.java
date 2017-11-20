@@ -108,6 +108,23 @@ public class TestKafkaConnectorTask {
   }
 
   @Test
+  public void testGroupId() throws Exception {
+    String topic = "MyTopicForGrpId";
+    Datastream datastream = getDatastream(_broker, topic);
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    String defaultGrpId =
+        datastream.getSource().getConnectionString() + "-to-" + datastream.getDestination().getConnectionString();
+
+    // Testing with default group id
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), defaultGrpId);
+
+    // Test with explicit group id
+    datastream.getMetadata().put(KafkaConnectorTask.GROUP_ID_CONFIG, "MyGroupId");
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), "MyGroupId");
+  }
+
+  @Test
   public void testConsumeWithStartingOffset() throws Exception {
     String topic = "pizza1";
     createTopic(_zkUtils, topic);
