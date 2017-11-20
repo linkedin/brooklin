@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -17,6 +18,7 @@ import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -32,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
@@ -49,6 +50,8 @@ import com.linkedin.datastream.server.DatastreamTaskStatus;
 
 
 public class KafkaConnectorTask implements Runnable {
+  public static final String GROUP_ID_CONFIG = "group.id";
+
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
   // Regular expression to capture all metrics by this kafka connector.
@@ -114,6 +117,7 @@ public class KafkaConnectorTask implements Runnable {
     _consumerMetrics.createEventProcessingMetrics();
     _consumerMetrics.createPollMetrics();
     _consumerMetrics.createPartitionMetrics();
+    _taskName = task.getDatastreamTaskName();
   }
 
   public static Consumer<?, ?> createConsumer(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
@@ -123,7 +127,7 @@ public class KafkaConnectorTask implements Runnable {
     return consumerFactory.createConsumer(props);
   }
 
-  // Visible for testing
+  @VisibleForTesting
   static Properties getKafkaConsumerProperties(Properties consumerProps, String groupId,
       KafkaConnectionString connectionString) {
     StringJoiner csv = new StringJoiner(",");
@@ -152,13 +156,10 @@ public class KafkaConnectorTask implements Runnable {
       KafkaConnectionString srcConnString = KafkaConnectionString.valueOf(source.getConnectionString());
 
       _srcValue = srcConnString.toString();
-
-      DatastreamDestination destination = _task.getDatastreamDestination();
-      String dstConnString = destination.getConnectionString();
       _producer = _task.getEventProducer();
-      _taskName = srcConnString + "-to-" + dstConnString;
+      String kafkaGroupId = getKafkaGroupId(_task);
 
-      try (Consumer<?, ?> consumer = createConsumer(_consumerFactory, _consumerProps, _taskName, srcConnString)) {
+      try (Consumer<?, ?> consumer = createConsumer(_consumerFactory, _consumerProps, kafkaGroupId, srcConnString)) {
         _consumer = consumer;
         ConsumerRecords<?, ?> records;
         consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), new ConsumerRebalanceListener() {
@@ -282,6 +283,20 @@ public class KafkaConnectorTask implements Runnable {
       _stoppedLatch.countDown();
       LOG.info("{} stopped", _taskName);
     }
+  }
+
+  @VisibleForTesting
+  static String getKafkaGroupId(DatastreamTask task) {
+    KafkaConnectionString srcConnString =
+        KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
+    String dstConnString = task.getDatastreamDestination().getConnectionString();
+
+    return task.getDatastreams()
+        .stream()
+        .map(ds -> ds.getMetadata().get(GROUP_ID_CONFIG))
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElse(srcConnString + "-to-" + dstConnString);
   }
 
   private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions) {
