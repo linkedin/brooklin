@@ -193,6 +193,7 @@ public class KafkaConnectorTask implements Runnable {
             _consumerMetrics.updateNumPolls(1);
             _consumerMetrics.updateEventCountsPerPoll(records.count());
             if (!records.isEmpty()) {
+              _consumerMetrics.updateEventsProcessedRate(records.count());
               _consumerMetrics.updateLastEventReceivedTime(Instant.now());
             }
           } catch (NoOffsetForPartitionException e) {
