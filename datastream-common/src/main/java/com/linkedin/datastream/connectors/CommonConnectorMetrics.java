@@ -200,6 +200,19 @@ public class CommonConnectorMetrics {
   }
 
   /**
+   * Increment the number of errors (aggregated only) which are global and not tied to any particular scope.
+   * @param val Value to increment the metric by
+   * @param message Message associated with the exception
+   * @param e Exception that caused the error during event processing
+   */
+  public void updateAggregatedErrorRate(long val, String message, Exception e) {
+    if (!StringUtils.isEmpty(message)) {
+      _errorLogger.error("updateErrorRate with message: " + message, e);
+    }
+    _aggregatedErrorRate.mark(val);
+  }
+
+  /**
    * Increment the number of events in the batch whose processing was above configured threshold for this consumer
    * and adjust aggregate accordingly
    * @param val Value to increment the metric by
