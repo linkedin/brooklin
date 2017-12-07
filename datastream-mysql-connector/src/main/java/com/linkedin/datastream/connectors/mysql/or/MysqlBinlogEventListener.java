@@ -296,9 +296,9 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
   private void endTransaction(BinlogEventV4 e) {
     LOG.info("Ending transaction " + _scn);
     if (_eventsInTransaction.size() > 0) {
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+      _dynamicMetricsManager.createOrUpdateMeter(CLASSNAME, _datastreamTask.getDatastreamTaskName(),
           PROCESSED_EVENT_RATE, _eventsInTransaction.size());
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), _datastreamTask.getDatastreamTaskName(),
+      _dynamicMetricsManager.createOrUpdateMeter(CLASSNAME, _datastreamTask.getDatastreamTaskName(),
           PROCESSED_TXNS_RATE, 1);
       // Write events to the producer only if there are events in this transaction.
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();

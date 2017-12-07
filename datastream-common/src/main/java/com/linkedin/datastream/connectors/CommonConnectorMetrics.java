@@ -6,19 +6,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.google.common.base.Strings;
 
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -37,65 +37,258 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
  */
 public class CommonConnectorMetrics {
   public static final String AGGREGATE = "aggregate";
-  private static final Logger LOG = LoggerFactory.getLogger(CommonConnectorMetrics.class);
-  private final Logger _errorLogger;
+  protected static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
-  // Event processing related metrics
-  public static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
-  public static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
-  public static final String ERROR_RATE = "errorRate";
-  public static final String NUM_PROCESSING_ABOVE_THRESHOLD = "numProcessingOverThreshold";
-  public static final String TIME_SINCE_LAST_EVENT_RECEIVED = "timeSinceLastEventReceivedMs";
-  // Per consumer metrics
-  private Meter _eventsProcessedRate;
-  private Meter _bytesProcessedRate;
-  private Meter _errorRate;
-  private Meter _numProcessingAboveThreshold;
-  private Instant _lastEventReceivedTime;
-  // Aggregated metrics
-  private static Meter _aggregatedEventsProcessedRate = new Meter();
-  private static Meter _aggregatedBytesProcessedRate = new Meter();
-  private static Meter _aggregatedErrorRate = new Meter();
-  private static Meter _aggregatedProcessingAboveThreshold = new Meter();
+  /**
+   * Base class for metric categories with support for metric deregistration.
+   * It uses reference counting for deregistering aggregate metrics which can
+   * only happen when all keyed metrics of the same name have been deregistered.
+   */
+  abstract static class Metrics {
+    protected String _className;
+    protected String _key;
+    private AtomicInteger _refCount = new AtomicInteger(0);
 
-  // Poll related metrics
-  public static final String NUM_POLLS = "numPolls";
-  public static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
-  public static final String CLIENT_POLL_OVER_TIMEOUT = "clientPollOverTimeout";
-  public static final String CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT = "pollIntervalOverSessionTimeout";
-  // Per consumer metrics
-  private Meter _numPolls;
-  private Histogram _eventCountsPerPoll;
-  // Aggregated metrics
-  private static Counter _aggregatedClientPollOverTimeout = new Counter();
-  private static Counter _aggregatedClientPollIntervalOverSessionTimeout = new Counter();
+    public Metrics(String className, String key) {
+      _refCount.incrementAndGet();
+      _className = className;
+      _key = key;
+    }
 
-  // Partition related metrics
-  public static final String REBALANCE_RATE = "rebalanceRate";
-  public static final String STUCK_PARTITIONS = "stuckPartitions";
-  private final AtomicLong _numStuckPartitions = new AtomicLong(0);
-  private static final AtomicLong AGGREGATED_NUM_STUCK_PARTITIONS = new AtomicLong(0);
-  // Per consumer metrics
-  private Meter _rebalanceRate;
-  // Aggregated metrics
-  private static Meter _aggregatedRebalanceRate = new Meter();
+    void deregister() {
+      if (_refCount.decrementAndGet() == 0) {
+        deregisterAggregates();
+      }
+    }
 
-  private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
+    void deregisterAggregates() {
+    }
+  }
 
-  private final String _className;
-  private final String _metricsKey;
+  /**
+   * Event processing related metrics
+   */
+  static class EventProcMetrics extends Metrics {
+    static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
+    static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
+    static final String ERROR_RATE = "errorRate";
+    static final String NUM_PROCESSING_ABOVE_THRESHOLD = "numProcessingOverThreshold";
+    static final String TIME_SINCE_LAST_EVENT_RECEIVED = "timeSinceLastEventReceivedMs";
+
+    // Per consumer metrics
+    final Meter _eventsProcessedRate;
+    final Meter _bytesProcessedRate;
+    final Meter _errorRate;
+    final Meter _numProcessingAboveThreshold;
+    Instant _lastEventReceivedTime;
+
+    // Aggregated metrics
+    final Meter _aggregatedEventsProcessedRate;
+    final Meter _aggregatedBytesProcessedRate;
+    final Meter _aggregatedErrorRate;
+    final Meter _aggregatedProcessingAboveThreshold;
+
+    public EventProcMetrics(String className, String key) {
+      super(className, key);
+      _lastEventReceivedTime = Instant.now();
+      _eventsProcessedRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENTS_PROCESSED_RATE,
+          Meter.class);
+      _bytesProcessedRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENTS_BYTE_PROCESSED_RATE,
+          Meter.class);
+      _errorRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, ERROR_RATE, Meter.class);
+      _numProcessingAboveThreshold = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key,
+          NUM_PROCESSING_ABOVE_THRESHOLD, Meter.class);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, TIME_SINCE_LAST_EVENT_RECEIVED,
+          () -> Duration.between(_lastEventReceivedTime, Instant.now()).toMillis());
+
+      // Getting aggregated metrics from DMM, all keyed instances for the same connector share
+      // the a single set of aggregated metrics.
+      _aggregatedEventsProcessedRate =
+          DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, EVENTS_PROCESSED_RATE, Meter.class);
+      _aggregatedBytesProcessedRate =
+          DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE, Meter.class);
+      _aggregatedErrorRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, ERROR_RATE, Meter.class);
+      _aggregatedProcessingAboveThreshold =
+          DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, NUM_PROCESSING_ABOVE_THRESHOLD, Meter.class);
+    }
+
+    @Override
+    public void deregister() {
+      super.deregister();
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENTS_PROCESSED_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENTS_BYTE_PROCESSED_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, ERROR_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PROCESSING_ABOVE_THRESHOLD);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, TIME_SINCE_LAST_EVENT_RECEIVED);
+    }
+
+    @Override
+    public void deregisterAggregates() {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_PROCESSED_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE);
+      // Keep aggregate error rate as it is still used for connector error tracking
+      // DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, ERROR_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, NUM_PROCESSING_ABOVE_THRESHOLD);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, TIME_SINCE_LAST_EVENT_RECEIVED);
+    }
+
+    // Must be static as MetricInfos are requested from static context
+    static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
+      List<BrooklinMetricInfo> metrics = new ArrayList<>();
+      metrics.add(new BrooklinMeterInfo(prefix + EVENTS_PROCESSED_RATE));
+      metrics.add(new BrooklinMeterInfo(prefix + EVENTS_BYTE_PROCESSED_RATE));
+      metrics.add(new BrooklinMeterInfo(prefix + ERROR_RATE));
+      metrics.add(new BrooklinMeterInfo(prefix + NUM_PROCESSING_ABOVE_THRESHOLD));
+      metrics.add(new BrooklinGaugeInfo(prefix + TIME_SINCE_LAST_EVENT_RECEIVED));
+      return Collections.unmodifiableList(metrics);
+    }
+  }
+
+  /**
+   * Poll related metrics
+   */
+  static class PollMetrics extends Metrics {
+    public static final String NUM_POLLS = "numPolls";
+    public static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
+    public static final String CLIENT_POLL_OVER_TIMEOUT = "clientPollOverTimeout";
+    public static final String CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT = "pollIntervalOverSessionTimeout";
+
+    // Per consumer metrics
+    final Meter _numPolls;
+    final Histogram _eventCountsPerPoll;
+
+    // Aggregated metrics
+    final Counter _aggregatedClientPollOverTimeout;
+    final Counter _aggregatedClientPollIntervalOverSessionTimeout;
+
+    public PollMetrics(String className, String key) {
+      super(className, key);
+      _numPolls = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, NUM_POLLS, Meter.class);
+      _eventCountsPerPoll = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_COUNTS_PER_POLL,
+          Histogram.class);
+
+      // Getting aggregated metrics from DMM, all keyed instances for the same connector share
+      // the a single set of aggregated metrics.
+      _aggregatedClientPollOverTimeout =
+          DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, CLIENT_POLL_OVER_TIMEOUT, Counter.class);
+      _aggregatedClientPollIntervalOverSessionTimeout =
+          DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT,
+              Counter.class);
+    }
+
+    @Override
+    void deregister() {
+      super.deregister();
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_POLLS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENT_COUNTS_PER_POLL);
+    }
+
+    @Override
+    public void deregisterAggregates() {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, CLIENT_POLL_OVER_TIMEOUT);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT);
+    }
+
+    // Must be static as MetricInfos are requested from static context
+    static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
+      List<BrooklinMetricInfo> metrics = new ArrayList<>();
+      metrics.add(new BrooklinMeterInfo(prefix + NUM_POLLS));
+      metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_OVER_TIMEOUT));
+      metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT));
+      metrics.add(new BrooklinHistogramInfo(prefix + EVENT_COUNTS_PER_POLL));
+      return Collections.unmodifiableList(metrics);
+    }
+  }
+
+  /**
+   * Partition related metrics
+   */
+  static class PartitionMetrics extends Metrics {
+    // Partition related metrics
+    static final String REBALANCE_RATE = "rebalanceRate";
+    static final String STUCK_PARTITIONS = "stuckPartitions";
+
+    // Per consumer metrics
+    final AtomicLong _numStuckPartitions = new AtomicLong(0);
+    final Meter _rebalanceRate;
+
+    // Aggregated metrics
+    final Meter _aggregatedRebalanceRate;
+
+    // Map from connector class name to its stuck partition counter
+    // This is needed for Gauge metrics which need long-typed suppliers.
+    static final Map<String, AtomicLong> AGGREGATED_NUM_STUCK_PARTITIONS = new ConcurrentHashMap<>();
+
+    public PartitionMetrics(String className, String key) {
+      super(className, key);
+      _rebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, REBALANCE_RATE, Meter.class);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, STUCK_PARTITIONS, _numStuckPartitions::get);
+
+      _aggregatedRebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, Meter.class);
+
+      if (!AGGREGATED_NUM_STUCK_PARTITIONS.containsKey(className)) {
+        AtomicLong aggStuckPartitions = new AtomicLong(0);
+        AGGREGATED_NUM_STUCK_PARTITIONS.put(className, aggStuckPartitions);
+        DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, () -> aggStuckPartitions.get());
+      }
+    }
+
+    @Override
+    void deregister() {
+      super.deregister();
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
+    }
+
+    @Override
+    public void deregisterAggregates() {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, REBALANCE_RATE);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, STUCK_PARTITIONS);
+    }
+
+    public void resetStuckPartitions() {
+      long numStuckPartitions = _numStuckPartitions.getAndSet(0);
+      AGGREGATED_NUM_STUCK_PARTITIONS.get(_className).getAndAdd(-numStuckPartitions);
+    }
+
+    public void updateStuckPartitions(long val) {
+      long delta = val - _numStuckPartitions.getAndSet(val);
+      AGGREGATED_NUM_STUCK_PARTITIONS.get(_className).getAndAdd(delta);
+    }
+
+    // Must be static as MetricInfos are requested from static context
+    static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
+      List<BrooklinMetricInfo> metrics = new ArrayList<>();
+      // Specify the attributes to expose to the final metric registry.
+      // TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
+      metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
+          Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
+      metrics.add(new BrooklinGaugeInfo(prefix + STUCK_PARTITIONS));
+      return Collections.unmodifiableList(metrics);
+    }
+  }
+
+  protected final String _className;
+  protected final String _key;
+  protected final Logger _errorLogger;
+  private final List<Metrics> _metricsList = new ArrayList<>();
+
+  private EventProcMetrics _eventProcMetrics;
+  private PollMetrics _pollMetrics;
+  private PartitionMetrics _partitionMetrics;
 
   /**
    * Instantiate a ConnectorMetrics instance for a particular Connector implementation
    * @param className The Connector class implementation that is instantiating the metrics class
-   * @param metricsKey The key to use with DynamicMetricsManager for creating the full metric names
-   *                   DynamicMetricsManager uses both the className and metricsKey is used to construct
+   * @param key The key to use with DynamicMetricsManager for creating the full metric names
+   *                   DynamicMetricsManager uses both the className and key is used to construct
    *                   the full metric name.
    */
-  public CommonConnectorMetrics(String className, String metricsKey, Logger errorLogger) {
-    _errorLogger = errorLogger;
+  public CommonConnectorMetrics(String className, String key, Logger errorLogger) {
+    Validate.notNull(className, "className cannot be null.");
     _className = className;
-    _metricsKey = metricsKey;
+    _key = key;
+    _errorLogger = errorLogger;
   }
 
   /**
@@ -104,25 +297,8 @@ public class CommonConnectorMetrics {
    * updateProcessingAboveThreshold
    */
   public void createEventProcessingMetrics() {
-    _eventsProcessedRate = new Meter();
-    _bytesProcessedRate = new Meter();
-    _errorRate = new Meter();
-    _numProcessingAboveThreshold = new Meter();
-    _lastEventReceivedTime = Instant.now();
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, EVENTS_PROCESSED_RATE, _eventsProcessedRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, EVENTS_BYTE_PROCESSED_RATE, _bytesProcessedRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, ERROR_RATE, _errorRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, NUM_PROCESSING_ABOVE_THRESHOLD,
-        _numProcessingAboveThreshold);
-
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, EVENTS_PROCESSED_RATE, _aggregatedEventsProcessedRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE, _aggregatedBytesProcessedRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, ERROR_RATE, _aggregatedErrorRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, NUM_PROCESSING_ABOVE_THRESHOLD,
-        _aggregatedProcessingAboveThreshold);
-
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, TIME_SINCE_LAST_EVENT_RECEIVED,
-        (Gauge<Long>) () -> Duration.between(_lastEventReceivedTime, Instant.now()).toMillis());
+    _eventProcMetrics = new EventProcMetrics(_className, _key);
+    _metricsList.add(_eventProcMetrics);
   }
 
   /**
@@ -131,15 +307,8 @@ public class CommonConnectorMetrics {
    * updateClientPollIntervalOverSessionTimeout
    */
   public void createPollMetrics() {
-    _numPolls = new Meter();
-    _eventCountsPerPoll = new Histogram(new SlidingTimeWindowReservoir(1, TimeUnit.MINUTES));
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, NUM_POLLS, _numPolls);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, EVENT_COUNTS_PER_POLL, _eventCountsPerPoll);
-
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, CLIENT_POLL_OVER_TIMEOUT,
-        _aggregatedClientPollOverTimeout);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT,
-        _aggregatedClientPollIntervalOverSessionTimeout);
+    _pollMetrics = new PollMetrics(_className, _key);
+    _metricsList.add(_pollMetrics);
   }
 
   /**
@@ -147,14 +316,17 @@ public class CommonConnectorMetrics {
    * an invocation is made to one of resetStuckPartitions, updateStuckPartitions, updateRebalanceRate
    */
   public void createPartitionMetrics() {
-    _rebalanceRate = new Meter();
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, REBALANCE_RATE, _rebalanceRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, _metricsKey, STUCK_PARTITIONS,
-        (Gauge<Long>) _numStuckPartitions::get);
+    _partitionMetrics = new PartitionMetrics(_className, _key);
+    _metricsList.add(_partitionMetrics);
+  }
 
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, _aggregatedRebalanceRate);
-    DYNAMIC_METRICS_MANAGER.registerMetric(_className, CommonConnectorMetrics.AGGREGATE, STUCK_PARTITIONS,
-        (Gauge<Long>) AGGREGATED_NUM_STUCK_PARTITIONS::get);
+  /**
+   * Deregister all currently registered metrics from DynamicMetricsManager. This should be called when
+   * the connector does not want to publish metric values any more because of circumstances like task
+   * unassignments, etc.
+   */
+  public void deregisterMetrics() {
+    _metricsList.stream().forEach(m -> m.deregister());
   }
 
   /**
@@ -162,8 +334,8 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateEventsProcessedRate(long val) {
-      _eventsProcessedRate.mark(val);
-      _aggregatedEventsProcessedRate.mark(val);
+    _eventProcMetrics._eventsProcessedRate.mark(val);
+    _eventProcMetrics._aggregatedEventsProcessedRate.mark(val);
   }
 
   /**
@@ -171,8 +343,8 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateBytesProcessedRate(long val) {
-    _bytesProcessedRate.mark(val);
-    _aggregatedBytesProcessedRate.mark(val);
+    _eventProcMetrics._bytesProcessedRate.mark(val);
+    _eventProcMetrics._aggregatedBytesProcessedRate.mark(val);
   }
 
   /**
@@ -195,8 +367,8 @@ public class CommonConnectorMetrics {
     if (!StringUtils.isEmpty(message)) {
       _errorLogger.error("updateErrorRate with message: " + message, e);
     }
-    _errorRate.mark(val);
-    _aggregatedErrorRate.mark(val);
+    _eventProcMetrics._errorRate.mark(val);
+    _eventProcMetrics._aggregatedErrorRate.mark(val);
   }
 
   /**
@@ -209,7 +381,7 @@ public class CommonConnectorMetrics {
     if (!StringUtils.isEmpty(message)) {
       _errorLogger.error("updateErrorRate with message: " + message, e);
     }
-    _aggregatedErrorRate.mark(val);
+    _eventProcMetrics._aggregatedErrorRate.mark(val);
   }
 
   /**
@@ -218,8 +390,8 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateProcessingAboveThreshold(long val) {
-    _numProcessingAboveThreshold.mark(val);
-    _aggregatedProcessingAboveThreshold.mark(val);
+    _eventProcMetrics._numProcessingAboveThreshold.mark(val);
+    _eventProcMetrics._aggregatedProcessingAboveThreshold.mark(val);
   }
 
   /**
@@ -227,7 +399,7 @@ public class CommonConnectorMetrics {
    * @param val Time instant to update the metric with
    */
   public void updateLastEventReceivedTime(Instant val) {
-    _lastEventReceivedTime = val;
+    _eventProcMetrics._lastEventReceivedTime = val;
   }
 
   /**
@@ -235,7 +407,7 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateNumPolls(long val) {
-    _numPolls.mark(val);
+    _pollMetrics._numPolls.mark(val);
   }
 
   /**
@@ -243,7 +415,7 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateEventCountsPerPoll(long val) {
-    _eventCountsPerPoll.update(val);
+    _pollMetrics._eventCountsPerPoll.update(val);
   }
 
   /**
@@ -251,7 +423,7 @@ public class CommonConnectorMetrics {
    * @param val Value to increment metric by
    */
   public void updateClientPollOverTimeout(long val) {
-    _aggregatedClientPollOverTimeout.inc(val);
+    _pollMetrics._aggregatedClientPollOverTimeout.inc(val);
   }
 
   /**
@@ -259,14 +431,14 @@ public class CommonConnectorMetrics {
    * @param val Value to increment metric by
    */
   public void updateClientPollIntervalOverSessionTimeout(long val) {
-    _aggregatedClientPollIntervalOverSessionTimeout.inc(val);
+    _pollMetrics._aggregatedClientPollIntervalOverSessionTimeout.inc(val);
   }
 
   /**
    * Reset the number of stuck partitions on this consumer and adjust the aggregate accordingly
    */
   public void resetStuckPartitions() {
-    AGGREGATED_NUM_STUCK_PARTITIONS.getAndAdd(-_numStuckPartitions.getAndSet(0));
+    _partitionMetrics.resetStuckPartitions();
   }
 
   /**
@@ -274,7 +446,7 @@ public class CommonConnectorMetrics {
    * @param val New value for the metric
    */
   public void updateStuckPartitions(long val) {
-    AGGREGATED_NUM_STUCK_PARTITIONS.getAndAdd(val - _numStuckPartitions.getAndSet(val));
+    _partitionMetrics.updateStuckPartitions(val);
   }
 
   /**
@@ -282,8 +454,8 @@ public class CommonConnectorMetrics {
    * @param val Value to increment metric by
    */
   public void updateRebalanceRate(long val) {
-    _rebalanceRate.mark(val);
-    _aggregatedRebalanceRate.mark(val);
+    _partitionMetrics._rebalanceRate.mark(val);
+    _partitionMetrics._aggregatedRebalanceRate.mark(val);
   }
 
   /**
@@ -292,14 +464,8 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventProcessingMetrics(String prefix) {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);
-    metrics.add(new BrooklinMeterInfo(prefix + EVENTS_PROCESSED_RATE));
-    metrics.add(new BrooklinMeterInfo(prefix + EVENTS_BYTE_PROCESSED_RATE));
-    metrics.add(new BrooklinMeterInfo(prefix + ERROR_RATE));
-    metrics.add(new BrooklinMeterInfo(prefix + NUM_PROCESSING_ABOVE_THRESHOLD));
-    metrics.add(new BrooklinGaugeInfo(prefix + TIME_SINCE_LAST_EVENT_RECEIVED));
-    return Collections.unmodifiableList(metrics);
+    return EventProcMetrics.getMetricInfos(prefix);
   }
 
   /**
@@ -308,13 +474,8 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventPollMetrics(String prefix) {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);
-    metrics.add(new BrooklinMeterInfo(prefix + NUM_POLLS));
-    metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_OVER_TIMEOUT));
-    metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT));
-    metrics.add(new BrooklinHistogramInfo(prefix + EVENT_COUNTS_PER_POLL));
-    return Collections.unmodifiableList(metrics);
+    return PollMetrics.getMetricInfos(prefix);
   }
 
   /**
@@ -323,13 +484,7 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getPartitionSpecificMetrics(String prefix) {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);
-    // Specify the attributes to expose to the final metric registry.
-    // TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
-    metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
-        Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
-    metrics.add(new BrooklinGaugeInfo(prefix + STUCK_PARTITIONS));
-    return Collections.unmodifiableList(metrics);
+    return PartitionMetrics.getMetricInfos(prefix);
   }
 }

@@ -27,6 +27,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
+  private static final String MODULE = ZookeeperCheckpointProvider.class.getSimpleName();
   public static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
 
   private final ZkAdapter _zkAdapter;
@@ -83,8 +84,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       Map<Integer, String> checkpoints = mergeAndGetSafeCheckpoints(task, taskMap);
 
       _zkAdapter.setDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME, JsonUtils.toJson(checkpoints));
-      _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), NUM_CHECKPOINT_COMMITS, 1);
-      _dynamicMetricsManager.createOrUpdateHistogram(this.getClass(), CHECKPOINT_COMMIT_LATENCY_MS,
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_CHECKPOINT_COMMITS, 1);
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, CHECKPOINT_COMMIT_LATENCY_MS,
           System.currentTimeMillis() - startTime);
       // Clear the checkpoints to commit.
       _checkpointsToCommit.get(task).clear();

@@ -35,7 +35,7 @@ public class MysqlSourceBinlogRowEventFilter implements BinlogRowEventFilter {
 
   @Override
   public boolean accepts(BinlogEventV4Header header, BinlogParserContext context, TableMapEvent event) {
-    _dynamicMetricsManager.createOrUpdateMeter(this.getClass(), _taskName, TOTAL_EVENTS_RATE, 1);
+    _dynamicMetricsManager.createOrUpdateMeter(CLASSNAME, _taskName, TOTAL_EVENTS_RATE, 1);
     if (event.getDatabaseName() == null || event.getTableName() == null) {
       return false;
     }

@@ -33,7 +33,6 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
@@ -188,7 +187,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_HEARTBEATS = "numHeartbeats";
 
   private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
-  private static final Gauge<Long> NUM_PAUSED_GAUGE = () -> _pausedDatastreamsGroups.get();
   private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
 
   // Connector common metrics
@@ -221,7 +219,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventThread.setDaemon(true);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerMetric(getClass(), NUM_PAUSED_DATASTREAMS_GROUPS, NUM_PAUSED_GAUGE);
+    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
 
     // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
@@ -1019,13 +1017,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
-    Class<?> connectorClass = connector.getClass();
-    _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAMS,
-        (Gauge<Long>) () -> connectorInfo.getConnector().getNumDatastreams());
-    _dynamicMetricsManager.registerMetric(connectorClass, NUM_DATASTREAM_TASKS,
-        (Gauge<Long>) () -> connectorInfo.getConnector().getNumDatastreamTasks());
+    String className = connector.getClass().getSimpleName();
+    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAMS,
+        () -> connectorInfo.getConnector().getNumDatastreams());
+    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAM_TASKS,
+        () -> connectorInfo.getConnector().getNumDatastreamTasks());
 
-    String className = connectorClass.getSimpleName();
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
   }

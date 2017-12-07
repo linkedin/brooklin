@@ -23,6 +23,7 @@ public class ThreadTerminationMonitor {
 
   private static final String ABNORMAL_TERMINATIONS = "abnormalTerminations";
 
+  private static final String MODULE = ThreadTerminationMonitor.class.getSimpleName();
   private static final Logger LOG = LoggerFactory.getLogger(ThreadTerminationMonitor.class);
 
   private static final Thread.UncaughtExceptionHandler OLD_HANDLER;
@@ -32,7 +33,7 @@ public class ThreadTerminationMonitor {
     OLD_HANDLER = Thread.getDefaultUncaughtExceptionHandler();
     Thread.setDefaultUncaughtExceptionHandler((Thread t, Throwable e) -> {
       LOG.error(String.format("Thread %s terminated abnormally", t.getName()), e);
-      DynamicMetricsManager.getInstance().createOrUpdateMeter(ThreadTerminationMonitor.class, ABNORMAL_TERMINATIONS, 1);
+      DynamicMetricsManager.getInstance().createOrUpdateMeter(MODULE, ABNORMAL_TERMINATIONS, 1);
       // Resume the old behavior
       if (OLD_HANDLER != null) {
         OLD_HANDLER.uncaughtException(t, e);
