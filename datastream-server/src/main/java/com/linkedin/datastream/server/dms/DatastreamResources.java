@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
@@ -15,7 +16,6 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
@@ -82,8 +82,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
   private static AtomicLong _deleteCallLatencyMs = new AtomicLong(0L);
-  private static final Gauge<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
-  private static final Gauge<Long> DELETE_CALL_LATENCY_MS = () -> _deleteCallLatencyMs.get();
+  private static final Supplier<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
+  private static final Supplier<Long> DELETE_CALL_LATENCY_MS = () -> _deleteCallLatencyMs.get();
   private static final String CREATE_CALL_LATENCY_MS_STRING = "createCallLatencyMs";
   private static final String DELETE_CALL_LATENCY_MS_STRING = "deleteCallLatencyMs";
 
@@ -99,8 +99,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _errorLogger = new ErrorLogger(LOG, _coordinator.getInstanceName());
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerMetric(getClass(), CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
-    _dynamicMetricsManager.registerMetric(getClass(), DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
+    _dynamicMetricsManager.registerGauge(CLASS_NAME, CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
+    _dynamicMetricsManager.registerGauge(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
   }
 
   /*
@@ -112,21 +112,21 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
     LOG.info("Update datastream call with request: ", datastreamMap);
-    _dynamicMetricsManager.createOrUpdateMeter(getClass(), UPDATE_CALL, 1);
+    _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, UPDATE_CALL, 1);
     if (datastreamMap.isEmpty()) {
       LOG.warn("Update datastream call with empty input.");
       return;
     }
     datastreamMap.forEach((key, datastream) -> {
       if (!key.equals(datastream.getName())) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
             String.format("Failed to update %s because datastream name doesn't match. datastream: %s",
                 key, datastream));
       }
       Datastream oldDatastream = _store.getDatastream(key);
       if (oldDatastream == null) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
             "Datastream to update does not exist: " + key);
       }
@@ -135,26 +135,26 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       // destination or status (use pause/resume to update status). Writing into a different destination
       // should essentially be for a new datastream.
       if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
             String.format("Failed to update %s because destination is not set. Are they initialized? old: %s, new: %s",
                 key, oldDatastream, datastream));
       }
       if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
             String.format("Failed to update %s because destination is immutable. old: %s new: %s", key, oldDatastream,
                 datastream));
       }
 
       if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
             String.format("Failed to update %s because status is not present. Are they valid? old: %s, new: %s", key,
                 oldDatastream, datastream));
       }
       if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
-        _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
             String.format("Failed to update %s. Can't update status in update request. old: %s new: %s", key,
                 oldDatastream, datastream));
@@ -164,7 +164,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       _coordinator.validateDatastreamsUpdate(new ArrayList<>(datastreamMap.values()));
     } catch (DatastreamValidationException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Failed to validate datastream updates: ", e);
     }
@@ -177,7 +177,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
       _coordinator.broadcastDatastreamUpdate();
     } catch (DatastreamException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Could not complete datastreams update ", e);
     }
@@ -273,14 +273,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info("Delete datastream called for datastream " + datastreamName);
 
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), DELETE_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, DELETE_CALL, 1);
       Instant startTime = Instant.now();
       _store.deleteDatastream(datastreamName);
       _deleteCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
 
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
         "Delete failed for datastream: " + datastreamName, e);
     }
@@ -293,10 +293,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public Datastream get(String name) {
     try {
       LOG.info(String.format("Get datastream called for datastream %s", name));
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), GET_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
       return _store.getDatastream(name);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
         "Get datastream failed for datastream: " + name, e);
     }
@@ -309,13 +309,13 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
     try {
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), GET_ALL_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
         .filter(Objects::nonNull).collect(Collectors.toList());
       LOG.debug("Result collected for getAll {}", ret);
       return ret;
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger
         .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
     }
@@ -332,7 +332,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       @QueryParam("datastreamName") String datastreamName) {
     try {
       LOG.info(String.format("findDuplicates called with paging context %s", pagingContext));
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), FINDER_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, FINDER_CALL, 1);
       Datastream datastream = _store.getDatastream(datastreamName);
       if (datastream == null) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -344,7 +344,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       LOG.debug("Result collected for findDuplicates: {}", ret);
       return ret;
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Call findDuplicates failed.", e);
     }
@@ -359,7 +359,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         LOG.debug("Handling request on object: %s thread: %s", this, Thread.currentThread());
       }
 
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CREATE_CALL, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CREATE_CALL, 1);
 
       // rest.li has done this mandatory field check in the latest version.
       // Just in case we roll back to an earlier version, let's do the validation here anyway
@@ -392,23 +392,23 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       LOG.debug("Datastream persisted to zookeeper, total time used: %dms", delta.toMillis());
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (IllegalArgumentException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Invalid input params for create request", e);
     } catch (DatastreamValidationException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
           "Failed to initialize Datastream: ", e);
     } catch (DatastreamAlreadyExistsException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
           "Datastream with the same name already exists: " + datastream, e);
     } catch (AuthorizationException e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_401_UNAUTHORIZED,
           "Datastream creation denied due to insufficient authorization: " + datastream, e);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(getClass(), CALL_ERROR, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Unexpected error during datastream creation: " + datastream, e);
     }

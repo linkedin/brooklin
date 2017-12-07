@@ -2,13 +2,16 @@ package com.linkedin.datastream.metrics;
 
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang.Validate;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
 
 
@@ -22,6 +25,10 @@ public class DynamicMetricsManager {
 
   // Metrics indexed by simple class name
   // Simple class name -> full metric name -> metric
+  // The map helps reducing contention on the internal map of MetricRegistry.
+  // This is created solely for the createOrUpdate APIs, not by registerMetric
+  // because the former can be called repeatedly to update the metric whereas
+  // the latter is typically only called once per metric during initialization.
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>> _indexedMetrics;
 
   private DynamicMetricsManager(MetricRegistry metricRegistry) {
@@ -56,63 +63,152 @@ public class DynamicMetricsManager {
   }
 
   /**
-   * Register the metric for the specified key/metricName pair by the given value; if it has
-   * already been registered, do nothing
-   * @param classSimpleName the simple name of the underlying class
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param metric the metric to be registered
+   * Get a metric object based on its class. Note that codahale MetricRegistry
+   * does a getOrAdd behind of scene of counter()/meter()/histogram(), etc.
+   * @param name fully-qualified name of the metric
+   * @param clazz class object of the metric
+   * @param <T> metric type
+   * @return metric object
    */
-  public void registerMetric(String classSimpleName, String key, String metricName, Metric metric) {
-    validateArguments(classSimpleName, metricName);
-    Validate.notNull(metric, "metric argument is null.");
-
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-
-    if (!checkCache(classSimpleName, fullMetricName).isPresent()) {
-      // create and register the metric if it does not exist
-      if (!_metricRegistry.getMetrics().containsKey(fullMetricName)) {
-        try {
-          _metricRegistry.register(fullMetricName, metric);
-        } catch (IllegalArgumentException e) {
-          // Ignore error, metric already register.
-        }
-      }
-
-      updateCache(classSimpleName, fullMetricName, metric);
+  @SuppressWarnings("unchecked")
+  private <T extends Metric> T getMetric(String name, Class<T> clazz) {
+    if (clazz.equals(Counter.class)) {
+      return (T) _metricRegistry.counter(name);
+    } else if (clazz.equals(Meter.class)) {
+      return (T) _metricRegistry.meter(name);
+    } else if (clazz.equals(Histogram.class)) {
+      return (T) _metricRegistry.histogram(name);
+    } else if (clazz.equals(Gauge.class)) {
+      return (T) new ResettableGauge<>();
+    } else if (clazz.equals(Timer.class)) {
+      return (T) new Timer();
+    } else {
+      throw new IllegalArgumentException("Invalid metric type: " + clazz);
     }
   }
 
   /**
-   * Register the metric for the specified metricName; if it has already been registered, do nothing
-   * @param classSimpleName the simple name of the underlying class
-   * @param metricName the metric name
-   * @param metric the metric to be registered
+   * Internal method to create and register a metric with the registry. If the metric with the same
+   * name has already been registered before, it will be returned instead of creating a new one as
+   * metric registry forbids duplicate registrations. For an existing Gauge metric, we replace its
+   * value supplier with the new supplier passed in.
+   * @param simpleName namespace of the metric
+   * @param key optional key for the metric (eg. source name)
+   * @param metricName actual name of the metric
+   * @param metricClass class of the metric type
+   * @param supplier optional supplier for Gauge metric (not used for non-Gauge metrics)
+   * @param <T> metric type
+   * @param <V> value type for the supplier
+   * @return
    */
-  public void registerMetric(String classSimpleName, String metricName, Metric metric) {
-    registerMetric(classSimpleName, null, metricName, metric);
+  @SuppressWarnings("unchecked")
+  private <T extends Metric, V> T doRegisterMetric(String simpleName, String key, String metricName,
+      Class<T> metricClass, Supplier<V> supplier) {
+    validateArguments(simpleName, metricName);
+    Validate.notNull(metricClass, "metric class argument is null.");
+
+    String fullMetricName = MetricRegistry.name(simpleName, key, metricName);
+
+    Metric metric = getMetric(fullMetricName, metricClass);
+
+    if (metric != null && metric instanceof ResettableGauge) {
+      Validate.notNull(supplier, "null supplier to Gauge");
+      ((ResettableGauge) metric).setSupplier(supplier);
+
+      try {
+        // Gauge needs explicit registration
+        _metricRegistry.register(fullMetricName, metric);
+      } catch (IllegalArgumentException e) {
+        // This can happen with parallel unit tests
+      }
+    }
+
+    // _indexedMetrics update is left to the createOrUpdate APIs which is only needed
+    // if the same metrics are accessed through both registerMetric and createOrUpdate.
+
+    return (T) metric;
   }
 
   /**
    * Register the metric for the specified key/metricName pair by the given value; if it has
    * already been registered, do nothing
-   * @param clazz the class containing the metric
+   * @param simpleName the simple name of the underlying class
    * @param key the key (i.e. topic or partition) for the metric
    * @param metricName the metric name
-   * @param metric the metric to be registered
+   * @param metricClass the class object of the metric to be registered
+   * @return the metric just registered or previously registered one
    */
-  public void registerMetric(Class<?> clazz, String key, String metricName, Metric metric) {
-    registerMetric(clazz.getSimpleName(), key, metricName, metric);
+  @SuppressWarnings("unchecked")
+  public <T extends Metric> T registerMetric(String simpleName, String key, String metricName, Class<T> metricClass) {
+    Validate.isTrue(!metricClass.equals(Gauge.class), "please call registerGauge() to register a Gauge metric.");
+    return doRegisterMetric(simpleName, key, metricName, metricClass, null);
   }
 
   /**
    * Register the metric for the specified metricName; if it has already been registered, do nothing
-   * @param clazz the class containing the metric
+   * @param classSimpleName the simple name of the underlying class
    * @param metricName the metric name
-   * @param metric the metric to be registered
+   * @param metricClass the metric to be registered
+   * @return the metric just registered or previously registered one
    */
-  public void registerMetric(Class<?> clazz, String metricName, Metric metric) {
-    registerMetric(clazz, null, metricName, metric);
+  public <T extends Metric> T registerMetric(String classSimpleName, String metricName, Class<T> metricClass) {
+    return registerMetric(classSimpleName, null, metricName, metricClass);
+  }
+
+  /**
+   * Register a Gauge metric for the specified metricName; if it has already been registered, do nothing
+   * @param simpleName the simple name of the underlying class
+   * @param key the key (i.e. topic or partition) for the metric
+   * @param metricName the metric name
+   * @param supplier value supplier for the Gauge
+   * @return the metric just registered or previously registered one
+   */
+  @SuppressWarnings("unchecked")
+  public <T> Gauge<T> registerGauge(String simpleName, String key, String metricName, Supplier<T> supplier) {
+    return doRegisterMetric(simpleName, key, metricName, Gauge.class, supplier);
+  }
+
+  /**
+   * Register a Gauge metric for the specified metricName; if it has already been registered, do nothing
+   * @param simpleName the simple name of the underlying class
+   * @param metricName the metric name
+   * @param supplier value supplier for the Gauge
+   * @return the metric just registered or previously registered one
+   */
+  @SuppressWarnings("unchecked")
+  public <T> Gauge<T> registerGauge(String simpleName, String metricName, Supplier<T> supplier) {
+    return doRegisterMetric(simpleName, null, metricName, Gauge.class, supplier);
+  }
+
+  /**
+   * Unregister the metric for the specified key/metricName pair by the given value; if it has
+   * never been registered, do nothing
+   * @param simpleName the simple name of the underlying class
+   * @param key the key (i.e. topic or partition) for the metric
+   * @param metricName the metric name
+   */
+  public void unregisterMetric(String simpleName, String key, String metricName) {
+    validateArguments(simpleName, metricName);
+    String fullMetricName = MetricRegistry.name(simpleName, key, metricName);
+
+    try {
+      _metricRegistry.remove(fullMetricName);
+    } finally {
+      // Always update our the index
+      if (_indexedMetrics.contains(simpleName)) {
+        _indexedMetrics.get(simpleName).remove(fullMetricName);
+      }
+    }
+  }
+
+  /**
+   * Unregister the metric for the specified key/metricName pair by the given value; if it has
+   * never been registered, do nothing
+   * @param simpleName the simple name of the underlying class
+   * @param metricName the metric name
+   */
+  public void unregisterMetric(String simpleName, String metricName) {
+    unregisterMetric(simpleName, metricName);
   }
 
   /**
@@ -147,29 +243,6 @@ public class DynamicMetricsManager {
   }
 
   /**
-   * Update the counter (or creates it if it does not exist) for the specified key/metricName pair by the given value.
-   * To decrement the counter, pass in a negative value.
-   * @param clazz the class containing the metric
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param value amount to increment the counter by (use negative value to decrement)
-   */
-  public void createOrUpdateCounter(Class<?> clazz, String key, String metricName, long value) {
-    createOrUpdateCounter(clazz.getSimpleName(), key, metricName, value);
-  }
-
-  /**
-   * Update the counter (or creates it if it does not exist) for the specified metricName.
-   * To decrement the counter, pass in a negative value.
-   * @param clazz the class containing the metric
-   * @param metricName the metric name
-   * @param value amount to increment the counter by (use negative value to decrement)
-   */
-  public void createOrUpdateCounter(Class<?> clazz, String metricName, long value) {
-    createOrUpdateCounter(clazz, null, metricName, value);
-  }
-
-  /**
    * Update the meter (or creates it if it does not exist) for the specified key/metricName pair by the given value.
    * @param classSimpleName the simple name of the underlying class
    * @param key the key (i.e. topic or partition) for the metric
@@ -199,27 +272,6 @@ public class DynamicMetricsManager {
   }
 
   /**
-   * Update the meter (or creates it if it does not exist) for the specified key/metricName pair by the given value.
-   * @param clazz the class containing the metric
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param value the value to mark on the meter
-   */
-  public void createOrUpdateMeter(Class<?> clazz, String key, String metricName, long value) {
-    createOrUpdateMeter(clazz.getSimpleName(), key, metricName, value);
-  }
-
-  /**
-   * Update the meter (or creates it if it does not exist) for the specified metricName.
-   * @param clazz the class containing the metric
-   * @param metricName the metric name
-   * @param value the value to mark on the meter
-   */
-  public void createOrUpdateMeter(Class<?> clazz, String metricName, long value) {
-    createOrUpdateMeter(clazz, null, metricName, value);
-  }
-
-  /**
    * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
    * @param classSimpleName the simple name of the underlying class
    * @param key the key (i.e. topic or partition) for the metric
@@ -245,27 +297,6 @@ public class DynamicMetricsManager {
    */
   public void createOrUpdateHistogram(String classSimpleName, String metricName, long value) {
     createOrUpdateHistogram(classSimpleName, null, metricName, value);
-  }
-
-  /**
-   * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
-   * @param clazz the class containing the metric
-   * @param key the key (i.e. topic or partition) for the metric
-   * @param metricName the metric name
-   * @param value the value to update on the histogram
-   */
-  public void createOrUpdateHistogram(Class<?> clazz, String key, String metricName, long value) {
-    createOrUpdateHistogram(clazz.getSimpleName(), key, metricName, value);
-  }
-
-  /**
-   * Update the histogram (or creates it if it does not exist) for the specified metricName.
-   * @param clazz the class containing the metric
-   * @param metricName the metric name
-   * @param value the value to update on the histogram
-   */
-  public void createOrUpdateHistogram(Class<?> clazz, String metricName, long value) {
-    createOrUpdateHistogram(clazz, null, metricName, value);
   }
 
   /**

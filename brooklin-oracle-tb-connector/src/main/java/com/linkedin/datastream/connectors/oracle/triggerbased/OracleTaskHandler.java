@@ -10,7 +10,6 @@ import java.util.Iterator;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 
-import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +28,6 @@ import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleCon
 import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleChangeEvent;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.SlidingTimeWindowReservoir;
 
 import static java.lang.String.format;
 
@@ -447,40 +445,39 @@ public class OracleTaskHandler implements Runnable {
 
     /* Per OracleTaskHandler Metrics */
     // The number of events retrieved in one poll
-    private final Histogram _eventCountPerPoll
-        = new Histogram(new SlidingTimeWindowReservoir(1, TimeUnit.MINUTES));
+    private final Histogram _eventCountPerPoll;
     // The latency, time between when the row was changed to when it was finished processing
-    private final Histogram _eventToProcessedLatency
-        = new Histogram(new SlidingTimeWindowReservoir(1, TimeUnit.MINUTES));
+    private final Histogram _eventToProcessedLatency;
     // The rate at which we can process changes end to end
-    private final Meter _processingRate = new Meter();
+    private final Meter _processingRate;
     // THe rate at which we receive errors while trying to process changes end to end
-    private final Meter _errorRate = new Meter();
+    private final Meter _errorRate;
     // The number of polls from the OracleConsumer
-    private final Meter _pollCount = new Meter();
+    private final Meter _pollCount;
 
 
     /* Aggregate Metrics */
-    private static final Meter AGGREGATED_PROCESSING_RATE = new Meter();
-    private static final Meter AGGREGATED_ERROR_RATE = new Meter();
-    private static final Histogram AGGREGATED_EVENT_TO_PROCESSED_LATENCY
-        = new Histogram(new SlidingTimeWindowReservoir(1, TimeUnit.MINUTES));
+    private static Meter _aggregatedProcessingRate;
+    private static Meter _aggregatedErrorRate;
+    private static Histogram _aggregatedEventToProcessedLatency;
 
 
     private OracleTBMetrics(String name) {
       _name = name;
       _metricManager = DynamicMetricsManager.getInstance();
 
-      _metricManager.registerMetric(CLASS_NAME, _name, PROCESSING_RATE_KEY, _processingRate);
-      _metricManager.registerMetric(CLASS_NAME, _name, EVENT_COUNT_PER_POLL_KEY, _eventCountPerPoll);
-      _metricManager.registerMetric(CLASS_NAME, _name, ERROR_RATE_KEY, _errorRate);
-      _metricManager.registerMetric(CLASS_NAME, _name, POLL_COUNT_KEY, _pollCount);
-      _metricManager.registerMetric(CLASS_NAME, _name, EVENT_TO_PROCESSED_LATENCY_KEY, _eventToProcessedLatency);
+      _processingRate = _metricManager.registerMetric(CLASS_NAME, _name, PROCESSING_RATE_KEY, Meter.class);
+      _eventCountPerPoll = _metricManager.registerMetric(CLASS_NAME, _name, EVENT_COUNT_PER_POLL_KEY, Histogram.class);
+      _errorRate = _metricManager.registerMetric(CLASS_NAME, _name, ERROR_RATE_KEY, Meter.class);
+      _pollCount = _metricManager.registerMetric(CLASS_NAME, _name, POLL_COUNT_KEY, Meter.class);
+      _eventToProcessedLatency = _metricManager.registerMetric(CLASS_NAME, _name, EVENT_TO_PROCESSED_LATENCY_KEY,
+          Histogram.class);
 
       // Register Aggregated metric if not registered by another instance.
-      _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY, ERROR_RATE_KEY, AGGREGATED_ERROR_RATE);
-      _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY, PROCESSING_RATE_KEY, AGGREGATED_PROCESSING_RATE);
-      _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY, EVENT_TO_PROCESSED_LATENCY_KEY, AGGREGATED_EVENT_TO_PROCESSED_LATENCY);
+      _aggregatedErrorRate = _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY, ERROR_RATE_KEY, Meter.class);
+      _aggregatedProcessingRate = _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY, PROCESSING_RATE_KEY, Meter.class);
+      _aggregatedEventToProcessedLatency = _metricManager.registerMetric(CLASS_NAME, AGGREGATE_KEY,
+          EVENT_TO_PROCESSED_LATENCY_KEY, Histogram.class);
     }
 
     private void incrementPollCount() {
@@ -492,12 +489,12 @@ public class OracleTaskHandler implements Runnable {
     }
 
     private void incrementErrorRate() {
-      AGGREGATED_ERROR_RATE.mark(1);
+      _aggregatedErrorRate.mark(1);
       _errorRate.mark(1);
     }
 
     private void incrementProcessingRate() {
-      AGGREGATED_PROCESSING_RATE.mark(1);
+      _aggregatedProcessingRate.mark(1);
       _processingRate.mark(1);
     }
 
@@ -510,7 +507,7 @@ public class OracleTaskHandler implements Runnable {
       for (OracleChangeEvent event : events) {
         long latency = current - event.getSourceTimestamp();
         _eventToProcessedLatency.update(latency);
-        AGGREGATED_EVENT_TO_PROCESSED_LATENCY.update(latency);
+        _aggregatedEventToProcessedLatency.update(latency);
       }
     }
   }
