@@ -96,7 +96,7 @@ public class EventProducer implements DatastreamEventProducer {
   private Instant _lastFlushTime = Instant.now();
   private final Duration _flushInterval;
   private final boolean _skipBadMessagesEnabled;
-  private final Meter _skippedBadMessagesRate = new Meter();
+  private final Meter _skippedBadMessagesRate;
 
   /**
    * Construct an EventProducer instance.
@@ -146,8 +146,10 @@ public class EventProducer implements DatastreamEventProducer {
 
     _skipBadMessagesEnabled = skipBadMessageEnabled(task);
     if (_skipBadMessagesEnabled) {
-      _dynamicMetricsManager.registerMetric(getClass().getSimpleName(), _datastreamName, SKIPPED_BAD_MESSAGES_RATE,
-          _skippedBadMessagesRate);
+      _skippedBadMessagesRate = _dynamicMetricsManager.registerMetric(getClass().getSimpleName(), _datastreamName,
+          SKIPPED_BAD_MESSAGES_RATE, Meter.class);
+    } else {
+      _skippedBadMessagesRate = null;
     }
   }
 
