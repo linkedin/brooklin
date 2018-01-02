@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
+import org.I0Itec.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -470,23 +471,33 @@ public class ZkAdapter {
    *
    * @param instance
    * @param taskName
-   * @return
+   * @return null if task node does not exist or inaccessible
    */
   public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
-    String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
-    DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
-    // TODO Remove this after the upgrade
-    if (Strings.isNullOrEmpty(task.getTaskPrefix())) {
-      task.setTaskPrefix(parseTaskPrefix(task.getDatastreamTaskName()));
-    }
+    try {
+      String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
+      DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
+      // TODO Remove this after the upgrade
+      if (Strings.isNullOrEmpty(task.getTaskPrefix())) {
+        task.setTaskPrefix(parseTaskPrefix(task.getDatastreamTaskName()));
+      }
 
-    // TODO Remove this after the upgrade
-    if (Strings.isNullOrEmpty(task.getTransportProviderName())) {
-      task.setTransportProviderName(_defaultTransportProviderName);
-    }
+      // TODO Remove this after the upgrade
+      if (Strings.isNullOrEmpty(task.getTransportProviderName())) {
+        task.setTransportProviderName(_defaultTransportProviderName);
+      }
 
-    task.setZkAdapter(this);
-    return task;
+      task.setZkAdapter(this);
+      return task;
+    } catch (ZkNoNodeException e) {
+      // This can occur there is another task assignment change in the middle of
+      // handleAssignmentChange and some tasks are unassigned to the current
+      // instance. In this case, we would get such exception. This is tolerable
+      // because we should be receiving another AssignmentChange event right after
+      // then we can dispatch the tasks based on the latest assignment data.
+      LOG.warn("ZNode does not exist for instance={}, task={}, ignoring the task.", instance, taskName);
+      return null;
+    }
   }
 
   private String parseTaskPrefix(String datastreamTaskName) {
