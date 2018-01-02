@@ -409,14 +409,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // all datastream tasks for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
     assignment.forEach(ds -> {
-
       DatastreamTask task = getDatastreamTask(ds);
-
-      String connectorType = task.getConnectorType();
-      if (!currentAssignment.containsKey(connectorType)) {
-        currentAssignment.put(connectorType, new ArrayList<>());
+      if (task != null) {
+        String connectorType = task.getConnectorType();
+        if (!currentAssignment.containsKey(connectorType)) {
+          currentAssignment.put(connectorType, new ArrayList<>());
+        }
+        currentAssignment.get(connectorType).add(task);
       }
-      currentAssignment.get(connectorType).add(task);
     });
 
     _log.info(printAssignmentByType(currentAssignment));
@@ -499,13 +499,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return _assignedDatastreamTasks.get(taskName);
     } else {
       DatastreamTaskImpl task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
-      DatastreamGroup dg = _datastreamCache.getDatastreamGroups()
-          .stream()
-          .filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix()))
-          .findFirst()
-          .get();
 
-      task.setDatastreams(dg.getDatastreams());
+      if (task != null) {
+        DatastreamGroup dg = _datastreamCache.getDatastreamGroups()
+            .stream()
+            .filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix()))
+            .findFirst()
+            .get();
+
+        task.setDatastreams(dg.getDatastreams());
+      }
+
       return task;
     }
   }
