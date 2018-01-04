@@ -31,7 +31,7 @@ public class TestEventProducer {
 
   @BeforeMethod
   public void setUp() throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestEventProducer");
   }
 
   @AfterMethod
@@ -73,7 +73,6 @@ public class TestEventProducer {
 
   @Test
   public void testSendAndSkipBadMessages() {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "test-ds")[0];
     StringMap metadata = datastream.getMetadata();
     metadata.put(EventProducer.CFG_SKIP_BAD_MESSAGE, "true");

@@ -27,7 +27,7 @@ public class TestMessageHandler {
   @BeforeClass
   public void setUp() throws Exception {
     // setup the DynamicMetricsManager (required for the test event producer)
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestMessageHandler");
 
     // create a source view to run queries for
     _genericSource = new OracleSource("GENERIC_NAME", "Oracle");
