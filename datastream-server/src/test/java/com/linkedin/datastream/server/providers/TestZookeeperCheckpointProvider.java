@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server.providers;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Map;
 
@@ -32,8 +33,8 @@ public class TestZookeeperCheckpointProvider {
   private String defaultTransportProviderName = "test";
 
   @BeforeMethod
-  public void setup() throws IOException {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+  public void setup(Method method) throws IOException {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), method.getName());
     _zookeeper = new EmbeddedZookeeper();
     _zookeeper.startup();
   }

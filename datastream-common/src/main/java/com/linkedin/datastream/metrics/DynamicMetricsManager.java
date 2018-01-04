@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -13,15 +15,17 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
+import javax.annotation.Nullable;
 
 
 /**
  * Manages dynamic metrics and supports creating/updating metrics on the fly.
  */
 public class DynamicMetricsManager {
+  private static final Logger LOG = LoggerFactory.getLogger(DynamicMetricsManager.class);
 
   private static DynamicMetricsManager _instance = null;
-  private final MetricRegistry _metricRegistry;
+  private MetricRegistry _metricRegistry;
 
   // Metrics indexed by simple class name
   // Simple class name -> full metric name -> metric
@@ -36,11 +40,44 @@ public class DynamicMetricsManager {
     _indexedMetrics = new ConcurrentHashMap<>();
   }
 
+  /**
+   * Instantiate the singleton of DynamicMetricsManager; This is a no-op if it already exists.
+   * @param metricRegistry
+   * @return
+   */
   public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry) {
-    if (_instance == null) {
-      _instance = new DynamicMetricsManager(metricRegistry);
+    return createInstance(metricRegistry, null);
+  }
+
+  /**
+   * Instantiate the singleton of DynamicMetricsManager; This is a no-op if it already exists if
+   * unitTests == false; otherwise, we replace the metricRegistry for unit tests to start from
+   * a clean slate.
+   *
+   * Note that all tests validating the same metrics must be run sequentially, otherwise race
+   * condition will occur.
+   * @param metricRegistry
+   * @param testName name of the unit test
+   * @return
+   */
+  public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry, @Nullable  String testName) {
+    synchronized (DynamicMetricsManager.class) {
+      if (_instance == null) {
+        _instance = new DynamicMetricsManager(metricRegistry);
+      }
+
+      if (testName != null) {
+        // Cannot create a new instance because callers might have already
+        // cached the current instance locally which would become obsolete
+        // if we swap it out behind the scene.
+        _instance._metricRegistry = metricRegistry;
+        _instance._indexedMetrics.clear();
+
+        LOG.info("Returning the instance for unit test {}.", testName);
+      }
+
+      return _instance;
     }
-    return _instance;
   }
 
   public static DynamicMetricsManager getInstance() {
