@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,19 +46,36 @@ public class CommonConnectorMetrics {
    * only happen when all keyed metrics of the same name have been deregistered.
    */
   abstract static class Metrics {
-    protected String _className;
     protected String _key;
-    private AtomicInteger _refCount = new AtomicInteger(0);
+    protected String _className;
+
+    // Map from a [class,category] to its reference counter
+    private static Map<String, AtomicInteger> _refCounts = new HashMap<>();
+
+    private String getRefKey() {
+      return getClass().getSimpleName() + _className;
+    }
 
     public Metrics(String className, String key) {
-      _refCount.incrementAndGet();
       _className = className;
       _key = key;
+
+      String refKey = getRefKey();
+      _refCounts.computeIfAbsent(refKey, k -> new AtomicInteger(0));
+      _refCounts.get(refKey).incrementAndGet();
     }
 
     void deregister() {
-      if (_refCount.decrementAndGet() == 0) {
+      String refKey = getRefKey();
+
+      // Already deregistered?
+      if (!_refCounts.containsKey(refKey)) {
+        return;
+      }
+
+      if (_refCounts.get(refKey).decrementAndGet() == 0) {
         deregisterAggregates();
+        _refCounts.remove(refKey);
       }
     }
 
@@ -226,11 +244,8 @@ public class CommonConnectorMetrics {
 
       _aggregatedRebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, Meter.class);
 
-      if (!AGGREGATED_NUM_STUCK_PARTITIONS.containsKey(className)) {
-        AtomicLong aggStuckPartitions = new AtomicLong(0);
-        AGGREGATED_NUM_STUCK_PARTITIONS.put(className, aggStuckPartitions);
-        DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, () -> aggStuckPartitions.get());
-      }
+      AtomicLong aggStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, () -> aggStuckPartitions.get());
     }
 
     @Override
@@ -244,6 +259,7 @@ public class CommonConnectorMetrics {
     public void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, STUCK_PARTITIONS);
+      AGGREGATED_NUM_STUCK_PARTITIONS.remove(_className);
     }
 
     public void resetStuckPartitions() {
