@@ -24,7 +24,7 @@ public class TestOracleConnector {
 
   @BeforeTest
   public void setUp() {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestOracleConnector");
   }
 
   @Test

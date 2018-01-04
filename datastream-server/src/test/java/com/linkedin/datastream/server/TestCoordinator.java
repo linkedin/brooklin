@@ -74,7 +74,7 @@ public class TestCoordinator {
   String _zkConnectionString;
 
   static {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestCoordinator");
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {

@@ -52,7 +52,7 @@ public class TestKafkaConnectorTask {
 
   @BeforeTest
   public void setup() throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestKafkaConnectorTask");
     Properties kafkaConfig = new Properties();
     // we will disable auto topic creation for this test file
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());

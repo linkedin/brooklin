@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server.diagnostics;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 import org.testng.Assert;
@@ -27,9 +28,9 @@ public class TestServerComponentHealthResources {
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
   @BeforeMethod
-  public void setUp()
+  public void setUp(Method method)
       throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry());
+    DynamicMetricsManager.createInstance(new MetricRegistry(), method.getName());
     _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     _datastreamKafkaCluster.startup();
   }
