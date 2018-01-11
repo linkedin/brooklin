@@ -17,12 +17,18 @@ import com.linkedin.datastream.serde.SerDeSet;
 public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
   private final Optional<String> _partitionKey;
+  private final Optional<String> _destination;
   private final String _checkpoint;
   private List<BrooklinEnvelope> _events;
   private final long _eventsSourceTimestamp;
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
+    this(events,partition, partitionKey, Optional.empty(),checkpoint, eventsSourceTimestamp);
+  }
+
+  DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
+      Optional<String> destination, String checkpoint, long eventsSourceTimestamp) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
     Validate.isTrue(eventsSourceTimestamp > 0, "events source timestamp is invalid");
@@ -34,6 +40,7 @@ public class DatastreamProducerRecord {
     _partitionKey = partitionKey;
     _checkpoint = checkpoint;
     _eventsSourceTimestamp = eventsSourceTimestamp;
+    _destination = destination;
   }
 
   public synchronized void serializeEvents(SerDeSet serDes) {
@@ -90,12 +97,13 @@ public class DatastreamProducerRecord {
     }
     DatastreamProducerRecord record = (DatastreamProducerRecord) o;
     return Objects.equals(_partition, record._partition) && Objects.equals(_partitionKey, record._partitionKey)
-        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint);
+        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint) &&
+        Objects.equals(_destination, record._destination);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_partition, _events, _checkpoint);
+    return Objects.hash(_partition, _events, _checkpoint, _destination);
   }
 
   /**
@@ -111,5 +119,16 @@ public class DatastreamProducerRecord {
 
   public Optional<String> getPartitionKey() {
     return _partitionKey;
+  }
+
+  /**
+   * Normally the destination is defined at the datastream level, but for some scenarios
+   * like MirrorMaker, we need to write to multiple topics.
+   *
+   * If this field is set, then it specify the destination to write this message. If it is
+   * missing, then we should it send it to the destination indicated at the datastream level.
+   */
+  public Optional<String> getDestination() {
+    return _destination;
   }
 }

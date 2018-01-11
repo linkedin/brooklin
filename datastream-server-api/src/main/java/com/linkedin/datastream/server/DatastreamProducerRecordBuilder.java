@@ -25,6 +25,7 @@ public class DatastreamProducerRecordBuilder {
   private List<BrooklinEnvelope> _events = new ArrayList<>();
   private long _eventsSourceTimestamp;
   private Optional<String> _partitionKey = Optional.empty();
+  private Optional<String> _destination = Optional.empty();
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. if the partition is not set, TransportProvider
@@ -39,6 +40,11 @@ public class DatastreamProducerRecordBuilder {
   public void setPartitionKey(String partitionKey) {
     Validate.notEmpty(partitionKey, "partitionKey cannot be empty.");
     _partitionKey = Optional.of(partitionKey);
+  }
+
+  public void setDestination(String destination) {
+    Validate.notEmpty(destination, "destination cannot be empty.");
+    _destination = Optional.of(destination);
   }
 
   /**
@@ -72,6 +78,7 @@ public class DatastreamProducerRecordBuilder {
    *   DatastreamProducerRecord that is created.
    */
   public DatastreamProducerRecord build() {
-    return new DatastreamProducerRecord(_events, _partition, _partitionKey, _sourceCheckpoint, _eventsSourceTimestamp);
+    return new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination, _sourceCheckpoint,
+        _eventsSourceTimestamp);
   }
 }
