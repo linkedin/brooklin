@@ -185,7 +185,9 @@ public class EventProducer implements DatastreamEventProducer {
       // Serialize
       record.serializeEvents(_datastreamTask.getDestinationSerDes());
       // Send
-      _transportProvider.send(_datastreamTask.getDatastreamDestination().getConnectionString(), record,
+      String destination =
+          record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      _transportProvider.send(destination, record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record));
     } catch (Exception e) {
       if (_skipBadMessagesEnabled) {
