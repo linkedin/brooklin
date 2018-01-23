@@ -21,11 +21,12 @@ public class Pair<K, V> {
     return _key;
   }
 
+  @SuppressWarnings("unchecked")
   public boolean equals(Object obj)
   {
     if (obj instanceof Pair)
     {
-      Pair other = (Pair) obj;
+      Pair<K,V> other = (Pair) obj;
       return  Objects.equals(_key, other._key) &&
           Objects.equals(_value, other._value);
     }
@@ -40,6 +41,6 @@ public class Pair<K, V> {
   /*convenient method*/
   public static <S, T> Pair<S, T> of(S first, T second)
   {
-    return new Pair<S, T>(first, second);
+    return new Pair<>(first, second);
   }
 }
