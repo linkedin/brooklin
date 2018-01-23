@@ -8,7 +8,7 @@ public class Pair<K, V> {
   private final V _value;
   private final K _key;
 
-  public Pair(K key,  V value) {
+  public Pair(K key, V value) {
     _key = key;
     _value = value;
   }
@@ -22,13 +22,10 @@ public class Pair<K, V> {
   }
 
   @SuppressWarnings("unchecked")
-  public boolean equals(Object obj)
-  {
-    if (obj instanceof Pair)
-    {
-      Pair<K,V> other = (Pair) obj;
-      return  Objects.equals(_key, other._key) &&
-          Objects.equals(_value, other._value);
+  public boolean equals(Object obj) {
+    if (obj instanceof Pair) {
+      Pair<K, V> other = (Pair) obj;
+      return Objects.equals(_key, other._key) && Objects.equals(_value, other._value);
     }
     return false;
   }
@@ -39,8 +36,7 @@ public class Pair<K, V> {
   }
 
   /*convenient method*/
-  public static <S, T> Pair<S, T> of(S first, T second)
-  {
+  public static <S, T> Pair<S, T> of(S first, T second) {
     return new Pair<>(first, second);
   }
 }

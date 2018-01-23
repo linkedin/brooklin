@@ -64,7 +64,7 @@ public class TestFlushlessEventProducerHandler {
     }
     eventProducer.processOne();
 
-    for (int par=0; par < 10; par++) {
+    for (int par = 0; par < 10; par++) {
       Assert.assertEquals(handler.getInFlightCount(TOPIC, par), 0);
     }
 
