@@ -24,7 +24,7 @@ public class DatastreamProducerRecord {
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
-    this(events,partition, partitionKey, Optional.empty(),checkpoint, eventsSourceTimestamp);
+    this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp);
   }
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
