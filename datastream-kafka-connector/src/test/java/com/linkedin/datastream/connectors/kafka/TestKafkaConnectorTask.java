@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.I0Itec.zkclient.ZkConnection;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -120,7 +121,7 @@ public class TestKafkaConnectorTask {
     Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), defaultGrpId);
 
     // Test with explicit group id
-    datastream.getMetadata().put(KafkaConnectorTask.GROUP_ID_CONFIG, "MyGroupId");
+    datastream.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
     Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), "MyGroupId");
   }
 
