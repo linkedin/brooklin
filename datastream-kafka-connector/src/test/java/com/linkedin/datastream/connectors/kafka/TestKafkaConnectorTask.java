@@ -7,21 +7,18 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.I0Itec.zkclient.ZkConnection;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.MetricRegistry;
 import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
@@ -35,53 +32,27 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 
-public class TestKafkaConnectorTask {
+public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
   private static final int POLL_TIMEOUT_MS = 25000;
 
-  private EmbeddedZookeeperKafkaCluster _kafkaCluster;
-  private ZkUtils _zkUtils;
-  private String _broker;
-
-  @BeforeTest
-  public void setup() throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestKafkaConnectorTask");
-    Properties kafkaConfig = new Properties();
-    // we will disable auto topic creation for this test file
-    kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
-    _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
-    _kafkaCluster.startup();
-    _zkUtils =
-        new ZkUtils(new ZkClient(_kafkaCluster.getZkConnection()), new ZkConnection(_kafkaCluster.getZkConnection()),
-            false);
-    _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
-  }
-
-  @AfterTest
-  public void teardown() throws Exception {
-    _zkUtils.close();
-    _kafkaCluster.shutdown();
-  }
-
   public static void produceEvents(EmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
       throws UnsupportedEncodingException {
     Properties props = new Properties();
-    props.put("bootstrap.servers", cluster.getBrokers());
-    props.put("acks", "all");
-    props.put("retries", 100);
-    props.put("batch.size", 16384);
-    props.put("linger.ms", 1);
-    props.put("buffer.memory", 33554432);
-    props.put("key.serializer", ByteArraySerializer.class.getCanonicalName());
-    props.put("value.serializer", ByteArraySerializer.class.getCanonicalName());
+    props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.getBrokers());
+    props.put(ProducerConfig.ACKS_CONFIG, "all");
+    props.put(ProducerConfig.RETRIES_CONFIG, 100);
+    props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
+    props.put(ProducerConfig.LINGER_MS_CONFIG, 1);
+    props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
+    props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getCanonicalName());
+    props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getCanonicalName());
 
     createTopic(zkUtils, topic);
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {

@@ -13,6 +13,7 @@ import java.util.StringJoiner;
  * kafka://[host1:port1,host2:port2...]/topicName
  */
 public class KafkaConnectionString {
+  public static final String BROKER_LIST_DELIMITER = ",";
   public static final String PREFIX_SCHEME_KAFKA = "kafka://";
   public static final String PREFIX_SCHEME_SECURE_KAFKA = "kafkassl://";
 

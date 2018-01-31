@@ -1122,57 +1122,62 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
 
       connector.initializeDatastream(datastream, allDatastreams);
+      initializeDatastreamDestination(connector, datastream, deduper, allDatastreams);
 
-      Optional<Datastream> existingDatastream = Optional.empty();
-
-      // Dedup datastream only when its destination is not populated and allows reuse
-      if (!hasValidDestination(datastream) && isReuseAllowed(datastream)) {
-        existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
-      }
-
-      // For a BYOT datastream, check that the destination is not already in use by other streams
-      if (DatastreamUtils.isUserManagedDestination(datastream)) {
-        List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
-            ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
-            .collect(Collectors.toList());
-        if (!sameDestinationDatastreams.isEmpty()) {
-          String errMsg = ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
-          for (Datastream x : sameDestinationDatastreams) {
-            errMsg = errMsg + " " + x.getName();
-          }
-          _log.error(errMsg);
-          throw new DatastreamValidationException(errMsg);
-        }
-      }
-
-      if (existingDatastream.isPresent()) {
-        populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
-        datastream.getMetadata()
-            .put(DatastreamMetadataConstants.TASK_PREFIX,
-                existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
-      } else {
-        if (!_transportProviderAdmins.containsKey(datastream.getTransportProviderName())) {
-          throw new DatastreamValidationException(
-              String.format("Transport provider \"%s\" is undefined", datastream.getTransportProviderName()));
-        }
-        String destinationName = connector.getDestinationName(datastream);
-        _transportProviderAdmins.get(datastream.getTransportProviderName())
-            .initializeDestinationForDatastream(datastream, destinationName);
-        // Populate the task prefix if it is not already present.
-        if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
-          datastream.getMetadata()
-              .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
-        }
-
-        _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
-            datastream.getName(), datastream.getDestination());
-      }
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "initializeDatastream", NUM_ERRORS, 1);
       throw e;
     }
 
     datastream.getMetadata().putIfAbsent(CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+  }
+
+  private void initializeDatastreamDestination(ConnectorWrapper connector, Datastream datastream,
+      DatastreamDeduper deduper, List<Datastream> allDatastreams) throws DatastreamValidationException {
+    Optional<Datastream> existingDatastream = Optional.empty();
+
+    // Dedup datastream only when its destination is not populated and allows reuse
+    if (!hasValidDestination(datastream) && isReuseAllowed(datastream)) {
+      existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
+    }
+
+    // For a BYOT datastream, check that the destination is not already in use by other streams
+    if (DatastreamUtils.isUserManagedDestination(datastream)) {
+      List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
+          ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
+          .collect(Collectors.toList());
+      if (!sameDestinationDatastreams.isEmpty()) {
+        String errMsg = ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
+        for (Datastream x : sameDestinationDatastreams) {
+          errMsg = errMsg + " " + x.getName();
+        }
+        _log.error(errMsg);
+        throw new DatastreamValidationException(errMsg);
+      }
+    }
+
+    if (existingDatastream.isPresent()) {
+      populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.TASK_PREFIX,
+              existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+    } else {
+      if (!_transportProviderAdmins.containsKey(datastream.getTransportProviderName())) {
+        throw new DatastreamValidationException(
+            String.format("Transport provider \"%s\" is undefined", datastream.getTransportProviderName()));
+      }
+      String destinationName = connector.getDestinationName(datastream);
+      _transportProviderAdmins.get(datastream.getTransportProviderName())
+          .initializeDestinationForDatastream(datastream, destinationName);
+      // Populate the task prefix if it is not already present.
+      if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
+        datastream.getMetadata()
+            .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+      }
+
+      _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
+          datastream.getName(), datastream.getDestination());
+    }
   }
 
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {

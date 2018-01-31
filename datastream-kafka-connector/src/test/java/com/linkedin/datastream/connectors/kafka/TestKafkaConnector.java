@@ -5,14 +5,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 
-import org.I0Itec.zkclient.ZkConnection;
 import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
-import com.codahale.metrics.MetricRegistry;
-import kafka.utils.ZkUtils;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -20,38 +14,11 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
 @Test
-public class TestKafkaConnector {
-
-  private EmbeddedZookeeperKafkaCluster _kafkaCluster;
-  private String _broker;
-  private ZkUtils _zkUtils;
-
-  @BeforeTest
-  public void setup() throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestKafkaConnector");
-    Properties kafkaConfig = new Properties();
-    // we will disable auto topic creation for this test file
-    kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
-    _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
-    _kafkaCluster.startup();
-    _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
-    _zkUtils =
-        new ZkUtils(new ZkClient(_kafkaCluster.getZkConnection()), new ZkConnection(_kafkaCluster.getZkConnection()),
-            false);
-  }
-
-  @AfterTest
-  public void teardown() throws Exception {
-    _zkUtils.close();
-    _kafkaCluster.shutdown();
-  }
+public class TestKafkaConnector extends BaseKafkaZkTest {
 
   private Properties getDefaultConfig(Properties override) {
     Properties config = new Properties();
@@ -94,7 +61,7 @@ public class TestKafkaConnector {
   }
 
   @Test(expectedExceptions = DatastreamValidationException.class)
-  public void testInitializeDatastreamWithNonexistTopic() throws UnsupportedEncodingException, DatastreamValidationException {
+  public void testInitializeDatastreamWithNonexistTopic() throws DatastreamValidationException {
     String topicName = "testInitializeDatastreamWithNonexistTopic";
     Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic", topicName);
     KafkaConnector connector =
