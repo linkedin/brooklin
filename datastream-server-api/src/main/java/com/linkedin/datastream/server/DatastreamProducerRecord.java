@@ -32,8 +32,6 @@ public class DatastreamProducerRecord {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
     Validate.isTrue(eventsSourceTimestamp > 0, "events source timestamp is invalid");
-    Validate.isTrue(partition.isPresent() || partitionKey.isPresent(),
-        "Either partition or partitionKey should be present");
 
     _events = events;
     _partition = partition;

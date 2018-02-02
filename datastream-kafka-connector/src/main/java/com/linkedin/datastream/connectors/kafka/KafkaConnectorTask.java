@@ -64,7 +64,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   @Override
-  void consumerSubscribe() {
+  protected void consumerSubscribe() {
     KafkaConnectionString srcConnString =
         KafkaConnectionString.valueOf(_task.getDatastreamSource().getConnectionString());
     _consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), this);
@@ -78,7 +78,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   @Override
-  Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
+  protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
     return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_task), _srcConnString);
   }
 

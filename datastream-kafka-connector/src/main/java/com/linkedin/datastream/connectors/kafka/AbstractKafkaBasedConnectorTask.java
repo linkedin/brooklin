@@ -117,12 +117,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param consumerProps the Kafka consumer properties
    * @return a KafkaConsumer
    */
-  abstract Consumer<?, ?> createKafkaConsumer(Properties consumerProps);
+  protected abstract Consumer<?, ?> createKafkaConsumer(Properties consumerProps);
 
   /**
    * Subscribe the consumer to a topic list or regex pattern and optionally set a callback (ConsumerRebalanceListener).
    */
-  abstract void consumerSubscribe();
+  protected abstract void consumerSubscribe();
 
   /**
    * Translate the Kafka consumer record into a Datastream producer record.
@@ -130,7 +130,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTime the instant the record was polled from Kafka
    * @return a Datastream producer record
    */
-  abstract DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) throws Exception;
+  protected abstract DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) throws Exception;
 
   /**
    * Translate the Kafka consumer records if necessary and send the batch of records to destination.
