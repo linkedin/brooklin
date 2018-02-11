@@ -27,14 +27,21 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
 
+  protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
+  private final boolean _isFlushlessModeEnabled;
+
   public KafkaMirrorMakerConnector(String connectorName, Properties config) {
     super(connectorName, config, LOG);
+    _isFlushlessModeEnabled =
+        Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
   }
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
-    return new KafkaMirrorMakerConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis,
-        RETRY_SLEEP_DURATION, _retryCount);
+    return _isFlushlessModeEnabled ? new FlushlessKafkaMirrorMakerConnectorTask(_consumerFactory, _consumerProps, task,
+        _commitIntervalMillis, RETRY_SLEEP_DURATION, _retryCount)
+        : new KafkaMirrorMakerConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis,
+            RETRY_SLEEP_DURATION, _retryCount);
   }
 
   @Override
@@ -51,13 +58,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     if (DatastreamUtils.isUserManagedDestination(stream)) {
       throw new DatastreamValidationException(
           String.format("BYOT is not allowed for connector %s. Datastream: %s", stream.getConnectorName(),
-              stream));
-    }
-
-
-    if (DatastreamUtils.isReuseAllowed(stream)) {
-      throw new DatastreamValidationException(
-          String.format("Destination reuse is not allowed for connector %s. Datastream: %s", stream.getConnectorName(),
               stream));
     }
 

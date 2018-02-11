@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Properties;
@@ -19,6 +20,7 @@ import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.CoordinatorConfig;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -50,6 +52,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastream.setConnectorName("KafkaMirrorMaker");
     datastream.setSource(source);
     datastream.setMetadata(metadata);
+    datastream.setTransportProviderName("transportProvider");
     return datastream;
   }
 
@@ -157,5 +160,29 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String someTopic = "someTopic";
     Assert.assertEquals(transportProviderAdmin.getDestination(someTopic),
         String.format(stream.getDestination().getConnectionString(), someTopic));
+  }
+
+  @Test
+  public void testFlushlessModeEnabled() throws Exception {
+    Properties overrides = new Properties();
+    overrides.put(KafkaMirrorMakerConnector.IS_FLUSHLESS_MODE_ENABLED, Boolean.TRUE.toString());
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(overrides)));
+    Datastream ds = createDatastream("testFlushlessModeEnabled", _broker, "Pizza", new StringMap());
+
+    // assert that flushless task is created
+    Assert.assertTrue(connector.createKafkaBasedConnectorTask(
+        new DatastreamTaskImpl(Arrays.asList(ds))) instanceof FlushlessKafkaMirrorMakerConnectorTask);
+  }
+
+  @Test
+  public void testFlushlessModeDisabled() throws Exception {
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+    Datastream ds = createDatastream("testFlushlessModeEnabled", _broker, "Pizza", new StringMap());
+
+    // assert that flushless task is created
+    Assert.assertTrue(connector.createKafkaBasedConnectorTask(
+        new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 }

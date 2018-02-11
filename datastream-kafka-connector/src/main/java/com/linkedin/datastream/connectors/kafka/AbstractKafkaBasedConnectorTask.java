@@ -86,6 +86,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
             + " ms, and retry count {}", task, commitIntervalMillis, retrySleepDuration.toMillis(), retryCount);
     _task = task;
+    _producer = task.getEventProducer();
     _datastream = task.getDatastreams().get(0);
     _datastreamName = _datastream.getName();
     _taskName = task.getDatastreamTaskName();
@@ -184,7 +185,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
     _thread = Thread.currentThread();
 
-    _producer = _task.getEventProducer();
     _eventsProcessedCountLoggedTime = Instant.now();
 
     try {
