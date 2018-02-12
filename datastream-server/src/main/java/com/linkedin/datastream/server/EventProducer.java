@@ -55,6 +55,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   private static final String MODULE = EventProducer.class.getSimpleName();
+  private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
 
   private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
 
@@ -77,6 +78,8 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA = "eventsProducedWithinAlternateSla";
   private static final String EVENT_PRODUCE_RATE = "eventProduceRate";
   private static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
+  private static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
+  private static final String FLUSH_LATENCY_MS_STRING = "flushLatencyMs";
 
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
   private static final String AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "availabilityThresholdAlternateSlaMs";
@@ -187,6 +190,7 @@ public class EventProducer implements DatastreamEventProducer {
       // Send
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      record.setEventsSendTimestamp(System.currentTimeMillis());
       _transportProvider.send(destination, record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record));
     } catch (Exception e) {
@@ -269,6 +273,16 @@ public class EventProducer implements DatastreamEventProducer {
           1);
     }
 
+    // Report the time it took to just send the events to destination
+    record.getEventsSendTimestamp().ifPresent(sendTimestamp -> {
+      long sendLatency = System.currentTimeMillis() - sendTimestamp;
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, metadata.getTopic(), EVENTS_SEND_LATENCY_MS_STRING,
+          sendLatency);
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
+          EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
+    });
+
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
   }
@@ -297,9 +311,16 @@ public class EventProducer implements DatastreamEventProducer {
 
   @Override
   public void flush() {
+    Instant beforeFlush = Instant.now();
     _transportProvider.flush();
     _checkpointProvider.flush();
     _lastFlushTime = Instant.now();
+
+    // Report flush latency metrics
+    long flushLatencyMs = Duration.between(beforeFlush, _lastFlushTime).toMillis();
+    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, FLUSH_LATENCY_MS_STRING, flushLatencyMs);
+    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(), FLUSH_LATENCY_MS_STRING,
+        flushLatencyMs);
   }
 
   /**
@@ -330,16 +351,18 @@ public class EventProducer implements DatastreamEventProducer {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     String className = EventProducer.class.getSimpleName();
 
-    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_SLA));
-    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));
-    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + TOTAL_EVENTS_PRODUCED));
-    metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + EVENT_PRODUCE_RATE));
-    metrics.add(new BrooklinMeterInfo(className + MetricsAware.KEY_REGEX + SKIPPED_BAD_MESSAGES_RATE));
-    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_SLA));
-    metrics.add(new BrooklinCounterInfo(className + MetricsAware.KEY_REGEX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
-    metrics.add(new BrooklinHistogramInfo(className + MetricsAware.KEY_REGEX + EVENTS_LATENCY_MS_STRING, Optional.of(
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_SLA));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + TOTAL_EVENTS_PRODUCED));
+    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + EVENT_PRODUCE_RATE));
+    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + SKIPPED_BAD_MESSAGES_RATE));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_SLA));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.MEAN, BrooklinHistogramInfo.MAX, BrooklinHistogramInfo.PERCENTILE_50,
             BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_SEND_LATENCY_MS_STRING));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + FLUSH_LATENCY_MS_STRING));
 
     return Collections.unmodifiableList(metrics);
   }
