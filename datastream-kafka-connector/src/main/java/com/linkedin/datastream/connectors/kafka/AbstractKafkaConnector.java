@@ -97,7 +97,12 @@ public abstract class AbstractKafkaConnector implements Connector {
     }
 
     for (DatastreamTask task : tasks) {
-      if (_runningTasks.containsKey(task)) {
+      AbstractKafkaBasedConnectorTask kafkaBasedConnectorTask = _runningTasks.get(task);
+      if (kafkaBasedConnectorTask != null) {
+        kafkaBasedConnectorTask.checkAndUpdateTask(task);
+        // make sure to replace the DatastreamTask with most up to date info
+        _runningTasks.remove(task);
+        _runningTasks.put(task, kafkaBasedConnectorTask);
         continue; // already running
       }
       _logger.info("creating task for {}.", task);

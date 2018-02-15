@@ -131,11 +131,23 @@
             "default" : "false"
           } ]
         }, {
+          "name" : "pauseSourcePartitions",
+          "parameters" : [ {
+            "name" : "sourcePartitions",
+            "type" : "string"
+          } ]
+        }, {
           "name" : "resume",
           "parameters" : [ {
             "name" : "force",
             "type" : "boolean",
             "default" : "false"
+          } ]
+        }, {
+          "name" : "resumeSourcePartitions",
+          "parameters" : [ {
+            "name" : "sourcePartitions",
+            "type" : "string"
           } ]
         } ]
       }

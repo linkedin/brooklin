@@ -1,12 +1,17 @@
 package com.linkedin.datastream.server.dms;
 
+import com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTask;
+import com.linkedin.datastream.common.JsonUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -59,10 +64,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
-@RestLiCollection(
-    name = "datastream",
-    keyName = DatastreamResources.KEY_NAME,
-    namespace = "com.linkedin.datastream.server.dms")
+@RestLiCollection(name = "datastream", keyName = DatastreamResources.KEY_NAME, namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
   public static final String KEY_NAME = "datastreamId";
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
@@ -121,8 +123,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       if (!key.equals(datastream.getName())) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because datastream name doesn't match. datastream: %s",
-                key, datastream));
+            String.format("Failed to update %s because datastream name doesn't match. datastream: %s", key,
+                datastream));
       }
       Datastream oldDatastream = _store.getDatastream(key);
       if (oldDatastream == null) {
@@ -262,6 +264,220 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("sourcePartitions") String sourcePartitions) {
+    // Get datastream.
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream does not exist: " + datastreamName);
+    }
+
+    // Log for debugging purposes.
+    LOG.info(String.format("pauseSourcePartitions called for datastream: %s, with partitions: %s", datastreamName,
+        sourcePartitions));
+
+    // Make sure it is in ready state.
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause partitions for a datastream in READY state: " + datastreamName);
+    }
+
+    // Note: MM datastreams goes with an assumption that they are not a part of any datastream group
+    // Need to change this logic to update all datastreams in case that assumption changes.
+
+    // Convert the given json to actual map <source, partitions>
+    // Note: These partitions will be added on the top of existing ones, it won't replace them.
+    Map<String, HashSet<String>> newPausedSourcePartitionsMap = new ConcurrentHashMap<>();
+    if (!sourcePartitions.isEmpty()) {
+      newPausedSourcePartitionsMap =
+          JsonUtils.fromJson(sourcePartitions, KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP);
+    }
+
+    // Validate that each partition specified is a valid number, or a "*"
+    for (HashSet<String> partitionsSet : newPausedSourcePartitionsMap.values()) {
+      for (String partition : partitionsSet) {
+        Validate.isTrue(partition.equals(KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)
+            || StringUtils.isNumeric(partition));
+      }
+    }
+
+    // Get the existing set of paused partitions from datastream object.
+    // Convert the existing json to map <source, partitions>
+    Map<String, HashSet<String>> existingPausedSourcePartitionsMap = new ConcurrentHashMap<>();
+    if (datastream.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)
+        && !datastream.getMetadata()
+        .get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)
+        .isEmpty()) {
+      existingPausedSourcePartitionsMap = JsonUtils.fromJson(
+          datastream.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
+          KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP);
+    }
+
+    // Now add the given set of paused partitions to existing set of paused partitions.
+    for (String source : newPausedSourcePartitionsMap.keySet()) {
+      Set<String> newPartitions = newPausedSourcePartitionsMap.get(source);
+
+      // If the source doesn't exist already, add it.
+      if (!existingPausedSourcePartitionsMap.containsKey(source)) {
+        existingPausedSourcePartitionsMap.put(source, new HashSet<>());
+      }
+
+      // Get existing set of paused partitions for that source
+      Set<String> existingPausedPartitions = existingPausedSourcePartitionsMap.get(source);
+      // In case we already are including all the partitions from the topic ("*"), no need to add new partition
+      if (existingPausedPartitions.contains(KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)) {
+        // Only one partition is expected in this case.
+        Validate.isTrue(existingPausedPartitions.size() == 1);
+      } else if (newPartitions.contains(KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)) {
+        // If the new set of partitions contains a "*"
+        // Just overwrite whatever was there in the partitions set
+        // and add a single entry.
+        existingPausedPartitions.clear();
+        existingPausedPartitions.add(KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC);
+      } else {
+        // Both existing and new partitions don't contain "*" at this point.
+        // Go through the new partitions, and add them to existing ones.
+        existingPausedPartitions.addAll(newPartitions);
+      }
+    }
+
+    // Now convert the Map to Json and update datastream object.
+    String newPausedPartitionsJson = "";
+    if (!existingPausedSourcePartitionsMap.isEmpty()) {
+      newPausedPartitionsJson = JsonUtils.toJson(existingPausedSourcePartitionsMap);
+    }
+    datastream.getMetadata()
+        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, newPausedPartitionsJson);
+
+    // Now validate the operation
+    //TODO: Will need to add code in non-MM connectors to invalidate the operation.
+    try {
+      _coordinator.validateDatastreamsUpdate(Collections.singletonList(datastream));
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to validate datastream updates: ", e);
+    }
+
+    // Persist in zk.
+    try {
+      _store.updateDatastream(datastream.getName(), datastream, true);
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream's paused partitions: " + datastream.getName(), e);
+    }
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
+  @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("sourcePartitions") String sourcePartitions) {
+
+    // Get datastream.
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream does not exist: " + datastreamName);
+    }
+
+    // Log for debugging purposes.
+    LOG.info(String.format("resoumeSourcePartitions called for datastream: %s, with partitions: %s", datastreamName,
+        sourcePartitions));
+
+    // Make sure it is in ready state.
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only resume partitions for a datastream in READY state: " + datastreamName);
+    }
+
+    // Note: MM datastreams goes with an assumption that they are not a part of any datastream group
+    // Need to change this logic to update all datastreams in case that assumption changes.
+
+    // Convert the given json to actual map <source, partitions>
+    // Note: These partitions will be added on the top of existing ones, it won't replace them.
+    Map<String, HashSet<String>> sourcePartitionsToResumeMap = new ConcurrentHashMap<>();
+    if (!sourcePartitions.isEmpty()) {
+      sourcePartitionsToResumeMap =
+          JsonUtils.fromJson(sourcePartitions, KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP);
+    }
+
+    // Get the existing set of paused partitions from datastream object.
+    // Convert the existing json to map <source, partitions>
+    Map<String, HashSet<String>> existingPausedSourcePartitionsMap = new ConcurrentHashMap<>();
+    if (datastream.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)
+        && !datastream.getMetadata()
+        .get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)
+        .isEmpty()) {
+      existingPausedSourcePartitionsMap = JsonUtils.fromJson(
+          datastream.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
+          KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP);
+    }
+
+    if (existingPausedSourcePartitionsMap.size() == 0) {
+      return new ActionResult<>(HttpStatus.S_200_OK);
+    }
+
+    // Now go through partitions to resume.
+    for (String source : sourcePartitionsToResumeMap.keySet()) {
+      Set<String> partitionsToResume = sourcePartitionsToResumeMap.get(source);
+
+      // If there is nothing paused for given source, no need to do anything for that source.
+      if (existingPausedSourcePartitionsMap.containsKey(source)) {
+        // Get existing set of paused partitions for that source
+        Set<String> existingPausedPartitions = existingPausedSourcePartitionsMap.get(source);
+
+        // In case we are supposed to resume all partitions, remove the source.
+        // In that case, we ignore other partitions that were mentioned in the resume list for that source.
+        if (partitionsToResume.contains(KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)) {
+          // Only one partition is expected in this case.
+          existingPausedSourcePartitionsMap.remove(source);
+        } else {
+          // todo gaurav: confirm this behavior with others
+          // If the existing set of paused partitions contains a "*" and the partitions to resume doesn't contain
+          // a "*", then just throw an exception as we don't know what partitions to pause at that point.
+          Validate.isTrue(!existingPausedPartitions.contains(
+              KafkaMirrorMakerConnectorTask.MM_REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC));
+          existingPausedPartitions.removeAll(partitionsToResume);
+          // If no partition left, remove the source.
+          if (existingPausedPartitions.size() == 0) {
+            existingPausedSourcePartitionsMap.remove(source);
+          }
+        }
+      }
+    }
+
+    // Now convert the Map to Json and update datastream object.
+    String newPausedSourcePartitionsJson = "";
+    if (!existingPausedSourcePartitionsMap.isEmpty()) {
+      newPausedSourcePartitionsJson = JsonUtils.toJson(existingPausedSourcePartitionsMap);
+    }
+    datastream.getMetadata()
+        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, newPausedSourcePartitionsJson);
+
+    // Validate changes
+    try {
+      _coordinator.validateDatastreamsUpdate(Collections.singletonList(datastream));
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to validate datastream updates: ", e);
+    }
+
+    // Persist in zk.
+    try {
+      _store.updateDatastream(datastream.getName(), datastream, true);
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream's paused partitions: " + datastream.getName(), e);
+    }
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
 
   @Override
   public UpdateResponse delete(String datastreamName) {
@@ -282,7 +498,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-        "Delete failed for datastream: " + datastreamName, e);
+          "Delete failed for datastream: " + datastreamName, e);
     }
 
     return null;
@@ -298,7 +514,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-        "Get datastream failed for datastream: " + name, e);
+          "Get datastream failed for datastream: " + name, e);
     }
 
     return null;
@@ -310,14 +526,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
-      List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
-        .filter(Objects::nonNull).collect(Collectors.toList());
+      List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
+          .map(_store::getDatastream)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
       LOG.debug("Result collected for getAll {}", ret);
       return ret;
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger
-        .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Get all datastreams failed.", e);
     }
 
     return Collections.emptyList();
@@ -368,8 +586,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Validate.isTrue(datastream.hasConnectorName(), "Must specify connectorType!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
-      Validate.isTrue(datastream.hasMetadata()
-              && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
+      Validate.isTrue(
+          datastream.hasMetadata() && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
@@ -397,8 +615,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Invalid input params for create request", e);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Failed to initialize Datastream: ", e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ",
+          e);
     } catch (DatastreamAlreadyExistsException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,

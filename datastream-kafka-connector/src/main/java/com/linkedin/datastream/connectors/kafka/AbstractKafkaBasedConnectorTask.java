@@ -44,7 +44,7 @@ import com.linkedin.datastream.server.DatastreamTaskStatus;
  */
 abstract public class AbstractKafkaBasedConnectorTask implements Runnable, ConsumerRebalanceListener {
 
-  private final Logger _logger;
+  protected final Logger _logger;
 
   protected static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
   protected static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
@@ -65,7 +65,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
 
   // config
-  protected final DatastreamTask _task;
+  protected DatastreamTask _datastreamTask;
   protected final long _offsetCommitInterval;
   protected final Duration _retrySleepDuration;
   protected final int _retryCount;
@@ -85,7 +85,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
             + " ms, and retry count {}", task, commitIntervalMillis, retrySleepDuration.toMillis(), retryCount);
-    _task = task;
+    _datastreamTask = task;
     _producer = task.getEventProducer();
     _datastream = task.getDatastreams().get(0);
     _datastreamName = _datastream.getName();
@@ -180,7 +180,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   @Override
   public void run() {
-    _logger.info("Starting the Kafka-based connector task for {}", _task);
+    _logger.info("Starting the Kafka-based connector task for {}", _datastreamTask);
     boolean startingUp = true;
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
     _thread = Thread.currentThread();
@@ -216,7 +216,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     } catch (Exception e) {
       _logger.error("{} failed with exception.", _taskName, e);
-      _task.setStatus(DatastreamTaskStatus.error(e.getMessage()));
+      _datastreamTask.setStatus(DatastreamTaskStatus.error(e.getMessage()));
       throw new DatastreamRuntimeException(e);
     } finally {
       _stoppedLatch.countDown();
@@ -442,5 +442,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics.updateRebalanceRate(1);
     //nop
     _logger.info("Partition ownership assigned for {}.", partitions);
+  }
+
+  // The method, given a datastream task - checks if there is any update in the existing task.
+  // By default, it just updates _datastreamTask.
+  public void checkAndUpdateTask(DatastreamTask datastreamTask) {
   }
 }

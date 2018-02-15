@@ -37,7 +37,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
 
   private KafkaConnectionString _srcConnString =
-      KafkaConnectionString.valueOf(_task.getDatastreamSource().getConnectionString());
+      KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
@@ -66,7 +66,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   @Override
   protected void consumerSubscribe() {
     KafkaConnectionString srcConnString =
-        KafkaConnectionString.valueOf(_task.getDatastreamSource().getConnectionString());
+        KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
     _consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), this);
   }
 
@@ -79,7 +79,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
 
   @Override
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
-    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_task), _srcConnString);
+    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_datastreamTask), _srcConnString);
   }
 
   @VisibleForTesting

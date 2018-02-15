@@ -376,4 +376,84 @@ public class DatastreamRestClient {
     }
     return null;
   }
+
+  /**
+   * Pause source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @param sourcePartitions
+   *    Json representing source partitions to pause, in the form map< topic, set < partitions > >,
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void pauseSourcePartitions(String datastreamName, String sourcePartitions) throws RemoteInvocationException {
+    doPauseSourcePartitions(datastreamName, sourcePartitions);
+  }
+
+  /**
+   * Pause source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @param sourcePartitions
+   *    Json representing source partitions to pause, in the form map< topic, set < partitions > >,
+   */
+  public void doPauseSourcePartitions(String datastreamName, String sourcePartitions) {
+    try {
+      ActionRequest<Void> request =
+          _builders.actionPauseSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage =
+            String.format("Pause Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                datastreamName, sourcePartitions);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+  }
+
+  /**
+   * Resume source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @param sourcePartitions
+   *    Json representing source partitions to resume, in the form map< topic, set < partitions > >,
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void resumeSourcePartitions(String datastreamName, String sourcePartitions) throws RemoteInvocationException {
+    doResumeSourcePartitions(datastreamName, sourcePartitions);
+  }
+
+  /**
+   * Resume source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to paused.
+   * @param sourcePartitions
+   *    Json representing source partitions to Resume, in the form map< topic, set < partitions > >,
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void doResumeSourcePartitions(String datastreamName, String sourcePartitions) {
+    try {
+      ActionRequest<Void> request =
+          _builders.actionResumeSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage =
+            String.format("Resume Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                datastreamName, sourcePartitions);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+  }
 }

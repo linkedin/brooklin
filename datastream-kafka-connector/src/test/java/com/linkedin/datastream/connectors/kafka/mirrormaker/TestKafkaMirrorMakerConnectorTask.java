@@ -1,8 +1,12 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import com.linkedin.datastream.common.JsonUtils;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -107,6 +111,145 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       String destinationTopic = record.getDestination().get();
       Assert.assertTrue(destinationTopic.endsWith("Pizza"),
           "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testPauseAndResumePartitions() throws Exception {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+    String spicyTopic = "SpicyPizza";
+
+    createTopic(_zkUtils, spicyTopic);
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    Datastream datastream =
+        TestKafkaMirrorMakerConnector.createDatastream("pizzaStream", _broker, "\\w+Pizza", metadata);
+    datastream.setTransportProviderName("default");
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString("%s");
+    datastream.setDestination(destination);
+
+    DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    datastreamTask.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask = createKafkaMirrorMakerConnectorTask(datastreamTask);
+
+    // Make sure there was initial update (by default), and that there are no paused partitions
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 1, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated at the beginning. Expecting update count 1, found: "
+          + connectorTask.getPausedPartitionsUpdateCount());
+    }
+
+    // Make sure there isn't any paused partition
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 0);
+
+    // Produce an event to each of the 3 topics
+    produceEvents(yummyTopic, 1);
+    produceEvents(saltyTopic, 1);
+    produceEvents(spicyTopic, 1);
+
+    // Make sure all 3 events were read.
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 3, 100, 25000)) {
+      Assert.fail(
+          "Did not transfer the msgs within timeout. Expected: 3 Tansferred: " + datastreamProducer.getEvents().size());
+    }
+
+    // Now create paused partitions
+    // yummypizza - with partition 0
+    // spicypizza - with all partitions ("*")
+    Map<String, HashSet<String>> pausedPartitions = new HashMap<>();
+    pausedPartitions.put(yummyTopic, new HashSet<String>(Collections.singletonList("0")));
+    pausedPartitions.put(spicyTopic, new HashSet<String>(Collections.singletonList("*")));
+    datastream.getMetadata()
+        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, JsonUtils.toJson(pausedPartitions));
+
+    // Update connector task with paused partitions
+    connectorTask.checkAndUpdateTask(datastreamTask);
+
+    // Make sure there was an update , and that there paused partitions.
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 2, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
+          + connectorTask.getPausedPartitionsUpdateCount());
+    }
+
+    // Make sure the paused partitions match.
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+
+    // Produce an event to each of the 3 topics
+    produceEvents(yummyTopic, 1);
+    produceEvents(saltyTopic, 1);
+    produceEvents(spicyTopic, 1);
+
+    // Make sure only 1 event was seen
+    // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
+    // be there.
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+      Assert.fail(
+          "Did not transfer the msgs within timeout. Expected: 4 Tansferred: " + datastreamProducer.getEvents().size());
+    }
+
+    // Now pause same set of partitions, and make sure there isn't any update.
+    connectorTask.checkAndUpdateTask(datastreamTask);
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 2, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
+          + connectorTask.getPausedPartitionsUpdateCount());
+    }
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+      Assert.fail(
+          "Transferred msgs when not expected. Expected: 4 Tansferred:  " + datastreamProducer.getEvents().size());
+    }
+
+    // Now add * to yummypizza and 0 to spicy pizza, and make sure 0 is neglected for spicypizza and a * is added for yummypizza
+    // (and 0 removed for yummypizza)
+    // That is, after this update, both yummypizza and spicypizza should have a "*"
+    // yummypizza - with all partitions ("*")
+    // spicypizza - with 0
+    pausedPartitions.clear();
+    pausedPartitions.put(yummyTopic, new HashSet<String>(Collections.singletonList("*")));
+    pausedPartitions.put(spicyTopic, new HashSet<String>(Collections.singletonList("0")));
+    datastream.getMetadata()
+        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, JsonUtils.toJson(pausedPartitions));
+    connectorTask.checkAndUpdateTask(datastreamTask);
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 3, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+          + connectorTask.getPausedPartitionsUpdateCount());
+    }
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+    // Make sure other 1 extra event was read
+    // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
+    // be there.
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+      Assert.fail("Transferred messages when not expected, after * partitions were added. Expected: 4 Transferred: "
+          + datastreamProducer.getEvents().size());
+    }
+
+    // Now resume both the partitions.
+    datastream.getMetadata().put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, "");
+    connectorTask.checkAndUpdateTask(datastreamTask);
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 4, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
+          + connectorTask.getPausedPartitionsUpdateCount());
+    }
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 0);
+    // Make sure other 2 events were read
+    // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
+    // be there.
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 6, 100, 25000)) {
+      Assert.fail("Did not transfer the msgs within timeout. Expected: 6 Tansferred:  " + datastreamProducer.getEvents()
+          .size());
     }
 
     connectorTask.stop();
