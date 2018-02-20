@@ -7,8 +7,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
-import java.util.StringJoiner;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -21,6 +21,7 @@ import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
+import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -45,6 +46,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String CLASS_NAME = KafkaMirrorMakerConnectorTask.class.getSimpleName();
   private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
 
+  private static final String KAFKA_ORIGIN_CLUSTER = "kafka-origin-cluster";
+  private static final String KAFKA_ORIGIN_TOPIC = "kafka-origin-topic";
+  private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
+  private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
@@ -57,9 +63,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
-    StringJoiner csv = new StringJoiner(KafkaConnectionString.BROKER_LIST_DELIMITER);
-    _mirrorMakerSource.getBrokers().forEach(broker -> csv.add(broker.toString()));
-    String bootstrapValue = csv.toString();
+    String bootstrapValue = String.join(KafkaConnectionString.BROKER_LIST_DELIMITER,
+        _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString).collect(Collectors.toList()));
 
     consumerProps.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
     consumerProps.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _task.getDatastreams().get(0).getName());
@@ -77,23 +82,25 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
   }
 
+
   @Override
   protected DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) throws Exception {
     HashMap<String, String> metadata = new HashMap<>();
-    metadata.put("kafka-origin-cluster", _mirrorMakerSource.toString());
+    metadata.put(KAFKA_ORIGIN_CLUSTER, _mirrorMakerSource.toString());
     String topic = fromKafka.topic();
-    metadata.put("kafka-origin-topic", topic);
+    metadata.put(KAFKA_ORIGIN_TOPIC, topic);
     int partition = fromKafka.partition();
     String partitionStr = String.valueOf(partition);
-    metadata.put("kafka-origin-partition", partitionStr);
-    String offsetStr = String.valueOf(fromKafka.offset());
-    metadata.put("kafka-origin-offset", offsetStr);
+    metadata.put(KAFKA_ORIGIN_PARTITION, partitionStr);
+    long offset = fromKafka.offset();
+    String offsetStr = String.valueOf(offset);
+    metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(readTime.toEpochMilli()));
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(readTime.toEpochMilli());
-    builder.setSourceCheckpoint(topic + "-" + partitionStr + "-" + offsetStr);
+    builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
     builder.setDestination(String.format(_task.getDatastreamDestination().getConnectionString(), topic));
     return builder.build();
   }

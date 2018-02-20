@@ -1,100 +1,97 @@
 package com.linkedin.datastream.server;
 
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.Objects;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 /**
- * Class for Sending events to the corresponding EventProducer and keeping track of the in flight messages,
- * and the acknowledge checkpoints for each destination partition.
+ * Class for sending events to the corresponding EventProducer and keeping track of the in flight messages,
+ * and the acknowledged checkpoints for each source partition.
  *
- * The main assumption of this class is that: For each  destination/partition tuple, the send method should
- * be called with monotonically ascending checkpoints.
+ * The main assumption of this class is that: For each source/partition tuple, the send method should
+ * be called with monotonically ascending UNIQUE checkpoints.
  *
- * @param <T> Type of the checkpoint object internally used by the connector.
+ * @param <T> Type of the comparable checkpoint object internally used by the connector.
  */
-
-class FlushlessEventProducerHandler<T> {
+public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   private static final Logger LOG = LoggerFactory.getLogger(FlushlessEventProducerHandler.class);
-  private ConcurrentHashMap<DestinationPartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
+  private ConcurrentHashMap<SourcePartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
 
   private final DatastreamEventProducer _eventProducer;
 
-  FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
+  public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
     _eventProducer = eventProducer;
   }
 
   /**
-   * Reset all the inflight status counter, and metadata stored for this eventProducer.
-   * This should be used, after calling flush and getting partition reassignments.
+   * Reset all the in-flight status counters, and metadata stored for this eventProducer.
+   * This should be used after calling flush and getting partition reassignments.
    */
   public void clear() {
     _callbackStatusMap.clear();
   }
 
   /**
-   * Sends event to the transport, using the passed EventProducer.
+   * Sends event to the transport.
    *
-   * NOTE: This method should be called with monotonically increasing checkpoints for a giving DestinationPartition.
+   * NOTE: This method should be called with monotonically increasing checkpoints for a given source and sourcePartition.
    * @param record the event to send
-   * @param checkpoint the checkpoint associated with this event.
-   *                   Multiple events could share the same checkpoint.
+   * @param sourceCheckpoint the sourceCheckpoint associated with this event. Multiple events could share the same sourceCheckpoint.
    */
-  public void send(DatastreamProducerRecord record, T checkpoint) {
-    DestinationPartition dp =
-        new DestinationPartition(record.getDestination().orElse(""), record.getPartition().orElse(0));
-    CallbackStatus status = _callbackStatusMap.computeIfAbsent(dp, d -> new CallbackStatus());
-    status.register(checkpoint);
+  public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint) {
+    SourcePartition sp = new SourcePartition(source, sourcePartition);
+    CallbackStatus status = _callbackStatusMap.computeIfAbsent(sp, d -> new CallbackStatus());
+    status.register(sourceCheckpoint);
     _eventProducer.send(record, ((metadata, exception) -> {
       if (exception != null) {
         LOG.error("Failed to send datastream record: " + metadata, exception);
+      } else {
+        status.ack(sourceCheckpoint);
       }
-      status.ack(checkpoint);
     }));
   }
 
   /**
-   * @return the latest safe checkpoint acknowledge by a destination Partition. Null if not event has been acknowledged.
+   * @return the latest safe checkpoint acknowledged by a sourcePartition, or an empty optional if no event has been
+   * acknowledged.
    */
-  @Nullable
-  public T getAckCheckpoint(String destination, int partition) {
-    if (destination == null) {
-      destination = "";
-    }
-    CallbackStatus status = _callbackStatusMap.get(new DestinationPartition(destination, partition));
-    return status != null ? status.getAckCheckpoint() : null;
+  public Optional<T> getAckCheckpoint(String source, int sourcePartition) {
+    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    return Optional.ofNullable(status).map(CallbackStatus::getAckCheckpoint);
   }
 
-  public long getInFlightCount(String destination, int partition) {
-    if (destination == null) {
-      destination = "";
-    }
-    CallbackStatus status = _callbackStatusMap.get(new DestinationPartition(destination, partition));
+  /**
+   * @return the inflight count of messages yet to be acknowledged for a given source and sourcePartition.
+   */
+  public long getInFlightCount(String source, int sourcePartition) {
+    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
     return status != null ? status.getInFlightCount() : 0;
   }
 
   /**
-   * @return the smallest checkpoint acknowledged by all destinations. Null if not event has been acknowledged.
+   * @return the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
    *         If all tasks are up to date, returns the passed {@code currentCheckpoint}
    *         NOTE: This method assume that the checkpoints are monotonically increasing across DestinationPartition.
    *               For example, for a connector reading from a source with a global monotonic SCN (e.g. Espresso)
    *               this function will work correctly.
    */
-  @Nullable
-  public T getAckCheckpoint(T currentCheckpoint, Comparator<T> checkpointComparator) {
+  public Optional<T> getAckCheckpoint(T currentCheckpoint, Comparator<T> checkpointComparator) {
     T lowWaterMark = null;
 
     for (CallbackStatus status : _callbackStatusMap.values()) {
       if (status.getInFlightCount() > 0) {
         T checkpoint = status.getAckCheckpoint();
         if (checkpoint == null) {
-          return null; // no events ack yet for this topic partition
+          return Optional.empty(); // no events ack yet for this topic partition
         }
         if (lowWaterMark == null || checkpointComparator.compare(checkpoint, lowWaterMark) < 0) {
           lowWaterMark = checkpoint;
@@ -102,7 +99,7 @@ class FlushlessEventProducerHandler<T> {
       }
     }
 
-    return lowWaterMark != null ? lowWaterMark : currentCheckpoint;
+    return lowWaterMark != null ? Optional.of(lowWaterMark) : Optional.ofNullable(currentCheckpoint);
   }
 
   /**
@@ -110,44 +107,69 @@ class FlushlessEventProducerHandler<T> {
    */
   private class CallbackStatus {
     private T _currentCheckpoint = null;
-    private T _prevCheckpoint = null;
-    private AtomicLong _inFlight = new AtomicLong(0);
+    private T _highWaterMark = null;
+
+    private Queue<T> _acked = new PriorityQueue<>();
+    private Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
 
     public T getAckCheckpoint() {
-      if (_inFlight.get() > 0) {
-        // If messages are in flight, the current checkpoint could be partial in case of multiple
-        // messages for the same checkpoint. It is safer to return the previous one in this case.
-        return _prevCheckpoint;
-      }
       return _currentCheckpoint;
     }
 
     public long getInFlightCount() {
-      return _inFlight.get();
+      return _inFlight.size();
     }
 
     public void register(T checkpoint) {
-      _inFlight.incrementAndGet();
+      _inFlight.add(checkpoint);
     }
 
     /**
-     * The checkpoints should acknowledgement comes in order for a Given DestinationPartition
+     * The checkpoints acknowledgement can be received out of order. In that case we need to keep track
+     * of the high watermark, and only update the ackCheckpoint when we are sure all events before it has
+     * been received.
      */
     public synchronized void ack(T checkpoint) {
-      _inFlight.decrementAndGet();
-      if (!Objects.equals(_currentCheckpoint, checkpoint)) {
-        _prevCheckpoint = _currentCheckpoint;
+      if (!_inFlight.remove(checkpoint)) {
+        LOG.error("Internal state error; could not remove checkpoint {}", checkpoint);
       }
-      _currentCheckpoint = checkpoint;
+      _acked.add(checkpoint);
+
+      if (_highWaterMark == null || _highWaterMark.compareTo(checkpoint) < 0) {
+        _highWaterMark = checkpoint;
+      }
+
+      if (_inFlight.isEmpty()) {
+        // Queue is empty, update to high water mark.
+        _currentCheckpoint = _highWaterMark;
+        _acked.clear();
+      } else {
+        // Update the checkpoint to the largest acked message that is still smaller than the first inflight message
+        T max = null;
+        T first = _inFlight.iterator().next();
+        while (!_acked.isEmpty() && _acked.peek().compareTo(first) < 0) {
+          max = _acked.poll();
+        }
+        if (max != null) {
+          if (_currentCheckpoint != null && max.compareTo(_currentCheckpoint) < 0) {
+            // max is less than current checkpoint, should not happen
+            LOG.error(
+                "Internal error: checkpoints should progress in increasing order. Resolved checkpoint as {} which is less than current checkpoint of {}",
+                max, _currentCheckpoint);
+          }
+          _currentCheckpoint = max;
+        }
+      }
     }
+
   }
 
-  public static final class DestinationPartition extends Pair<String, Integer> {
-    public DestinationPartition(String destination, int partition) {
-      super(destination, partition);
+  public static final class SourcePartition extends Pair<String, Integer> {
+    public SourcePartition(String source, int partition) {
+      super(source, partition);
     }
 
-    public String getDestination() {
+    public String getSource() {
       return getKey();
     }
 

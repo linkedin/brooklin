@@ -32,7 +32,6 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
-
   public Properties getKafkaProducerProperties() {
     Properties props = new Properties();
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, _kafkaCluster.getBrokers());
