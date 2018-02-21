@@ -1,9 +1,9 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
-import com.linkedin.datastream.common.DatabaseColumnRecord;
-import com.linkedin.datastream.common.DatabaseRow;
 import java.util.List;
 
+import com.linkedin.datastream.common.DatabaseColumnRecord;
+import com.linkedin.datastream.common.DatabaseRow;
 
 /**
  * The OracleChangeEvent class is to help represent the result Set returned

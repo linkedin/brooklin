@@ -59,7 +59,7 @@ public class DatabaseChunkedReader {
   private final DatabaseSource _databaseSource;
   private final Connection _connection;
 
-  private final DBReaderConfig _dbReaderConfig;
+  private final DatabaseChunkedReaderConfig _databaseChunkedReaderConfig;
   private final long _chunkSize;
   private final long _maxChunkIndex;
   private final long _chunkIndex;
@@ -94,27 +94,28 @@ public class DatabaseChunkedReader {
    *                    needs to follow specific rules. The query should only involve one table, as specified
    *                    by the 'table' parameter, should query all unique key columns and in the order specified
    *                    in the Index for the table.
-   * @param table table to use for getting unique key column(s) information to add the chunking predicate
+   * @param table table to use for getting unique key column(s) information to add the chunking predicate. This should
+   *              be the same as the table being read as part of the sourceQuery
    * @param databaseSource DatabaseSource implementation to query table metadata needed for constructing the chunk query
    * @param id Name to identify the reader instance in logs
    */
   public DatabaseChunkedReader(Properties props, DataSource source, String sourceQuery, String table,
       DatabaseSource databaseSource, String id) throws SQLException, SchemaGenerationException {
-    _dbReaderConfig = new DBReaderConfig(props);
+    _databaseChunkedReaderConfig = new DatabaseChunkedReaderConfig(props);
     _sourceQuery = sourceQuery;
     _dataSource = source;
     _databaseSource = databaseSource;
     _readerId = id;
     _chunkingTable = table;
-    _fetchSize = _dbReaderConfig.getFetchSize();
-    _queryTimeoutSecs = _dbReaderConfig.getQueryTimeout();
-    _maxChunkIndex = _dbReaderConfig.getNumChunkBuckets() - 1;
-    _chunkSize = _dbReaderConfig.getChunkSize();
-    _chunkIndex = _dbReaderConfig.getChunkIndex();
+    _fetchSize = _databaseChunkedReaderConfig.getFetchSize();
+    _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
+    _maxChunkIndex = _databaseChunkedReaderConfig.getNumChunkBuckets() - 1;
+    _chunkSize = _databaseChunkedReaderConfig.getChunkSize();
+    _chunkIndex = _databaseChunkedReaderConfig.getChunkIndex();
     _connection = source.getConnection();
-    _hashFunction = _dbReaderConfig.getHashFunction();
-    _concatFunction = _dbReaderConfig.getConcatFunction();
-    _interpreter = _dbReaderConfig.getDatabaseInterpreter();
+    _hashFunction = _databaseChunkedReaderConfig.getHashFunction();
+    _concatFunction = _databaseChunkedReaderConfig.getConcatFunction();
+    _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
     getChunkingKeyInfo();
     validateQuery(sourceQuery);
   }
@@ -280,7 +281,6 @@ public class DatabaseChunkedReader {
   }
 
   private DatabaseRow getNextRow() throws SQLException {
-    // todo Fix to use lambda with unchecked exception if possible
     Iterator<Map.Entry<String, Object>> iter = _chunkingKeys.entrySet().iterator();
     Map.Entry<String, Object> entry;
     for (int i = 0; i < _numChunkingKeys; i++) {

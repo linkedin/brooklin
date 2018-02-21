@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased;
 
-import com.linkedin.datastream.common.DatabaseColumnRecord;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatabaseColumnRecord;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.AvroMessageEncoderUtil;

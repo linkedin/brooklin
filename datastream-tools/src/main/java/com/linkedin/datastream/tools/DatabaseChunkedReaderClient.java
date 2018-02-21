@@ -19,7 +19,7 @@ import com.linkedin.datastream.common.DatabaseRow;
 import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
 import com.linkedin.datastream.dbreader.DatabaseChunkedReader;
 
-import static com.linkedin.datastream.dbreader.DBReaderConfig.*;
+import static com.linkedin.datastream.dbreader.DatabaseChunkedReaderConfig.*;
 
 
 public class DatabaseChunkedReaderClient {

@@ -7,7 +7,7 @@ import java.util.Objects;
 
 
 /**
- * Represents a single row of a Database
+ * Represents a single row of a Database and composed of a list of DatabaseColumnRecords for each field
  */
 public class DatabaseRow {
   private List<DatabaseColumnRecord> _allFields = new ArrayList<>();

@@ -12,13 +12,16 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 
-public class DBReaderConfig {
-  private static final Logger LOG = LoggerFactory.getLogger(DBReaderConfig.class);
+/**
+ * Configurations for the DatabaseChunkedReader class.
+ */
+public class DatabaseChunkedReaderConfig {
+  private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReaderConfig.class);
   public static final String DBREADER_DOMAIN_CONFIG = "dbReader";
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
   // If the resultSet is 1000 rows, with fetchSize set to 100, it would take 10 network
   // calls to process the entire resultSet. The default fetchSize is 10, which is way too small
-  // for Brooklin use-cases.
+  // for both a typical bootstrap scenario.
   public static final String FETCH_SIZE = "fetchSize";
   // Number of rows to chunk on each query. This will limit the number of rows that the server will limit query result to
   public static final String CHUNK_SIZE = "chunk.size";
@@ -41,7 +44,7 @@ public class DBReaderConfig {
   private final String _concatFunction;
   private SqlTypeInterpreter _interpreter;
 
-  public DBReaderConfig(Properties properties) {
+  public DatabaseChunkedReaderConfig(Properties properties) {
     Properties props = new VerifiableProperties(properties).getDomainProperties(DBREADER_DOMAIN_CONFIG);
     VerifiableProperties verifiableProperties = new VerifiableProperties(props);
     _queryTimeout = verifiableProperties.getInt(QUERY_TIMEOUT_SECS, DEFAULT_QUERY_TIMEOUT_SECS);
@@ -85,6 +88,10 @@ public class DBReaderConfig {
 
     verifiableProperties.verify();
   }
+
+  /**
+   * Getters for private member fields
+   */
 
   public int getFetchSize() {
     return _fetchSize;

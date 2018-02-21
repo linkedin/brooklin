@@ -22,7 +22,7 @@ import junit.framework.Assert;
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.common.DatabaseRow;
 
-import static com.linkedin.datastream.dbreader.DBReaderConfig.*;
+import static com.linkedin.datastream.dbreader.DatabaseChunkedReaderConfig.*;
 
 
 public class TestDBReader {

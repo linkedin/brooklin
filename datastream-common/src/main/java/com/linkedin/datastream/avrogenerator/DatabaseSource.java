@@ -81,6 +81,11 @@ public abstract class DatabaseSource {
    */
   public abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
 
+  /**
+   * Get the avro schema for the table
+   * @param tableName
+   * @return Schema for the table or null if operation not supported
+   */
   public Schema getTableSchema(String tableName) {
     return null;
   }
