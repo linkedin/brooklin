@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased;
 
+import com.linkedin.datastream.common.DatabaseColumnRecord;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -159,7 +160,7 @@ public class MessageHandler implements SendCallback {
     GenericRecord payloadRecord = new GenericData.Record(_schema);
 
     try {
-      for (OracleChangeEvent.Record record : event.getRecords()) {
+      for (DatabaseColumnRecord record : event.getRecords()) {
         try {
           payloadRecord.put(record.getColName(), record.getValue());
         } catch (Exception e) {
@@ -184,7 +185,7 @@ public class MessageHandler implements SendCallback {
 
   private byte[] constructDatastreamEventKey(OracleChangeEvent event) throws DatastreamException {
 
-    for (OracleChangeEvent.Record record : event.getRecords()) {
+    for (DatabaseColumnRecord record : event.getRecords()) {
       if (!_primaryKeyField.equals(record.getColName())) {
         continue;
       }

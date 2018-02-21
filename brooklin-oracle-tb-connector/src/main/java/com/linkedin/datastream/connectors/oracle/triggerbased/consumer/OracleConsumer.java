@@ -26,7 +26,7 @@ import com.linkedin.datastream.connectors.oracle.triggerbased.OracleSource;
  *
  * 1. generate SQL Strings
  * 2. execute those queries on the OracleDatabase
- * 3. Convert ResultSet into the OracleChangeEvents through the OracleTableReader class
+ * 3. Convert ResultSet into the OracleChangeEvents through the OracleTbTableReader class
  *
  * The OracleTaskHandler class should only interface with this class
  * and the underlying handling of the Oracle Database should be hidden
@@ -166,7 +166,7 @@ public class OracleConsumer {
       rs = executeQuery(_changeCaptureStatement);
 
       // instantiate an Oracle Table Reader to convert ResultSet to OracleChangeEvents
-      OracleTableReader tableReader = new OracleTableReader(rs, _schema);
+      OracleTbTableReader tableReader = new OracleTbTableReader(rs, _schema);
 
       List<OracleChangeEvent> changeEvents = new ArrayList<>();
       OracleChangeEvent changeEvent;
@@ -397,7 +397,7 @@ public class OracleConsumer {
     }
   }
 
-  private OracleChangeEvent nextEventWithRetries(OracleTableReader tableReader) {
+  private OracleChangeEvent nextEventWithRetries(OracleTbTableReader tableReader) {
     try {
       return tableReader.next();
     } catch (SQLException e) {

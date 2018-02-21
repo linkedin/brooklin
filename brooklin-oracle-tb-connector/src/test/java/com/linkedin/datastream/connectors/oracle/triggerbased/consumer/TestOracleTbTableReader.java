@@ -1,29 +1,32 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Struct;
 import java.sql.Timestamp;
-import java.sql.ResultSet;
 import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.avro.Schema;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
 import org.mockito.Mockito;
 import org.testng.Assert;
-import org.apache.avro.Schema;
-import org.apache.avro.Schema.Type;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.common.DatabaseColumnRecord;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.OracleTableReader;
 import com.linkedin.datastream.connectors.oracle.triggerbased.MockSchema;
 
+
 @Test
-public class TestOracleTableReader {
+public class TestOracleTbTableReader {
   private static final String COL_NAME = "lowLights";
 
   @Test
@@ -62,7 +65,7 @@ public class TestOracleTableReader {
   @Test
   public void testSqlObjectToAvro() throws SQLException {
     String dbValue = "value";
-    Object object = OracleTableReader.sqlObjectToAvro(dbValue, "contact", MockSchema.GENERIC_SCHEMA);
+    Object object = new OracleTableReader().sqlObjectToAvro(dbValue, "contact", MockSchema.GENERIC_SCHEMA);
 
     Assert.assertEquals(object, dbValue);
     Assert.assertTrue(object instanceof String);
@@ -74,7 +77,7 @@ public class TestOracleTableReader {
 
     // even though the argument is BigDecimal, we should convert to an int because
     // its defined as an int in the schema
-    Object object = OracleTableReader.sqlObjectToAvro(dbValue, "getLucky", MockSchema.GENERIC_SCHEMA);
+    Object object = new OracleTableReader().sqlObjectToAvro(dbValue, "getLucky", MockSchema.GENERIC_SCHEMA);
     Assert.assertEquals(object, dbValue.longValue());
     Assert.assertTrue(object instanceof Long);
   }
@@ -83,7 +86,7 @@ public class TestOracleTableReader {
   public void testSqlObjectToAvroTimestamp() throws SQLException {
     Timestamp ts = new Timestamp(123L);
 
-    Object object = OracleTableReader.sqlObjectToAvro(ts, "digitalLove", MockSchema.GENERIC_SCHEMA);
+    Object object = new OracleTableReader().sqlObjectToAvro(ts, "digitalLove", MockSchema.GENERIC_SCHEMA);
     Assert.assertEquals(object, ts.getTime());
     Assert.assertTrue(object instanceof Long);
   }
@@ -93,7 +96,7 @@ public class TestOracleTableReader {
     Duration duration = Duration.ofMillis(10L);
 
     // we dont expect Duration types from ResultSets
-    Object object = OracleTableReader.sqlObjectToAvro(duration, "getLucky", MockSchema.GENERIC_SCHEMA);
+    Object object = new OracleTableReader().sqlObjectToAvro(duration, "getLucky", MockSchema.GENERIC_SCHEMA);
   }
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
@@ -128,14 +131,14 @@ public class TestOracleTableReader {
 
     // do not throw error
     OracleChangeEvent event =
-        OracleTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L);
+        OracleTbTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L, 3);
 
     Assert.assertEquals(event.getScn(), 10L);
     Assert.assertEquals(event.getSourceTimestamp(), 100L);
 
-    List<OracleChangeEvent.Record> records = event.getRecords();
-    OracleChangeEvent.Record txnRecord = records.get(0);
-    OracleChangeEvent.Record keyRecord = records.get(1);
+    List<DatabaseColumnRecord> records = event.getRecords();
+    DatabaseColumnRecord txnRecord = records.get(0);
+    DatabaseColumnRecord keyRecord = records.get(1);
 
     Assert.assertEquals(txnRecord.getColName(), "txn");
     Assert.assertEquals(txnRecord.getValue(), 1L);
@@ -165,7 +168,7 @@ public class TestOracleTableReader {
     Mockito.when(rs.getObject(4)).thenReturn(BigDecimal.valueOf(10L));
 
     OracleChangeEvent event =
-        OracleTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L);
+        OracleTbTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L, 3);
   }
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
@@ -179,7 +182,7 @@ public class TestOracleTableReader {
     Mockito.when(rsmd.getColumnCount()).thenReturn(2);
 
     OracleChangeEvent event =
-        OracleTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L);
+        OracleTbTableReader.generateEvent(rs, MockSchema.GENERIC_SCHEMA, 10L, 100L, 3);
   }
 
   public void testStructGeneration() throws Exception {
@@ -199,7 +202,7 @@ public class TestOracleTableReader {
     Schema structSchema = MockSchema.COMPLEX_SCHEMA.getField("geo").schema();
 
     GenericData.Record record =
-        (GenericData.Record) OracleTableReader.sqlObjectToAvro(struct, COL_NAME, structSchema);
+        (GenericData.Record) (new OracleTableReader().sqlObjectToAvro(struct, COL_NAME, structSchema));
 
     Assert.assertEquals(record.get("country"), country);
     Assert.assertEquals(record.get("geoPlaceMaskCode"), regionCode);

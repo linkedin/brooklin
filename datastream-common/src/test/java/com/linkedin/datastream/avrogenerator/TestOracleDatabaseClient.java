@@ -10,7 +10,7 @@ public class TestOracleDatabaseClient {
   private static final String JOBS_SCHEMA = "JOBS";
   private static final String JOBS_TABLE = "JOBS";
 
-  @Test(enabled = false)
+  @Test(enabled = true)
   public void testBasic() throws SQLException {
     String conUri = "jdbc:oracle:thin:jobs/jobs8uat@//lca1-eitm-jobs.stg.linkedin.com:1521/EI_EITM_JOBS";
     OracleDatabaseClient client = new OracleDatabaseClient(conUri);
