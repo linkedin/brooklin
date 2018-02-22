@@ -2,8 +2,14 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
+
+import kafka.admin.AdminUtils;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -13,11 +19,13 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.CoordinatorConfig;
@@ -108,8 +116,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.TRUE.toString());
     Datastream ds = createDatastream("testInitializeDatastreamWithDestinationReuse", _broker, sourceRegex, metadata);
-    KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("testInitializeDatastreamWithDestinationReuse", getDefaultConfig(Optional.empty()));
+    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("testInitializeDatastreamWithDestinationReuse",
+        getDefaultConfig(Optional.empty()));
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
@@ -187,5 +195,66 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     // assert that flushless task is created
     Assert.assertTrue(connector.createKafkaBasedConnectorTask(
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
+  }
+
+  public void testValidateDatastremUpdatePausedPartitions() throws Exception {
+    String topic = "Topic";
+    Map<String, Set<String>> pausedPartitions = new HashMap<>();
+    Map<String, Set<String>> expectedPartitions = new HashMap<>();
+
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+    Coordinator coordinator = createCoordinator(_kafkaCluster.getZkConnection(), "testPopulateDatastreamDestination");
+    coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    String transportProviderName = "kafkaTransportProvider";
+    KafkaTransportProviderAdmin transportProviderAdmin = getKafkaTransportProviderAdmin();
+    coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
+    coordinator.start();
+
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    Datastream datastream = createDatastream("testPopulateDatastreamDestination", _broker, topic, metadata);
+    datastream.setTransportProviderName(transportProviderName);
+    coordinator.initializeDatastream(datastream);
+
+    // create topic
+    if (!AdminUtils.topicExists(_zkUtils, topic)) {
+      AdminUtils.createTopic(_zkUtils, topic, 2, 2, new Properties(), null);
+    }
+
+    // Make sure "*" is converted to a list of partitions
+    pausedPartitions.put(topic, new HashSet<>(Collections.singletonList("*")));
+    // prepare expected partitions for validation
+    expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
+    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+
+    // Make sure multiple *s and numbers is converted to a list of unique partitions
+    pausedPartitions.put(topic, new HashSet<>(Arrays.asList("*", "2", "1", "*")));
+    // prepare expected partitions for validation
+    expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
+    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+
+    // Make sure numbers aren't touched
+    pausedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
+    // prepare expected partitions for validation
+    expectedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
+    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+
+    // Now add non-existent partition to list, and make sure it gets stripped off
+    pausedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "99", "random", "1")));
+    // prepare expected partitions for validation
+    expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
+    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+  }
+
+  private void verifyPausedPartitions(Connector connector, Datastream datastream,
+      Map<String, Set<String>> pausedPartitions, Map<String, Set<String>> expectedPartitions) throws Exception {
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
+    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    Assert.assertEquals(expectedPartitions,
+        JsonUtils.fromJson(datastream.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP));
   }
 }

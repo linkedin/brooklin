@@ -1,5 +1,11 @@
 package com.linkedin.datastream.common;
 
+import java.util.HashMap;
+import java.util.Set;
+
+import org.codehaus.jackson.type.TypeReference;
+
+
 /**
  * Various well known config keys used in datastream metadata.
  */
@@ -73,4 +79,24 @@ public class DatastreamMetadataConstants {
    * can be deleted after TTL expires. The TTL is expressed as miliseconds.
    */
   public static final String TTL_MS = "system.ttl.ms";
+
+  /**
+   * Key to get the set of paused partitions from datastream metadata.
+   * Currently only supported for mirrormaker connectors.
+   */
+  public static final String PAUSED_SOURCE_PARTITIONS_KEY = "system.pausedSourcePartitions";
+
+  /**
+   * Regex indicating pausing all partitions in a topic
+   * Currently only supported for mirrormaker connectors.
+   */
+  public static final String REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC = "*";
+
+  /**
+   * This type reference will be used when converting paused partitions to/from Json.
+   * Currently only supported for mirrormaker connectors.
+   */
+  public static final TypeReference<HashMap<String, Set<String>>> PAUSED_SOURCE_PARTITIONS_JSON_MAP =
+      new TypeReference<HashMap<String, Set<String>>>() {
+      };
 }

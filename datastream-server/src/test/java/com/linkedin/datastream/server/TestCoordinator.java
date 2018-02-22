@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTask;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -184,7 +183,7 @@ public class TestCoordinator {
       }
 
       for (Datastream ds : datastreams) {
-        if (ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)) {
+        if (ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY)) {
           throw new DatastreamValidationException("paused partitions not allowed");
         }
       }
@@ -2020,7 +2019,7 @@ public class TestCoordinator {
     pausedPartitions.put("topic1", new HashSet<>(Collections.singletonList("*")));
     pausedPartitions.put("topic2", new HashSet<>(Arrays.asList("0", "1")));
     mmDatastream.getMetadata()
-        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY,
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY,
             JsonUtils.toJson(pausedPartitions));
 
     LOG.info("Updating mm datastream: {}", mmDatastream);
@@ -2036,7 +2035,7 @@ public class TestCoordinator {
     Assert.assertTrue(task.getDatastreams()
         .get(0)
         .getMetadata()
-        .get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY)
+        .get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY)
         .equals(JsonUtils.toJson(pausedPartitions)));
 
   }
@@ -2078,7 +2077,7 @@ public class TestCoordinator {
     pausedPartitions.put("topic1", new HashSet<>(Collections.singletonList("*")));
     pausedPartitions.put("topic2", new HashSet<>(Arrays.asList("0", "1")));
     nonMmDatastream.getMetadata()
-        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY,
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY,
             JsonUtils.toJson(pausedPartitions));
 
     LOG.info("Updating nonMm datastream: {}", nonMmDatastream);
@@ -2089,7 +2088,7 @@ public class TestCoordinator {
     // For non-mm, should receive an error
     boolean exceptionReceived = false;
     nonMmDatastream.getMetadata()
-        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY,
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY,
             JsonUtils.toJson(pausedPartitions));
 
     LOG.info("Updating non mm datastream: {}", nonMmDatastream);

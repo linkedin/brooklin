@@ -310,12 +310,10 @@ project(':datastream-server') {
     compile project(':datastream-common')
     compile project(':datastream-utils')
     compile project(':datastream-client')
-    compile project(':datastream-kafka-connector')
 
     testCompile project(':datastream-kafka')
     testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"
     testCompile project(':datastream-client')
-    testCompile project(':datastream-kafka-connector')
     testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:$mockitoVersion"

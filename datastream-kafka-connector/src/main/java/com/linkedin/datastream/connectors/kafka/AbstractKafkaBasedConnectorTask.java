@@ -194,6 +194,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         ConsumerRecords<?, ?> records;
         while (!_shouldDie) {
+          // Perform any pre-computations before poll()
+          preConsumerPollHook();
+
           // read a batch of records
           records = pollRecords(pollInterval);
 
@@ -445,7 +448,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   // The method, given a datastream task - checks if there is any update in the existing task.
-  // By default, it just updates _datastreamTask.
-  public void checkAndUpdateTask(DatastreamTask datastreamTask) {
+  public void checkForUpdateTask(DatastreamTask datastreamTask) {
+  }
+
+  // The method is called before making a call to poll() for any precomputations needed.
+  protected void preConsumerPollHook() {
   }
 }

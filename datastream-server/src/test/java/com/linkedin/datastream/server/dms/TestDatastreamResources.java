@@ -1,10 +1,7 @@
 package com.linkedin.datastream.server.dms;
 
-import com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTask;
-import com.linkedin.datastream.common.JsonUtils;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,13 +18,15 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.DatastreamRestClientFactory;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
@@ -210,7 +209,8 @@ public class TestDatastreamResources {
     final String topic2 = "topic2";
     final String topic3 = "topic3";
     final String nonExistantTopic = "nonExistantTopic";
-    Map<String, HashSet<String>> pausedPartitions = new ConcurrentHashMap<>();
+    StringMap pausedPartitions = new StringMap();
+    StringMap expectedPartitions = new StringMap();
 
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
@@ -234,102 +234,102 @@ public class TestDatastreamResources {
     // Make sure initial state is empty
     Assert.assertFalse(resource1.get(datastreamName)
         .getMetadata()
-        .containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+        .containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
 
     // Now add "*" for topic1, "0" for topic2, "0" and "1" for topic3
-    pausedPartitions.put(topic1, new HashSet<>(Collections.singletonList("*")));
-    pausedPartitions.put(topic2, new HashSet<>(Collections.singletonList("0")));
-    pausedPartitions.put(topic3, new HashSet<>(Arrays.asList("0", "1")));
-    ActionResult<Void> pausePartitionResponse =
-        resource1.pauseSourcePartitions(pathKey, JsonUtils.toJson(pausedPartitions));
+    pausedPartitions.put(topic1, "*");
+    pausedPartitions.put(topic2, "0");
+    pausedPartitions.put(topic3, "1");
+    expectedPartitions.putAll(pausedPartitions);
+    ActionResult<Void> pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
     Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     Datastream ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
 
     // Add "0" and another "*" for topic1, and "1" for topic2.
     // Expect "0,*" ignored for topic1
-    pausedPartitions.get(topic1).add("0");
-    pausedPartitions.get(topic2).remove("0");
-    pausedPartitions.get(topic2).add("1");
-    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, JsonUtils.toJson(pausedPartitions));
+    pausedPartitions.clear();
+    pausedPartitions.put(topic1, "0,*");
+    pausedPartitions.put(topic2, "1");
+    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
     Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
-    // Prepare pausedPartitions for validation.
-    pausedPartitions.get(topic1).remove("0");
-    pausedPartitions.get(topic2).add("0");
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.put(topic1, "0,*");
+    expectedPartitions.put(topic2, "0,1");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now add "*" to topic2 - this should remove everything from topic2's list and add single
     // entry.
-    Map<String, HashSet<String>> topic2Partitions = new ConcurrentHashMap<>();
-    topic2Partitions.put(topic2, new HashSet<>(Collections.singletonList("*")));
-    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, JsonUtils.toJson(topic2Partitions));
+    pausedPartitions.clear();
+    pausedPartitions.put(topic2, "*");
+    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
     Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
-    // Prepare pausedPartitions for validation.
-    pausedPartitions.put(topic2, new HashSet<>(Collections.singletonList("*")));
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.put(topic2, "0,1,*");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now resume "*" from topic2, "0" from topic3
-    Map<String, HashSet<String>> partitionsToResume = new ConcurrentHashMap<>();
-    partitionsToResume.put(topic2, new HashSet<>(Collections.singletonList("*")));
-    partitionsToResume.put(topic3, new HashSet<>(Collections.singletonList("0")));
-    pausePartitionResponse = resource1.resumeSourcePartitions(pathKey, JsonUtils.toJson(partitionsToResume));
-    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    StringMap partitionsToResume = new StringMap();
+    partitionsToResume.put(topic2, "*");
+    partitionsToResume.put(topic3, "0");
+    ActionResult<Void> resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
-    // Prepare pausedPartitions for validation.
-    pausedPartitions.remove(topic2);
-    pausedPartitions.get(topic3).remove("0");
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.remove(topic2);
+    expectedPartitions.put(topic3, "1");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
 
-    // Now try resuming from a nonexistant topic.
+    // Now try resuming from a nonexistent topic.
     // This should be a no op, as there is nothing to resume.
     partitionsToResume.clear();
-    partitionsToResume.put(nonExistantTopic, new HashSet<>(Collections.singletonList("*")));
-    pausePartitionResponse = resource1.resumeSourcePartitions(pathKey, JsonUtils.toJson(partitionsToResume));
-    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    partitionsToResume.put(nonExistantTopic, "*");
+    resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now remove "1" from topic3 - this should remove topic3 itself from the map
     partitionsToResume.clear();
-    partitionsToResume.put(topic3, new HashSet<>(Collections.singletonList("1")));
-    pausePartitionResponse = resource1.resumeSourcePartitions(pathKey, JsonUtils.toJson(partitionsToResume));
-    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    partitionsToResume.put(topic3, "1");
+    resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
     // Prepare pausedPartitions for validation
-    pausedPartitions.remove(topic3);
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    expectedPartitions.remove(topic3);
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(expectedPartitions));
   }
 
   @Test
@@ -345,34 +345,34 @@ public class TestDatastreamResources {
     restClient.waitTillDatastreamIsInitialized(ds.getName(), 10000);
 
     // Now add "*" for topic1, "0" for topic2, "0" and "1" for topic3
-    Map<String, HashSet<String>> pausedPartitions = new ConcurrentHashMap<>();
-    pausedPartitions.put(topic1, new HashSet<>(Collections.singletonList("*")));
-    pausedPartitions.put(topic2, new HashSet<>(Collections.singletonList("0")));
-    pausedPartitions.put(topic3, new HashSet<>(Arrays.asList("0", "1")));
-    restClient.pauseSourcePartitions(ds.getName(), JsonUtils.toJson(pausedPartitions));
+    StringMap pausedPartitions = new StringMap();
+    pausedPartitions.put(topic1, "*");
+    pausedPartitions.put(topic2, "0");
+    pausedPartitions.put(topic3, "0,1");
+    restClient.pauseSourcePartitions(ds.getName(), pausedPartitions);
     ds = restClient.getDatastream(ds.getName());
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(pausedPartitions));
 
     // Resume partitions
-    Map<String, HashSet<String>> resumePartitions = new ConcurrentHashMap<>();
-    resumePartitions.put(topic1, new HashSet<>(Collections.singletonList("*")));
-    resumePartitions.put(topic2, new HashSet<>(Collections.singletonList("*")));
-    resumePartitions.put(topic3, new HashSet<>(Arrays.asList("0")));
-    restClient.resumeSourcePartitions(ds.getName(), JsonUtils.toJson(resumePartitions));
+    StringMap resumePartitions = new StringMap();
+    resumePartitions.put(topic1, "*");
+    resumePartitions.put(topic2, "*");
+    resumePartitions.put(topic3, "0");
+    restClient.resumeSourcePartitions(ds.getName(), resumePartitions);
     // prepare pausedPartitions for validation
     pausedPartitions.remove(topic1);
     pausedPartitions.remove(topic2);
-    pausedPartitions.get(topic3).remove("0");
+    pausedPartitions.put(topic3, "1");
     ds = restClient.getDatastream(ds.getName());
-    Assert.assertTrue(
-        ds.getMetadata().containsKey(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY));
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
     Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY),
-            KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_JSON_MAP), pausedPartitions);
+        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
+            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
+        parseSourcePartitionsStringMap(pausedPartitions));
 
     // Pause Datastream1 (normal)
     restClient.pause(ds.getName(), false);
@@ -382,7 +382,7 @@ public class TestDatastreamResources {
     // Now make sure that we receive an error on pausing partitions
     boolean receivedException = false;
     try {
-      restClient.pauseSourcePartitions(ds.getName(), JsonUtils.toJson(pausedPartitions));
+      restClient.pauseSourcePartitions(ds.getName(), pausedPartitions);
     } catch (Exception e) {
       receivedException = true;
     }
@@ -391,7 +391,7 @@ public class TestDatastreamResources {
     // Now make sure that we receive an error on resuming partitions
     receivedException = false;
     try {
-      restClient.resumeSourcePartitions(ds.getName(), JsonUtils.toJson(pausedPartitions));
+      restClient.resumeSourcePartitions(ds.getName(), pausedPartitions);
     } catch (Exception e) {
       receivedException = true;
     }
@@ -619,5 +619,15 @@ public class TestDatastreamResources {
   private DatastreamRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamKafkaCluster.getDatastreamPorts().get(0));
     return DatastreamRestClientFactory.getClient(dmsUri);
+  }
+
+  private Map<String, HashSet<String>> parseSourcePartitionsStringMap(StringMap sourcePartitions) {
+    HashMap<String, HashSet<String>> map = new HashMap<>();
+    for (String source : sourcePartitions.keySet()) {
+      String[] values = sourcePartitions.get(source).split(",");
+      HashSet<String> partitions = new HashSet<>(Arrays.asList(values));
+      map.put(source, partitions);
+    }
+    return map;
   }
 }

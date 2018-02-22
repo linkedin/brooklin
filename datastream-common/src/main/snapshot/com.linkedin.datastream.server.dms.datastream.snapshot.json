@@ -134,7 +134,7 @@
           "name" : "pauseSourcePartitions",
           "parameters" : [ {
             "name" : "sourcePartitions",
-            "type" : "string"
+            "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }"
           } ]
         }, {
           "name" : "resume",
@@ -147,7 +147,7 @@
           "name" : "resumeSourcePartitions",
           "parameters" : [ {
             "name" : "sourcePartitions",
-            "type" : "string"
+            "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }"
           } ]
         } ]
       }

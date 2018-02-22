@@ -119,6 +119,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testPauseAndResumePartitions() throws Exception {
+    // Need connector just for update validation. Doesn't matter properties or datastream name
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("foo", new Properties());
+
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
     String spicyTopic = "SpicyPizza";
@@ -167,13 +171,15 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // yummypizza - with partition 0
     // spicypizza - with all partitions ("*")
     Map<String, HashSet<String>> pausedPartitions = new HashMap<>();
+    Map<String, HashSet<String>> expectedPartitions = new HashMap<>();
     pausedPartitions.put(yummyTopic, new HashSet<String>(Collections.singletonList("0")));
     pausedPartitions.put(spicyTopic, new HashSet<String>(Collections.singletonList("*")));
     datastream.getMetadata()
-        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, JsonUtils.toJson(pausedPartitions));
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
 
     // Update connector task with paused partitions
-    connectorTask.checkAndUpdateTask(datastreamTask);
+    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connectorTask.checkForUpdateTask(datastreamTask);
 
     // Make sure there was an update , and that there paused partitions.
     if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 2, 100, 25000)) {
@@ -182,8 +188,11 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     // Make sure the paused partitions match.
+    // prepare expectedPartitions for match
+    expectedPartitions.put(yummyTopic, new HashSet<>(Collections.singletonList("0")));
+    expectedPartitions.put(spicyTopic, new HashSet<>(Collections.singletonList("0")));
     Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
-    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), expectedPartitions);
 
     // Produce an event to each of the 3 topics
     produceEvents(yummyTopic, 1);
@@ -199,35 +208,33 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     // Now pause same set of partitions, and make sure there isn't any update.
-    connectorTask.checkAndUpdateTask(datastreamTask);
+    connectorTask.checkForUpdateTask(datastreamTask);
     if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 2, 100, 25000)) {
       Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
           + connectorTask.getPausedPartitionsUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
-    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), expectedPartitions);
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
       Assert.fail(
           "Transferred msgs when not expected. Expected: 4 Tansferred:  " + datastreamProducer.getEvents().size());
     }
 
     // Now add * to yummypizza and 0 to spicy pizza, and make sure 0 is neglected for spicypizza and a * is added for yummypizza
-    // (and 0 removed for yummypizza)
-    // That is, after this update, both yummypizza and spicypizza should have a "*"
-    // yummypizza - with all partitions ("*")
-    // spicypizza - with 0
+    // As * will translate to all partitions, and yummipizza has only 1 partition which is already added, this will be a noop
     pausedPartitions.clear();
     pausedPartitions.put(yummyTopic, new HashSet<String>(Collections.singletonList("*")));
     pausedPartitions.put(spicyTopic, new HashSet<String>(Collections.singletonList("0")));
     datastream.getMetadata()
-        .put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, JsonUtils.toJson(pausedPartitions));
-    connectorTask.checkAndUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 3, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
+    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connectorTask.checkForUpdateTask(datastreamTask);
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 2, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
           + connectorTask.getPausedPartitionsUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 2);
-    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), pausedPartitions);
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), expectedPartitions);
     // Make sure other 1 extra event was read
     // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
     // be there.
@@ -237,13 +244,17 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     // Now resume both the partitions.
-    datastream.getMetadata().put(KafkaMirrorMakerConnectorTask.MM_PAUSED_SOURCE_PARTITIONS_METADATA_KEY, "");
-    connectorTask.checkAndUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 4, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
+    datastream.getMetadata().put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, "");
+    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connectorTask.checkForUpdateTask(datastreamTask);
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsUpdateCount() == 3, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
           + connectorTask.getPausedPartitionsUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedSourcePartitions().size(), 0);
+    // Prepare expectedPartitions
+    expectedPartitions.clear();
+    Assert.assertEquals(connectorTask.getPausedSourcePartitions(), expectedPartitions);
     // Make sure other 2 events were read
     // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
     // be there.

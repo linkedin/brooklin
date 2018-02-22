@@ -8,6 +8,7 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
@@ -380,24 +381,14 @@ public class DatastreamRestClient {
   /**
    * Pause source partitions for a particular datastream.
    * @param datastreamName
-   *    Name of the datastream to paused.
+   *    Name of the datastream to be paused.
    * @param sourcePartitions
    *    Json representing source partitions to pause, in the form map< topic, set < partitions > >,
    * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
    * an error response from the server.
    */
-  public void pauseSourcePartitions(String datastreamName, String sourcePartitions) throws RemoteInvocationException {
-    doPauseSourcePartitions(datastreamName, sourcePartitions);
-  }
-
-  /**
-   * Pause source partitions for a particular datastream.
-   * @param datastreamName
-   *    Name of the datastream to paused.
-   * @param sourcePartitions
-   *    Json representing source partitions to pause, in the form map< topic, set < partitions > >,
-   */
-  public void doPauseSourcePartitions(String datastreamName, String sourcePartitions) {
+  public void pauseSourcePartitions(String datastreamName, StringMap sourcePartitions)
+      throws RemoteInvocationException {
     try {
       ActionRequest<Void> request =
           _builders.actionPauseSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
@@ -419,26 +410,14 @@ public class DatastreamRestClient {
   /**
    * Resume source partitions for a particular datastream.
    * @param datastreamName
-   *    Name of the datastream to paused.
+   *    Name of the datastream to be paused.
    * @param sourcePartitions
    *    Json representing source partitions to resume, in the form map< topic, set < partitions > >,
    * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
    * an error response from the server.
    */
-  public void resumeSourcePartitions(String datastreamName, String sourcePartitions) throws RemoteInvocationException {
-    doResumeSourcePartitions(datastreamName, sourcePartitions);
-  }
-
-  /**
-   * Resume source partitions for a particular datastream.
-   * @param datastreamName
-   *    Name of the datastream to paused.
-   * @param sourcePartitions
-   *    Json representing source partitions to Resume, in the form map< topic, set < partitions > >,
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
-   */
-  public void doResumeSourcePartitions(String datastreamName, String sourcePartitions) {
+  public void resumeSourcePartitions(String datastreamName, StringMap sourcePartitions)
+      throws RemoteInvocationException {
     try {
       ActionRequest<Void> request =
           _builders.actionResumeSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
