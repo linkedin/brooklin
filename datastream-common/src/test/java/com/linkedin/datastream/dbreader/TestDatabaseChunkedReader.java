@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -25,7 +24,7 @@ import com.linkedin.datastream.common.DatabaseRow;
 import static com.linkedin.datastream.dbreader.DatabaseChunkedReaderConfig.*;
 
 
-public class TestDBReader {
+public class TestDatabaseChunkedReader {
   // Dummy table name with 3 columns forming a composite key.
   private static final String TEST_TABLE = "TEST_DB_TEST_TABLE";
   private static final ArrayList<String> TEST_PKEYS = new ArrayList<>(Arrays.asList("key1", "key2", "key3"));
@@ -49,46 +48,55 @@ public class TestDBReader {
    * Test query string when a single primary key is involved in chunking
    */
   @Test
-  public void testQueryStringPrimaryKey() {
+  public void testOracleQueryStringSimpleKey() {
     String nestedQuery = "SELECT * FROM table";
-    String pkeyString = "PKEY";
-    LinkedHashMap<String, Object> keyMap = new LinkedHashMap<>();
-    keyMap.put(pkeyString, 65789);
+    List<String> keys = Arrays.asList("PKEY");
     long chunkSize = 10000;
     long bucketSize = 10;
     long chunkIndex = 3;
 
-    String actual =
-        DatabaseChunkedReader.getChunkedQuery(nestedQuery, pkeyString, keyMap, chunkSize, bucketSize, chunkIndex,
-            "ORA_HASH", "CONCAT");
+    String expected = "SELECT * FROM ( SELECT * FROM table ) WHERE ORA_HASH ( PKEY , 10 ) = 3 AND ROWNUM <= 10000";
 
-    String expected =
+    String actual =
+        new OracleChunkedQueryManager().generateFirstQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
+
+    Assert.assertEquals(expected, actual);
+
+    actual =
+        new OracleChunkedQueryManager().generateChunkedQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
+
+    expected =
         "SELECT * FROM ( SELECT * FROM table ) WHERE ORA_HASH ( PKEY , 10 ) = 3 AND ( ( PKEY > ? ) ) AND ROWNUM <= 10000";
     Assert.assertEquals(expected, actual);
   }
 
   /**
-   * Test chunking predicate generation for simple and composite keys
+   * Test query string when a single primary key is involved in chunking
    */
   @Test
-  public void testChunkKeyPredicate() {
-    LinkedHashMap<String, Object> keyMap = new LinkedHashMap<>();
-    String pkey1 = "PKEY1";
-    keyMap.put(pkey1, 65789);
+  public void testMysqlQueryStringSimpleKey() {
+    String nestedQuery = "SELECT * FROM table";
+    List<String> keys = Arrays.asList("PKEY");
+    long chunkSize = 10000;
+    long bucketSize = 10;
+    long chunkIndex = 3;
 
-    String actual = DatabaseChunkedReader.generateKeyChunkingPredicate(keyMap);
-    String expected = "( ( PKEY1 > ? ) )";
+    //String expected = "SELECT * FROM ( SELECT * FROM table ) WHERE ORA_HASH ( PKEY , 10 ) = 3 AND ROWNUM <= 10000";
+
+    String actual =
+        new MySqlChunkedQueryManager().generateFirstQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
+
+    String expected =
+        "SELECT * FROM ( SELECT * FROM table ) nestedTab WHERE MOD ( MD5 ( PKEY ) , 10 ) = 3 LIMIT 10000";
     Assert.assertEquals(expected, actual);
 
-    String pkey2 = "PKEY2";
-    String pkey3 = "PKEY3";
-    keyMap.put(pkey2, 4648490);
-    keyMap.put(pkey3, 46484);
-
-    actual = DatabaseChunkedReader.generateKeyChunkingPredicate(keyMap);
-    expected = "( ( PKEY1 > ? ) OR ( PKEY1 = ? AND PKEY2 > ? ) OR ( PKEY1 = ? AND PKEY2 = ? AND PKEY3 > ? ) )";
+    actual =
+        new MySqlChunkedQueryManager().generateChunkedQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
+    expected =
+        "SELECT * FROM ( SELECT * FROM table ) nestedTab WHERE MOD ( MD5 ( PKEY ) , 10 ) = 3 AND ( ( PKEY > ? ) ) LIMIT 10000";
     Assert.assertEquals(expected, actual);
   }
+
 
   /**
    * Test full query string when a composite key is involved in chunking. This is a weak test and needs to be updated
@@ -99,35 +107,39 @@ public class TestDBReader {
   @Test
   public void testQueryStringCompositeKey() {
     String nestedQuery = "SELECT * FROM table";
-    String pkey1 = "PKEY1";
-    String pkey2 = "PKEY2";
-    String pkeyString = pkey1 + "," + pkey2;
-    LinkedHashMap<String, Object> keyMap = new LinkedHashMap<>();
-    keyMap.put(pkey1, 65789);
-    keyMap.put(pkey2, 4648490);
+    List<String> keys = Arrays.asList("PKEY1", "PKEY2");
     long chunkSize = 10000;
     long bucketSize = 10;
     long chunkIndex = 3;
 
     String actual =
-        DatabaseChunkedReader.getChunkedQuery(nestedQuery, pkeyString, keyMap, chunkSize, bucketSize, chunkIndex,
-            "ORA_HASH", "CONCAT");
+        new OracleChunkedQueryManager().generateChunkedQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
     String expected = "SELECT * FROM ( SELECT * FROM table ) WHERE ORA_HASH ( CONCAT ( PKEY1,PKEY2 ) , 10 ) = 3 AND "
         + "( ( PKEY1 > ? ) OR ( PKEY1 = ? AND PKEY2 > ? ) ) AND ROWNUM <= 10000";
+    Assert.assertEquals(expected, actual);
+
+    actual =
+        new MySqlChunkedQueryManager().generateChunkedQuery(nestedQuery, keys, chunkSize, bucketSize, chunkIndex);
+    expected =
+        "SELECT * FROM ( SELECT * FROM table ) nestedTab WHERE MOD ( MD5 ( PKEY1 || PKEY2 ) , 10 ) = 3 AND "
+            + "( ( PKEY1 > ? ) OR ( PKEY1 = ? AND PKEY2 > ? ) ) LIMIT 10000";
     Assert.assertEquals(expected, actual);
   }
 
   private Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index) {
     Properties props = new Properties();
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + CHUNK_SIZE, chunkSize.toString());
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + HASH_FUNCTION, "ORA_HASH");
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + CONCAT_FUNCTION, "CONCAT");
-    props.setProperty(DBREADER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_SIZE, chunkSize.toString());
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + HASH_FUNCTION, "ORA_HASH");
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CONCAT_FUNCTION, "CONCAT");
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
         "com.linkedin.datastream.common.PassThroughSqlTypeInterpreter");
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,
+        "com.linkedin.datastream.dbreader.OracleChunkedQueryManager");
+
     return props;
   }
 

@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.OracleTableReader;
-import com.linkedin.datastream.common.SqlTypeInterpreter;
 
 
 /**
@@ -35,6 +34,7 @@ public class OracleTbTableReader {
   private boolean _next;
   private boolean _isEof;
   private Schema _schema;
+  private static final OracleTableReader ORACLE_TYPE_INTERPRETER = new OracleTableReader();
 
   public OracleTbTableReader(ResultSet resultSet, Schema schema) {
     _resultSet = resultSet;
@@ -114,7 +114,6 @@ public class OracleTbTableReader {
       int startIndex)
       throws SQLException {
     OracleChangeEvent event = new OracleChangeEvent(scn, sourceTimestamp);
-    SqlTypeInterpreter reader = new OracleTableReader();
 
     ResultSetMetaData rsmd = rs.getMetaData();
     int colCount = rsmd.getColumnCount();
@@ -131,8 +130,8 @@ public class OracleTbTableReader {
       String colName = rsmd.getColumnName(i);
       int colType = rsmd.getColumnType(i);
 
-      String formattedColName = reader.formatColumn(colName);
-      Object result = reader.sqlObjectToAvro(rs.getObject(i), formattedColName, avroSchema);
+      String formattedColName = ORACLE_TYPE_INTERPRETER.formatColumn(colName);
+      Object result = ORACLE_TYPE_INTERPRETER.sqlObjectToAvro(rs.getObject(i), formattedColName, avroSchema);
 
       event.addRecord(formattedColName, result, colType);
     }

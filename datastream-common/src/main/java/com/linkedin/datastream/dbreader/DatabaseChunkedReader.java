@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,13 +16,11 @@ import org.apache.avro.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
-import com.linkedin.datastream.common.SqlTypeInterpreter;
 import com.linkedin.datastream.common.DatabaseRow;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.SqlTypeInterpreter;
 
 
 /**
@@ -41,16 +40,15 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
  *    }
  *
  *  Chunking is done at two levels. A hash is used to process only the keys that hash to the supplied index.
- *  This helps running multiple reader instances in parallel and each can process only keys that hash to
- *  a specific value. Since number of keys that hash to a given value could potentially be very large,
- *  chunking is also done on number of rows returned per query. To control the number of records returned
- *  in the query, the ROWNUM limit is specified in the query. To ignore rows already seen, we need to order
- *  the records by some unique key column(s), and ignore rows with keys smaller than or equal to max value(s)
- *  seen in the previous query. The unique key column(s) chosen and the specific order in which to ORDER them
- *  by is critical to the correctness of the algorithm and the reader relies on the DatabaseSource to be
- *  able to supply that information accurately, along with the schema to read the records in. Query hints might
- *  also need to be provided in the inner query to ensure the indexes are being used for the queries and hence will
- *  be more performant.
+ *  This helps running multiple reader instances in parallel and each can process only keys that hash to a
+ *  specific value. Since number of keys that hash to a given value could potentially be very large, chunking
+ *  is also done on number of rows returned per query. To control the number of records returned in the query,
+ *  the row limit is specified in the query. To ignore rows already seen, we need to order the records by some
+ *  unique key column(s), and ignore rows with keys smaller than max value(s) seen in the previous query.
+ *  The unique key column(s) chosen and the specific order in which to ORDER them by is critical to the correctness
+ *  of the algorithm and the reader relies on the DatabaseSource to be able to supply that information accurately,
+ *  along with the schema to read the records in. Query hints might also need to be provided in the inner query
+ *  to ensure the indexes are being used for the queries and hence will be more performant.
  */
 public class DatabaseChunkedReader {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReader.class);
@@ -71,10 +69,12 @@ public class DatabaseChunkedReader {
   private final String _sourceQuery;
   private final String _readerId;
   private final String _chunkingTable;
+  private final ChunkedQueryManager _chunkedQueryManager;
 
   // Ordered list of keys and max values seen in previous query, needed for chunking.
   // The order is based on the index definition in the Database.
   private final LinkedHashMap<String, Object> _chunkingKeys = new LinkedHashMap<>();
+
   private String _chunkingKeysString;
   private int _numChunkingKeys;
   private boolean _endOfFile = false;
@@ -100,7 +100,7 @@ public class DatabaseChunkedReader {
    * @param id Name to identify the reader instance in logs
    */
   public DatabaseChunkedReader(Properties props, DataSource source, String sourceQuery, String table,
-      DatabaseSource databaseSource, String id) throws SQLException, SchemaGenerationException {
+      DatabaseSource databaseSource, String id) throws SQLException {
     _databaseChunkedReaderConfig = new DatabaseChunkedReaderConfig(props);
     _sourceQuery = sourceQuery;
     _dataSource = source;
@@ -116,11 +116,11 @@ public class DatabaseChunkedReader {
     _hashFunction = _databaseChunkedReaderConfig.getHashFunction();
     _concatFunction = _databaseChunkedReaderConfig.getConcatFunction();
     _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
-    getChunkingKeyInfo();
+    _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     validateQuery(sourceQuery);
   }
 
-  private void getChunkingKeyInfo() throws SQLException, SchemaGenerationException {
+  private void retrieveChunkingKeyInfo() throws SQLException, SchemaGenerationException {
     _databaseSource.getPrimaryKeyFields(_chunkingTable).stream().forEach(k -> _chunkingKeys.put(k, null));
     if (_chunkingKeys.isEmpty()) {
       String msg = "Failed to get primary keys for table " + _chunkingTable +
@@ -140,102 +140,24 @@ public class DatabaseChunkedReader {
     _numChunkingKeys = _chunkingKeys.size();
   }
 
-  /**
-   * Throws DatastreamRuntimeException if invalid query.
-   * Query is invalid if
-   * 1. It has a join
-   * 2. All the primary keys are not part of the selected columns
-   * 3. If there is no ORDER BY clause or if they are not ordered in the same order as a unique index.
-   * 4. If the table in the inner query doesnt match the table supplied in the reader parameter
-   * @param query
-   */
   private void validateQuery(String query) {
-    // todo : actually implement this. May be there are better libraries to use than string parsing
+    _chunkedQueryManager.validateQuery(query);
   }
 
-  // todo : add a token generator for use with the following query generating APIs. This will allow for writing robust
-  // unit-tests.
-
-  /**
-   * With chunking, the first query cannot ignore any key values and subsequent ones will ignore keys smaller than
-   * max seen in previous query. So we need a different query the first time.
-   * @throws SQLException
-   */
   private void executeFirstChunkedQuery() throws SQLException {
-    StringBuilder firstQuery = new StringBuilder();
-    firstQuery.append("SELECT * FROM (");
-    firstQuery.append(_sourceQuery);
-    firstQuery.append(")");
-    firstQuery.append("WHERE ORA_HASH(");
-    if (_numChunkingKeys > 1) {
-      firstQuery.append("CONCAT(" + _chunkingKeysString + ")");
-    } else {
-      firstQuery.append(_chunkingKeysString);
-    }
-    firstQuery.append(" , " + _maxChunkIndex + " ) = " + _chunkIndex + " ");
-    firstQuery.append("AND ROWNUM <= " + _chunkSize);
-
-    _firstStmt = _connection.prepareStatement(firstQuery.toString());
+    String firstQuery = _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()),
+        _chunkSize, _maxChunkIndex, _chunkIndex);
+    _firstStmt = _connection.prepareStatement(firstQuery);
     _firstStmt.setFetchSize(_fetchSize);
     _firstStmt.setQueryTimeout(_queryTimeoutSecs);
     _queryResultSet = _firstStmt.executeQuery();
-  }
-
-  @VisibleForTesting
-  static String generateKeyChunkingPredicate(LinkedHashMap<String, Object> keyMap) {
-    StringBuilder str = new StringBuilder();
-    int numkeys = keyMap.size();
-    str.append("(");
-    Iterator<String> lsbKeys = keyMap.keySet().iterator();
-    str.append(" ( " + lsbKeys.next() + " > ? )");
-    for (int i = 1; i < numkeys; i++) {
-      str.append(" OR ( ");
-      Iterator<String> msbKeys = keyMap.keySet().iterator();
-      for (int j = 0; j < i; j++) {
-        str.append(msbKeys.next() + " = ? AND ");
-      }
-      str.append(lsbKeys.next() + " > ? )");
-    }
-    str.append(" )");
-    return str.toString();
-  }
-
-  @VisibleForTesting
-  static String getChunkedQuery(String nestedQuery, String pkeyString, LinkedHashMap<String, Object> keyMap,
-      long chunkSize, long bucketSize, long chunkIndex, String hashFunction, String concatFunction) {
-    StringBuilder query = new StringBuilder();
-    query.append("SELECT * FROM ( ");
-    query.append(nestedQuery);
-    query.append(" ) ");
-    query.append("WHERE " + hashFunction + " ( ");
-    int count = keyMap.size();
-
-    if (count > 1) {
-      query.append(concatFunction + " ( " + pkeyString + " )");
-    } else {
-      query.append(pkeyString);
-    }
-    query.append(" , " + bucketSize + " ) = " + chunkIndex + " AND ");
-    query.append(generateKeyChunkingPredicate(keyMap));
-    query.append(" AND ROWNUM <= " + chunkSize);
-    return query.toString();
   }
 
   /**
    * Fill in the key values from previous query result
    */
   private void prepareChunkedQuery() throws SQLException {
-    int numkeys = _chunkingKeys.size();
-    Iterator<String> lsbKeys = _chunkingKeys.keySet().iterator();
-    _queryStmt.setObject(1, _chunkingKeys.get(lsbKeys.next()));
-    int count = 2;
-    for (int i = 1; i < numkeys; i++) {
-      Iterator<String> msbKeys = _chunkingKeys.keySet().iterator();
-      for (int j = 0; j < i; j++) {
-        _queryStmt.setObject(count++, _chunkingKeys.get(msbKeys.next()));
-      }
-      _queryStmt.setObject(count++, _chunkingKeys.get(lsbKeys.next()));
-    }
+    _chunkedQueryManager.prepareChunkedQuery(_queryStmt, _chunkingKeys);
   }
 
   private void executeChunkedQuery() throws SQLException {
@@ -274,9 +196,10 @@ public class DatabaseChunkedReader {
    * Prepare reader for poll.
    * @throws SQLException
    */
-  public void start() throws SQLException {
-    _chunkedQuery = getChunkedQuery(_sourceQuery, _chunkingKeysString, _chunkingKeys,
-    _chunkSize, _maxChunkIndex, _chunkIndex, _hashFunction, _concatFunction);
+  public void start() throws SQLException , SchemaGenerationException {
+    retrieveChunkingKeyInfo();
+    _chunkedQuery = _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()),
+        _chunkSize, _maxChunkIndex, _chunkIndex);
     _tableSchema = _databaseSource.getTableSchema(_chunkingTable);
   }
 

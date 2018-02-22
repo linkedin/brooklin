@@ -17,7 +17,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
  */
 public class DatabaseChunkedReaderConfig {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReaderConfig.class);
-  public static final String DBREADER_DOMAIN_CONFIG = "dbReader";
+  public static final String DB_READER_DOMAIN_CONFIG = "dbReader";
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
   // If the resultSet is 1000 rows, with fetchSize set to 100, it would take 10 network
   // calls to process the entire resultSet. The default fetchSize is 10, which is way too small
@@ -30,6 +30,7 @@ public class DatabaseChunkedReaderConfig {
   public static final String HASH_FUNCTION = "chunk.hashFunction";
   public static final String CONCAT_FUNCTION = "chunk.concatFunction";
   public static final String DATABASE_INTERPRETER_CLASS_NAME = "database.reader";
+  public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
 
   private static final int DEFAULT_QUERY_TIMEOUT_SECS = 0;
   private static final int DEFAULT_FETCH_SIZE = 100;
@@ -43,9 +44,10 @@ public class DatabaseChunkedReaderConfig {
   private final String _hashFunction;
   private final String _concatFunction;
   private SqlTypeInterpreter _interpreter;
+  private ChunkedQueryManager _chunkedQueryManager;
 
   public DatabaseChunkedReaderConfig(Properties properties) {
-    Properties props = new VerifiableProperties(properties).getDomainProperties(DBREADER_DOMAIN_CONFIG);
+    Properties props = new VerifiableProperties(properties).getDomainProperties(DB_READER_DOMAIN_CONFIG);
     VerifiableProperties verifiableProperties = new VerifiableProperties(props);
     _queryTimeout = verifiableProperties.getInt(QUERY_TIMEOUT_SECS, DEFAULT_QUERY_TIMEOUT_SECS);
     _fetchSize = verifiableProperties.getInt(FETCH_SIZE, DEFAULT_FETCH_SIZE);
@@ -55,6 +57,7 @@ public class DatabaseChunkedReaderConfig {
       LOG.error(msg);
       throw new DatastreamRuntimeException(msg);
     }
+
     _numChunkBuckets = verifiableProperties.getLong(NUM_CHUNK_BUCKETS);
 
     if (!verifiableProperties.containsKey(CHUNK_INDEX)) {
@@ -85,6 +88,14 @@ public class DatabaseChunkedReaderConfig {
       throw new DatastreamRuntimeException(msg);
     }
     _interpreter = ReflectionUtils.createInstance(tableReader);
+
+    String queryManagerClass = verifiableProperties.getString(DATABASE_QUERY_MANAGER_CLASS_NAME);
+    if (StringUtils.isBlank(queryManagerClass)) {
+      String msg = "Database query manager class name is not set or is blank";
+      LOG.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
+    _chunkedQueryManager = ReflectionUtils.createInstance(queryManagerClass);
 
     verifiableProperties.verify();
   }
@@ -124,4 +135,9 @@ public class DatabaseChunkedReaderConfig {
   public SqlTypeInterpreter getDatabaseInterpreter() {
     return _interpreter;
   }
+
+  public ChunkedQueryManager getChunkedQueryManager() {
+    return _chunkedQueryManager;
+  }
+
 }
