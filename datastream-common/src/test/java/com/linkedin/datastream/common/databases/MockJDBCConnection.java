@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases;
 
 import java.sql.Array;
 import java.sql.Blob;
@@ -22,8 +22,6 @@ import java.util.concurrent.Executor;
 
 import org.testng.Assert;
 
-import com.linkedin.datastream.common.DatabaseRow;
-
 
 public class MockJDBCConnection implements Connection {
   private PreparedStatement _firstStmt;
@@ -35,7 +33,7 @@ public class MockJDBCConnection implements Connection {
   private Map<Integer, List<DatabaseRow>> _dataMap;
   private boolean _firstCall = true;
 
-  MockJDBCConnection(Map<Integer, Map<Integer, Object>> keyMap, Map<Integer, List<DatabaseRow>> dataMap) {
+  public MockJDBCConnection(Map<Integer, Map<Integer, Object>> keyMap, Map<Integer, List<DatabaseRow>> dataMap) {
     _keyMap = keyMap;
     _dataMap = dataMap;
   }

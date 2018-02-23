@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.OracleDataSourceFactory;
+import com.linkedin.datastream.common.databases.OracleDataSourceFactory;
 import com.linkedin.datastream.connectors.oracle.triggerbased.OracleSource;
 
 

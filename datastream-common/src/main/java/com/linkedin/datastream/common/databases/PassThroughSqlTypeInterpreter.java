@@ -1,8 +1,10 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.common.databases;
 
 import java.sql.SQLException;
 
 import org.apache.avro.Schema;
+
+import com.linkedin.datastream.common.SqlTypeInterpreter;
 
 
 /**

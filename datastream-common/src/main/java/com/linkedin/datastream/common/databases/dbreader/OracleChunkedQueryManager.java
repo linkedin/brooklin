@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases.dbreader;
 
 import java.util.List;
 

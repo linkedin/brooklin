@@ -1,4 +1,4 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.common.databases;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -31,6 +31,8 @@ import com.google.common.base.CaseFormat;
 
 import com.linkedin.datastream.avrogenerator.FieldMetadata;
 import com.linkedin.datastream.avrogenerator.Types;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.SqlTypeInterpreter;
 
 
 /**

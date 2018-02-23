@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -26,9 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.testng.Assert;
-
-import com.linkedin.datastream.common.DatabaseColumnRecord;
-import com.linkedin.datastream.common.DatabaseRow;
 
 
 /**

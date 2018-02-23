@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.DatabaseColumnRecord;
+import com.linkedin.datastream.common.databases.DatabaseColumnRecord;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.AvroMessageEncoderUtil;
