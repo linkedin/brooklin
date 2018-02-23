@@ -17,4 +17,5 @@ ext {
     eventHubVersion = "0.9.0"
     samzaVersion = "0.11.0"
     mockitoVersion = "1.+"
+    ojdbcVersion="11.2.0.3"
 }

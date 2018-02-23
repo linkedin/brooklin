@@ -3,6 +3,7 @@ package com.linkedin.datastream.avrogenerator;
 import java.sql.SQLException;
 import java.util.List;
 
+import org.apache.avro.Schema;
 import org.jetbrains.annotations.NotNull;
 
 
@@ -17,14 +18,14 @@ public abstract class DatabaseSource {
   /**
    * Initialize connection to the database
    */
-  protected void initializeConnection() throws SQLException {
+  public void initializeConnection() throws SQLException {
     // default implementation is no-op
   }
 
   /**
    * Close connection to the database
    */
-  protected void closeConnection() {
+  public void closeConnection() {
     // default implementation is no-op
   }
 
@@ -32,53 +33,62 @@ public abstract class DatabaseSource {
    * Determine if the arguments points to a table or view in the Database
    * @return true is exists, false otherwise
    */
-  protected abstract boolean isTable(String schemaName, String tableName);
+  public abstract boolean isTable(String schemaName, String tableName);
 
   /**
    * Determine if the arguments point to a Collection type in the table
    * @return true is collection, false otherwise
    */
-  protected abstract boolean isCollection(String schemaName, String fieldTypeName) throws SQLException;
+  public abstract boolean isCollection(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Determine if the arguments point to Struct Type in the table
    * @return true if Struct, false otherwise
    */
-  protected abstract boolean isStruct(String schemaName, String fieldTypeName) throws SQLException;
+  public abstract boolean isStruct(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Determine if the fieldTypeName is one of the primitive types of the Database
    * @return true if primitive
    */
-  protected abstract boolean isPrimitive(String fieldTypeName) throws SQLException;
+  public abstract boolean isPrimitive(String fieldTypeName) throws SQLException;
 
   /**
    * Retrieve the table Metadata containing information such as all of Column names
    * and their types.
    */
-  protected abstract List<TableMetadata> getTableMetadata(String schemaName, String tableName) throws SQLException;
+  public abstract List<TableMetadata> getTableMetadata(String schemaName, String tableName) throws SQLException;
 
   /**
    * Retrieve the metadata of the Struct type. Contains information about the child columns that are
    * associated with this Struct Type
    */
-  protected abstract List<StructMetadata> getStructMetadata(String schemaName, String fieldTypeName) throws SQLException;
+  public abstract List<StructMetadata> getStructMetadata(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Retrieve the metadata of the Collection Type. Contains information about the elements of the
    * Array Type
    */
-  protected abstract CollectionMetadata getCollectionMetadata(String schemaName, String fieldTypeName) throws SQLException;
+  public abstract CollectionMetadata getCollectionMetadata(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Create and run a query to get all primary keys from the Database table/view
    */
-  protected abstract List<String> getPrimaryKeyFields(String tableName) throws SQLException, SchemaGenerationException;
+  public abstract List<String> getPrimaryKeyFields(String tableName) throws SQLException, SchemaGenerationException;
 
   /**
    * Create and execute a query to get all the fields from the Database table/view
    */
-  protected abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
+  public abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
+
+  /**
+   * Get the avro schema for the table
+   * @param tableName
+   * @return Schema for the table or null if operation not supported
+   */
+  public Schema getTableSchema(String tableName) {
+    return null;
+  }
 
 
   public static class CollectionMetadata {

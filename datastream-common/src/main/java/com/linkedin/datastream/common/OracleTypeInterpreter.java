@@ -1,180 +1,58 @@
-package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
+package com.linkedin.datastream.common;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Struct;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.sql.ResultSetMetaData;
-import java.sql.ResultSet;
-import java.sql.Timestamp;
-import java.sql.Array;
-import java.sql.SQLException;
 
 import org.apache.avro.Schema;
-import org.apache.avro.Schema.Field;
-import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.avrogenerator.Types;
+
 import com.linkedin.datastream.avrogenerator.FieldMetadata;
+import com.linkedin.datastream.avrogenerator.Types;
+
 
 /**
- * Once we have all the rows that changed from a specific Oracle Source
- * we need to iterate through the Result set and build an OracleChangeEvent for each changed row
- *
- * This class exposes two public methods that act as an iterator for the resultSet, it is
- * designed to be used by the OracleConsumer. Each OracleChangeEvent is composed of
- * Records, which are simple key value pairs representing column name and value.
- *
- * Records are built in order to have better compatibility with Avro Schemas rather
- * than the original ResultSet. In other words sql CHARS and VARCHARS are converted to Strings
- * and, NUMERIC and TIMESTAMP are converted to Long
+ * Util class to convert Oracle JDBC ResultSet fields into a avro compatible format
  */
-public class OracleTableReader {
-  private final static int SCN_INDEX = 1;
-  private final static int TIMESTAMP_INDEX = 2;
+public class OracleTypeInterpreter implements SqlTypeInterpreter {
+  private static final Logger LOG = LoggerFactory.getLogger(OracleTypeInterpreter.class);
 
   private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
   private static final String META_KEY = "meta";
 
-  private final static List<Type> ACCEPTABLE_PRIMITIVES =
-      Arrays.asList(Type.INT, Type.FLOAT, Type.LONG, Type.STRING);
-  private final static List<Type> ACCEPTABLE_RECORD = Arrays.asList(Type.RECORD);
-  private final static List<Type> ACCEPTABLE_COLLECTION = Arrays.asList(Type.ARRAY);
-
-
-  private static final Logger LOG = LoggerFactory.getLogger(OracleTableReader.class);
-  private ResultSet _resultSet;
-  private boolean _next;
-  private boolean _isEof;
-  private Schema _schema;
-
+  private final static List<Schema.Type> ACCEPTABLE_PRIMITIVES =
+      Arrays.asList(Schema.Type.INT, Schema.Type.FLOAT, Schema.Type.LONG, Schema.Type.DOUBLE, Schema.Type.STRING);
+  private final static List<Schema.Type> ACCEPTABLE_RECORD = Arrays.asList(Schema.Type.RECORD);
+  private final static List<Schema.Type> ACCEPTABLE_COLLECTION = Arrays.asList(Schema.Type.ARRAY);
   private static final Map<String, String> COLUMN_NAME_CACHE = new ConcurrentHashMap<>();
 
-  public OracleTableReader(ResultSet resultSet, Schema schema) {
-    _resultSet = resultSet;
-    _isEof = false;
-    _next = false;
-    _schema = schema;
-  }
 
   /**
-   * @return Boolean indicating if there are any more changed rows that have not been converted to datastreamEvents
-   */
-  public boolean hasNext() throws SQLException {
-    if (_isEof) {
-      return false;
-    }
-
-    if (_next) {
-      return true;
-    }
-
-    _next = _resultSet.next();
-
-    if (!_next) {
-      _isEof = true;
-    }
-
-    return _next;
-  }
-
-  public OracleChangeEvent next() throws SQLException, DatastreamException {
-    if (!hasNext()) {
-      throw new NoSuchElementException("No more elements in this iterator.");
-    }
-
-    _next = false;
-
-    return generateOracleChangeEvent();
-  }
-
-  /**
-   * Given the ResultSet returned from the SQL query, we convert that ResultSet into an OracleChangeEvent
-   * Note, that one row of the ResultSet represents one OracleChangeEvent instance.
-   *
-   * @return an instance of an OracleChangeEvent
-   * @throws SQLException
-   */
-  private OracleChangeEvent generateOracleChangeEvent() throws SQLException, DatastreamException {
-
-    long scn = _resultSet.getLong(SCN_INDEX);
-    Timestamp ts = _resultSet.getTimestamp(TIMESTAMP_INDEX);
-    long sourceTimestamp = ts.getTime();
-
-    OracleChangeEvent oracleChangeEvent = null;
-
-    try {
-      oracleChangeEvent = generateEvent(_resultSet, _schema, scn, sourceTimestamp);
-    } catch (Exception e) {
-      String msg = String.format("Failed to process ResultSet with SCN: %s, Timestamp: %s, Schema: %s",
-          scn,
-          ts,
-          _schema.getFullName());
-
-      LOG.error(msg, e);
-      throw new DatastreamException(msg, e);
-    }
-
-    return oracleChangeEvent;
-  }
-
-  /**
-   * Each OracleChangeEvent is composed of multiple OracleChangeEvent.Records.
-   * where OracleChangeEvent.Records maps directly to specific tuple returned
-   * from the query resultSet. When building the Record, we need the type of
-   * the record to match the type expected from the Avro Schema for that specific field.
-   */
-  protected static OracleChangeEvent generateEvent(ResultSet rs, Schema avroSchema, long scn, long sourceTimestamp)
-      throws SQLException {
-    OracleChangeEvent event = new OracleChangeEvent(scn, sourceTimestamp);
-
-    ResultSetMetaData rsmd = rs.getMetaData();
-    int colCount = rsmd.getColumnCount();
-
-    if (colCount < 3) {
-      throw new DatastreamRuntimeException(
-          String.format("ChangeCapture Query returned a ResultSet that has less than 3 columns. SCN: %s, TS: %s", scn,
-              sourceTimestamp));
-    }
-
-    // we start from 3 because the first two data fields are SCN and eventTimestamp
-    // both of which are only required later for datastreamEvent.metadata
-    for (int i = 3; i <= colCount; i++) {
-      String colName = rsmd.getColumnName(i);
-      int colType = rsmd.getColumnType(i);
-
-      String formattedColName = camelCase(colName);
-      Object result = sqlObjectToAvro(rs.getObject(i), formattedColName, avroSchema);
-
-      event.addRecord(formattedColName, result, colType);
-    }
-
-    return event;
-  }
-
-  /**
-   * Recursively parse the element stored in a specific resultSet tuple.
+   * Fields are built in order to have better compatibility with Avro Schemas rather
+   * than the original ResultSet. In other words sql CHARS and VARCHARS are converted to Strings
+   * and, NUMERIC and TIMESTAMP are converted to Long
    *
    * We iterate through the ResultSet each time calling {@code rs.getObject(index)}.
    * The {@code #getObject(int index)} will return an Java Object that follows a predefined
@@ -182,12 +60,11 @@ public class OracleTableReader {
    * java.lang.String. In the base cases of this parser method, we simply need to extract the
    * correct value from these sqlObjects
    *
-   * However, when building the OracleChangeEvent, we need the type to be properly mapped to
-   * the expected type for that field in the avro Schema. For example a field {@code maxSalary}
-   * might be stored as Numeric in the Oracle DB, and the avro Schema would expect an {@code int}.
-   * Its also possible for the avro Schema to expect an {@code long} or {@code float}.
-   * Therefore, this parser needs to follow along with the avro Schema, making sure we retrieve the
-   * correct types in the correct situations
+   * However, we need the type to be properly mapped to the expected type for that field in the
+   * supplied avro Schema. For example a field {@code maxSalary} might be stored as Numeric in the
+   * Oracle DB, and the avro Schema would expect an {@code int}. It's also possible for the avro Schema
+   * to expect an {@code long} or {@code float}. Therefore, this parser needs to follow along with the
+   * avro Schema, making sure we retrieve the correct types in the correct situations.
    *
    * The recursive parts come when we have to parse Structs and Arrays. both of these type have sub
    * elements, and of course, each of those sub elements can have more sub elements. There is a
@@ -205,7 +82,7 @@ public class OracleTableReader {
    * @return - an Object casted to the expected avro type
    * @throws SQLException
    */
-  protected static Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException {
+  public Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException {
     if (sqlObject == null) {
       return null;
     }
@@ -219,20 +96,24 @@ public class OracleTableReader {
 
       Schema primitiveSchema = getChildSchema(avroSchema, colName, ACCEPTABLE_PRIMITIVES);
 
-      if (primitiveSchema.getType().equals(Type.STRING)) {
+      if (primitiveSchema.getType().equals(Schema.Type.STRING)) {
         return bd.toString();
       }
 
-      if (primitiveSchema.getType().equals(Type.FLOAT)) {
+      if (primitiveSchema.getType().equals(Schema.Type.FLOAT)) {
         return bd.floatValue();
       }
 
-      if (primitiveSchema.getType().equals(Type.INT)) {
+      if (primitiveSchema.getType().equals(Schema.Type.INT)) {
         return bd.intValue();
       }
 
-      if (primitiveSchema.getType().equals(Type.LONG)) {
+      if (primitiveSchema.getType().equals(Schema.Type.LONG)) {
         return bd.longValue();
+      }
+
+      if (primitiveSchema.getType().equals(Schema.Type.DOUBLE)) {
+        return bd.doubleValue();
       }
     }
 
@@ -323,7 +204,7 @@ public class OracleTableReader {
     }
 
     // handling oracle.sql.DATE
-    Field field = avroSchema.getField(colName);
+    Schema.Field field = avroSchema.getField(colName);
     String fieldMetaString = field.getProp(META_KEY);
     FieldMetadata fieldMetadata = FieldMetadata.fromString(fieldMetaString);
     Types originalColumnType = fieldMetadata.getDbFieldType();
@@ -350,7 +231,8 @@ public class OracleTableReader {
    * Return the Schema of a field under the colName. If the underlying field is a
    * UNION type, iterate through it to find the not NULL schema.
    */
-  protected static Schema getChildSchema(Schema avroSchema, String colName, List<Type> acceptable) {
+  @VisibleForTesting
+  static Schema getChildSchema(Schema avroSchema, String colName, List<Schema.Type> acceptable) {
     avroSchema = deUnify(avroSchema);
 
     // use getField() to get the schema of the colName in respect to the parent schema
@@ -383,16 +265,16 @@ public class OracleTableReader {
    * @return Schema - non Union schema
    */
   private static Schema deUnify(Schema schema) {
-    while (schema.getType().equals(Type.UNION)) {
+    while (schema.getType().equals(Schema.Type.UNION)) {
       List<Schema> unionChildSchemas = schema.getTypes();
 
 
-      if (unionChildSchemas.size() == 1 && unionChildSchemas.get(0).getType().equals(Type.NULL)) {
+      if (unionChildSchemas.size() == 1 && unionChildSchemas.get(0).getType().equals(Schema.Type.NULL)) {
         throw new DatastreamRuntimeException("Type for schema cannot only be null: " + schema.toString(true));
       }
 
       for (Schema unionChildSchema : unionChildSchemas) {
-        if (!unionChildSchema.getType().equals(Type.NULL)) {
+        if (!unionChildSchema.getType().equals(Schema.Type.NULL)) {
           schema = unionChildSchema;
           break;
         }
@@ -459,13 +341,13 @@ public class OracleTableReader {
   }
 
   /**
-   * Table names are declared in UPPER_CAMEL but avro field names are LOWER_CAMEL
+   * Column names are declared in UPPER_CAMEL but avro field names are LOWER_CAMEL
    * This function converts from UPPER_CAMEL to LOWER_CAMEL while also maintaining a cache
    *
    * @param upperColName - the UPPER_CAMEL column Name from the ResultSet
    * @return the LOWER_CAMEL string
    */
-  private static String camelCase(String upperColName) {
+  public String formatColumnName(String upperColName) {
     if (COLUMN_NAME_CACHE.containsKey(upperColName)) {
       return COLUMN_NAME_CACHE.get(upperColName);
     }

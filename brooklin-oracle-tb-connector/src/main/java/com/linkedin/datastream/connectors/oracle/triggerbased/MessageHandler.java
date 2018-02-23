@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatabaseColumnRecord;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.AvroMessageEncoderUtil;
@@ -159,7 +160,7 @@ public class MessageHandler implements SendCallback {
     GenericRecord payloadRecord = new GenericData.Record(_schema);
 
     try {
-      for (OracleChangeEvent.Record record : event.getRecords()) {
+      for (DatabaseColumnRecord record : event.getRecords()) {
         try {
           payloadRecord.put(record.getColName(), record.getValue());
         } catch (Exception e) {
@@ -184,7 +185,7 @@ public class MessageHandler implements SendCallback {
 
   private byte[] constructDatastreamEventKey(OracleChangeEvent event) throws DatastreamException {
 
-    for (OracleChangeEvent.Record record : event.getRecords()) {
+    for (DatabaseColumnRecord record : event.getRecords()) {
       if (!_primaryKeyField.equals(record.getColName())) {
         continue;
       }

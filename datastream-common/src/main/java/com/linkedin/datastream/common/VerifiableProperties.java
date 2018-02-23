@@ -1,13 +1,13 @@
 package com.linkedin.datastream.common;
 
+import java.math.BigDecimal;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Properties;
+
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.math.BigDecimal;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Enumeration;
 
 
 /**

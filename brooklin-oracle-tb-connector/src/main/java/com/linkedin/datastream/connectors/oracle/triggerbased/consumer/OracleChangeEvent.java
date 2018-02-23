@@ -1,39 +1,40 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import com.linkedin.datastream.common.DatabaseColumnRecord;
+import com.linkedin.datastream.common.DatabaseRow;
 
 /**
  * The OracleChangeEvent class is to help represent the result Set returned
  * from the change queries
  *
  * as a comparison to a traditional SQL table:
- *  OracleChangeEvent.Record represents the individual tuples in a row
- *  OracleChangeEvent represents a complete Row. (built by x number of OracleChangeEvent.Records)
+ *  DatabaseRow represents the individual tuples in a row after the change.
+ *  OracleChangeEvent is the after image along with the scn and the timestamp of change
  *  List<OracleChangeEvent> represents a full table.
  */
 public class OracleChangeEvent {
-  private List<Record> _records = new ArrayList<>();
+  private DatabaseRow _row;
   private final long _scn;
   private final long _sourceTimestamp;
 
   public OracleChangeEvent(long scn, long ts) {
     _scn = scn;
     _sourceTimestamp = ts;
+    _row = new DatabaseRow();
   }
 
   public void addRecord(String colName, Object val, int sqlType) {
-    Record record = new Record(colName, val, sqlType);
-    _records.add(record);
+    _row.addField(colName, val, sqlType);
   }
 
-  public List<Record> getRecords() {
-    return _records;
+  public List<DatabaseColumnRecord> getRecords() {
+    return _row.getRecords();
   }
 
   public int size() {
-    return _records.size();
+    return _row.getColumnCount();
   }
 
   public long getScn() {
@@ -42,36 +43,5 @@ public class OracleChangeEvent {
 
   public long getSourceTimestamp() {
     return _sourceTimestamp;
-  }
-
-  /**
-   * The Record class is used to represent a specific tuple from a ResultSet
-   * The colName represents the column name, and the Value represents the value.
-   * Since DatastreamEvents and Oracle dont share the same types (i.e. CHARS vs Strings),
-   * each Record maintains information about the original SQL type
-   */
-  public final class Record {
-
-    private final String _colName;
-    private final Object _value;
-    private final int _sqlType;
-
-    public Record(String colName, Object value, int sqlType) {
-      _colName = colName;
-      _value = value;
-      _sqlType = sqlType;
-    }
-
-    public String getColName() {
-      return _colName;
-    }
-
-    public Object getValue() {
-      return _value;
-    }
-
-    public int getSqlType() {
-      return _sqlType;
-    }
   }
 }
