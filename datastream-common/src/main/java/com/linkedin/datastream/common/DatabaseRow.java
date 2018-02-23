@@ -5,7 +5,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-
 /**
  * Represents a single row of a Database and composed of a list of DatabaseColumnRecords for each field
  */
@@ -22,7 +21,7 @@ public class DatabaseRow {
   /**
    * @return Number of fields in the row
    */
-  public int size() {
+  public int getColumnCount() {
     return _allFields.size();
   }
 
@@ -61,7 +60,7 @@ public class DatabaseRow {
       return false;
     }
     DatabaseRow that = (DatabaseRow) o;
-    if (this.size() != that.size()) {
+    if (this.getColumnCount() != that.getColumnCount()) {
       return false;
     }
 

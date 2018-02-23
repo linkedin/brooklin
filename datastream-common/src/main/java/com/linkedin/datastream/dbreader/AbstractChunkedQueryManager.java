@@ -2,9 +2,7 @@ package com.linkedin.datastream.dbreader;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 
 public abstract class AbstractChunkedQueryManager implements ChunkedQueryManager {
@@ -33,23 +31,14 @@ public abstract class AbstractChunkedQueryManager implements ChunkedQueryManager
     return str.toString();
   }
 
-  /**
-   * Assumes query generated from {@code ::generateKeyChunkingPredicate()}
-   * @param stmt
-   * @param keys
-   * @throws SQLException
-   */
-  public void prepareChunkedQuery(PreparedStatement stmt, Map<String, Object> keys) throws SQLException {
-    int numkeys = keys.size();
-    Iterator<String> lsbKeys = keys.keySet().iterator();
-    stmt.setObject(1, keys.get(lsbKeys.next()));
-    int count = 2;
-    for (int i = 1; i < numkeys; i++) {
-      Iterator<String> msbKeys = keys.keySet().iterator();
+  public void prepareChunkedQuery(PreparedStatement stmt, List<Object> values) throws SQLException {
+    int numkeys = values.size();
+    stmt.setObject(1, values.get(0));
+    for (int count = 2, i = 1; i < numkeys; i++) {
       for (int j = 0; j < i; j++) {
-        stmt.setObject(count++, keys.get(msbKeys.next()));
+        stmt.setObject(count++, values.get(j));
       }
-      stmt.setObject(count++, keys.get(lsbKeys.next()));
+      stmt.setObject(count++, values.get(i));
     }
   }
 }

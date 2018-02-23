@@ -15,7 +15,7 @@ public class PassThroughSqlTypeInterpreter implements SqlTypeInterpreter {
   }
 
   @Override
-  public String formatColumn(String dbColName) {
+  public String formatColumnName(String dbColName) {
     return dbColName;
   }
 

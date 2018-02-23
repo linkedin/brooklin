@@ -34,7 +34,7 @@ public class OracleChangeEvent {
   }
 
   public int size() {
-    return _row.size();
+    return _row.getColumnCount();
   }
 
   public long getScn() {

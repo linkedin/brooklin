@@ -133,8 +133,6 @@ public class TestDatabaseChunkedReader {
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_SIZE, chunkSize.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + HASH_FUNCTION, "ORA_HASH");
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CONCAT_FUNCTION, "CONCAT");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
         "com.linkedin.datastream.common.PassThroughSqlTypeInterpreter");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,

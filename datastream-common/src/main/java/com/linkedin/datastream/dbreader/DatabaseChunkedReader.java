@@ -1,5 +1,6 @@
 package com.linkedin.datastream.dbreader;
 
+import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -28,16 +29,15 @@ import com.linkedin.datastream.common.SqlTypeInterpreter;
  * The reader acts as an iterator for Database records and returns a DatabaseRow record on each poll and will perform
  * the next chunked query as required.
  * A typical flow to use the reader would look like this:
+ * <pre>
+ *  try {
  *    DatabaseChunkedReader reader = new DatabaseChunkedReader (...)
  *    reader.start()
- *    boolean eof = false;
- *    while(eof) {
- *      DatabaseRow record = reader.poll()
- *      if (record == null) {
- *        eof = true;
- *      }
+ *    for (DatabaseRow record = reader.poll(); record != null; record = reader.poll()) {
  *      processRecord(record);
  *    }
+ *  }
+ * </pre>
  *
  *  Chunking is done at two levels. A hash is used to process only the keys that hash to the supplied index.
  *  This helps running multiple reader instances in parallel and each can process only keys that hash to a
@@ -50,7 +50,7 @@ import com.linkedin.datastream.common.SqlTypeInterpreter;
  *  along with the schema to read the records in. Query hints might also need to be provided in the inner query
  *  to ensure the indexes are being used for the queries and hence will be more performant.
  */
-public class DatabaseChunkedReader {
+public class DatabaseChunkedReader implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReader.class);
 
   private final DataSource _dataSource;
@@ -63,9 +63,6 @@ public class DatabaseChunkedReader {
   private final long _chunkIndex;
   private final int _queryTimeoutSecs;
   private final int _fetchSize;
-  private final String _hashFunction;
-  private final String _concatFunction;
-
   private final String _sourceQuery;
   private final String _readerId;
   private final String _chunkingTable;
@@ -75,7 +72,7 @@ public class DatabaseChunkedReader {
   // The order is based on the index definition in the Database.
   private final LinkedHashMap<String, Object> _chunkingKeys = new LinkedHashMap<>();
 
-  private String _chunkingKeysString;
+  private boolean _initialized = false;
   private int _numChunkingKeys;
   private boolean _endOfFile = false;
   private String _chunkedQuery;
@@ -113,14 +110,12 @@ public class DatabaseChunkedReader {
     _chunkSize = _databaseChunkedReaderConfig.getChunkSize();
     _chunkIndex = _databaseChunkedReaderConfig.getChunkIndex();
     _connection = source.getConnection();
-    _hashFunction = _databaseChunkedReaderConfig.getHashFunction();
-    _concatFunction = _databaseChunkedReaderConfig.getConcatFunction();
     _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     validateQuery(sourceQuery);
   }
 
-  private void retrieveChunkingKeyInfo() throws SQLException, SchemaGenerationException {
+  private void initializeChunkingKeyInfo() throws SQLException, SchemaGenerationException {
     _databaseSource.getPrimaryKeyFields(_chunkingTable).stream().forEach(k -> _chunkingKeys.put(k, null));
     if (_chunkingKeys.isEmpty()) {
       String msg = "Failed to get primary keys for table " + _chunkingTable +
@@ -129,14 +124,6 @@ public class DatabaseChunkedReader {
       throw new DatastreamRuntimeException(msg);
     }
 
-    StringBuilder tmp = new StringBuilder();
-    Iterator<String> iter = _chunkingKeys.keySet().iterator();
-    tmp.append(iter.next());
-    while (iter.hasNext()) {
-      tmp.append("," + iter.next());
-    }
-
-    _chunkingKeysString = tmp.toString();
     _numChunkingKeys = _chunkingKeys.size();
   }
 
@@ -157,7 +144,7 @@ public class DatabaseChunkedReader {
    * Fill in the key values from previous query result
    */
   private void prepareChunkedQuery() throws SQLException {
-    _chunkedQueryManager.prepareChunkedQuery(_queryStmt, _chunkingKeys);
+    _chunkedQueryManager.prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
   }
 
   private void executeChunkedQuery() throws SQLException {
@@ -190,17 +177,30 @@ public class DatabaseChunkedReader {
         LOG.warn("Failed to close PreparedStatement for reader {}. Might cause resource leak", _readerId, e);
       }
     }
+
+    _initialized = false;
   }
 
   /**
-   * Prepare reader for poll.
+   * Prepare reader for poll. Calling start on a reader multiple times, is allowed and will release previous resources
+   * and reset the reader to prepare for another round of reading the table from start.
+   * So all of these are acceptible flows:
+   *  start -> poll -> poll -> close;
+   *  start -> poll -> poll -> close -> start -> poll .. -> close;
+   *  start -> poll -> poll -> start -> poll .. -> close -> start -> poll .. -> close;
+   *  start -> close -> start -> poll .. -> close
    * @throws SQLException
    */
   public void start() throws SQLException , SchemaGenerationException {
-    retrieveChunkingKeyInfo();
+    if (_initialized) {
+      close();
+    }
+    initializeChunkingKeyInfo();
+    _endOfFile = false;
     _chunkedQuery = _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()),
         _chunkSize, _maxChunkIndex, _chunkIndex);
     _tableSchema = _databaseSource.getTableSchema(_chunkingTable);
+    _initialized = true;
   }
 
   private DatabaseRow getNextRow() throws SQLException {
@@ -218,7 +218,7 @@ public class DatabaseChunkedReader {
     for (int i = 1; i <= colCount; i++) {
       String colName = rsmd.getColumnName(i);
       int colType = rsmd.getColumnType(i);
-      String formattedColName = _interpreter.formatColumn(colName);
+      String formattedColName = _interpreter.formatColumnName(colName);
       Object result = _interpreter.sqlObjectToAvro(_queryResultSet.getObject(i),
           formattedColName, _tableSchema);
       row.addField(formattedColName, result, colType);
@@ -229,10 +229,16 @@ public class DatabaseChunkedReader {
   /**
    * Poll for the next row in the DB. Makes a call to server if all cached messages have been served.
    * It acts as a buffered reader, performing more queries if the previous query returned chunk size rows.
-   * @return The next row from the DB as served by the query constraints.
+   * Client should call start before poll. Calling start without reading all records will result in resetting the reader
+   * back to start after releasing resources.
+   * @return The next row from the DB as served by the query constraints and null if end of records
    * @throws SQLException
    */
   public DatabaseRow poll() throws SQLException {
+    if (!_initialized) {
+      throw new DatastreamRuntimeException("call start before calling poll for records");
+    }
+
     if (_queryResultSet == null) { // If first poll
       executeFirstChunkedQuery();
 
@@ -243,12 +249,7 @@ public class DatabaseChunkedReader {
     }
 
     if (!_queryResultSet.next()) {
-      if (_endOfFile) {
-        return null;
-      }
-
       if (numRowsInResult < _chunkSize) {
-        _endOfFile = true;
         return null;
       }
 
@@ -259,7 +260,6 @@ public class DatabaseChunkedReader {
 
       // Previous query might have returned exactly ChunkSize num rows, and there are no more records left
       if (!_queryResultSet.next()) {
-        _endOfFile = true;
         return null;
       }
     }
@@ -268,7 +268,7 @@ public class DatabaseChunkedReader {
   }
 
   /**
-   * Only API that will not rethrow SQLException. Will swallow error and print an error log
+   * Only API that will not rethrow SQLException. Will swallow error and print an error log.
    */
   public void close() {
     releaseResources("Reader close invoked.");

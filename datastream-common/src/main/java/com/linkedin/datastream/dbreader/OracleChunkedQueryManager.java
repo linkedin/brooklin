@@ -32,7 +32,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
     int keyCount = keys.size();
     StringBuilder tmp = new StringBuilder();
     tmp.append(keys.get(0));
-    for(int i = 1; i < keyCount; i++) {
+    for (int i = 1; i < keyCount; i++) {
       tmp.append("," + keys.get(i));
     }
     String pkeyString = tmp.toString();
@@ -62,7 +62,6 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
       long maxBuckets, long currentIndex) {
     return generateChunkedQuery(nestedQuery, keys, chunkSize, maxBuckets, currentIndex, true);
   }
-
 
   @Override
   public String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, long maxBuckets,

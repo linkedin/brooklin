@@ -26,6 +26,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 
 import com.linkedin.datastream.avrogenerator.FieldMetadata;
@@ -33,16 +34,16 @@ import com.linkedin.datastream.avrogenerator.Types;
 
 
 /**
- * Util class to read ResultSet from a Database into a compatible format
+ * Util class to convert Oracle JDBC ResultSet fields into a avro compatible format
  */
-public class OracleTableReader implements SqlTypeInterpreter {
-  private static final Logger LOG = LoggerFactory.getLogger(OracleTableReader.class);
+public class OracleTypeInterpreter implements SqlTypeInterpreter {
+  private static final Logger LOG = LoggerFactory.getLogger(OracleTypeInterpreter.class);
 
   private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
   private static final String META_KEY = "meta";
 
   private final static List<Schema.Type> ACCEPTABLE_PRIMITIVES =
-      Arrays.asList(Schema.Type.INT, Schema.Type.FLOAT, Schema.Type.LONG, Schema.Type.STRING);
+      Arrays.asList(Schema.Type.INT, Schema.Type.FLOAT, Schema.Type.LONG, Schema.Type.DOUBLE, Schema.Type.STRING);
   private final static List<Schema.Type> ACCEPTABLE_RECORD = Arrays.asList(Schema.Type.RECORD);
   private final static List<Schema.Type> ACCEPTABLE_COLLECTION = Arrays.asList(Schema.Type.ARRAY);
   private static final Map<String, String> COLUMN_NAME_CACHE = new ConcurrentHashMap<>();
@@ -109,6 +110,10 @@ public class OracleTableReader implements SqlTypeInterpreter {
 
       if (primitiveSchema.getType().equals(Schema.Type.LONG)) {
         return bd.longValue();
+      }
+
+      if (primitiveSchema.getType().equals(Schema.Type.DOUBLE)) {
+        return bd.doubleValue();
       }
     }
 
@@ -226,7 +231,8 @@ public class OracleTableReader implements SqlTypeInterpreter {
    * Return the Schema of a field under the colName. If the underlying field is a
    * UNION type, iterate through it to find the not NULL schema.
    */
-  public static Schema getChildSchema(Schema avroSchema, String colName, List<Schema.Type> acceptable) {
+  @VisibleForTesting
+  static Schema getChildSchema(Schema avroSchema, String colName, List<Schema.Type> acceptable) {
     avroSchema = deUnify(avroSchema);
 
     // use getField() to get the schema of the colName in respect to the parent schema
@@ -341,7 +347,7 @@ public class OracleTableReader implements SqlTypeInterpreter {
    * @param upperColName - the UPPER_CAMEL column Name from the ResultSet
    * @return the LOWER_CAMEL string
    */
-  public String formatColumn(String upperColName) {
+  public String formatColumnName(String upperColName) {
     if (COLUMN_NAME_CACHE.containsKey(upperColName)) {
       return COLUMN_NAME_CACHE.get(upperColName);
     }

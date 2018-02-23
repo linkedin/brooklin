@@ -3,12 +3,13 @@ package com.linkedin.datastream.dbreader;
 import java.util.Properties;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.SqlTypeInterpreter;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.SqlTypeInterpreter;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 
@@ -27,8 +28,6 @@ public class DatabaseChunkedReaderConfig {
   public static final String CHUNK_SIZE = "chunk.size";
   public static final String NUM_CHUNK_BUCKETS = "chunk.numBuckets";
   public static final String CHUNK_INDEX = "chunk.index";
-  public static final String HASH_FUNCTION = "chunk.hashFunction";
-  public static final String CONCAT_FUNCTION = "chunk.concatFunction";
   public static final String DATABASE_INTERPRETER_CLASS_NAME = "database.reader";
   public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
 
@@ -41,8 +40,6 @@ public class DatabaseChunkedReaderConfig {
   private final long _chunkSize;
   private final long _numChunkBuckets;
   private final long _chunkIndex;
-  private final String _hashFunction;
-  private final String _concatFunction;
   private SqlTypeInterpreter _interpreter;
   private ChunkedQueryManager _chunkedQueryManager;
 
@@ -50,36 +47,15 @@ public class DatabaseChunkedReaderConfig {
     Properties props = new VerifiableProperties(properties).getDomainProperties(DB_READER_DOMAIN_CONFIG);
     VerifiableProperties verifiableProperties = new VerifiableProperties(props);
     _queryTimeout = verifiableProperties.getInt(QUERY_TIMEOUT_SECS, DEFAULT_QUERY_TIMEOUT_SECS);
+    Validate.inclusiveBetween(0, Integer.MAX_VALUE, _queryTimeout);  // 0 being no limit.
     _fetchSize = verifiableProperties.getInt(FETCH_SIZE, DEFAULT_FETCH_SIZE);
+    Validate.inclusiveBetween(0, Integer.MAX_VALUE, _fetchSize);
     _chunkSize = verifiableProperties.getLong(CHUNK_SIZE, DEFAULT_CHUNK_SIZE);
-    if (!verifiableProperties.containsKey(NUM_CHUNK_BUCKETS)) {
-      String msg = "Number of buckets to use for chunking not specified. Cannot default this config";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
-
+    Validate.inclusiveBetween(100, Long.MAX_VALUE, _fetchSize);
     _numChunkBuckets = verifiableProperties.getLong(NUM_CHUNK_BUCKETS);
-
-    if (!verifiableProperties.containsKey(CHUNK_INDEX)) {
-      String msg = "Current chunking index not specified. Cannot default this config";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
+    Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _chunkIndex = verifiableProperties.getLong(CHUNK_INDEX);
-
-    if (!verifiableProperties.containsKey(HASH_FUNCTION)) {
-      String msg = "Hash function not specified. Cannot default this config";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
-    _hashFunction = verifiableProperties.getString(HASH_FUNCTION);
-
-    if (!verifiableProperties.containsKey(CONCAT_FUNCTION)) {
-      String msg = "Concatenation function not specified. Cannot default this config";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
-    _concatFunction = verifiableProperties.getString(CONCAT_FUNCTION);
+    Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
 
     String tableReader = verifiableProperties.getString(DATABASE_INTERPRETER_CLASS_NAME);
     if (StringUtils.isBlank(tableReader)) {
@@ -122,14 +98,6 @@ public class DatabaseChunkedReaderConfig {
 
   public long getChunkIndex() {
     return _chunkIndex;
-  }
-
-  public String getHashFunction() {
-    return _hashFunction;
-  }
-
-  public String getConcatFunction() {
-    return _concatFunction;
   }
 
   public SqlTypeInterpreter getDatabaseInterpreter() {

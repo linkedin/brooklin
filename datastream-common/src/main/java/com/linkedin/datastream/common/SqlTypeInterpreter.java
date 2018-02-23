@@ -27,6 +27,6 @@ public interface SqlTypeInterpreter {
    * @param dbColName
    * @return
    */
-  public String formatColumn(String dbColName);
+  public String formatColumnName(String dbColName);
 
 }

@@ -1024,7 +1024,7 @@ public class MockResultSet implements ResultSet {
 
     @Override
     public int getColumnCount() throws SQLException {
-      return _row.size();
+      return _row.getColumnCount();
     }
 
     @Override

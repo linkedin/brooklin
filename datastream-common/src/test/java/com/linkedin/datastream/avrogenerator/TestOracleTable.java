@@ -2,6 +2,7 @@ package com.linkedin.datastream.avrogenerator;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.avro.Schema;
 import org.testng.Assert;
 import org.testng.annotations.Test;
