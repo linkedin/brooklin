@@ -1,6 +1,9 @@
 package com.linkedin.datastream.kafka;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkConnection;
@@ -18,6 +21,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
@@ -32,6 +36,9 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public static final String DEFAULT_REPLICATION_FACTOR = "1";
   public static final Duration DEFAULT_RETENTION = Duration.ofDays(3);
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
+
+  public static final String CONFIG_METRICS_NAMES_PREFIX = "metricsNamesPrefix";
+  private final String _transportProviderMetricsNamesPrefix;
 
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
   private final String _zkAddress;
@@ -64,7 +71,15 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       _retention = DEFAULT_RETENTION;
     }
 
-    _kafkaTransportProvider = new KafkaTransportProvider(transportProviderProperties);
+    String metricsPrefix = transportProviderProperties.getProperty(CONFIG_METRICS_NAMES_PREFIX, null);
+    if (metricsPrefix != null && !metricsPrefix.endsWith(".")) {
+      _transportProviderMetricsNamesPrefix = metricsPrefix + ".";
+    } else {
+      _transportProviderMetricsNamesPrefix = metricsPrefix;
+    }
+
+    _kafkaTransportProvider =
+        new KafkaTransportProvider(transportProviderProperties, _transportProviderMetricsNamesPrefix);
   }
 
   @Override
@@ -189,4 +204,14 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       throw e;
     }
   }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+
+    metrics.addAll(KafkaTransportProvider.getMetricInfos(_transportProviderMetricsNamesPrefix));
+
+    return Collections.unmodifiableList(metrics);
+  }
+
 }
