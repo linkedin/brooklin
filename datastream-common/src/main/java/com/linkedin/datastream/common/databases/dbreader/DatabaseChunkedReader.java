@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases.dbreader;
 
 import java.io.Closeable;
 import java.sql.Connection;
@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
-import com.linkedin.datastream.common.DatabaseRow;
+import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.SqlTypeInterpreter;
 
@@ -74,7 +74,6 @@ public class DatabaseChunkedReader implements Closeable {
 
   private boolean _initialized = false;
   private int _numChunkingKeys;
-  private boolean _endOfFile = false;
   private String _chunkedQuery;
   private PreparedStatement _firstStmt;
   private PreparedStatement _queryStmt;
@@ -196,7 +195,6 @@ public class DatabaseChunkedReader implements Closeable {
       close();
     }
     initializeChunkingKeyInfo();
-    _endOfFile = false;
     _chunkedQuery = _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()),
         _chunkSize, _maxChunkIndex, _chunkIndex);
     _tableSchema = _databaseSource.getTableSchema(_chunkingTable);

@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -23,9 +23,6 @@ import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import com.linkedin.datastream.common.DatabaseColumnRecord;
-import com.linkedin.datastream.common.DatabaseRow;
 
 
 /**

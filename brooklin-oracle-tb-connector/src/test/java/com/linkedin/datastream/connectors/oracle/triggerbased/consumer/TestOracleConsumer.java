@@ -1,6 +1,6 @@
 package com.linkedin.datastream.connectors.oracle.triggerbased.consumer;
 
-import com.linkedin.datastream.common.OracleDataSourceFactory;
+import com.linkedin.datastream.common.databases.OracleDataSourceFactory;
 import com.linkedin.datastream.common.ReflectionUtils;
 import java.util.Properties;
 

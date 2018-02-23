@@ -1,9 +1,12 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.common.databases;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+
 
 /**
  * Represents a single row of a Database and composed of a list of DatabaseColumnRecords for each field

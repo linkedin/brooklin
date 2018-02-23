@@ -1,4 +1,4 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.common.databases;
 
 import javax.sql.DataSource;
 

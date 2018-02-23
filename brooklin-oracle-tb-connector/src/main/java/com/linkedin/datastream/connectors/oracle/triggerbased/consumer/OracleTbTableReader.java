@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.OracleTypeInterpreter;
+import com.linkedin.datastream.common.databases.OracleTypeInterpreter;
 
 
 /**

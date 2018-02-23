@@ -1,4 +1,4 @@
-package com.linkedin.datastream.dbreader;
+package com.linkedin.datastream.common.databases;
 
 import java.sql.Connection;
 import java.sql.Driver;

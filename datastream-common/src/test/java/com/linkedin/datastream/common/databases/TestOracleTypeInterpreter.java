@@ -1,4 +1,4 @@
-package com.linkedin.datastream.common;
+package com.linkedin.datastream.common.databases;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -14,6 +14,8 @@ import org.apache.avro.generic.GenericData;
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 
 
 public class TestOracleTypeInterpreter {
