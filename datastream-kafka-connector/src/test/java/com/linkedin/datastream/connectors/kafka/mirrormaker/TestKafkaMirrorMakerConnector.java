@@ -12,6 +12,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
@@ -97,6 +98,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     sourceRegex = "^(?!__)\\w+";
     ds = createDatastream("testInitializeDatastream4", _broker, sourceRegex, metadata);
     connector.initializeDatastream(ds, Collections.emptyList());
+
+    Assert.assertTrue(DatastreamUtils.isConnectorManagedDestination(ds));
   }
 
   @Test(expectedExceptions = DatastreamValidationException.class)

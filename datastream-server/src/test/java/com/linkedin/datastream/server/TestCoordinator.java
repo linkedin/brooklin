@@ -40,6 +40,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.security.Authorizer;
+import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
@@ -82,6 +83,11 @@ public class TestCoordinator {
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override) throws Exception {
+    return createCoordinator(zkAddr, cluster, override, new DummyTransportProviderAdminFactory());
+  }
+
+  private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
+      TransportProviderAdminFactory transportProviderAdminFactory) throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
@@ -91,9 +97,9 @@ public class TestCoordinator {
     ZkClient client = new ZkClient(zkAddr);
     _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
     Coordinator coordinator = new Coordinator(_cachedDatastreamReader, props);
-    DummyTransportProviderAdminFactory factory = new DummyTransportProviderAdminFactory();
     coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
-        factory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+        transportProviderAdminFactory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+            new Properties()));
     return coordinator;
   }
 
@@ -531,6 +537,85 @@ public class TestCoordinator {
     Assert.assertTrue(
         PollUtils.poll(() -> connector.getTasks().get(0).getDatastreams().get(0).equals(updatedDatastream), 1000,
             WAIT_TIMEOUT_MS));
+  }
+
+  /**
+   * Test datastream creation with Connector-managed destination; coordinator should not create or delete topics.
+   * @throws Exception
+   */
+  @Test
+  public void testDatastreamWithConnectorManagedDestination() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConectorType = "testConnectorType";
+
+    DummyTransportProviderAdminFactory transportProviderAdminFactory = new DummyTransportProviderAdminFactory();
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, new Properties(), transportProviderAdminFactory);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
+    coordinator.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String datastreamName = "testDatastream1";
+    Datastream ds =
+        DatastreamTestUtils.createDatastreamWithoutDestination(testConectorType, datastreamName, "testSource1");
+    ds.getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+    resource.create(ds);
+
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
+    Assert.assertEquals(transportProviderAdminFactory._createDestinationCount, 0,
+        "Create destination count should have been 0, since Datastream has connector-managed destination");
+
+    resource.delete(datastreamName);
+    String path = KeyBuilder.datastream(testCluster, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
+    Assert.assertEquals(transportProviderAdminFactory._dropDestinationCount, 0,
+        "Delete destination count should have been 0, since Datastream has connector-managed destination");
+  }
+
+  /**
+   * Test datastream creation and deletion with regular destination; coordinator should create and delete topics
+   * accordingly.
+   * @throws Exception
+   */
+  @Test
+  public void testDatastreamWithoutConnectorManagedDestination() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConectorType = "testConnectorType";
+
+    DummyTransportProviderAdminFactory transportProviderAdminFactory = new DummyTransportProviderAdminFactory();
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, new Properties(), transportProviderAdminFactory);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConectorType);
+    coordinator.addConnector(testConectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String datastreamName = "testDatastream1";
+    Datastream ds =
+        DatastreamTestUtils.createDatastreamWithoutDestination(testConectorType, datastreamName, "testSource1");
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+    resource.create(ds);
+
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
+    Assert.assertEquals(transportProviderAdminFactory._createDestinationCount, 1,
+        "Create destination count should have been 1, since Datastream does not have connector-managed destination");
+
+    resource.delete(datastreamName);
+    String path = KeyBuilder.datastream(testCluster, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(
+        PollUtils.poll(() -> transportProviderAdminFactory._dropDestinationCount == 1, 1000, WAIT_TIMEOUT_MS),
+        "Delete destination count should have been 1, since Datastream does not have connector-managed destination");
   }
 
   @Test

@@ -95,6 +95,28 @@ public class DatastreamTestUtils {
   }
 
   /**
+   * Creates a test datastream of specific connector type
+   * @param connectorType connector type of the datastream to be created.
+   * @param datastreamName Name of the datastream to be created.
+   * @param source source connection string to be used.
+   * @return Datastream that is created.
+   */
+  public static Datastream createDatastreamWithoutDestination(String connectorType, String datastreamName, String source) {
+    Datastream ds = new Datastream();
+    ds.setName(datastreamName);
+    ds.setConnectorName(connectorType);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString(source);
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
+    ds.setStatus(DatastreamStatus.INITIALIZING);
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.OWNER_KEY, "dummy_owner");
+    metadata.put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    ds.setMetadata(metadata);
+    return ds;
+  }
+
+  /**
    * Store the datastreams into the appropriate locations in zookeeper.
    * @param zkClient zookeeper client
    * @param cluster name of the datastream cluster

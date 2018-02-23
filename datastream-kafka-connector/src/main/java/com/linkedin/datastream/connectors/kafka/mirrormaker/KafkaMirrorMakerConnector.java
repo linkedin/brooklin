@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
@@ -20,9 +21,9 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 
 
 /**
- * KafkaMirrorMakerConnector is similar to {@link KafkaConnector} but it has the ability to consume from multiple
- * topics in a cluster via regular expression pattern source, and it has the ability to produce to multiple topics
- * in the destination cluster.
+ * KafkaMirrorMakerConnector is similar to KafkaConnector but it has the ability to consume from multiple topics in a
+ * cluster via regular expression pattern source, and it has the ability to produce to multiple topics in the
+ * destination cluster.
  */
 public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
@@ -59,6 +60,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       throw new DatastreamValidationException(
           String.format("BYOT is not allowed for connector %s. Datastream: %s", stream.getConnectorName(),
               stream));
+    }
+
+    if (!DatastreamUtils.isConnectorManagedDestination(stream)) {
+      stream.getMetadata()
+          .put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
     }
 
     // verify that the source regular expression can be compiled
