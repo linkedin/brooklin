@@ -1,6 +1,11 @@
 package com.linkedin.datastream.common.databases.dbreader;
 
 import java.lang.reflect.Method;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,40 +21,62 @@ import org.mockito.Mockito;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import junit.framework.Assert;
 
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
+import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
+import com.linkedin.datastream.common.databases.DatabaseColumnRecord;
 import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.common.databases.MockJDBCConnection;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.*;
+import static org.mockito.Matchers.*;
 
 
 public class TestDatabaseChunkedReader {
   // Dummy table name with 3 columns forming a composite key.
-  private static final String TEST_TABLE = "TEST_DB_TEST_TABLE";
-  private static final ArrayList<String> TEST_PKEYS = new ArrayList<>(Arrays.asList("key1", "key2", "key3"));
-  private static final String TEST_SOURCE_QUERY = "SELECT * FROM " + TEST_TABLE + " ORDER BY KEY1, KEY2, KEY3";
-
+  private static final String TEST_COMPOSITE_KEY_TABLE = "TEST_DB_TEST_TABLE";
+  private static final ArrayList<String> TEST_COMPOSITE_PKEYS = new ArrayList<>(Arrays.asList("key1", "key2", "key3"));
+  private static final String TEST_SOURCE_QUERY = "SELECT * FROM " + TEST_COMPOSITE_KEY_TABLE + " ORDER BY KEY1, KEY2, KEY3";
+  DynamicMetricsManager _dynamicMetricsManager;
   // Dummy table with columns key1, key1, key3 all numbers and timestamp column.
-  private static final String TEST_TABLE_SCHEMA_STR =
+  private static final String TEST_COMPOSITE_KEY_TABLE_SCHEMA_STR =
       "{\"type\":\"record\",\"name\":\"TEST_DB_TEST_TABLE\",\"namespace\":\"com.linkedin.events.testdb\", \"fields\":["
       + "{\"name\":\"key1\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=KEY1;dbFieldPosition=0;dbFieldType=NUMBER;\"},"
       + "{\"name\":\"key2\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=KEY2;dbFieldPosition=1;dbFieldType=NUMBER;\"},"
       + "{\"name\":\"key3\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=KEY3;dbFieldPosition=2;dbFieldType=NUMBER;\"},"
       + "{\"name\":\"timestamp\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=TIMESTAMP;dbFieldPosition=3;dbFieldType=TIMESTAMP;\"}"
       + "],\"meta\":\"dbTableName=TEST_DB_TEST_TABLE;pk=key1,key2,key3;\"}";
-  private static final Schema TEST_TABLE_SCHEMA = Schema.parse(TEST_TABLE_SCHEMA_STR);
+  private static final Schema TEST_COMPOSITE_KEY_TABLE_SCHEMA = Schema.parse(TEST_COMPOSITE_KEY_TABLE_SCHEMA_STR);
+
+  private static final String TEST_SIMPLE_KEY_TABLE = "TEST_SIMPLE_SCHEMA";
+  private static final String TEST_SIMPLE_QUERY = "SELECT * FROM " + TEST_SIMPLE_KEY_TABLE + " ORDER BY KEY1";
+  private static final List<String> TEST_SIMPLE_KEYS = Collections.singletonList("key1");
+  private static final String TEST_SIMPLE_SCHEMA_STR =
+      "{\"type\":\"record\",\"name\":\"SIMPLE_SCHEMA\",\"namespace\":\"com.linkedin.events.simpleschema\", \"fields\":["
+          + "{\"name\":\"key1\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=KEY1;dbFieldPosition=0;dbFieldType=NUMBER;\"}"
+          + "],\"meta\":\"dbTableName=SIMPLE_SCHEMA;pk=key1;\"}";
+  private static final Schema TEST_SIMPLE_SCHEMA = Schema.parse(TEST_SIMPLE_SCHEMA_STR);
+
 
   @BeforeMethod
   public void setup(Method method) {
+    _dynamicMetricsManager = DynamicMetricsManager.createInstance(new MetricRegistry());
   }
 
-
   private Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index) {
+    return createTestDBReaderProperties(chunkSize, numBuckets, index, false);
+  }
+
+  private Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index,
+      Boolean skipBadMsg) {
     Properties props = new Properties();
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_SIZE, chunkSize.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
@@ -73,7 +100,7 @@ public class TestDatabaseChunkedReader {
    * on previous values. The Mocks are setup to expect specific values.
    * @throws Exception
    */
-  @Test(enabled = true)
+  @Test
   public void testRowCount() throws Exception {
     int numBuckets = 4;
     int chunkSize = 3;
@@ -183,8 +210,8 @@ public class TestDatabaseChunkedReader {
 
     // Create other mocks and parameter list to create the readers.
     DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
-    Mockito.when(mockDBSource.getPrimaryKeyFields(TEST_TABLE)).thenReturn(TEST_PKEYS);
-    Mockito.when(mockDBSource.getTableSchema(TEST_TABLE)).thenReturn(TEST_TABLE_SCHEMA);
+    Mockito.when(mockDBSource.getPrimaryKeyFields(TEST_COMPOSITE_KEY_TABLE)).thenReturn(TEST_COMPOSITE_PKEYS);
+    Mockito.when(mockDBSource.getTableSchema(TEST_COMPOSITE_KEY_TABLE)).thenReturn(TEST_COMPOSITE_KEY_TABLE_SCHEMA);
 
     List<Properties> props = new ArrayList<>();
     List<DataSource> mockSources = new ArrayList<>();
@@ -199,24 +226,72 @@ public class TestDatabaseChunkedReader {
     }
 
     for (int i = 0; i < numBuckets; i++) {
-      DatabaseChunkedReader reader =
-          new DatabaseChunkedReader(props.get(i), mockSources.get(i), TEST_SOURCE_QUERY, TEST_TABLE, mockDBSource, "testRowCount_" + i);
-      reader.start();
-
-      while (true) {
-        DatabaseRow row = reader.poll();
-        if (row == null) {
-          break;
+      try (DatabaseChunkedReader reader =
+          new DatabaseChunkedReader(props.get(i), mockSources.get(i), TEST_SOURCE_QUERY, TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
+        reader.start();
+        for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
+          data.get(i).add(row);
         }
-        data.get(i).add(row);
       }
-
-      reader.close();
 
       // Coalesce the per call row data into a single list to compared against received data
       List<DatabaseRow> expected = new ArrayList<>();
       dataMapList.get(i).values().forEach(sublist -> expected.addAll(sublist));
       verifyData(data.get(i), expected);
     }
+  }
+
+
+  @Test
+  void testSkipBadMessages() throws SQLException, SchemaGenerationException {
+    int numBuckets = 4;
+    int chunkSize = 3;
+    String readerId = "testSkipBadMessages";
+
+    // Create other mocks and parameter list to create the readers.
+    DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
+    Mockito.when(mockDBSource.getPrimaryKeyFields(anyString())).thenReturn(TEST_SIMPLE_KEYS);
+    Mockito.when(mockDBSource.getTableSchema(anyString())).thenReturn(TEST_SIMPLE_SCHEMA);
+
+    Properties props = createTestDBReaderProperties(chunkSize, numBuckets, 0, true);
+    DataSource mockDs = Mockito.mock(DataSource.class);
+    Connection mockConnection = Mockito.mock(Connection.class);
+    PreparedStatement mockStmt = Mockito.mock(PreparedStatement.class);
+    ResultSet mockRs = Mockito.mock(ResultSet.class);
+    DatabaseColumnRecord field = new DatabaseColumnRecord("key1", 1, Types.INTEGER);
+
+    Mockito.when(mockRs.getObject(1)).thenReturn(field.getValue());
+    // First call to ResultSetMetadata.getColumnCount throws exception, the next returns a data,
+    // the next throws an exception and the next returns data. We are done with testing, so 4 next() calls return
+    // true and the last a false to break poll loop.
+    Mockito.when(mockRs.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
+    ResultSetMetaData mockRsmd = Mockito.mock(ResultSetMetaData.class);
+    Mockito.when(mockRs.getMetaData()).thenReturn(mockRsmd);
+    Mockito.when(mockRsmd.getColumnCount()).thenThrow(new SQLException("Bad row - test skip bad message test"))
+      .thenReturn(1).thenThrow(new SQLException("Bad row - test skip bad message test")).thenReturn(1);
+    Mockito.when(mockRsmd.getColumnName(anyInt())).thenReturn(field.getColName());
+    Mockito.when(mockRsmd.getColumnType(anyInt())).thenReturn(field.getSqlType());
+    Mockito.when(mockStmt.executeQuery()).thenReturn(mockRs);
+    Mockito.when(mockConnection.prepareStatement(anyString())).thenReturn(mockStmt);
+    Mockito.when(mockDs.getConnection()).thenReturn(mockConnection);
+
+    int count = 0;
+    DatabaseChunkedReader reader =
+        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
+    reader.start();
+    for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
+      Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
+      count++;
+    }
+    Assert.assertEquals(2, count);
+
+    String fullMetricName = MetricRegistry.name(DatabaseChunkedReader.class.getSimpleName(), TEST_SIMPLE_KEY_TABLE,
+        DatabaseChunkedReaderMetrics.SKIPPED_BAD_MESSAGES_RATE);
+    Assert.assertEquals(((Meter) _dynamicMetricsManager.getMetric(fullMetricName)).getCount(), 2);
+
+    fullMetricName = MetricRegistry.name(DatabaseChunkedReader.class.getSimpleName(),
+        readerId, DatabaseChunkedReaderMetrics.SKIPPED_BAD_MESSAGES_RATE);
+    Assert.assertEquals(((Meter) _dynamicMetricsManager.getMetric(fullMetricName)).getCount(), 2);
+    reader.close();
   }
 }

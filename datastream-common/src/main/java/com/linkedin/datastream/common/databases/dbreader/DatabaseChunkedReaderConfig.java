@@ -24,6 +24,7 @@ public class DatabaseChunkedReaderConfig {
   // calls to process the entire resultSet. The default fetchSize is 10, which is way too small
   // for both a typical bootstrap scenario.
   public static final String FETCH_SIZE = "fetchSize";
+  public static final String SKIP_BAD_MESSAGE = "skipBadMessage";
   // Number of rows to chunk on each query. This will limit the number of rows that the server will limit query result to
   public static final String CHUNK_SIZE = "chunk.size";
   public static final String NUM_CHUNK_BUCKETS = "chunk.numBuckets";
@@ -34,6 +35,7 @@ public class DatabaseChunkedReaderConfig {
   private static final int DEFAULT_QUERY_TIMEOUT_SECS = 0;
   private static final int DEFAULT_FETCH_SIZE = 100;
   private static final long DEFAULT_CHUNK_SIZE = 10000;
+  private static final boolean DEFAULT_SKIP_BAD_MESSAGE = false;
 
   private final int _queryTimeout;
   private final int _fetchSize;
@@ -42,6 +44,7 @@ public class DatabaseChunkedReaderConfig {
   private final long _chunkIndex;
   private SqlTypeInterpreter _interpreter;
   private ChunkedQueryManager _chunkedQueryManager;
+  private boolean _shouldSkipBadMessage;
 
   public DatabaseChunkedReaderConfig(Properties properties) {
     Properties props = new VerifiableProperties(properties).getDomainProperties(DB_READER_DOMAIN_CONFIG);
@@ -56,6 +59,7 @@ public class DatabaseChunkedReaderConfig {
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _chunkIndex = verifiableProperties.getLong(CHUNK_INDEX);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
+    _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
 
     String tableReader = verifiableProperties.getString(DATABASE_INTERPRETER_CLASS_NAME);
     if (StringUtils.isBlank(tableReader)) {
@@ -108,4 +112,7 @@ public class DatabaseChunkedReaderConfig {
     return _chunkedQueryManager;
   }
 
+  public boolean shouldSkipBadMessage() {
+    return _shouldSkipBadMessage;
+  }
 }

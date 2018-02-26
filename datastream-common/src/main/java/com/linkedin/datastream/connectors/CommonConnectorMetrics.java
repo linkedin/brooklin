@@ -5,12 +5,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.StringUtils;
@@ -27,6 +25,7 @@ import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.BrooklinMetrics;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
@@ -41,52 +40,9 @@ public class CommonConnectorMetrics {
   protected static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
   /**
-   * Base class for metric categories with support for metric deregistration.
-   * It uses reference counting for deregistering aggregate metrics which can
-   * only happen when all keyed metrics of the same name have been deregistered.
-   */
-  abstract static class Metrics {
-    protected String _key;
-    protected String _className;
-
-    // Map from a [class,category] to its reference counter
-    private static Map<String, AtomicInteger> _refCounts = new HashMap<>();
-
-    private String getRefKey() {
-      return getClass().getSimpleName() + _className;
-    }
-
-    public Metrics(String className, String key) {
-      _className = className;
-      _key = key;
-
-      String refKey = getRefKey();
-      _refCounts.computeIfAbsent(refKey, k -> new AtomicInteger(0));
-      _refCounts.get(refKey).incrementAndGet();
-    }
-
-    void deregister() {
-      String refKey = getRefKey();
-
-      // Already deregistered?
-      if (!_refCounts.containsKey(refKey)) {
-        return;
-      }
-
-      if (_refCounts.get(refKey).decrementAndGet() == 0) {
-        deregisterAggregates();
-        _refCounts.remove(refKey);
-      }
-    }
-
-    void deregisterAggregates() {
-    }
-  }
-
-  /**
    * Event processing related metrics
    */
-  static class EventProcMetrics extends Metrics {
+  static class EventProcMetrics extends BrooklinMetrics {
     static final String EVENTS_PROCESSED_RATE = "eventsProcessedRate";
     static final String EVENTS_BYTE_PROCESSED_RATE = "eventsByteProcessedRate";
     static final String ERROR_RATE = "errorRate";
@@ -141,7 +97,7 @@ public class CommonConnectorMetrics {
     }
 
     @Override
-    public void deregisterAggregates() {
+    protected void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_PROCESSED_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE);
       // Keep aggregate error rate as it is still used for connector error tracking
@@ -165,7 +121,7 @@ public class CommonConnectorMetrics {
   /**
    * Poll related metrics
    */
-  static class PollMetrics extends Metrics {
+  static class PollMetrics extends BrooklinMetrics {
     public static final String NUM_POLLS = "numPolls";
     public static final String EVENT_COUNTS_PER_POLL = "eventCountsPerPoll";
     public static final String CLIENT_POLL_OVER_TIMEOUT = "clientPollOverTimeout";
@@ -195,14 +151,14 @@ public class CommonConnectorMetrics {
     }
 
     @Override
-    void deregister() {
+    public void deregister() {
       super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_POLLS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENT_COUNTS_PER_POLL);
     }
 
     @Override
-    public void deregisterAggregates() {
+    protected void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, CLIENT_POLL_OVER_TIMEOUT);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT);
     }
@@ -221,7 +177,7 @@ public class CommonConnectorMetrics {
   /**
    * Partition related metrics
    */
-  static class PartitionMetrics extends Metrics {
+  static class PartitionMetrics extends BrooklinMetrics {
     // Partition related metrics
     static final String REBALANCE_RATE = "rebalanceRate";
     static final String STUCK_PARTITIONS = "stuckPartitions";
@@ -249,14 +205,14 @@ public class CommonConnectorMetrics {
     }
 
     @Override
-    void deregister() {
+    public void deregister() {
       super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
     }
 
     @Override
-    public void deregisterAggregates() {
+    protected void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, STUCK_PARTITIONS);
       AGGREGATED_NUM_STUCK_PARTITIONS.remove(_className);
@@ -287,7 +243,7 @@ public class CommonConnectorMetrics {
   protected final String _className;
   protected final String _key;
   protected final Logger _errorLogger;
-  private final List<Metrics> _metricsList = new ArrayList<>();
+  private final List<BrooklinMetrics> _metricsList = new ArrayList<>();
 
   private EventProcMetrics _eventProcMetrics;
   private PollMetrics _pollMetrics;
