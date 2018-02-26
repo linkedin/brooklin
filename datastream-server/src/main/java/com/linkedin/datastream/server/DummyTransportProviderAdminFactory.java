@@ -20,6 +20,9 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
 
   private final boolean _throwOnSend;
 
+  int _createDestinationCount = 0;
+  int _dropDestinationCount = 0;
+
   public DummyTransportProviderAdminFactory() {
     this(false);
   }
@@ -75,12 +78,12 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
 
   @Override
   public void createDestination(Datastream datastream) {
-
+    _createDestinationCount++;
   }
 
   @Override
   public void dropDestination(Datastream datastream) {
-
+    _dropDestinationCount++;
   }
 
   @Override

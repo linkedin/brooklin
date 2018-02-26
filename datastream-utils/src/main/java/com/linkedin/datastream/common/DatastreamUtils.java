@@ -122,6 +122,11 @@ public final class DatastreamUtils {
 
   public static boolean isUserManagedDestination(Datastream stream) {
     return StringUtils.equals(stream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
-        "true");
+        Boolean.TRUE.toString());
+  }
+
+  public static boolean isConnectorManagedDestination(Datastream stream) {
+    return StringUtils.equals(stream.getMetadata().get(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY),
+        Boolean.TRUE.toString());
   }
 }

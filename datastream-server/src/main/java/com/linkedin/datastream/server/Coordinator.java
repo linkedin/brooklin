@@ -727,7 +727,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     for (Datastream ds : allStreams) {
       if (ds.getStatus() == DatastreamStatus.INITIALIZING) {
         try {
-          createTopic(ds);
+          if (DatastreamUtils.isConnectorManagedDestination(ds)) {
+            _log.info("Connector will manage destination(s) for datastream {}, skipping destination creation.", ds);
+          } else {
+            createTopic(ds);
+          }
 
           // Set the datastream status as ready for use (both producing and consumption)
           ds.setStatus(DatastreamStatus.READY);
@@ -818,6 +822,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     try {
       if (DatastreamUtils.isUserManagedDestination(datastream)) {
         _log.info("BYOT(bring your own topic), topic will not be deleted");
+      } else if (DatastreamUtils.isConnectorManagedDestination(datastream)) {
+        _log.info("Datastream contains connector-managed destinations, topic will not be deleted");
       } else {
         _transportProviderAdmins.get(datastream.getTransportProviderName()).dropDestination(datastream);
       }

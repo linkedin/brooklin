@@ -11,6 +11,12 @@ public class DatastreamMetadataConstants {
   public static final String IS_USER_MANAGED_DESTINATION_KEY = "system.IsUserManagedDestination";
 
   /**
+   * Represents whether the datastream has a connector managed destination, so destination should not be created on
+   * datastream creation
+   */
+  public static final String IS_CONNECTOR_MANAGED_DESTINATION_KEY = "system.IsConnectorManagedDestination";
+
+  /**
    * Whether the datastream should reuse existing datastream's destination if it is available.
    */
   public static final String REUSE_EXISTING_DESTINATION_KEY = "system.reuseExistingDestination";
