@@ -118,22 +118,11 @@ project(':datastream-common') {
 
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
-    compile "com.oracle:ojdbc6:$ojdbcVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotations"
     compile group: 'com.google.guava', name: 'guava', version: '19.0'
     testCompile "org.mockito:mockito-core:$mockitoVersion"
-    testCompile "com.oracle:ojdbc6:11.2.0.2.0"
   }
-	tasks.create(name: "copyDependantLibs", type: Copy) {
-		from (configurations.runtime) {
-		}
-		into "$buildDir/dependant-libs"
-	}
-
-	jar {
-		dependsOn 'copyDependantLibs'
-	}
 }
 
 project(':datastream-server-api') {
