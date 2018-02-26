@@ -1,5 +1,8 @@
 package com.linkedin.datastream.kafka;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -17,7 +20,10 @@ import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -28,8 +34,8 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
  * This is Kafka Transport provider that writes events to kafka.
  */
 public class KafkaTransportProvider implements TransportProvider {
-  private static final String MODULE = KafkaTransportProvider.class.getSimpleName();
-  private static final Logger LOG = LoggerFactory.getLogger(MODULE);
+  private static final String CLASS_NAME = KafkaTransportProvider.class.getSimpleName();
+  private static final Logger LOG = LoggerFactory.getLogger(CLASS_NAME);
 
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
@@ -42,12 +48,18 @@ public class KafkaTransportProvider implements TransportProvider {
   private static final String EVENT_TRANSPORT_ERROR_RATE = "eventTransportErrorRate";
 
   private final DynamicMetricsManager _dynamicMetricsManager;
+  private final String _metricsNamesPrefix;
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
   private static final String AGGREGATE = "aggregate";
 
+
   public KafkaTransportProvider(Properties props) {
+    this(props, null);
+  }
+
+  public KafkaTransportProvider(Properties props, String metricsNamesPrefix) {
     LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       String errorMessage = "Bootstrap servers are not set";
@@ -64,6 +76,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _metricsNamesPrefix = metricsNamesPrefix == null ? CLASS_NAME : metricsNamesPrefix + CLASS_NAME;
     _eventWriteRate = new Meter();
     _eventByteWriteRate = new Meter();
     _eventTransportErrorRate = new Meter();
@@ -127,14 +140,16 @@ public class KafkaTransportProvider implements TransportProvider {
             new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(), metadata.partition()), exception));
         // Update topic-specific metrics and aggregate metrics
         int numBytes = outgoing.key().length + outgoing.value().length;
-        _dynamicMetricsManager.createOrUpdateMeter(MODULE, destination.getTopicName(), EVENT_WRITE_RATE, 1);
-        _dynamicMetricsManager.createOrUpdateMeter(MODULE, destination.getTopicName(), EVENT_BYTE_WRITE_RATE, numBytes);
-        _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_WRITE_RATE, 1);
-        _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(), EVENT_WRITE_RATE,
+            1);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(),
+            EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_WRITE_RATE, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, destination.getTopicName(), EVENT_TRANSPORT_ERROR_RATE, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(), EVENT_TRANSPORT_ERROR_RATE, 1);
       String errorMessage = String.format(
           "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s " + "failed with exception",
           record.getEvents(), destinationUri, _brokers);
@@ -158,5 +173,17 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void flush() {
     _producer.flush();
+  }
+
+  public static List<BrooklinMetricInfo> getMetricInfos(String metricsNamesPrefix) {
+    String prefix = metricsNamesPrefix == null ? CLASS_NAME + MetricsAware.KEY_REGEX
+        : metricsNamesPrefix + CLASS_NAME + MetricsAware.KEY_REGEX;
+
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(prefix + EVENT_WRITE_RATE));
+    metrics.add(new BrooklinMeterInfo(prefix + EVENT_BYTE_WRITE_RATE));
+    metrics.add(new BrooklinMeterInfo(prefix + EVENT_TRANSPORT_ERROR_RATE));
+
+    return Collections.unmodifiableList(metrics);
   }
 }
