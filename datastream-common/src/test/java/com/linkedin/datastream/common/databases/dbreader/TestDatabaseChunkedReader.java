@@ -33,7 +33,8 @@ import com.linkedin.datastream.common.databases.MockJDBCConnection;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.*;
-import static org.mockito.Matchers.*;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.anyInt;
 
 
 public class TestDatabaseChunkedReader {
