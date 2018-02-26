@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -72,5 +73,13 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   @Override
   public String reduce(String query, Map<String, String> responses) {
     return "DummyStatus";
+  }
+
+  @Override
+  public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
+      throws DatastreamValidationException {
+    if (DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS != updateType) {
+      throw new DatastreamValidationException(String.format("Datastream update type %s is not supported", updateType.name()));
+    }
   }
 }

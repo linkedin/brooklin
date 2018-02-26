@@ -1,7 +1,6 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -121,7 +120,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   private void validatePausedPartitions(Datastream datastream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-    Map<String, Set<String>> pausedSourcePartitionsMap = getDatastreamSourcePartitionsJson(datastream);
+    Map<String, Set<String>> pausedSourcePartitionsMap = DatastreamUtils.getDatastreamSourcePartitions(datastream);
 
     for (String source : pausedSourcePartitionsMap.keySet()) {
       Set<String> newPartitions = pausedSourcePartitionsMap.get(source);
@@ -147,20 +146,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     // Now write back the set to datastream
     datastream.getMetadata()
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedSourcePartitionsMap));
-  }
-
-  private Map<String, Set<String>> getDatastreamSourcePartitionsJson(Datastream datastream) {
-    // Get the existing set of paused partitions json from datastream object.
-    // Convert the json to map <source, partitions>
-    Map<String, Set<String>> sourcePartitionsMap = new HashMap<>();
-    if (datastream.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY)
-        && !(datastream.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY).isEmpty())) {
-      sourcePartitionsMap =
-          JsonUtils.fromJson(datastream.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-              DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP);
-    }
-
-    return sourcePartitionsMap;
   }
 
   private List<PartitionInfo> getKafkaTopicPartitions(Datastream datastream, String topic)

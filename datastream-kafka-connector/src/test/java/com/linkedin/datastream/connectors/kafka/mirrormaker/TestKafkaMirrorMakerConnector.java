@@ -197,7 +197,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
-  public void testValidateDatastremUpdatePausedPartitions() throws Exception {
+  public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "Topic";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
     Map<String, Set<String>> expectedPartitions = new HashMap<>();
@@ -253,8 +253,6 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastream.getMetadata()
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
     connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
-    Assert.assertEquals(expectedPartitions,
-        JsonUtils.fromJson(datastream.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP));
+    Assert.assertEquals(expectedPartitions, DatastreamUtils.getDatastreamSourcePartitions(datastream));
   }
 }

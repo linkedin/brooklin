@@ -383,7 +383,8 @@ public class DatastreamRestClient {
    * @param datastreamName
    *    Name of the datastream to be paused.
    * @param sourcePartitions
-   *    Json representing source partitions to pause, in the form map< topic, set < partitions > >,
+   *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
    * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
    * an error response from the server.
    */
@@ -412,7 +413,8 @@ public class DatastreamRestClient {
    * @param datastreamName
    *    Name of the datastream to be paused.
    * @param sourcePartitions
-   *    Json representing source partitions to resume, in the form map< topic, set < partitions > >,
+   *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
    * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
    * an error response from the server.
    */

@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -141,6 +142,13 @@ public class ConnectorWrapper {
     logApiStart("validateUpdateDatastreams");
     _connector.validateUpdateDatastreams(datastreams, allDatastreams);
     logApiEnd("validateUpdateDatastreams");
+  }
+
+  public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
+      throws DatastreamValidationException {
+    logApiStart("isDatastreamUpdateTypeSupported");
+    _connector.isDatastreamUpdateTypeSupported(datastream, updateType);
+    logApiEnd("isDatastreamUpdateTypeSupported");
   }
 
   public long getNumDatastreams() {

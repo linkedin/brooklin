@@ -1,10 +1,8 @@
 package com.linkedin.datastream.server.dms;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -23,7 +21,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
-import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.DatastreamRestClientFactory;
@@ -246,10 +244,8 @@ public class TestDatastreamResources {
     Datastream ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
 
     // Add "0" and another "*" for topic1, and "1" for topic2.
     // Expect "0,*" ignored for topic1
@@ -264,10 +260,8 @@ public class TestDatastreamResources {
     expectedPartitions.put(topic1, "0,*");
     expectedPartitions.put(topic2, "0,1");
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now add "*" to topic2 - this should remove everything from topic2's list and add single
     // entry.
@@ -280,10 +274,8 @@ public class TestDatastreamResources {
     // Prepare expectedPartitions for validation.
     expectedPartitions.put(topic2, "0,1,*");
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now resume "*" from topic2, "0" from topic3
     StringMap partitionsToResume = new StringMap();
@@ -297,10 +289,8 @@ public class TestDatastreamResources {
     expectedPartitions.remove(topic2);
     expectedPartitions.put(topic3, "1");
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now try resuming from a nonexistent topic.
     // This should be a no op, as there is nothing to resume.
@@ -311,10 +301,8 @@ public class TestDatastreamResources {
     ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
 
     // Now remove "1" from topic3 - this should remove topic3 itself from the map
     partitionsToResume.clear();
@@ -326,10 +314,8 @@ public class TestDatastreamResources {
     // Prepare pausedPartitions for validation
     expectedPartitions.remove(topic3);
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(expectedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
   }
 
   @Test
@@ -352,11 +338,8 @@ public class TestDatastreamResources {
     restClient.pauseSourcePartitions(ds.getName(), pausedPartitions);
     ds = restClient.getDatastream(ds.getName());
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(pausedPartitions));
-
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
     // Resume partitions
     StringMap resumePartitions = new StringMap();
     resumePartitions.put(topic1, "*");
@@ -369,10 +352,8 @@ public class TestDatastreamResources {
     pausedPartitions.put(topic3, "1");
     ds = restClient.getDatastream(ds.getName());
     Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
-    Assert.assertEquals(
-        JsonUtils.fromJson(ds.getMetadata().get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY),
-            DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP),
-        parseSourcePartitionsStringMap(pausedPartitions));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
 
     // Pause Datastream1 (normal)
     restClient.pause(ds.getName(), false);
@@ -619,15 +600,5 @@ public class TestDatastreamResources {
   private DatastreamRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamKafkaCluster.getDatastreamPorts().get(0));
     return DatastreamRestClientFactory.getClient(dmsUri);
-  }
-
-  private Map<String, HashSet<String>> parseSourcePartitionsStringMap(StringMap sourcePartitions) {
-    HashMap<String, HashSet<String>> map = new HashMap<>();
-    for (String source : sourcePartitions.keySet()) {
-      String[] values = sourcePartitions.get(source).split(",");
-      HashSet<String> partitions = new HashSet<>(Arrays.asList(values));
-      map.put(source, partitions);
-    }
-    return map;
   }
 }

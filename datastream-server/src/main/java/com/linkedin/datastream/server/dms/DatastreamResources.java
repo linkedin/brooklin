@@ -3,9 +3,7 @@ package com.linkedin.datastream.server.dms;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -265,37 +263,39 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
+   * @param pathKeys
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @return
+   */
   @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
       @ActionParam("sourcePartitions") StringMap sourcePartitions) {
 
     // Get datastream.
     String datastreamName = pathKeys.getAsString(KEY_NAME);
+    // Log for debugging purposes.
+    LOG.info("pauseSourcePartitions called for datastream: {}, with partitions: {}", datastreamName, sourcePartitions);
+
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Datastream does not exist: " + datastreamName);
     }
 
-    // Log for debugging purposes.
-    LOG.info("pauseSourcePartitions called for datastream: {}, with partitions: {}", datastreamName, sourcePartitions);
-
-    // Make sure it is in ready state.
-    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Can only pause partitions for a datastream in READY state: " + datastreamName);
-    }
-
-    // Note: MM datastreams goes with an assumption that they are not a part of any datastream group
-    // Need to change this logic to update all datastreams in case that assumption changes.
+    pauseResumeSourcePartitionsPreCheck(datastream);
 
     // Convert the given json to actual map <source, partitions>
     // Note: These partitions will be added on the top of existing ones, it won't replace them.
-    Map<String, Set<String>> newPausedSourcePartitionsMap = parseSourcePartitionsStringMap(sourcePartitions);
+    Map<String, Set<String>> newPausedSourcePartitionsMap =
+        DatastreamUtils.parseSourcePartitionsStringMap(sourcePartitions);
 
     // Get the existing set of paused partitions from datastream object.
     // Convert the existing json to map <source, partitions>
-    Map<String, Set<String>> existingPausedSourcePartitionsMap = getDatastreamSourcePartitionsJson(datastream);
+    Map<String, Set<String>> existingPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastream);
 
     // Now add the given set of paused partitions to existing set of paused partitions.
     for (String source : newPausedSourcePartitionsMap.keySet()) {
@@ -333,7 +333,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Persist in zk.
     try {
       _store.updateDatastream(datastream.getName(), datastream, true);
-    } catch (DatastreamException e) {
+      _coordinator.broadcastDatastreamUpdate();
+    } catch (Exception e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Could not update datastream's paused partitions: " + datastream.getName(), e);
     }
@@ -341,38 +342,40 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
+   * @param pathKeys
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @return
+   */
   @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,
       @ActionParam("sourcePartitions") StringMap sourcePartitions) {
 
     // Get datastream.
     String datastreamName = pathKeys.getAsString(KEY_NAME);
+    // Log for debugging purposes.
+    LOG.info("resoumeSourcePartitions called for datastream: {}, with partitions: {}", datastreamName,
+        sourcePartitions);
+
     Datastream datastream = _store.getDatastream(datastreamName);
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Datastream does not exist: " + datastreamName);
     }
 
-    // Log for debugging purposes.
-    LOG.info("resoumeSourcePartitions called for datastream: {}, with partitions: {}", datastreamName,
-        sourcePartitions);
-
-    // Make sure it is in ready state.
-    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Can only resume partitions for a datastream in READY state: " + datastreamName);
-    }
-
-    // Note: MM datastreams goes with an assumption that they are not a part of any datastream group
-    // Need to change this logic to update all datastreams in case that assumption changes.
+    pauseResumeSourcePartitionsPreCheck(datastream);
 
     // Convert the given json to actual map <source, partitions>
     // Note: These partitions will be added on the top of existing ones, it won't replace them.
-    Map<String, Set<String>> sourcePartitionsToResumeMap = parseSourcePartitionsStringMap(sourcePartitions);
+    Map<String, Set<String>> sourcePartitionsToResumeMap =
+        DatastreamUtils.parseSourcePartitionsStringMap(sourcePartitions);
 
     // Get the existing set of paused partitions from datastream object.
     // Convert the existing json to map <source, partitions>
-    Map<String, Set<String>> existingPausedSourcePartitionsMap = getDatastreamSourcePartitionsJson(datastream);
+    Map<String, Set<String>> existingPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastream);
 
     if (existingPausedSourcePartitionsMap.size() == 0) {
       return new ActionResult<>(HttpStatus.S_200_OK);
@@ -421,6 +424,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Persist in zk.
     try {
       _store.updateDatastream(datastream.getName(), datastream, true);
+      _coordinator.broadcastDatastreamUpdate();
     } catch (DatastreamException e) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Could not update datastream's paused partitions: " + datastream.getName(), e);
@@ -613,27 +617,29 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         .collect(Collectors.toList());
   }
 
-  private Map<String, Set<String>> parseSourcePartitionsStringMap(StringMap sourcePartitions) {
-    HashMap<String, Set<String>> map = new HashMap<>();
-    for (String source : sourcePartitions.keySet()) {
-      String[] values = sourcePartitions.get(source).split(",");
-      HashSet<String> partitions = new HashSet<>(Arrays.asList(values));
-      map.put(source, partitions);
-    }
-    return map;
-  }
-
-  private Map<String, Set<String>> getDatastreamSourcePartitionsJson(Datastream datastream) {
-    // Get the existing set of paused partitions from datastream object.
-    // Convert the existing json to map <source, partitions>
-    Map<String, Set<String>> sourcePartitionsMap = new HashMap<>();
-    String json = datastream.getMetadata().getOrDefault(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, "");
-
-    if (!json.isEmpty()) {
-      sourcePartitionsMap =
-          JsonUtils.fromJson(json, DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP);
+  private void pauseResumeSourcePartitionsPreCheck(Datastream datastream) {
+    // Make sure it is in ready state.
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause/resume partitions for a datastream in READY state: " + datastream.getName());
     }
 
-    return sourcePartitionsMap;
+    // Note: Pausing datastreams goes with an assumption that they are not a part of any datastream group
+    // Need to change this logic to update all datastreams in case that assumption changes.
+    if (getGroupedDatastreams(datastream).size() > 1) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause/resume partitions for a datastream that are not a part of any datastremgroup : "
+              + datastream.getName());
+    }
+
+    // Make sure the operation is supported for the given datastream:
+    try {
+      _coordinator.isDatastreamUpdateTypeSupported(datastream,
+          DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Pause/resume operation is not supported for datastream : " + datastream.getName());
+    }
   }
 }

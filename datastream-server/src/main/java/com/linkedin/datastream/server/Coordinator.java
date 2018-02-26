@@ -514,7 +514,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  private Future<Boolean> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment, boolean isDatastreamUpdate) {
+  private Future<Boolean> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment,
+      boolean isDatastreamUpdate) {
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
@@ -679,8 +680,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean isExpired = false;
 
     // Check TTL
-    if (stream.getMetadata().containsKey(TTL_MS) &&
-        stream.getMetadata().containsKey(CREATION_MS)) {
+    if (stream.getMetadata().containsKey(TTL_MS) && stream.getMetadata().containsKey(CREATION_MS)) {
       try {
         long ttlMs = Long.parseLong(stream.getMetadata().get(TTL_MS));
         long creationMs = Long.parseLong(stream.getMetadata().get(CREATION_MS));
@@ -841,9 +841,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     //       handleDatastreamAddOrDelete event (that should occur before handleLeaderDoAssignment)
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(false)
         .stream()
-        .filter(datastream -> datastream.hasStatus()
-            && (datastream.getStatus() == DatastreamStatus.READY || datastream.getStatus() == DatastreamStatus.PAUSED)
-            && hasValidDestination(datastream)
+        .filter(datastream -> datastream.hasStatus() && (datastream.getStatus() == DatastreamStatus.READY
+            || datastream.getStatus() == DatastreamStatus.PAUSED) && hasValidDestination(datastream)
             && !isDeletingOrExpired(datastream))
         .collect(Collectors.toList());
 
@@ -924,9 +923,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
 
-    Set<DatastreamGroup> pausedDatastreamGroups = datastreamGroups.stream()
-        .filter(DatastreamGroup::isPaused)
-        .collect(Collectors.toSet());
+    Set<DatastreamGroup> pausedDatastreamGroups =
+        datastreamGroups.stream().filter(DatastreamGroup::isPaused).collect(Collectors.toSet());
 
     _pausedDatastreamsGroups.set(pausedDatastreamGroups.size());
 
@@ -1022,8 +1020,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
     connectorMetrics.ifPresent(_metrics::addAll);
 
-    ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper,
-        authorizerName);
+    ConnectorInfo connectorInfo =
+        new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper, authorizerName);
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
@@ -1066,6 +1064,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
+   * Checks if given datastream update type is supported by connector for given datastream.
+   * @param datastream datastream to check against
+   * @param updateType - Type of datastream update to validate
+   * @throws DatastreamValidationException
+   */
+  public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
+      throws DatastreamValidationException {
+    _log.info("About to validate datastream update type {} for datastream", updateType, datastream);
+    try {
+      String connectorName = datastream.getConnectorName();
+      ConnectorInfo connectorInfo = _connectors.get(connectorName);
+      if (connectorInfo == null) {
+        throw new DatastreamValidationException("Invalid connector: " + datastream.getConnectorName());
+      }
+
+      connectorInfo.getConnector().isDatastreamUpdateTypeSupported(datastream, updateType);
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isDatastreamUpdateTypeSupported", NUM_ERRORS, 1);
+      throw e;
+    }
+  }
+
+  /**
    * initializes the datastream. Datastream management service will call this before writing the
    * Datastream into zookeeper. This method should ensure that the source has sufficient details.
    * @param datastream datastream for validation
@@ -1090,8 +1111,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
 
     // If datastream of name already exists return error
-    if (!allDatastreams.stream().filter(x -> x.getName().equals(datastream.getName())).collect(
-        Collectors.toList()).isEmpty()) {
+    if (!allDatastreams.stream()
+        .filter(x -> x.getName().equals(datastream.getName()))
+        .collect(Collectors.toList())
+        .isEmpty()) {
       String errMsg = String.format("Datastream with name %s already exists", datastream.getName());
       _log.error(errMsg);
       throw new DatastreamAlreadyExistsException(errMsg);
@@ -1120,8 +1143,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // CREATE is already verified through the SSL layer of the HTTP framework (optional)
         // READ is the operation for datastream source-level authorization
         if (!authz.authorize(datastream, Authorizer.Operation.READ, () -> principal)) {
-          String errMsg = String.format("Consumer %s has not been approved for %s over %s",
-              principal, datastream.getSource(), datastream.getTransportProviderName());
+          String errMsg =
+              String.format("Consumer %s has not been approved for %s over %s", principal, datastream.getSource(),
+                  datastream.getTransportProviderName());
           _log.warn(errMsg);
           throw new AuthorizationException(errMsg);
         }
@@ -1129,7 +1153,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       connector.initializeDatastream(datastream, allDatastreams);
       initializeDatastreamDestination(connector, datastream, deduper, allDatastreams);
-
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "initializeDatastream", NUM_ERRORS, 1);
       throw e;
@@ -1149,11 +1172,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // For a BYOT datastream, check that the destination is not already in use by other streams
     if (DatastreamUtils.isUserManagedDestination(datastream)) {
-      List<Datastream> sameDestinationDatastreams = allDatastreams.stream().filter(ds ->
-          ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
+      List<Datastream> sameDestinationDatastreams = allDatastreams.stream()
+          .filter(
+              ds -> ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
           .collect(Collectors.toList());
       if (!sameDestinationDatastreams.isEmpty()) {
-        String errMsg = ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
+        String errMsg =
+            ("Cannot create a BYOT datastream where the destination is being used  by other datastream(s) :");
         for (Datastream x : sameDestinationDatastreams) {
           errMsg = errMsg + " " + x.getName();
         }
@@ -1207,7 +1232,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // This is to avoid the creation of a datastream to RESUME event production.
     if (existingStream.getStatus().equals(DatastreamStatus.PAUSED)) {
       datastream.setStatus(DatastreamStatus.PAUSED);
-
     }
   }
 
@@ -1304,5 +1328,4 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     return _connectors.get(name).getConnector().getConnectorInstance();
   }
-
 }

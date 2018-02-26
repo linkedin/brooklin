@@ -42,9 +42,11 @@
         } ]
       }, {
         "name" : "pauseSourcePartitions",
+        "doc" : "Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.",
         "parameters" : [ {
           "name" : "sourcePartitions",
-          "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }"
+          "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
+          "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">. Example: <\"FooTopic\", \"0,13,2\">\n                         or <\"FooTopic\",\"*\">"
         } ]
       }, {
         "name" : "resume",
@@ -55,9 +57,11 @@
         } ]
       }, {
         "name" : "resumeSourcePartitions",
+        "doc" : "Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.",
         "parameters" : [ {
           "name" : "sourcePartitions",
-          "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }"
+          "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
+          "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">. Example: <\"FooTopic\", \"0,13,2\">\n                         or <\"FooTopic\",\"*\">"
         } ]
       } ]
     }

@@ -447,11 +447,16 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Partition ownership assigned for {}.", partitions);
   }
 
-  // The method, given a datastream task - checks if there is any update in the existing task.
+  /**
+   * The method, given a datastream task - checks if there is any update in the existing task.
+   * @param datastreamTask - datastream task to compare with.
+   */
   public void checkForUpdateTask(DatastreamTask datastreamTask) {
   }
 
-  // The method is called before making a call to poll() for any precomputations needed.
+  /**
+   * The method is called before making a call to poll() for any precomputations needed.
+   */
   protected void preConsumerPollHook() {
   }
 }

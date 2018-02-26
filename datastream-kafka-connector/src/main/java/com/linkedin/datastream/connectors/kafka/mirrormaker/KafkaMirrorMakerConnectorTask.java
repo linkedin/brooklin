@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,8 +30,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -54,13 +55,6 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTask {
 
-  // Enum indicating if there is any change in datastreak task
-  // Note: This is to handle if multiple updates happen simultaneously.
-  public enum TaskUpdateType {
-    // Indicates change in paused partitions.
-    PAUSE_RESUME_PARTITIONS;
-  }
-
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnectorTask.class.getName());
   private static final String CLASS_NAME = KafkaMirrorMakerConnectorTask.class.getSimpleName();
   private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
@@ -76,8 +70,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   // Set indicating if there is any change in task.
   // Initialize _taskUpdates to all the updates which should be set to "true"
   // at the time of startup.
-  private final ConcurrentLinkedQueue<TaskUpdateType> _taskUpdates =
-      new ConcurrentLinkedQueue<>(Arrays.asList(TaskUpdateType.PAUSE_RESUME_PARTITIONS));
+  private final ConcurrentLinkedQueue<DatastreamMetadataConstants.UpdateType> _taskUpdates =
+      new ConcurrentLinkedQueue<>(Arrays.asList(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS));
 
   // This variable is used only for testing
   @VisibleForTesting
@@ -142,6 +136,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     _consumerMetrics.updateRebalanceRate(1);
     LOG.info("Partition ownership assigned for {}.", partitions);
+    // update paused partitions, in case.
+    _taskUpdates.add(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     // TODO: detect when new topic falls into subscription and create topic in destination.
   }
 
@@ -153,18 +149,24 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return metrics;
   }
 
-  // Note: This method is supposed to be call from run() thread, so in effect, it is "single threaded".
+  // Note: This method is supposed to be called from run() thread, so in effect, it is "single threaded".
   // The only updates that can happen to _taskUpdates queue outside this method is addition of
   // new update type when there is any update to datastream task (in method checkForUpdateTask())
   @Override
   protected void preConsumerPollHook() {
     // See if there was any update in task and take actions.
     while (!_taskUpdates.isEmpty()) {
-      TaskUpdateType updateType = _taskUpdates.remove();
-      if (updateType == null) {
-        continue;
-      } else if (updateType == TaskUpdateType.PAUSE_RESUME_PARTITIONS) {
-        pausePartitions();
+      DatastreamMetadataConstants.UpdateType updateType = _taskUpdates.remove();
+      if (updateType != null) {
+        switch (updateType) {
+          case PAUSE_RESUME_PARTITIONS:
+            pausePartitions();
+            break;
+          default:
+            String msg = String.format("Unknown update type {} for task {}.", updateType, _taskName);
+            _logger.error(msg);
+            throw new DatastreamRuntimeException(msg);
+        }
       }
     }
   }
@@ -179,27 +181,23 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private void checkForPausedPartitionsUpdate(DatastreamTask datastreamTask) {
     // Check if there is any change in paused partitions
     // first get the given set of paused source partitions from metadata
-    String pausedPartitionsJson = datastreamTask.getDatastreams()
-        .get(0)
-        .getMetadata()
-        .get(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY);
-
-    // convert the json to actual map of topic, source partitions
     Map<String, Set<String>> newPausedSourcePartitionsMap = new HashMap<>();
-    if (!pausedPartitionsJson.isEmpty()) {
-      newPausedSourcePartitionsMap =
-          JsonUtils.fromJson(pausedPartitionsJson, DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_JSON_MAP);
-    }
+    newPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastreamTask.getDatastreams().get(0));
 
     if (!newPausedSourcePartitionsMap.equals(_pausedSourcePartitions)) {
       _pausedSourcePartitions.clear();
       _pausedSourcePartitions.putAll(newPausedSourcePartitionsMap);
-      _taskUpdates.add(TaskUpdateType.PAUSE_RESUME_PARTITIONS);
+      _taskUpdates.add(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
 
+  // TODO: Move logic to pause partitions to AbstractKafkaConnector
   // This method pauses/resumes partitions.
   private void pausePartitions() {
+    // This is only for testing purpose.
+    _pausedPartitionsUpdatedCount++;
+
     Validate.isTrue(_consumer != null);
 
     LOG.info("List of partitions to pause changed for datastream: {}. The list is: {}", _datastream.getName(),
@@ -218,8 +216,14 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         partitionsToPause.add(new TopicPartition(source, Integer.parseInt(partition)));
       }
     }
-    // Make sure those partitions do exist
+
+    // Make sure those partitions are assigned to this task.
     partitionsToPause.retainAll(assignedPartitions);
+
+    // If the partitions to pause are paused already, don't do anything.
+    if (partitionsToPause.equals(pausedPartitions)) {
+      return;
+    }
 
     // Resume current paused partitions by default.
     _consumer.resume(pausedPartitions);
@@ -228,9 +232,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     // pause partitions to pause
     _consumer.pause(partitionsToPause);
     LOG.info("Paused these partitions: {}", partitionsToPause);
-
-    // This is only for testing purpose.
-    _pausedPartitionsUpdatedCount++;
   }
 
   @VisibleForTesting
