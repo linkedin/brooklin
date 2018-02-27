@@ -27,6 +27,7 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -60,7 +61,6 @@ import com.linkedin.restli.server.UpdateResponse;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
-import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
@@ -218,11 +218,11 @@ public class TestCoordinator {
     }
 
     @Override
-    public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
-        throws DatastreamValidationException {
-      if (DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS != updateType) {
-        throw new DatastreamValidationException(String.format("Datastream update type %s is not supported", updateType.name()));
+    public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+      if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
+        return true;
       }
+      return false;
     }
   }
 

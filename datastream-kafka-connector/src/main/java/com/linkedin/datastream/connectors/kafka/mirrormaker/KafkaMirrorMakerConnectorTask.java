@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -30,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
@@ -70,8 +70,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   // Set indicating if there is any change in task.
   // Initialize _taskUpdates to all the updates which should be set to "true"
   // at the time of startup.
-  private final ConcurrentLinkedQueue<DatastreamMetadataConstants.UpdateType> _taskUpdates =
-      new ConcurrentLinkedQueue<>(Arrays.asList(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS));
+  private final ConcurrentLinkedQueue<DatastreamConstants.UpdateType> _taskUpdates =
+      new ConcurrentLinkedQueue<>(Arrays.asList(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS));
 
   // This variable is used only for testing
   @VisibleForTesting
@@ -137,7 +137,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _consumerMetrics.updateRebalanceRate(1);
     LOG.info("Partition ownership assigned for {}.", partitions);
     // update paused partitions, in case.
-    _taskUpdates.add(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     // TODO: detect when new topic falls into subscription and create topic in destination.
   }
 
@@ -156,7 +156,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected void preConsumerPollHook() {
     // See if there was any update in task and take actions.
     while (!_taskUpdates.isEmpty()) {
-      DatastreamMetadataConstants.UpdateType updateType = _taskUpdates.remove();
+      DatastreamConstants.UpdateType updateType = _taskUpdates.remove();
       if (updateType != null) {
         switch (updateType) {
           case PAUSE_RESUME_PARTITIONS:
@@ -188,7 +188,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (!newPausedSourcePartitionsMap.equals(_pausedSourcePartitions)) {
       _pausedSourcePartitions.clear();
       _pausedSourcePartitions.putAll(newPausedSourcePartitionsMap);
-      _taskUpdates.add(DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
 

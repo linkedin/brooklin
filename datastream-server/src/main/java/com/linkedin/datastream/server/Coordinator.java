@@ -37,6 +37,7 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -1069,7 +1070,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param updateType - Type of datastream update to validate
    * @throws DatastreamValidationException
    */
-  public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
+  public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType)
       throws DatastreamValidationException {
     _log.info("About to validate datastream update type {} for datastream", updateType, datastream);
     try {
@@ -1079,7 +1080,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         throw new DatastreamValidationException("Invalid connector: " + datastream.getConnectorName());
       }
 
-      connectorInfo.getConnector().isDatastreamUpdateTypeSupported(datastream, updateType);
+      if (!connectorInfo.getConnector().isDatastreamUpdateTypeSupported(datastream, updateType)) {
+        throw new DatastreamValidationException(
+            String.format("Datastream update of type : %s for datastream: %s is not supported by connector: %s",
+                updateType, datastream.getName(), connectorName));
+      }
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isDatastreamUpdateTypeSupported", NUM_ERRORS, 1);
       throw e;

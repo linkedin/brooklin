@@ -83,13 +83,4 @@ public class DatastreamMetadataConstants {
    * Regex indicating pausing all partitions in a topic
    */
   public static final String REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC = "*";
-
-  /**
-   * Enum indicating if type of Datastream Update
-   */
-  public enum UpdateType {
-    // Indicates change in paused partitions.
-    PAUSE_RESUME_PARTITIONS;
-  }
-
 }

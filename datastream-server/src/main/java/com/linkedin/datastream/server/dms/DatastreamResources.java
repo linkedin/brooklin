@@ -23,6 +23,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
@@ -635,7 +636,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Make sure the operation is supported for the given datastream:
     try {
       _coordinator.isDatastreamUpdateTypeSupported(datastream,
-          DatastreamMetadataConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+          DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,

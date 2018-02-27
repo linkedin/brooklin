@@ -9,6 +9,7 @@ import java.util.List;
 import org.apache.commons.lang.StringUtils;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -72,10 +73,8 @@ public interface Connector extends MetricsAware {
    * @param updateType Type of datastream update
    * @throws DatastreamValidationException when connector doesn't support update type.
    */
-  default void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamMetadataConstants.UpdateType updateType)
-      throws DatastreamValidationException {
-    throw new DatastreamValidationException(
-        String.format("Datastream update type %s is not supported", updateType.name()));
+  default boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+    return  false;
   }
 
   /**
