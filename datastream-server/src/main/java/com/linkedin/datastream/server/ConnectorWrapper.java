@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -141,6 +142,13 @@ public class ConnectorWrapper {
     logApiStart("validateUpdateDatastreams");
     _connector.validateUpdateDatastreams(datastreams, allDatastreams);
     logApiEnd("validateUpdateDatastreams");
+  }
+
+  public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+    logApiStart("isDatastreamUpdateTypeSupported");
+    boolean ret = _connector.isDatastreamUpdateTypeSupported(datastream, updateType);
+    logApiEnd("isDatastreamUpdateTypeSupported");
+    return ret;
   }
 
   public long getNumDatastreams() {

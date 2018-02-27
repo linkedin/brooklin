@@ -54,7 +54,7 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
 
     if (hardCommit) { // hard commit (flush and commit checkpoints)
       LOG.info("Calling flush on the producer.");
-      _task.getEventProducer().flush();
+      _datastreamTask.getEventProducer().flush();
       consumer.commitSync();
       // verify that the producer is caught up with the consumer, since flush was called
       for (TopicPartition tp : consumer.assignment()) {

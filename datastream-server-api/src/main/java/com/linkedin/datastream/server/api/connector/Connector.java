@@ -9,6 +9,7 @@ import java.util.List;
 import org.apache.commons.lang.StringUtils;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -65,6 +66,15 @@ public interface Connector extends MetricsAware {
   default void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     throw new DatastreamValidationException("Datastream update is not supported");
+  }
+
+  /**
+   * Checks if certain update type is supported by given connector. Can be used to validate if given update operation is supported for given connector(s).
+   * @param updateType Type of datastream update
+   * @throws DatastreamValidationException when connector doesn't support update type.
+   */
+  default boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+    return  false;
   }
 
   /**

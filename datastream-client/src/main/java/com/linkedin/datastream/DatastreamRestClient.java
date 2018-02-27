@@ -8,6 +8,7 @@ import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
@@ -375,5 +376,65 @@ public class DatastreamRestClient {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "findGroup failed with error.", e);
     }
     return null;
+  }
+
+  /**
+   * Pause source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to be paused.
+   * @param sourcePartitions
+   *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void pauseSourcePartitions(String datastreamName, StringMap sourcePartitions)
+      throws RemoteInvocationException {
+    try {
+      ActionRequest<Void> request =
+          _builders.actionPauseSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage =
+            String.format("Pause Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                datastreamName, sourcePartitions);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
+  }
+
+  /**
+   * Resume source partitions for a particular datastream.
+   * @param datastreamName
+   *    Name of the datastream to be paused.
+   * @param sourcePartitions
+   *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * an error response from the server.
+   */
+  public void resumeSourcePartitions(String datastreamName, StringMap sourcePartitions)
+      throws RemoteInvocationException {
+    try {
+      ActionRequest<Void> request =
+          _builders.actionResumeSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+      datastreamResponseFuture.getResponse();
+    } catch (RemoteInvocationException e) {
+      if (isNotFoundHttpStatus(e)) {
+        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+        throw new DatastreamNotFoundException(datastreamName, e);
+      } else {
+        String errorMessage =
+            String.format("Resume Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                datastreamName, sourcePartitions);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      }
+    }
   }
 }
