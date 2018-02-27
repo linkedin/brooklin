@@ -73,4 +73,14 @@ public class DatastreamMetadataConstants {
    * can be deleted after TTL expires. The TTL is expressed as miliseconds.
    */
   public static final String TTL_MS = "system.ttl.ms";
+
+  /**
+   * Key to get the set of paused partitions from datastream metadata.
+   */
+  public static final String PAUSED_SOURCE_PARTITIONS_KEY = "system.pausedSourcePartitions";
+
+  /**
+   * Regex indicating pausing all partitions in a topic
+   */
+  public static final String REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC = "*";
 }

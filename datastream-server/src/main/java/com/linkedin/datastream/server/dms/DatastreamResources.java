@@ -4,9 +4,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -18,12 +20,15 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
 
+import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.RestliUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -59,10 +64,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
-@RestLiCollection(
-    name = "datastream",
-    keyName = DatastreamResources.KEY_NAME,
-    namespace = "com.linkedin.datastream.server.dms")
+@RestLiCollection(name = "datastream", keyName = DatastreamResources.KEY_NAME, namespace = "com.linkedin.datastream.server.dms")
 public class DatastreamResources extends CollectionResourceTemplate<String, Datastream> {
   public static final String KEY_NAME = "datastreamId";
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
@@ -121,8 +123,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       if (!key.equals(datastream.getName())) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because datastream name doesn't match. datastream: %s",
-                key, datastream));
+            String.format("Failed to update %s because datastream name doesn't match. datastream: %s", key,
+                datastream));
       }
       Datastream oldDatastream = _store.getDatastream(key);
       if (oldDatastream == null) {
@@ -262,6 +264,175 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
+   * @param pathKeys
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @return
+   */
+  @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("sourcePartitions") StringMap sourcePartitions) {
+
+    // Get datastream.
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    // Log for debugging purposes.
+    LOG.info("pauseSourcePartitions called for datastream: {}, with partitions: {}", datastreamName, sourcePartitions);
+
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream does not exist: " + datastreamName);
+    }
+
+    pauseResumeSourcePartitionsPreCheck(datastream);
+
+    // Convert the given json to actual map <source, partitions>
+    // Note: These partitions will be added on the top of existing ones, it won't replace them.
+    Map<String, Set<String>> newPausedSourcePartitionsMap =
+        DatastreamUtils.parseSourcePartitionsStringMap(sourcePartitions);
+
+    // Get the existing set of paused partitions from datastream object.
+    // Convert the existing json to map <source, partitions>
+    Map<String, Set<String>> existingPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastream);
+
+    // Now add the given set of paused partitions to existing set of paused partitions.
+    for (String source : newPausedSourcePartitionsMap.keySet()) {
+      Set<String> newPartitions = newPausedSourcePartitionsMap.get(source);
+
+      // If the source doesn't exist already, add it.
+      if (!existingPausedSourcePartitionsMap.containsKey(source)) {
+        existingPausedSourcePartitionsMap.put(source, new HashSet<>());
+      }
+
+      // Get existing set of paused partitions for that source
+      Set<String> existingPausedPartitions = existingPausedSourcePartitionsMap.get(source);
+      existingPausedPartitions.addAll(newPartitions);
+    }
+
+    // Now convert the Map to Json and update datastream object.
+    String newPausedPartitionsJson = "";
+    if (!existingPausedSourcePartitionsMap.isEmpty()) {
+      newPausedPartitionsJson = JsonUtils.toJson(existingPausedSourcePartitionsMap);
+    }
+    datastream.getMetadata().put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, newPausedPartitionsJson);
+
+    // Now validate the operation
+    // Note: This is connector specific logic (for example: Kafka mirror maker will convert any "*" into actual
+    // list of partitions).
+    //TODO: Will need to add code in non-MM connectors to invalidate the operation.
+    try {
+      _coordinator.validateDatastreamsUpdate(Collections.singletonList(datastream));
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to validate datastream updates: ", e);
+    }
+
+    // Persist in zk.
+    try {
+      _store.updateDatastream(datastream.getName(), datastream, true);
+      _coordinator.broadcastDatastreamUpdate();
+    } catch (Exception e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream's paused partitions: " + datastream.getName(), e);
+    }
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
+  /**
+   * Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
+   * @param pathKeys
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
+   *                         or <"FooTopic","*">
+   * @return
+   */
+  @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("sourcePartitions") StringMap sourcePartitions) {
+
+    // Get datastream.
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    // Log for debugging purposes.
+    LOG.info("resoumeSourcePartitions called for datastream: {}, with partitions: {}", datastreamName,
+        sourcePartitions);
+
+    Datastream datastream = _store.getDatastream(datastreamName);
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream does not exist: " + datastreamName);
+    }
+
+    pauseResumeSourcePartitionsPreCheck(datastream);
+
+    // Convert the given json to actual map <source, partitions>
+    // Note: These partitions will be added on the top of existing ones, it won't replace them.
+    Map<String, Set<String>> sourcePartitionsToResumeMap =
+        DatastreamUtils.parseSourcePartitionsStringMap(sourcePartitions);
+
+    // Get the existing set of paused partitions from datastream object.
+    // Convert the existing json to map <source, partitions>
+    Map<String, Set<String>> existingPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastream);
+
+    if (existingPausedSourcePartitionsMap.size() == 0) {
+      return new ActionResult<>(HttpStatus.S_200_OK);
+    }
+
+    // Now go through partitions to resume.
+    for (String source : sourcePartitionsToResumeMap.keySet()) {
+      Set<String> partitionsToResume = sourcePartitionsToResumeMap.get(source);
+
+      // If there is nothing paused for given source, no need to do anything for that source.
+      if (existingPausedSourcePartitionsMap.containsKey(source)) {
+        // Get existing set of paused partitions for that source
+        Set<String> existingPausedPartitions = existingPausedSourcePartitionsMap.get(source);
+
+        // In case we are supposed to resume all partitions, remove the source.
+        // In that case, we ignore other partitions that were mentioned in the resume list for that source.
+        if (partitionsToResume.contains(DatastreamMetadataConstants.REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)) {
+          existingPausedSourcePartitionsMap.remove(source);
+        } else {
+          existingPausedPartitions.removeAll(partitionsToResume);
+          // If no partition left, remove the source.
+          if (existingPausedPartitions.size() == 0) {
+            existingPausedSourcePartitionsMap.remove(source);
+          }
+        }
+      }
+    }
+
+    // Now convert the Map to Json and update datastream object.
+    String newPausedSourcePartitionsJson = "";
+    if (!existingPausedSourcePartitionsMap.isEmpty()) {
+      newPausedSourcePartitionsJson = JsonUtils.toJson(existingPausedSourcePartitionsMap);
+    }
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, newPausedSourcePartitionsJson);
+
+    // Validate changes
+    try {
+      _coordinator.validateDatastreamsUpdate(Collections.singletonList(datastream));
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to validate datastream updates: ", e);
+    }
+
+    // Persist in zk.
+    try {
+      _store.updateDatastream(datastream.getName(), datastream, true);
+      _coordinator.broadcastDatastreamUpdate();
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not update datastream's paused partitions: " + datastream.getName(), e);
+    }
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
 
   @Override
   public UpdateResponse delete(String datastreamName) {
@@ -282,7 +453,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-        "Delete failed for datastream: " + datastreamName, e);
+          "Delete failed for datastream: " + datastreamName, e);
     }
 
     return null;
@@ -298,7 +469,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-        "Get datastream failed for datastream: " + name, e);
+          "Get datastream failed for datastream: " + name, e);
     }
 
     return null;
@@ -310,14 +481,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
-      List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext).map(_store::getDatastream)
-        .filter(Objects::nonNull).collect(Collectors.toList());
+      List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
+          .map(_store::getDatastream)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
       LOG.debug("Result collected for getAll {}", ret);
       return ret;
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger
-        .logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR, "Get all datastreams failed.", e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Get all datastreams failed.", e);
     }
 
     return Collections.emptyList();
@@ -368,8 +541,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Validate.isTrue(datastream.hasConnectorName(), "Must specify connectorType!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
-      Validate.isTrue(datastream.hasMetadata()
-              && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
+      Validate.isTrue(
+          datastream.hasMetadata() && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
@@ -397,8 +570,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Invalid input params for create request", e);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          "Failed to initialize Datastream: ", e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ",
+          e);
     } catch (DatastreamAlreadyExistsException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,
@@ -443,5 +616,31 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         .map(_store::getDatastream)
         .filter(d -> taskPrefix.equals(DatastreamUtils.getTaskPrefix(d)))
         .collect(Collectors.toList());
+  }
+
+  private void pauseResumeSourcePartitionsPreCheck(Datastream datastream) {
+    // Make sure it is in ready state.
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause/resume partitions for a datastream in READY state: " + datastream.getName());
+    }
+
+    // Note: Pausing datastreams goes with an assumption that they are not a part of any datastream group
+    // Need to change this logic to update all datastreams in case that assumption changes.
+    if (getGroupedDatastreams(datastream).size() > 1) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause/resume partitions for a datastream that are not a part of any datastremgroup : "
+              + datastream.getName());
+    }
+
+    // Make sure the operation is supported for the given datastream:
+    try {
+      _coordinator.isDatastreamUpdateTypeSupported(datastream,
+          DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Pause/resume operation is not supported for datastream : " + datastream.getName());
+    }
   }
 }

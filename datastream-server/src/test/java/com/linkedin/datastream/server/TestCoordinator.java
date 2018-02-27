@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -26,8 +27,10 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ReflectionUtils;
@@ -51,6 +54,7 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
 
@@ -188,6 +192,37 @@ public class TestCoordinator {
     @Override
     public List<BrooklinMetricInfo> getMetricInfos() {
       return null;
+    }
+  }
+
+  // Test hook connector for mirror maker
+  class MMTestHookConnector extends TestHookConnector implements Connector {
+
+    public MMTestHookConnector(String connectorName, String connectorType) {
+      super(connectorName, connectorType);
+    }
+
+    public DatastreamTask getDatastreamTask(String datastreamName) {
+      return _tasks.stream()
+          .filter(x -> x.getDatastreams().stream().findFirst().get().getName().equals(datastreamName))
+          .findFirst()
+          .get();
+    }
+
+    @Override
+    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+      if (!_allowDatastreamUpdate) {
+        throw new DatastreamValidationException("not allowed");
+      }
+    }
+
+    @Override
+    public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+      if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
+        return true;
+      }
+      return false;
     }
   }
 
@@ -1950,6 +1985,120 @@ public class TestCoordinator {
         PollUtils.poll(() -> reader.getDatastream("testCachedDatastreamReader1", false) == null, 200, WAIT_TIMEOUT_MS));
     Assert.assertFalse(reader.getAllDatastreams(false).isEmpty());
     Assert.assertEquals(reader.getDatastreamGroups().size(), 1);
+  }
+
+  @Test
+  public void testPauseResumeSourcePartitions() throws Exception {
+    String testCluster = "testCoordinatorHandleUpdateDatastream";
+    String mmConnectorType = "mmConnectorType";
+
+    MMTestHookConnector mmConnector = new MMTestHookConnector("mmConnector", mmConnectorType);
+    Coordinator mmCoordinator = createCoordinator(_zkConnectionString, testCluster);
+    mmCoordinator.addConnector(mmConnectorType, mmConnector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    mmCoordinator.start();
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    // Create mm datastream
+    Datastream[] list =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, mmConnectorType, "mmDatastream");
+    Datastream mmDatastream = list[0];
+    LOG.info("Created datastream: {}", mmDatastream);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "mmDatastream")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+
+    // Verify connector assignment
+    mmDatastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, mmDatastream.getName());
+    assertConnectorAssignment(mmConnector, WAIT_TIMEOUT_MS, mmDatastream.getName());
+
+    // Pause topics in mm datastream
+    StringMap pausedPartitions = new StringMap();
+    pausedPartitions.put("topic1", "*");
+    pausedPartitions.put("topic2", "0,1");
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(mmDatastream.getName());
+
+    LOG.info("calling pause on mm datastream: {}", mmDatastream);
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    DatastreamResources datastreamResources = new DatastreamResources(dsStore, mmCoordinator);
+    datastreamResources.pauseSourcePartitions(pathKey, pausedPartitions);
+    mmDatastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, mmDatastream.getName());
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(mmDatastream),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
+
+    assertConnectorReceiveDatastreamUpdate(mmConnector, mmDatastream);
+    DatastreamTask task = mmConnector.getDatastreamTask(mmDatastream.getName());
+
+    // Make sure it received partitions to pause
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(task.getDatastreams()
+        .get(0)),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
+  }
+
+  // Make sure mirror maker operations are prohibited for others
+  @Test
+  public void testPauseResumeSourcePartitionsThrowsErrorForNonMMConnectors() throws Exception {
+
+    String testCluster = "testCoordinatorHandleUpdateDatastream";
+
+    String nonMmConnectorType = "nonMmConnectorType";
+
+    TestHookConnector nonMmConnector = new TestHookConnector("nonMmConnector", nonMmConnectorType);
+
+    Coordinator nonMmCoordinator = createCoordinator(_zkConnectionString, testCluster);
+    nonMmCoordinator.addConnector(nonMmConnectorType, nonMmConnector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    nonMmCoordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    // Create nonMm datastream
+    Datastream[] list =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, nonMmConnectorType, "nonMmDatastream");
+    Datastream nonMmDatastream = list[0];
+    LOG.info("Created datastream: {}", nonMmDatastream);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "nonMmDatastream")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+
+    // Verify connector assignment
+    nonMmDatastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, nonMmDatastream.getName());
+    assertConnectorAssignment(nonMmConnector, WAIT_TIMEOUT_MS, nonMmDatastream.getName());
+
+    // Create datastream resource
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    DatastreamResources datastreamResources = new DatastreamResources(dsStore, nonMmCoordinator);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(nonMmDatastream.getName());
+
+    // Create some paused partitions stringmap
+    // Doesn't matter the value for this test.
+    StringMap pausedPartitions = new StringMap();
+
+    // For non-mm, should receive an error
+    boolean exceptionReceived = false;
+
+    LOG.info("callig non mm datastream: {}", nonMmDatastream);
+    datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    datastreamResources = new DatastreamResources(dsStore, nonMmCoordinator);
+    try {
+      datastreamResources.pauseSourcePartitions(pathKey, pausedPartitions);
+    } catch (Exception e) {
+      exceptionReceived = true;
+    }
+    Assert.assertTrue(exceptionReceived);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

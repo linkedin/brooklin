@@ -16,13 +16,15 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.DatastreamRestClientFactory;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
@@ -128,7 +130,7 @@ public class TestDatastreamResources {
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
     // Mock PathKeys
-    PathKeys pathKey  = Mockito.mock(PathKeys.class);
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
     Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
 
     // Pause datastream.
@@ -199,6 +201,183 @@ public class TestDatastreamResources {
     Assert.assertEquals(result.get(1).getName(), ds2.getName());
   }
 
+  @Test
+  public void testPauseResumeSourcePartitions() throws Exception {
+    final String topic1 = "topic1";
+    final String topic2 = "topic2";
+    final String topic3 = "topic3";
+    final String nonExistantTopic = "nonExistantTopic";
+    StringMap pausedPartitions = new StringMap();
+    StringMap expectedPartitions = new StringMap();
+
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    datastreamToCreate.getDestination()
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Make sure initial state is empty
+    Assert.assertFalse(resource1.get(datastreamName)
+        .getMetadata()
+        .containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+
+    // Now add "*" for topic1, "0" for topic2, "0" and "1" for topic3
+    pausedPartitions.put(topic1, "*");
+    pausedPartitions.put(topic2, "0");
+    pausedPartitions.put(topic3, "1");
+    expectedPartitions.putAll(pausedPartitions);
+    ActionResult<Void> pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
+    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    Datastream ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+
+    // Add "0" and another "*" for topic1, and "1" for topic2.
+    // Expect "0,*" ignored for topic1
+    pausedPartitions.clear();
+    pausedPartitions.put(topic1, "0,*");
+    pausedPartitions.put(topic2, "1");
+    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
+    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.put(topic1, "0,*");
+    expectedPartitions.put(topic2, "0,1");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+
+    // Now add "*" to topic2 - this should remove everything from topic2's list and add single
+    // entry.
+    pausedPartitions.clear();
+    pausedPartitions.put(topic2, "*");
+    pausePartitionResponse = resource1.pauseSourcePartitions(pathKey, pausedPartitions);
+    Assert.assertEquals(pausePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.put(topic2, "0,1,*");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+
+    // Now resume "*" from topic2, "0" from topic3
+    StringMap partitionsToResume = new StringMap();
+    partitionsToResume.put(topic2, "*");
+    partitionsToResume.put(topic3, "0");
+    ActionResult<Void> resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    // Prepare expectedPartitions for validation.
+    expectedPartitions.remove(topic2);
+    expectedPartitions.put(topic3, "1");
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+
+    // Now try resuming from a nonexistent topic.
+    // This should be a no op, as there is nothing to resume.
+    partitionsToResume.clear();
+    partitionsToResume.put(nonExistantTopic, "*");
+    resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+
+    // Now remove "1" from topic3 - this should remove topic3 itself from the map
+    partitionsToResume.clear();
+    partitionsToResume.put(topic3, "1");
+    resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
+    Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    // Prepare pausedPartitions for validation
+    expectedPartitions.remove(topic3);
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(expectedPartitions));
+  }
+
+  @Test
+  public void testPauseResumeSourcePartitionsRestClient() throws Exception {
+    final String topic1 = "topic1";
+    final String topic2 = "topic2";
+    final String topic3 = "topic3";
+
+    // Create datastream
+    DatastreamRestClient restClient = createRestClient();
+    Datastream ds = generateDatastream(1);
+    restClient.createDatastream(ds);
+    restClient.waitTillDatastreamIsInitialized(ds.getName(), 10000);
+
+    // Now add "*" for topic1, "0" for topic2, "0" and "1" for topic3
+    StringMap pausedPartitions = new StringMap();
+    pausedPartitions.put(topic1, "*");
+    pausedPartitions.put(topic2, "0");
+    pausedPartitions.put(topic3, "0,1");
+    restClient.pauseSourcePartitions(ds.getName(), pausedPartitions);
+    ds = restClient.getDatastream(ds.getName());
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
+    // Resume partitions
+    StringMap resumePartitions = new StringMap();
+    resumePartitions.put(topic1, "*");
+    resumePartitions.put(topic2, "*");
+    resumePartitions.put(topic3, "0");
+    restClient.resumeSourcePartitions(ds.getName(), resumePartitions);
+    // prepare pausedPartitions for validation
+    pausedPartitions.remove(topic1);
+    pausedPartitions.remove(topic2);
+    pausedPartitions.put(topic3, "1");
+    ds = restClient.getDatastream(ds.getName());
+    Assert.assertTrue(ds.getMetadata().containsKey(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY));
+    Assert.assertEquals(DatastreamUtils.getDatastreamSourcePartitions(ds),
+        DatastreamUtils.parseSourcePartitionsStringMap(pausedPartitions));
+
+    // Pause Datastream1 (normal)
+    restClient.pause(ds.getName(), false);
+    ds = restClient.getDatastream(ds.getName());
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.PAUSED);
+
+    // Now make sure that we receive an error on pausing partitions
+    boolean receivedException = false;
+    try {
+      restClient.pauseSourcePartitions(ds.getName(), pausedPartitions);
+    } catch (Exception e) {
+      receivedException = true;
+    }
+    Assert.assertTrue(receivedException);
+
+    // Now make sure that we receive an error on resuming partitions
+    receivedException = false;
+    try {
+      restClient.resumeSourcePartitions(ds.getName(), pausedPartitions);
+    } catch (Exception e) {
+      receivedException = true;
+    }
+    Assert.assertTrue(receivedException);
+  }
 
   private <T> void checkBadRequest(Callable<T> verif) throws Exception {
     checkBadRequest(verif, HttpStatus.S_400_BAD_REQUEST);
@@ -260,7 +439,6 @@ public class TestDatastreamResources {
     } catch (RestLiServiceException e) {
       // do nothing
     }
-
 
     // make sure that on a failed batch update even the valid datastream update doesn't go through
     Thread.sleep(200);

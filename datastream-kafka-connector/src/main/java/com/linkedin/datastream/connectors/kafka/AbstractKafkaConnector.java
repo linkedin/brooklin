@@ -13,12 +13,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.DatastreamTask;
+
 
 
 /**
@@ -97,7 +100,11 @@ public abstract class AbstractKafkaConnector implements Connector {
     }
 
     for (DatastreamTask task : tasks) {
-      if (_runningTasks.containsKey(task)) {
+      AbstractKafkaBasedConnectorTask kafkaBasedConnectorTask = _runningTasks.get(task);
+      if (kafkaBasedConnectorTask != null) {
+        kafkaBasedConnectorTask.checkForUpdateTask(task);
+        // make sure to replace the DatastreamTask with most up to date info
+        _runningTasks.put(task, kafkaBasedConnectorTask);
         continue; // already running
       }
       _logger.info("creating task for {}.", task);
@@ -121,6 +128,12 @@ public abstract class AbstractKafkaConnector implements Connector {
       _logger.warn("Failed to shut down cleanly.");
     }
     _logger.info("stopped.");
+  }
+
+  @Override
+  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    // nop
   }
 
 }
