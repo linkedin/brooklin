@@ -78,7 +78,7 @@ public class TestDatabaseChunkedReader {
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_SIZE, chunkSize.toString());
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + ROW_COUNT_LIMIT, chunkSize.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
@@ -228,7 +228,8 @@ public class TestDatabaseChunkedReader {
 
     for (int i = 0; i < numBuckets; i++) {
       try (DatabaseChunkedReader reader =
-          new DatabaseChunkedReader(props.get(i), mockSources.get(i), TEST_SOURCE_QUERY, TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
+          new DatabaseChunkedReader(props.get(i), mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
+              TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
         reader.start();
         for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
           data.get(i).add(row);
@@ -278,7 +279,7 @@ public class TestDatabaseChunkedReader {
 
     int count = 0;
     DatabaseChunkedReader reader =
-        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
+        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
     reader.start();
     for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
       Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
@@ -286,7 +287,8 @@ public class TestDatabaseChunkedReader {
     }
     Assert.assertEquals(2, count);
 
-    String fullMetricName = MetricRegistry.name(DatabaseChunkedReader.class.getSimpleName(), TEST_SIMPLE_KEY_TABLE,
+    String source = String.join(".", "TEST_DB", TEST_SIMPLE_KEY_TABLE);
+    String fullMetricName = MetricRegistry.name(DatabaseChunkedReader.class.getSimpleName(), source,
         DatabaseChunkedReaderMetrics.SKIPPED_BAD_MESSAGES_RATE);
     Assert.assertEquals(((Meter) _dynamicMetricsManager.getMetric(fullMetricName)).getCount(), 2);
 

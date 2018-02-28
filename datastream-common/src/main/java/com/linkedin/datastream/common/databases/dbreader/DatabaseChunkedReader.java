@@ -13,6 +13,7 @@ import java.util.Properties;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +23,6 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.SqlTypeInterpreter;
 import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.MetricsAware;
 
 
 /**
@@ -51,7 +51,7 @@ import com.linkedin.datastream.metrics.MetricsAware;
  *  along with the schema to read the records in. Query hints might also need to be provided in the inner query
  *  to ensure the indexes are being used for the queries and hence will be more performant.
  */
-public class DatabaseChunkedReader implements Closeable, MetricsAware {
+public class DatabaseChunkedReader implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReader.class);
 
   private final DataSource _dataSource;
@@ -59,13 +59,19 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
   private final Connection _connection;
 
   private final DatabaseChunkedReaderConfig _databaseChunkedReaderConfig;
-  private final long _chunkSize;
+  // Max number of rows to fetch for each query. This will help the server limit the number of full row
+  // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
+  // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
+  private final long _rowCountLimit;
   private final long _maxChunkIndex;
   private final long _chunkIndex;
   private final int _queryTimeoutSecs;
+  // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
+  // ResultSet from the server. The default fetchSize of 10 is way too small for a typical bootstrap scenario.
   private final int _fetchSize;
   private final String _sourceQuery;
   private final String _readerId;
+  private final String _database;
   private final String _chunkingTable;
   private final ChunkedQueryManager _chunkedQueryManager;
   private final boolean _skipBadMessagesEnabled;
@@ -79,7 +85,7 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
   private PreparedStatement _firstStmt;
   private PreparedStatement _queryStmt;
   private ResultSet _queryResultSet;
-  private long numRowsInResult = 0;
+  private long _numRowsInResult = 0;
   private Schema _tableSchema;
   private SqlTypeInterpreter _interpreter;
 
@@ -93,12 +99,14 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
    *                    needs to follow specific rules. The query should only involve one table, as specified
    *                    by the 'table' parameter, should query all unique key columns and in the order specified
    *                    in the Index for the table.
+   * @param db Database that the DataSource is connected to. If null, connection string from DataSource is used to
+   *           derive the string. Only used for creating metric names.
    * @param table table to use for getting unique key column(s) information to add the chunking predicate. This should
    *              be the same as the table being read as part of the sourceQuery
    * @param databaseSource DatabaseSource implementation to query table metadata needed for constructing the chunk query
    * @param id Name to identify the reader instance in logs
    */
-  public DatabaseChunkedReader(Properties props, DataSource source, String sourceQuery, String table,
+  public DatabaseChunkedReader(Properties props, DataSource source, String sourceQuery, String db, String table,
       DatabaseSource databaseSource, String id) throws SQLException {
     _databaseChunkedReaderConfig = new DatabaseChunkedReaderConfig(props);
     _sourceQuery = sourceQuery;
@@ -109,12 +117,21 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
     _fetchSize = _databaseChunkedReaderConfig.getFetchSize();
     _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
     _maxChunkIndex = _databaseChunkedReaderConfig.getNumChunkBuckets() - 1;
-    _chunkSize = _databaseChunkedReaderConfig.getChunkSize();
+    _rowCountLimit = _databaseChunkedReaderConfig.getRowCountLimit();
     _chunkIndex = _databaseChunkedReaderConfig.getChunkIndex();
     _connection = source.getConnection();
     _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     _skipBadMessagesEnabled = _databaseChunkedReaderConfig.shouldSkipBadMessage();
+
+    if (StringUtils.isBlank(db)) {
+      _database = _connection.getMetaData().getUserName();
+      LOG.warn("Database name not specified. Using name derived from connection's usename {}",
+          _database);
+    } else {
+      _database = db;
+    }
+
     validateQuery(sourceQuery);
   }
 
@@ -135,16 +152,13 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
 
   private void executeFirstChunkedQuery() throws SQLException {
     String firstQuery =
-        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _chunkSize,
+        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
             _maxChunkIndex, _chunkIndex);
     _firstStmt = _connection.prepareStatement(firstQuery);
     _firstStmt.setFetchSize(_fetchSize);
     _firstStmt.setQueryTimeout(_queryTimeoutSecs);
 
-    long timeStart = System.currentTimeMillis();
-    _queryResultSet = _firstStmt.executeQuery();
-    _metrics.updateQueryExecutionTime(System.currentTimeMillis() - timeStart);
-    _metrics.updateQueryExecutionRate();
+    executeChunkedQuery(_firstStmt);
   }
 
   /**
@@ -154,10 +168,10 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
     _chunkedQueryManager.prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
   }
 
-  private void executeChunkedQuery() throws SQLException {
+  private void executeChunkedQuery(PreparedStatement stmt) throws SQLException {
     long timeStart = System.currentTimeMillis();
-    _queryResultSet = _queryStmt.executeQuery();
-    _metrics.updateQueryExecutionTime(System.currentTimeMillis() - timeStart);
+    _queryResultSet = stmt.executeQuery();
+    _metrics.updateQueryExecutionDuration(System.currentTimeMillis() - timeStart);
     _metrics.updateQueryExecutionRate();
   }
 
@@ -206,18 +220,19 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
     if (_initialized) {
       close();
     }
-    _metrics = new DatabaseChunkedReaderMetrics(_chunkingTable, _readerId);
+
+    _metrics = new DatabaseChunkedReaderMetrics(String.join(".", _database , _chunkingTable), _readerId);
 
     initializeChunkingKeyInfo();
     _chunkedQuery =
-        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _chunkSize,
+        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
             _maxChunkIndex, _chunkIndex);
     _tableSchema = _databaseSource.getTableSchema(_chunkingTable);
     _initialized = true;
   }
 
   private DatabaseRow getNextRow() throws SQLException {
-    numRowsInResult++;
+    _numRowsInResult++;
     try {
       ResultSetMetaData rsmd = _queryResultSet.getMetaData();
       int colCount = rsmd.getColumnCount();
@@ -272,14 +287,16 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
     DatabaseRow row = null;
     while (row == null) {
       if (!_queryResultSet.next()) {
-        if (numRowsInResult < _chunkSize) {
+        // If previous query read less than requested chunks, we are at the end of the table.
+        // No more chunks to fetch, indicate end of records.
+        if (_numRowsInResult < _rowCountLimit) {
           return null;
         }
 
         // Perform the next chunked query
-        numRowsInResult = 0;
+        _numRowsInResult = 0;
         prepareChunkedQuery();
-        executeChunkedQuery();
+        executeChunkedQuery(_queryStmt);
         if (!_queryResultSet.next()) {
           return null;
         }
@@ -296,7 +313,6 @@ public class DatabaseChunkedReader implements Closeable, MetricsAware {
     releaseResources("Reader close invoked.");
   }
 
-  @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return DatabaseChunkedReaderMetrics.getMetricInfos();
   }
