@@ -3,34 +3,20 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.DatastreamConstants;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -66,20 +52,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  // Set indicating if there is any change in task.
-  // Initialize _taskUpdates to all the updates which should be set to "true"
-  // at the time of startup.
-  private final ConcurrentLinkedQueue<DatastreamConstants.UpdateType> _taskUpdates =
-      new ConcurrentLinkedQueue<>(Arrays.asList(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS));
-
-  // This variable is used only for testing
-  @VisibleForTesting
-  int _pausedPartitionsUpdatedCount = 0;
-
-  // stores source partitions that are paused for given datastream.
-  // Note: always use with a lock on pausedPartitionsUpdated
-  private Map<String, Set<String>> _pausedSourcePartitions = new ConcurrentHashMap<>();
-
   protected KafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
       DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount) {
     super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, LOG);
@@ -89,25 +61,24 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
+    Properties properties = new Properties();
+    properties.putAll(consumerProps);
     String bootstrapValue = String.join(KafkaConnectionString.BROKER_LIST_DELIMITER,
         _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString).collect(Collectors.toList()));
-
-    consumerProps.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
-    consumerProps.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamTask.getDatastreams().get(0).getName());
-    consumerProps.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
+    properties.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
+    properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamName);
+    properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
-    // TODO: read auto.offset.reset from the config or metadata so that this is configurable by SRE, who might want
-    // latest when pipeline is first set up but might want to change to "oldest" for all newly created topics, once
-    // pipeline is stabilized.
-    consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-    return _consumerFactory.createConsumer(consumerProps);
+    properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
+    return _consumerFactory.createConsumer(properties);
   }
 
   @Override
   protected void consumerSubscribe() {
+    LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
     _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
   }
-
 
   @Override
   protected DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) throws Exception {
@@ -131,15 +102,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return builder.build();
   }
 
-
-  public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    _consumerMetrics.updateRebalanceRate(1);
-    LOG.info("Partition ownership assigned for {}.", partitions);
-    // update paused partitions, in case.
-    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
-    // TODO: detect when new topic falls into subscription and create topic in destination.
-  }
-
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(CommonConnectorMetrics.getEventProcessingMetrics(METRICS_PREFIX_REGEX));
@@ -148,100 +110,4 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return metrics;
   }
 
-  // Note: This method is supposed to be called from run() thread, so in effect, it is "single threaded".
-  // The only updates that can happen to _taskUpdates queue outside this method is addition of
-  // new update type when there is any update to datastream task (in method checkForUpdateTask())
-  @Override
-  protected void preConsumerPollHook() {
-    // See if there was any update in task and take actions.
-    while (!_taskUpdates.isEmpty()) {
-      DatastreamConstants.UpdateType updateType = _taskUpdates.remove();
-      if (updateType != null) {
-        switch (updateType) {
-          case PAUSE_RESUME_PARTITIONS:
-            pausePartitions();
-            break;
-          default:
-            String msg = String.format("Unknown update type {} for task {}.", updateType, _taskName);
-            _logger.error(msg);
-            throw new DatastreamRuntimeException(msg);
-        }
-      }
-    }
-  }
-
-  @Override
-  public void checkForUpdateTask(DatastreamTask datastreamTask) {
-    // check if there was any change in paused partitions.
-    checkForPausedPartitionsUpdate(datastreamTask);
-  }
-
-  // This method checks if there is any change in set of paused partitions for given datastreamtask.
-  private void checkForPausedPartitionsUpdate(DatastreamTask datastreamTask) {
-    // Check if there is any change in paused partitions
-    // first get the given set of paused source partitions from metadata
-    Map<String, Set<String>> newPausedSourcePartitionsMap = new HashMap<>();
-    newPausedSourcePartitionsMap =
-        DatastreamUtils.getDatastreamSourcePartitions(datastreamTask.getDatastreams().get(0));
-
-    if (!newPausedSourcePartitionsMap.equals(_pausedSourcePartitions)) {
-      _pausedSourcePartitions.clear();
-      _pausedSourcePartitions.putAll(newPausedSourcePartitionsMap);
-      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
-    }
-  }
-
-  // TODO: Move logic to pause partitions to AbstractKafkaConnector
-  // This method pauses/resumes partitions.
-  private void pausePartitions() {
-    // This is only for testing purpose.
-    _pausedPartitionsUpdatedCount++;
-
-    Validate.isTrue(_consumer != null);
-
-    LOG.info("List of partitions to pause changed for datastream: {}. The list is: {}", _datastream.getName(),
-        _pausedSourcePartitions);
-
-    // contains list of new partitions to pause
-    Set<TopicPartition> partitionsToPause = new HashSet<>();
-
-    // get the config that's already there on the consumer
-    Set<TopicPartition> pausedPartitions = _consumer.paused();
-    Set<TopicPartition> assignedPartitions = _consumer.assignment();
-
-    // Get partitions to pause
-    for (String source : _pausedSourcePartitions.keySet()) {
-      for (String partition : _pausedSourcePartitions.get(source)) {
-        partitionsToPause.add(new TopicPartition(source, Integer.parseInt(partition)));
-      }
-    }
-
-    // Make sure those partitions are assigned to this task.
-    partitionsToPause.retainAll(assignedPartitions);
-
-    // If the partitions to pause are paused already, don't do anything.
-    if (partitionsToPause.equals(pausedPartitions)) {
-      return;
-    }
-
-    // Resume current paused partitions by default.
-    _consumer.resume(pausedPartitions);
-    LOG.info("Resumed these partitions: {}", pausedPartitions);
-
-    // pause partitions to pause
-    _consumer.pause(partitionsToPause);
-    LOG.info("Paused these partitions: {}", partitionsToPause);
-  }
-
-  @VisibleForTesting
-  int getPausedPartitionsUpdateCount() {
-    return _pausedPartitionsUpdatedCount;
-  }
-
-  @VisibleForTesting
-  Map<String, Set<String>> getPausedSourcePartitions() {
-    Map<String, Set<String>> pausedSourcePartitions = new ConcurrentHashMap<>();
-    pausedSourcePartitions.putAll(_pausedSourcePartitions);
-    return pausedSourcePartitions;
-  }
 }

@@ -45,7 +45,6 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
         new KafkaMirrorMakerCheckpoint(datastreamProducerRecord.getCheckpoint());
     _flushlessProducer.send(datastreamProducerRecord, sourceCheckpoint.getTopic(), sourceCheckpoint.getPartition(),
         sourceCheckpoint.getOffset());
-
   }
 
   @Override

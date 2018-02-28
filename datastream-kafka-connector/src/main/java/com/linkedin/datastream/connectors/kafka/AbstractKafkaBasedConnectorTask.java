@@ -10,9 +10,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -25,9 +28,13 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
@@ -76,6 +83,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile String _taskName;
   protected DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
+
+  // queue of Datastream task updates that need to be processed
+  protected final ConcurrentLinkedQueue<DatastreamConstants.UpdateType> _taskUpdates =
+      new ConcurrentLinkedQueue<>();
+  @VisibleForTesting
+  int _pausedPartitionsUpdatedCount = 0;
+  protected Map<String, Set<String>> _pausedSourcePartitions = new ConcurrentHashMap<>();
 
   protected CommonConnectorMetrics _consumerMetrics;
 
@@ -443,20 +457,109 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     _consumerMetrics.updateRebalanceRate(1);
-    //nop
     _logger.info("Partition ownership assigned for {}.", partitions);
+
+    // update paused partitions, in case.
+    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+  }
+
+  /**
+   * This method is called before making a call to poll() for any precomputations needed.
+   *
+   * Note: This method is supposed to be called from run() thread, so in effect, it is "single threaded".
+   * The only updates that can happen to _taskUpdates queue outside this method is addition of
+   * new update type when there is any update to datastream task (in method checkForUpdateTask())
+   */
+  protected void preConsumerPollHook() {
+    // check if there was any update in task and take actions
+    while (!_taskUpdates.isEmpty()) {
+      DatastreamConstants.UpdateType updateType = _taskUpdates.remove();
+      if (updateType != null) {
+        switch (updateType) {
+          case PAUSE_RESUME_PARTITIONS:
+            pausePartitions();
+            break;
+          default:
+            String msg = String.format("Unknown update type {} for task {}.", updateType, _taskName);
+            _logger.error(msg);
+            throw new DatastreamRuntimeException(msg);
+        }
+      }
+    }
   }
 
   /**
    * The method, given a datastream task - checks if there is any update in the existing task.
    * @param datastreamTask - datastream task to compare with.
    */
+  @VisibleForTesting
   public void checkForUpdateTask(DatastreamTask datastreamTask) {
+    // check if there was any change in paused partitions.
+    checkForPausedPartitionsUpdate(datastreamTask);
   }
 
   /**
-   * The method is called before making a call to poll() for any precomputations needed.
+   * Checks if there is any change in set of paused partitions for DatastreamTask.
+   * @param datastreamTask the Datastream task
    */
-  protected void preConsumerPollHook() {
+  private void checkForPausedPartitionsUpdate(DatastreamTask datastreamTask) {
+    // check if there is any change in paused partitions
+    // first get the given set of paused source partitions from metadata
+    Map<String, Set<String>> newPausedSourcePartitionsMap =
+        DatastreamUtils.getDatastreamSourcePartitions(datastreamTask.getDatastreams().get(0));
+
+    if (!newPausedSourcePartitionsMap.equals(_pausedSourcePartitions)) {
+      _pausedSourcePartitions.clear();
+      _pausedSourcePartitions.putAll(newPausedSourcePartitionsMap);
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    }
+  }
+
+  private void pausePartitions() {
+    Validate.isTrue(_consumer != null, "Consumer cannot be null when pausing partitions.");
+    _pausedPartitionsUpdatedCount++; // increment counter for testing purposes only
+
+    _logger.info("List of partitions to pause changed for datastream: {}. The list is: {}", _datastream.getName(),
+        _pausedSourcePartitions);
+
+    // contains list of new partitions to pause
+    Set<TopicPartition> partitionsToPause = new HashSet<>();
+
+    // get the config that's already there on the consumer
+    Set<TopicPartition> pausedPartitions = _consumer.paused();
+    Set<TopicPartition> assignedPartitions = _consumer.assignment();
+
+    // get partitions to pause
+    for (String source : _pausedSourcePartitions.keySet()) {
+      for (String partition : _pausedSourcePartitions.get(source)) {
+        partitionsToPause.add(new TopicPartition(source, Integer.parseInt(partition)));
+      }
+    }
+
+    // make sure those partitions are assigned to this task.
+    partitionsToPause.retainAll(assignedPartitions);
+
+    if (!partitionsToPause.equals(pausedPartitions)) {
+      // resume current paused partitions by default.
+      _consumer.resume(pausedPartitions);
+      _logger.info("Resumed partitions: {}", pausedPartitions);
+
+      // pause partitions to pause
+      _consumer.pause(partitionsToPause);
+      _logger.info("Paused partitions: {}", partitionsToPause);
+    }
+
+  }
+
+  @VisibleForTesting
+  public int getPausedPartitionsUpdateCount() {
+    return _pausedPartitionsUpdatedCount;
+  }
+
+  @VisibleForTesting
+  public Map<String, Set<String>> getPausedSourcePartitions() {
+    Map<String, Set<String>> pausedSourcePartitions = new ConcurrentHashMap<>();
+    pausedSourcePartitions.putAll(_pausedSourcePartitions);
+    return pausedSourcePartitions;
   }
 }
