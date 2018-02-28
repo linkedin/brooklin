@@ -67,7 +67,7 @@ public class DatabaseChunkedReader implements Closeable {
   private final long _chunkIndex;
   private final int _queryTimeoutSecs;
   // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
-  // ResultSet from the server. The default fetchSize of 10 is way too small for a typical bootstrap scenario.
+  // ResultSet from the server.
   private final int _fetchSize;
   private final String _sourceQuery;
   private final String _readerId;
@@ -313,7 +313,7 @@ public class DatabaseChunkedReader implements Closeable {
     releaseResources("Reader close invoked.");
   }
 
-  public List<BrooklinMetricInfo> getMetricInfos() {
+  public static List<BrooklinMetricInfo> getMetricInfos() {
     return DatabaseChunkedReaderMetrics.getMetricInfos();
   }
 }

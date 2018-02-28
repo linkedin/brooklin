@@ -21,7 +21,7 @@ public class DatabaseChunkedReaderConfig {
   public static final String DB_READER_DOMAIN_CONFIG = "dbReader";
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
   // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
-  // ResultSet from the server. The default fetchSize of 10 is way too small for a typical bootstrap scenario.
+  // ResultSet from the server.
   public static final String FETCH_SIZE = "fetchSize";
   public static final String SKIP_BAD_MESSAGE = "skipBadMessage";
   // Max number of rows to fetch for each query. This will help the server limit the number of full row
