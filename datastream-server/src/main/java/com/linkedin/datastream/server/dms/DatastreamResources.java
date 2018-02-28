@@ -553,6 +553,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       LOG.debug("Sanity check is finished, initializing datastream");
 
+      // Before the initializeDatastream (which could be heavy depends on the types of datastreams),
+      // quickly check whether the datastream has already existed.
+      if (_store.getDatastream(datastream.getName()) != null) {
+        throw new DatastreamAlreadyExistsException();
+      }
+
       _coordinator.initializeDatastream(datastream);
 
       LOG.debug("Persisting initialized datastream to zookeeper: %s", datastream);
@@ -562,7 +568,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Duration delta = Duration.between(startTime, Instant.now());
       _createCallLatencyMs.set(delta.toMillis());
 
-      LOG.debug("Datastream persisted to zookeeper, total time used: %dms", delta.toMillis());
+      LOG.info("Datastream persisted to zookeeper, total time used: %d ms", delta.toMillis());
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (IllegalArgumentException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
