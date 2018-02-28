@@ -192,11 +192,12 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
     Datastream ds = createDatastream("testFlushlessModeEnabled", _broker, "Pizza", new StringMap());
 
-    // assert that flushless task is created
+    // assert that flushless task is not created
     Assert.assertTrue(connector.createKafkaBasedConnectorTask(
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
+  @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "Topic";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
