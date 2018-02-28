@@ -197,7 +197,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
-  @Test(enabled = false) // TODO: re-enable this once we figure out why it passes locally but fails in test env
+  @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "testValidateDatastreamUpdatePausedPartitions";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
@@ -221,7 +221,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     // create topic
     if (!AdminUtils.topicExists(_zkUtils, topic)) {
-      AdminUtils.createTopic(_zkUtils, topic, 2, 2, new Properties(), null);
+      AdminUtils.createTopic(_zkUtils, topic, 2, 1, new Properties(), null);
     }
 
     // Make sure "*" is converted to a list of partitions
