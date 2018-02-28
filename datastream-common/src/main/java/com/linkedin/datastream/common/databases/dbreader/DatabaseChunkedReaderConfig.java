@@ -20,28 +20,32 @@ public class DatabaseChunkedReaderConfig {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReaderConfig.class);
   public static final String DB_READER_DOMAIN_CONFIG = "dbReader";
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
-  // If the resultSet is 1000 rows, with fetchSize set to 100, it would take 10 network
-  // calls to process the entire resultSet. The default fetchSize is 10, which is way too small
-  // for both a typical bootstrap scenario.
+  // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
+  // ResultSet from the server.
   public static final String FETCH_SIZE = "fetchSize";
-  // Number of rows to chunk on each query. This will limit the number of rows that the server will limit query result to
-  public static final String CHUNK_SIZE = "chunk.size";
+  public static final String SKIP_BAD_MESSAGE = "skipBadMessage";
+  // Max number of rows to fetch for each query. This will help the server limit the number of full row
+  // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
+  // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
+  public static final String ROW_COUNT_LIMIT = "chunk.rowCountLimit";
   public static final String NUM_CHUNK_BUCKETS = "chunk.numBuckets";
   public static final String CHUNK_INDEX = "chunk.index";
   public static final String DATABASE_INTERPRETER_CLASS_NAME = "database.reader";
   public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
 
   private static final int DEFAULT_QUERY_TIMEOUT_SECS = 0;
-  private static final int DEFAULT_FETCH_SIZE = 100;
-  private static final long DEFAULT_CHUNK_SIZE = 10000;
+  private static final int DEFAULT_FETCH_SIZE = 10000;
+  private static final long DEFAULT_ROW_COUNT_LIMIT = 50000;
+  private static final boolean DEFAULT_SKIP_BAD_MESSAGE = false;
 
   private final int _queryTimeout;
   private final int _fetchSize;
-  private final long _chunkSize;
+  private final long _rowCountLimit;
   private final long _numChunkBuckets;
   private final long _chunkIndex;
   private SqlTypeInterpreter _interpreter;
   private ChunkedQueryManager _chunkedQueryManager;
+  private boolean _shouldSkipBadMessage;
 
   public DatabaseChunkedReaderConfig(Properties properties) {
     Properties props = new VerifiableProperties(properties).getDomainProperties(DB_READER_DOMAIN_CONFIG);
@@ -50,12 +54,13 @@ public class DatabaseChunkedReaderConfig {
     Validate.inclusiveBetween(0, Integer.MAX_VALUE, _queryTimeout);  // 0 being no limit.
     _fetchSize = verifiableProperties.getInt(FETCH_SIZE, DEFAULT_FETCH_SIZE);
     Validate.inclusiveBetween(0, Integer.MAX_VALUE, _fetchSize);
-    _chunkSize = verifiableProperties.getLong(CHUNK_SIZE, DEFAULT_CHUNK_SIZE);
+    _rowCountLimit = verifiableProperties.getLong(ROW_COUNT_LIMIT, DEFAULT_ROW_COUNT_LIMIT);
     Validate.inclusiveBetween(100, Long.MAX_VALUE, _fetchSize);
     _numChunkBuckets = verifiableProperties.getLong(NUM_CHUNK_BUCKETS);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _chunkIndex = verifiableProperties.getLong(CHUNK_INDEX);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
+    _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
 
     String tableReader = verifiableProperties.getString(DATABASE_INTERPRETER_CLASS_NAME);
     if (StringUtils.isBlank(tableReader)) {
@@ -88,8 +93,8 @@ public class DatabaseChunkedReaderConfig {
     return _queryTimeout;
   }
 
-  public long getChunkSize() {
-    return _chunkSize;
+  public long getRowCountLimit() {
+    return _rowCountLimit;
   }
 
   public long getNumChunkBuckets() {
@@ -108,4 +113,7 @@ public class DatabaseChunkedReaderConfig {
     return _chunkedQueryManager;
   }
 
+  public boolean shouldSkipBadMessage() {
+    return _shouldSkipBadMessage;
+  }
 }
