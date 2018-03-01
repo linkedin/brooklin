@@ -68,7 +68,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private void createTopic(ZkUtils zkUtils, String topic) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.createTopic(zkUtils, topic, 1, 2, new Properties(), null);
+      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
     }
   }
 
