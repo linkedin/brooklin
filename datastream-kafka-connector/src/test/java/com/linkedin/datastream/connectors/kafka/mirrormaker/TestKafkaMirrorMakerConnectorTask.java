@@ -278,11 +278,46 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
 
+  @Test
+  public void testAutoPauseOnRetryExhaustion() throws Exception {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    Datastream datastream =
+        TestKafkaMirrorMakerConnector.createDatastream("pizzaStream", _broker, "\\w+Pizza", metadata);
+    datastream.setTransportProviderName("default");
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString("%s");
+    datastream.setDestination(destination);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create event producer with 100% exception probability
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer(1.0);
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask = createKafkaMirrorMakerConnectorTask(task);
+
+    // produce an event
+    produceEvents(yummyTopic, 1);
+
+    // validate that the topic partition was added to auto-paused set
+    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(yummyTopic, 0)),
+        100, 25000)) {
+      Assert.fail("Partition did not auto-pause after multiple send failures.");
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
   private KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task)
       throws InterruptedException {
     KafkaMirrorMakerConnectorTask connectorTask =
         new KafkaMirrorMakerConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000,
-            Duration.ofSeconds(0), 5);
+            Duration.ofSeconds(0), 5, true);
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> {
