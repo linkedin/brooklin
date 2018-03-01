@@ -53,8 +53,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConnectionString _mirrorMakerSource;
 
   protected KafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
-      DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount) {
-    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, LOG);
+      DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount,
+      boolean pausePartitionOnRetryExhaustion) {
+    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnRetryExhaustion,
+        LOG);
     _consumerFactory = factory;
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   }

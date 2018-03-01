@@ -46,6 +46,7 @@ public abstract class AbstractKafkaConnector implements Connector {
   public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
   public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
   public static final String CONFIG_RETRY_COUNT = "retryCount";
+  public static final String CONFIG_PAUSE_PARTITION_ON_RETRY_EXHAUSTION = "pausePartitionOnRetryExhaustion";
   protected final String _defaultKeySerde;
   protected final String _defaultValueSerde;
   protected final KafkaConsumerFactory<?, ?> _consumerFactory;
@@ -54,6 +55,7 @@ public abstract class AbstractKafkaConnector implements Connector {
   protected final String _name;
   protected final long _commitIntervalMillis;
   protected final int _retryCount;
+  protected boolean _pausePartitionOnRetryExhaustion;
 
   private final Logger _logger;
   protected final ConcurrentHashMap<DatastreamTask, AbstractKafkaBasedConnectorTask> _runningTasks =
@@ -82,6 +84,8 @@ public abstract class AbstractKafkaConnector implements Connector {
     _commitIntervalMillis = verifiableProperties.getLongInRange(CONFIG_COMMIT_INTERVAL_MILLIS,
         Duration.ofMinutes(1).toMillis(), 0, Long.MAX_VALUE);
     _retryCount = verifiableProperties.getInt(CONFIG_RETRY_COUNT, DEFAULT_RETRY_COUNT);
+    _pausePartitionOnRetryExhaustion =
+        verifiableProperties.getBoolean(CONFIG_PAUSE_PARTITION_ON_RETRY_EXHAUSTION, Boolean.FALSE);
 
     String factory = verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS,
         KafkaConsumerFactoryImpl.class.getName());

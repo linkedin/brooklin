@@ -259,7 +259,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
     KafkaConnectorTask connectorTask =
-        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000, Duration.ofSeconds(0), 5);
+        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000, Duration.ofSeconds(0), 5, false);
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> {

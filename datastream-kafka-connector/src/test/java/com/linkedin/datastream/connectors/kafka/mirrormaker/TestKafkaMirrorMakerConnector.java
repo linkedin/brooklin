@@ -197,7 +197,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
-  @Test(enabled = false) // TODO: re-enable this once we figure out why it passes locally but fails in test env
+  @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "testValidateDatastreamUpdatePausedPartitions";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
