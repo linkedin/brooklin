@@ -11,6 +11,8 @@ import java.util.Set;
 
 import kafka.admin.AdminUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -19,6 +21,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
@@ -40,6 +43,9 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnector.class);
+  private static final int POLL_TIMEOUT_MS = 25000;
 
   private CachedDatastreamReader _cachedDatastreamReader;
 
@@ -197,7 +203,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
-  @Test(enabled = false) // TODO: re-enable this once we figure out why it passes locally but fails in test env
+  @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "testValidateDatastreamUpdatePausedPartitions";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
@@ -221,39 +227,57 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     // create topic
     if (!AdminUtils.topicExists(_zkUtils, topic)) {
-      AdminUtils.createTopic(_zkUtils, topic, 2, 2, new Properties(), null);
+      AdminUtils.createTopic(_zkUtils, topic, 2, 1, new Properties(), null);
     }
 
     // Make sure "*" is converted to a list of partitions
     pausedPartitions.put(topic, new HashSet<>(Collections.singletonList("*")));
     // prepare expected partitions for validation
     expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
-    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+    if (!PollUtils.poll(() -> verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions), 100,
+        POLL_TIMEOUT_MS)) {
+      Assert.fail("verifyPausedPartitions failed");
+    }
 
     // Make sure multiple *s and numbers is converted to a list of unique partitions
     pausedPartitions.put(topic, new HashSet<>(Arrays.asList("*", "2", "1", "*")));
     // prepare expected partitions for validation
     expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
-    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+    if (!PollUtils.poll(() -> verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions), 100,
+        POLL_TIMEOUT_MS)) {
+      Assert.fail("verifyPausedPartitions failed");
+    }
 
     // Make sure numbers aren't touched
     pausedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
     // prepare expected partitions for validation
     expectedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
-    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+    if (!PollUtils.poll(() -> verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions), 100,
+        POLL_TIMEOUT_MS)) {
+      Assert.fail("verifyPausedPartitions failed");
+    }
 
     // Now add non-existent partition to list, and make sure it gets stripped off
     pausedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "99", "random", "1")));
     // prepare expected partitions for validation
     expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
-    verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+    if (!PollUtils.poll(() -> verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions), 100,
+        POLL_TIMEOUT_MS)) {
+      Assert.fail("verifyPausedPartitions failed");
+    }
   }
 
-  private void verifyPausedPartitions(Connector connector, Datastream datastream,
-      Map<String, Set<String>> pausedPartitions, Map<String, Set<String>> expectedPartitions) throws Exception {
-    datastream.getMetadata()
-        .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
-    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
-    Assert.assertEquals(expectedPartitions, DatastreamUtils.getDatastreamSourcePartitions(datastream));
+  private boolean verifyPausedPartitions(Connector connector, Datastream datastream,
+      Map<String, Set<String>> pausedPartitions, Map<String, Set<String>> expectedPartitions) {
+    try {
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
+      connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+      Assert.assertEquals(expectedPartitions, DatastreamUtils.getDatastreamSourcePartitions(datastream));
+    } catch (Exception e) {
+      LOG.warn("verifyPausedPartitions failed with error: " + e);
+      return false;
+    }
+    return true;
   }
 }
