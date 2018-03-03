@@ -13,6 +13,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.Sets;
+
 
 /**
  * Unit tests for helper functions inside AbstractKafkaBasedConnectorTask that determine which partitions should be
@@ -38,24 +40,17 @@ public class TestPauseResumePartitions {
     // configure 8 partitions to pause and validate
     pausedSourcePartitionsConfig.put(topic, partitions);
     Set<TopicPartition> partitionsToPause =
-        KafkaConnectorTask.getPartitionsToPause(assignedPartitions, Collections.emptySet(),
-            pausedSourcePartitionsConfig, autoPausedPartitions);
+        KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+            autoPausedPartitions);
     Assert.assertEquals(partitionsToPause, assignedPartitions);
 
     // resume some partitions by removing them from config
     pausedSourcePartitionsConfig.get(topic).removeAll(Arrays.asList("2", "5"));
-    Set<TopicPartition> currentPausedPartitions = new HashSet<>(partitionsToPause);
-    partitionsToPause = KafkaConnectorTask.getPartitionsToPause(assignedPartitions, currentPausedPartitions,
-        pausedSourcePartitionsConfig, autoPausedPartitions);
-    Assert.assertTrue(partitionsToPause.isEmpty(), "There should be no partitions to pause");
-    Set<TopicPartition> partitionsToResume =
-        KafkaConnectorTask.getPartitionsToResume(currentPausedPartitions, pausedSourcePartitionsConfig,
-            autoPausedPartitions);
-    Assert.assertEquals(partitionsToResume.size(), 2);
-    Assert.assertTrue(partitionsToResume.contains(new TopicPartition(topic, 2)),
-        "Partition 2 should have been designated for resume");
-    Assert.assertTrue(partitionsToResume.contains(new TopicPartition(topic, 5)),
-        "Partition 5 should have been designated for resume");
+    Set<TopicPartition> expectedPartitionsToPause = new HashSet<>(partitionsToPause);
+    expectedPartitionsToPause.removeAll(Arrays.asList(new TopicPartition(topic, 2), new TopicPartition(topic, 5)));
+    partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+        autoPausedPartitions);
+    Assert.assertEquals(partitionsToPause, expectedPartitionsToPause);
   }
 
   @Test
@@ -75,17 +70,15 @@ public class TestPauseResumePartitions {
     autoPausePartitions.add(new TopicPartition(topic, 4));
     // verify that 2 of the partitions were designated for pause
     Set<TopicPartition> partitionsToPause =
-        KafkaConnectorTask.getPartitionsToPause(assignedPartitions, Collections.emptySet(),
-            pausedSourcePartitionsConfig, autoPausePartitions);
-    Assert.assertEquals(autoPausePartitions, partitionsToPause, "There should have been partitions to pause");
+        KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+            autoPausePartitions);
+    Assert.assertEquals(partitionsToPause, autoPausePartitions);
 
     // auto-resume one of the partitions
     autoPausePartitions.remove(new TopicPartition(topic, 4));
-    Set<TopicPartition> partitionsToResume =
-        KafkaConnectorTask.getPartitionsToResume(partitionsToPause, pausedSourcePartitionsConfig, autoPausePartitions);
-    Assert.assertEquals(partitionsToResume.size(), 1, "There should have been 1 partition to resume");
-    Assert.assertTrue(partitionsToResume.contains(new TopicPartition(topic, 4)),
-        "Partition 4 should have been designated for resume");
+    partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+        autoPausePartitions);
+    Assert.assertEquals(partitionsToPause, autoPausePartitions);
   }
 
   @Test
@@ -108,8 +101,8 @@ public class TestPauseResumePartitions {
 
     // verify that 6 of the partitions are designated for pause
     Set<TopicPartition> partitionsToPause =
-        KafkaConnectorTask.getPartitionsToPause(assignedPartitions, Collections.emptySet(),
-            pausedSourcePartitionsConfig, autoPausedPartitions);
+        KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+            autoPausedPartitions);
     Assert.assertEquals(partitionsToPause, IntStream.range(0, 8)
         .filter(i -> i != 4 && i != 6)
         .mapToObj(p -> new TopicPartition(topic, p))
@@ -118,28 +111,48 @@ public class TestPauseResumePartitions {
     // test for resuming an auto-paused partition, by configuring it for pause and then unpausing it
     // resume the auto-paused partition 7
     pausedSourcePartitionsConfig.get(topic).add("7");
-    // verify that no partitions should be resumed
-    Assert.assertTrue(
-        KafkaConnectorTask.getPartitionsToResume(partitionsToPause, pausedSourcePartitionsConfig, autoPausedPartitions)
-            .isEmpty(), "No partitions should be designated for resume");
-    Set<TopicPartition> newPartitionsToPause =
-        KafkaConnectorTask.getPartitionsToPause(assignedPartitions, partitionsToPause, pausedSourcePartitionsConfig,
-            autoPausedPartitions);
-    Assert.assertTrue(newPartitionsToPause.isEmpty(),
-        "There should be no new partitions to pause, but instead found: " + newPartitionsToPause);
-    Assert.assertEquals(autoPausedPartitions.size(), 1, "There should only be 1 auto-paused partition");
-    Assert.assertTrue(autoPausedPartitions.contains(new TopicPartition(topic, 5)),
-        "Only partition 5 should be auto-paused, since partition 7 was moved to config");
+    // verify that partitionsToPause is the same
+    partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+        autoPausedPartitions);
+    Assert.assertEquals(partitionsToPause, IntStream.range(0, 8)
+        .filter(i -> i != 4 && i != 6)
+        .mapToObj(p -> new TopicPartition(topic, p))
+        .collect(Collectors.toSet()));
+    // verify that partition 7 was removed from auto-pause list since it was added to configuration
+    Assert.assertEquals(autoPausedPartitions, Sets.newHashSet(new TopicPartition(topic, 5)),
+        "Partition should have been removed from auto-pause set, since it was added to configured set");
 
     // now resume partition 7, which was auto-paused then configured for pause
     pausedSourcePartitionsConfig.get(topic).remove("7");
-    Assert.assertTrue(
-        KafkaConnectorTask.getPartitionsToPause(assignedPartitions, partitionsToPause, pausedSourcePartitionsConfig,
-            autoPausedPartitions).isEmpty(),
-        "There should be no new partitions to pause, but instead found: " + newPartitionsToPause);
-    Set<TopicPartition> partitionsToResume =
-        KafkaConnectorTask.getPartitionsToResume(partitionsToPause, pausedSourcePartitionsConfig, autoPausedPartitions);
-    Assert.assertEquals(partitionsToResume.size(), 1, "There should have been 1 partition to resume");
-    Assert.assertTrue(partitionsToResume.contains(new TopicPartition(topic, 7)));
+    partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions, pausedSourcePartitionsConfig,
+        autoPausedPartitions);
+    Assert.assertEquals(partitionsToPause, IntStream.range(0, 8)
+        .filter(i -> i != 4 && i != 6 && i != 7)
+        .mapToObj(p -> new TopicPartition(topic, p))
+        .collect(Collectors.toSet()));
+  }
+
+  @Test
+  public void testUnassignedPartitionsRemovedFromPauseSets() {
+    String topic = "testUnassignedPartitionsRemovedFromPauseSets";
+
+    // 8 partitions are assigned
+    Set<TopicPartition> assignedPartitions =
+        IntStream.range(0, 8).mapToObj(i -> new TopicPartition(topic, i)).collect(Collectors.toSet());
+
+    // no partitions configured for pause
+    Map<String, Set<String>> pausedSourcePartitionsConfig = new HashMap<>();
+    pausedSourcePartitionsConfig.put(topic, Collections.emptySet());
+
+    // partition 5 (assigned) and partition 10 (not assigned) were auto-paused
+    Set<TopicPartition> autoPausedPartitions = new HashSet<>();
+    autoPausedPartitions.add(new TopicPartition(topic, 5));
+    autoPausedPartitions.add(new TopicPartition(topic, 9));
+
+    Set<TopicPartition> partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions,
+        pausedSourcePartitionsConfig, autoPausedPartitions);
+    // verify that partition 9 was removed from auto-pause list since it's no longer assigned
+    Assert.assertEquals(partitionsToPause, Sets.newHashSet(new TopicPartition(topic, 5)),
+        "Partition should have been removed from auto-pause set, since it is not in the assignment");
   }
 }

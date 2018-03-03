@@ -35,9 +35,9 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
 
   protected FlushlessKafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
       DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount,
-      boolean pausePartitionOnRetryExhaustion) {
+      boolean pausePartitionOnSendFailure) {
     super(factory, consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount,
-        pausePartitionOnRetryExhaustion);
+        pausePartitionOnSendFailure);
     _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
   }
 

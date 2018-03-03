@@ -3,8 +3,8 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkConnection;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
@@ -27,8 +27,8 @@ public abstract class BaseKafkaZkTest {
   protected ZkUtils _zkUtils;
   protected String _broker;
 
-  @BeforeClass(alwaysRun = true)
-  public void beforeClassSetup() throws Exception {
+  @BeforeMethod(alwaysRun = true)
+  public void beforeMethodSetup() throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
     Properties kafkaConfig = new Properties();
     // we will disable auto topic creation for tests
@@ -40,8 +40,8 @@ public abstract class BaseKafkaZkTest {
     _zkUtils = new ZkUtils(_zkClient, new ZkConnection(_kafkaCluster.getZkConnection()), false);
   }
 
-  @AfterClass(alwaysRun = true)
-  public void afterClassTeardown() {
+  @AfterMethod(alwaysRun = true)
+  public void afterMethodTeardown() {
     if (_zkUtils != null) {
       _zkUtils.close();
     }

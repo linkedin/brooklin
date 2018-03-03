@@ -54,8 +54,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   protected KafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
       DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount,
-      boolean pausePartitionOnRetryExhaustion) {
-    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnRetryExhaustion,
+      boolean pausePartitionOnSendFailure) {
+    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnSendFailure,
         LOG);
     _consumerFactory = factory;
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
@@ -71,7 +71,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamName);
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
-    properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
   }
