@@ -3,7 +3,7 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,20 +20,19 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(MockDatastreamEventProducer.class);
   private final List<DatastreamProducerRecord> events = Collections.synchronizedList(new ArrayList<>());
   private int numFlushes = 0;
-  private final double _sendExceptionProbability;
-  private static Random _rnd = new Random();
+  private Predicate<DatastreamProducerRecord> _sendFailCondition;
 
   public MockDatastreamEventProducer() {
-    this(0.0);
+    this((record) -> false);
   }
 
-  public MockDatastreamEventProducer(double sendExceptionProbability) {
-    _sendExceptionProbability = sendExceptionProbability;
+  public MockDatastreamEventProducer(Predicate<DatastreamProducerRecord> sendFailCondition) {
+    _sendFailCondition = sendFailCondition;
   }
 
   @Override
   public void send(DatastreamProducerRecord event, SendCallback callback) {
-    if (_rnd.nextDouble() < _sendExceptionProbability) {
+    if (_sendFailCondition.test(event)) {
       throw new DatastreamRuntimeException("Random exception");
     }
 
@@ -56,5 +55,9 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   public int getNumFlushes() {
     return numFlushes;
+  }
+
+  public void updateSendFailCondition(Predicate<DatastreamProducerRecord> sendFailCondition) {
+    _sendFailCondition = sendFailCondition;
   }
 }

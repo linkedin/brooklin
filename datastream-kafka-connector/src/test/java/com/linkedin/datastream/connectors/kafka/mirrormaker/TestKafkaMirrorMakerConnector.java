@@ -221,7 +221,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     // create topic
     if (!AdminUtils.topicExists(_zkUtils, topic)) {
-      AdminUtils.createTopic(_zkUtils, topic, 2, 2, new Properties(), null);
+      AdminUtils.createTopic(_zkUtils, topic, 2, 1, new Properties(), null);
     }
 
     // Make sure "*" is converted to a list of partitions

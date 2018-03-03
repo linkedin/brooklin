@@ -40,9 +40,9 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
     return _isFlushlessModeEnabled ? new FlushlessKafkaMirrorMakerConnectorTask(_consumerFactory, _consumerProps, task,
-        _commitIntervalMillis, RETRY_SLEEP_DURATION, _retryCount, _pausePartitionOnRetryExhaustion)
+        _commitIntervalMillis, RETRY_SLEEP_DURATION, _retryCount, _pausePartitionOnSendFailure)
         : new KafkaMirrorMakerConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis,
-            RETRY_SLEEP_DURATION, _retryCount, _pausePartitionOnRetryExhaustion);
+            RETRY_SLEEP_DURATION, _retryCount, _pausePartitionOnSendFailure);
   }
 
   @Override
