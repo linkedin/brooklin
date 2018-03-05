@@ -41,8 +41,8 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
   public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
-      long commitIntervalMillis, Duration retrySleepDuration, int retryCount, boolean pausePartitionOnSendFailure) {
-    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnSendFailure,
+      long commitIntervalMillis, Duration retrySleepDuration, int retryCount, boolean pausePartitionOnError) {
+    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnError,
         LOG);
     _consumerFactory = factory;
   }

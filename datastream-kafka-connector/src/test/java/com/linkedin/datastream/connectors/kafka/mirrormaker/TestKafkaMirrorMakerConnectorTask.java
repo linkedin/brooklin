@@ -150,8 +150,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     KafkaMirrorMakerConnectorTask connectorTask = createKafkaMirrorMakerConnectorTask(datastreamTask);
 
-    // Make sure there were 2 initial update (by default and the one after a call to onPartitionsAssigned()), and that there are no paused partitions
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 1, 100, 25000)) {
+    // Make sure there were 2 initial updates (by onPartitionsAssigned and onPartitionsRevoked)
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, 100, 25000)) {
       Assert.fail("Paused partitions were not updated at the beginning. Expecting update count 1, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
@@ -185,8 +185,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.checkForUpdateTask(datastreamTask);
 
     // Make sure there was an update, and that there paused partitions.
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
 
@@ -212,8 +212,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // Now pause same set of partitions, and make sure there isn't any update.
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 2);
@@ -232,8 +232,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
     connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 2);
@@ -249,8 +249,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Now update partition assignment
     // Doesn't matter the partition/topic - we just want to ensure paused partitions are updated (to the same value)
     connectorTask.onPartitionsAssigned(Collections.singletonList(new TopicPartition("randomTopic", 0)));
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 4, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     // Expect no change in paused partitions
@@ -260,8 +260,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     datastream.getMetadata().put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, "");
     connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 4, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 5, 100, 25000)) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 5, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 0);
