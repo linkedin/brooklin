@@ -79,7 +79,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final long _offsetCommitInterval;
   protected final Duration _retrySleepDuration;
   protected final int _maxRetryCount;
-  protected boolean _pausePartitionOnSendFailure;
+  protected boolean _pausePartitionOnError;
   protected final Optional<Map<Integer, Long>> _startOffsets;
   protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
   protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
@@ -95,18 +95,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       new ConcurrentLinkedQueue<>();
   @VisibleForTesting
   int _pausedPartitionsConfigUpdateCount = 0;
+  // paused partitions config contains the topic partitions that are configured for pause (via Datastream metadata)
   protected Map<String, Set<String>> _pausedPartitionsConfig = new ConcurrentHashMap<>();
+  // auto paused partitions set contains partitions that were paused on the fly (due to error or in-flight msg count)
   protected Set<TopicPartition> _autoPausedSourcePartitions = Sets.newConcurrentHashSet();
 
   protected CommonConnectorMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(Properties consumerProps, DatastreamTask task, long commitIntervalMillis,
-      Duration retrySleepDuration, int maxRetryCount, boolean pausePartitionOnSendFailure, Logger logger) {
+      Duration retrySleepDuration, int maxRetryCount, boolean pausePartitionOnError, Logger logger) {
     _logger = logger;
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
             + " ms, retry count {}, pausePartitionOnSendError {}", task, commitIntervalMillis,
-        retrySleepDuration.toMillis(), maxRetryCount, pausePartitionOnSendFailure);
+        retrySleepDuration.toMillis(), maxRetryCount, pausePartitionOnError);
     _datastreamTask = task;
     _producer = task.getEventProducer();
     _datastream = task.getDatastreams().get(0);
@@ -118,7 +120,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _processingDelayLogThresholdMs = properties.containsKey(PROCESSING_DELAY_LOG_THRESHOLD_MS) ?
         properties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MS) : DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
     _maxRetryCount = maxRetryCount;
-    _pausePartitionOnSendFailure = pausePartitionOnSendFailure;
+    _pausePartitionOnError = pausePartitionOnError;
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -162,6 +164,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
   protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) throws Exception {
+    boolean shouldAddPausePartitionsTask = false;
     // iterate through each topic partition one at a time, for better isolation
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
@@ -171,17 +174,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _consumerMetrics.updateErrorRate(1);
           // seek to previous checkpoints for this topic partition
           seekToLastCheckpoint(Collections.singleton(topicPartition));
-          if (_pausePartitionOnSendFailure) {
+          if (_pausePartitionOnError) {
             // if configured to pause partition on error conditions, add to auto-paused set
             _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
                 topicPartition);
             _autoPausedSourcePartitions.add(topicPartition);
-            _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+            shouldAddPausePartitionsTask = true;
           }
           // skip other messages for this partition, but can continue processing other partitions
           break;
         }
       }
+    }
+    if (shouldAddPausePartitionsTask) {
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
 
@@ -486,13 +492,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
-    if (_autoPausedSourcePartitions.retainAll(topicPartitions)) {
-      _logger.info("Auto-paused partitions set changed after onPartitionsRevoked. Current set is: {}",
-          _autoPausedSourcePartitions);
-    }
     if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
       maybeCommitOffsets(_consumer, true); // happens inline as part of poll
     }
+
+    // update paused partitions
+    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
   @Override
@@ -586,13 +591,25 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     if (!partitionsToPause.equals(currentPausedPartitions)) {
       // only log the new list if there was a change
-      _logger.info("New partitions pause list is: {}", partitionsToPause);
+      _logger.info("There were new partitions to pause. New partitions pause list is: {}", partitionsToPause);
     }
 
     // need to pause the entire new set of partitions to pause, since they were resumed at the beginning
+    _logger.info("Full pause list is: {}", partitionsToPause);
     _consumer.pause(partitionsToPause);
   }
 
+  /**
+   * Determine which partitions to pause. A partition should be paused if: it is configured for pause (via Datastream
+   * metadata) or it is set for auto-pause (because of error or high-throughput).
+   *
+   * WARNING: this method has a side-effect of removing from the auto-pause set any partition that exists in the map
+   * of partitions that are configured for pause.
+   * @param currentAssignment the set of topic partitions assigned to the consumer
+   * @param configuredForPause a map of topic to partitions that are configured for pause
+   * @param autoPause a set of topic partitions that are auto-paused
+   * @return the total set of assigned partitions that need to be paused
+   */
   protected static Set<TopicPartition> determinePartitionsToPause(Set<TopicPartition> currentAssignment,
       Map<String, Set<String>> configuredForPause, Set<TopicPartition> autoPause) {
     Set<TopicPartition> partitionsToPause = new HashSet<>();
@@ -603,11 +620,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
 
       // if set for auto-pause, add to the set
-      if (autoPause.contains(assigned)) {
-        if (!partitionsToPause.add(assigned)) {
-          // remove from auto pause set if partition is already configured for pause
-          autoPause.remove(assigned);
-        }
+      if (autoPause.contains(assigned) && !partitionsToPause.add(assigned)) {
+        // remove from auto pause set if partition is already configured for pause
+        autoPause.remove(assigned);
       }
     }
     return partitionsToPause;
