@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -29,6 +31,7 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
@@ -75,8 +78,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected DatastreamTask _datastreamTask;
   protected final long _offsetCommitInterval;
   protected final Duration _retrySleepDuration;
-  protected final int _retryCount;
+  protected final int _maxRetryCount;
+  protected boolean _pausePartitionOnError;
   protected final Optional<Map<Integer, Long>> _startOffsets;
+  protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
+  protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
 
   // state
   protected volatile Thread _thread;
@@ -88,17 +94,21 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final ConcurrentLinkedQueue<DatastreamConstants.UpdateType> _taskUpdates =
       new ConcurrentLinkedQueue<>();
   @VisibleForTesting
-  int _pausedPartitionsUpdatedCount = 0;
-  protected Map<String, Set<String>> _pausedSourcePartitions = new ConcurrentHashMap<>();
+  int _pausedPartitionsConfigUpdateCount = 0;
+  // paused partitions config contains the topic partitions that are configured for pause (via Datastream metadata)
+  protected Map<String, Set<String>> _pausedPartitionsConfig = new ConcurrentHashMap<>();
+  // auto paused partitions set contains partitions that were paused on the fly (due to error or in-flight msg count)
+  protected Set<TopicPartition> _autoPausedSourcePartitions = Sets.newConcurrentHashSet();
 
   protected CommonConnectorMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(Properties consumerProps, DatastreamTask task, long commitIntervalMillis,
-      Duration retrySleepDuration, int retryCount, Logger logger) {
+      Duration retrySleepDuration, int maxRetryCount, boolean pausePartitionOnError, Logger logger) {
     _logger = logger;
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
-            + " ms, and retry count {}", task, commitIntervalMillis, retrySleepDuration.toMillis(), retryCount);
+            + " ms, retry count {}, pausePartitionOnSendError {}", task, commitIntervalMillis,
+        retrySleepDuration.toMillis(), maxRetryCount, pausePartitionOnError);
     _datastreamTask = task;
     _producer = task.getEventProducer();
     _datastream = task.getDatastreams().get(0);
@@ -109,7 +119,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     VerifiableProperties properties = new VerifiableProperties(_consumerProps);
     _processingDelayLogThresholdMs = properties.containsKey(PROCESSING_DELAY_LOG_THRESHOLD_MS) ?
         properties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MS) : DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
-    _retryCount = retryCount;
+    _maxRetryCount = maxRetryCount;
+    _pausePartitionOnError = pausePartitionOnError;
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -153,36 +164,52 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
   protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) throws Exception {
-    for (ConsumerRecord<?, ?> record : records) {
-      try {
-        sendMessage(record, readTime);
-      } catch (RuntimeException e) {
-        _consumerMetrics.updateErrorRate(1);
-        // Throw the exception and let the connector rewind and retry.
-        throw e;
+    boolean shouldAddPausePartitionsTask = false;
+    // iterate through each topic partition one at a time, for better isolation
+    for (TopicPartition topicPartition : records.partitions()) {
+      for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
+        try {
+          sendMessage(record, readTime);
+        } catch (RuntimeException e) {
+          _consumerMetrics.updateErrorRate(1);
+          // seek to previous checkpoints for this topic partition
+          seekToLastCheckpoint(Collections.singleton(topicPartition));
+          if (_pausePartitionOnError) {
+            // if configured to pause partition on error conditions, add to auto-paused set
+            _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
+                topicPartition);
+            _autoPausedSourcePartitions.add(topicPartition);
+            shouldAddPausePartitionsTask = true;
+          }
+          // skip other messages for this partition, but can continue processing other partitions
+          break;
+        }
       }
+    }
+    if (shouldAddPausePartitionsTask) {
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
 
   protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
-    int count = 0;
+    int sendAttempts = 0;
     while (true) {
-      count++;
+      sendAttempts++;
+      int numBytes = record.serializedKeySize() + record.serializedValueSize();
+      _consumerMetrics.updateBytesProcessedRate(numBytes);
+      DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
       try {
-        int numBytes = record.serializedKeySize() + record.serializedValueSize();
-        _consumerMetrics.updateBytesProcessedRate(numBytes);
-        DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
         sendDatastreamProducerRecord(datastreamProducerRecord);
         return; // Break the retry loop and exit.
       } catch (Exception e) {
         _logger.error("Error sending Message. task: {} ; error: {};", _taskName, e.toString());
         _logger.error("Stack Trace: {}", Arrays.toString(e.getStackTrace()));
-        if (_shouldDie || count >= _retryCount) {
-          _logger.info("Send messages failed with exception: {}", e);
+        if (_shouldDie || sendAttempts >= _maxRetryCount) {
+          _logger.error("Send messages failed with exception: {}", e);
           throw e;
         }
         _logger.warn("Sleeping for {} seconds before retrying. Retry {} of {}",
-            _retrySleepDuration.getSeconds(), count, _retryCount);
+            _retrySleepDuration.getSeconds(), sendAttempts, _maxRetryCount);
         Thread.sleep(_retrySleepDuration.toMillis());
       }
     }
@@ -208,7 +235,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         ConsumerRecords<?, ?> records;
         while (!_shouldDie) {
-          // Perform any pre-computations before poll()
+          // perform any pre-computations before poll()
           preConsumerPollHook();
 
           // read a batch of records
@@ -374,26 +401,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.warn("Exiting without commit, no point to try to recover in shouldDie mode.");
       return; // return to skip the commit after the while loop
     }
-    _logger.info("Trying to start processing from previous checkpoint.");
-    Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
-    Set<TopicPartition> tpWithNoCommits = new HashSet<>();
-    // construct last checkpoint
-    _consumer.assignment().forEach(tp -> {
-      OffsetAndMetadata offset =  _consumer.committed(tp);
-      // offset can be null if there was no prior commit
-      if (offset == null) {
-        tpWithNoCommits.add(tp);
-      } else {
-        lastCheckpoint.put(tp, _consumer.committed(tp));
-      }
-    });
-    _logger.info("Seeking to previous checkpoints {} and start.", lastCheckpoint);
-    // reset consumer to last checkpoint
-    lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
-    if (!tpWithNoCommits.isEmpty()) {
-      _logger.info("Seeking to start position {} and start.", tpWithNoCommits);
-      seekToStartPosition(_consumer, tpWithNoCommits);
-    }
+    seekToLastCheckpoint(_consumer.assignment());
   }
 
   /**
@@ -420,14 +428,49 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
+  /**
+   * Seek to the last checkpoint for the given topicPartitions.
+   */
+  private void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+    _logger.info("Trying to seek to previous checkpoint for partitions: {}", topicPartitions);
+    Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
+    Set<TopicPartition> tpWithNoCommits = new HashSet<>();
+    // construct last checkpoint
+    topicPartitions.forEach(tp -> {
+      OffsetAndMetadata offset =  _consumer.committed(tp);
+      // offset can be null if there was no prior commit
+      if (offset == null) {
+        tpWithNoCommits.add(tp);
+      } else {
+        lastCheckpoint.put(tp, _consumer.committed(tp));
+      }
+    });
+    _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
+    // reset consumer to last checkpoint
+    lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
+    if (!tpWithNoCommits.isEmpty()) {
+      _logger.info("Seeking to start position for partitions: {}", tpWithNoCommits);
+      seekToStartPosition(_consumer, tpWithNoCommits);
+    }
+  }
+
   private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions) {
     if (_startOffsets.isPresent()) {
       _logger.info("Datastream is configured with StartPosition. Trying to start from {}",
           _startOffsets.get());
       seekToOffset(consumer, partitions, _startOffsets.get());
     } else {
-      // means we have no saved offsets for some partitions, reset it to latest for those
-      consumer.seekToEnd(partitions);
+      // means we have no saved offsets for some partitions, seek to end or beginning based on consumer config
+      if (CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST.equals(
+          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+              CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST))) {
+        _logger.info("Datastream was not configured with StartPosition. Seeking to end for partitions: {}", partitions);
+        consumer.seekToEnd(partitions);
+      } else {
+        _logger.info("Datastream was not configured with StartPosition. Seeking to beginning for partitions: {}",
+            partitions);
+        consumer.seekToBeginning(partitions);
+      }
     }
   }
 
@@ -452,6 +495,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
       maybeCommitOffsets(_consumer, true); // happens inline as part of poll
     }
+
+    // update paused partitions
+    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
   @Override
@@ -505,61 +551,110 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   private void checkForPausedPartitionsUpdate(DatastreamTask datastreamTask) {
     // check if there is any change in paused partitions
     // first get the given set of paused source partitions from metadata
-    Map<String, Set<String>> newPausedSourcePartitionsMap =
-        DatastreamUtils.getDatastreamSourcePartitions(datastreamTask.getDatastreams().get(0));
+    Datastream datastream = datastreamTask.getDatastreams().get(0);
+    Map<String, Set<String>> newPausedSourcePartitionsMap = DatastreamUtils.getDatastreamSourcePartitions(datastream);
 
-    if (!newPausedSourcePartitionsMap.equals(_pausedSourcePartitions)) {
-      _pausedSourcePartitions.clear();
-      _pausedSourcePartitions.putAll(newPausedSourcePartitionsMap);
+    if (!newPausedSourcePartitionsMap.equals(_pausedPartitionsConfig)) {
+      _logger.info(
+          "Difference in partitions found in Datastream metadata paused partitions for datastream {}. The list is: {}. "
+              + "Adding {} to taskUpdates queue", datastream, newPausedSourcePartitionsMap,
+          DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+      _pausedPartitionsConfig.clear();
+      _pausedPartitionsConfig.putAll(newPausedSourcePartitionsMap);
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
 
   private void pausePartitions() {
+    _logger.info("Checking for partitions to pause or resume.");
     Validate.isTrue(_consumer != null, "Consumer cannot be null when pausing partitions.");
-    _pausedPartitionsUpdatedCount++; // increment counter for testing purposes only
-
-    _logger.info("List of partitions to pause changed for datastream: {}. The list is: {}", _datastream.getName(),
-        _pausedSourcePartitions);
-
-    // contains list of new partitions to pause
-    Set<TopicPartition> partitionsToPause = new HashSet<>();
+    _pausedPartitionsConfigUpdateCount++; // increment counter for testing purposes only
 
     // get the config that's already there on the consumer
-    Set<TopicPartition> pausedPartitions = _consumer.paused();
-    Set<TopicPartition> assignedPartitions = _consumer.assignment();
+    Set<TopicPartition> currentPausedPartitions = _consumer.paused();
+    Set<TopicPartition> currentAssignedPartitions = _consumer.assignment();
 
-    // get partitions to pause
-    for (String source : _pausedSourcePartitions.keySet()) {
-      for (String partition : _pausedSourcePartitions.get(source)) {
-        partitionsToPause.add(new TopicPartition(source, Integer.parseInt(partition)));
+    // print state
+    _logger.info("Current partition assignment for task {} is: {}, and paused partitions are: {}", _taskName,
+        currentAssignedPartitions, currentPausedPartitions);
+    _logger.info("Current auto-pause partition set is: {}", _autoPausedSourcePartitions);
+
+    // resume all paused partitions
+    _consumer.resume(currentPausedPartitions);
+
+    // pause the auto-paused and manually paused partitions that are assigned to this task
+    Set<TopicPartition> partitionsToPause =
+        determinePartitionsToPause(currentAssignedPartitions, _pausedPartitionsConfig, _autoPausedSourcePartitions);
+
+    // keep the auto-paused set up to date with only assigned partitions
+    _autoPausedSourcePartitions.retainAll(currentAssignedPartitions);
+
+    if (!partitionsToPause.equals(currentPausedPartitions)) {
+      // only log the new list if there was a change
+      _logger.info("There were new partitions to pause. New partitions pause list is: {}", partitionsToPause);
+    }
+
+    // need to pause the entire new set of partitions to pause, since they were resumed at the beginning
+    _logger.info("Full pause list is: {}", partitionsToPause);
+    _consumer.pause(partitionsToPause);
+  }
+
+  /**
+   * Determine which partitions to pause. A partition should be paused if: it is configured for pause (via Datastream
+   * metadata) or it is set for auto-pause (because of error or high-throughput).
+   *
+   * WARNING: this method has a side-effect of removing from the auto-pause set any partition that exists in the map
+   * of partitions that are configured for pause.
+   * @param currentAssignment the set of topic partitions assigned to the consumer
+   * @param configuredForPause a map of topic to partitions that are configured for pause
+   * @param autoPause a set of topic partitions that are auto-paused
+   * @return the total set of assigned partitions that need to be paused
+   */
+  protected static Set<TopicPartition> determinePartitionsToPause(Set<TopicPartition> currentAssignment,
+      Map<String, Set<String>> configuredForPause, Set<TopicPartition> autoPause) {
+    Set<TopicPartition> partitionsToPause = new HashSet<>();
+    for (TopicPartition assigned : currentAssignment) {
+      // if configured for pause, add to set
+      if (isPartitionConfiguredForPause(assigned, configuredForPause)) {
+        partitionsToPause.add(assigned);
+      }
+
+      // if set for auto-pause, add to the set
+      if (autoPause.contains(assigned) && !partitionsToPause.add(assigned)) {
+        // remove from auto pause set if partition is already configured for pause
+        autoPause.remove(assigned);
       }
     }
+    return partitionsToPause;
+  }
 
-    // make sure those partitions are assigned to this task.
-    partitionsToPause.retainAll(assignedPartitions);
-
-    if (!partitionsToPause.equals(pausedPartitions)) {
-      // resume current paused partitions by default.
-      _consumer.resume(pausedPartitions);
-      _logger.info("Resumed partitions: {}", pausedPartitions);
-
-      // pause partitions to pause
-      _consumer.pause(partitionsToPause);
-      _logger.info("Paused partitions: {}", partitionsToPause);
-    }
-
+  /**
+   * If the set of paused partitions in the config contains all topics (denoted by REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)
+   * or contains the given partition explicitly, then the partition is configured to be paused.
+   * @param topicPartition the topic partition
+   * @param pauseConfiguration config map of topic to set of partitions to pause
+   * @return true if the topic partition is configured to be paused.
+   */
+  private static boolean isPartitionConfiguredForPause(TopicPartition topicPartition,
+      Map<String, Set<String>> pauseConfiguration) {
+    Set<String> pausedPartitionsForTopic = pauseConfiguration.get(topicPartition.topic());
+    return pausedPartitionsForTopic != null && (
+        pausedPartitionsForTopic.contains(DatastreamMetadataConstants.REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)
+            || pausedPartitionsForTopic.contains(Integer.toString(topicPartition.partition())));
   }
 
   @VisibleForTesting
-  public int getPausedPartitionsUpdateCount() {
-    return _pausedPartitionsUpdatedCount;
+  public int getPausedPartitionsConfigUpdateCount() {
+    return _pausedPartitionsConfigUpdateCount;
   }
 
   @VisibleForTesting
-  public Map<String, Set<String>> getPausedSourcePartitions() {
-    Map<String, Set<String>> pausedSourcePartitions = new ConcurrentHashMap<>();
-    pausedSourcePartitions.putAll(_pausedSourcePartitions);
-    return pausedSourcePartitions;
+  public Set<TopicPartition> getAutoPausedSourcePartitions() {
+    return Collections.unmodifiableSet(_autoPausedSourcePartitions);
+  }
+
+  @VisibleForTesting
+  public Map<String, Set<String>> getPausedPartitionsConfig() {
+    return Collections.unmodifiableMap(_pausedPartitionsConfig);
   }
 }

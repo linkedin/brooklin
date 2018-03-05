@@ -136,6 +136,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
     return new KafkaConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis, RETRY_SLEEP_DURATION,
-        _retryCount);
+        _retryCount, _pausePartitionOnError);
   }
 }
