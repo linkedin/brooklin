@@ -48,6 +48,11 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_RETENION_MS = "system.destination.retention.ms";
 
   /**
+   * Indicates if the data store in destination requires to be encrypted or not
+   */
+  public static final String DESTINATION_ENCRYPTION_REQUIRED = "system.destination.encryptionRequired";
+
+  /**
    * The name of the schema used to serialize the messages in the destination
    */
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = "system.destination.payloadSchemaName";

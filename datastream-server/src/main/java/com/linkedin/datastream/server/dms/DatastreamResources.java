@@ -557,13 +557,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Validate.isTrue(datastream.hasName(), "Must specify name of Datastream!");
       Validate.isTrue(datastream.hasConnectorName(), "Must specify connectorType!");
       Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
-      Validate.isTrue(datastream.hasSource(), "Must specify source of Datastream!");
-      Validate.isTrue(
-          datastream.hasMetadata() && datastream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY),
+      Validate.isTrue(datastream.hasMetadata(), "Missing metadata for Datastream!");
+
+      StringMap metadataMap = datastream.getMetadata();
+      Validate.isTrue(metadataMap.containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
-        datastream.getMetadata().put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
+        metadataMap.put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
       }
 
       Instant startTime = Instant.now();
