@@ -22,10 +22,10 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
   private Properties getDefaultConfig(Properties override) {
     Properties config = new Properties();
-    config.put(KafkaConnector.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
-    config.put(KafkaConnector.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
-    config.put(KafkaConnector.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
-    config.put(KafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
     if (override != null) {
       config.putAll(override);
     }

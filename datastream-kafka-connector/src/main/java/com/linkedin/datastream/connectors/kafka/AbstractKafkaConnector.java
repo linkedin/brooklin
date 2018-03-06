@@ -19,17 +19,13 @@ import org.slf4j.Logger;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.ThreadUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.DatastreamTask;
-
 
 
 /**
@@ -37,27 +33,11 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public abstract class AbstractKafkaConnector implements Connector {
 
-  protected static final Duration RETRY_SLEEP_DURATION = Duration.ofSeconds(5);
-  protected static final int DEFAULT_RETRY_COUNT = 5;
-
-  public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
-  public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
-  public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
-  public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
-  public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
-  public static final String CONFIG_RETRY_COUNT = "retryCount";
-  public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
-  protected final String _defaultKeySerde;
-  protected final String _defaultValueSerde;
-  protected final KafkaConsumerFactory<?, ?> _consumerFactory;
-  protected final Properties _consumerProps;
-
   protected final String _name;
-  protected final long _commitIntervalMillis;
-  protected final int _retryCount;
-  protected boolean _pausePartitionOnError;
-
   private final Logger _logger;
+
+  protected final KafkaBasedConnectorConfig _config;
+
   protected final ConcurrentHashMap<DatastreamTask, AbstractKafkaBasedConnectorTask> _runningTasks =
       new ConcurrentHashMap<>();
   protected final ExecutorService _executor = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -78,23 +58,8 @@ public abstract class AbstractKafkaConnector implements Connector {
   public AbstractKafkaConnector(String connectorName, Properties config, Logger logger) {
     _name = connectorName;
     _logger = logger;
-    VerifiableProperties verifiableProperties = new VerifiableProperties(config);
-    _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
-    _defaultValueSerde = verifiableProperties.getString(CONFIG_DEFAULT_VALUE_SERDE, "");
-    _commitIntervalMillis = verifiableProperties.getLongInRange(CONFIG_COMMIT_INTERVAL_MILLIS,
-        Duration.ofMinutes(1).toMillis(), 0, Long.MAX_VALUE);
-    _retryCount = verifiableProperties.getInt(CONFIG_RETRY_COUNT, DEFAULT_RETRY_COUNT);
-    _pausePartitionOnError =
-        verifiableProperties.getBoolean(CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.FALSE);
 
-    String factory = verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS,
-        KafkaConsumerFactoryImpl.class.getName());
-    _consumerFactory = ReflectionUtils.createInstance(factory);
-    if (_consumerFactory == null) {
-      throw new DatastreamRuntimeException("Unable to instantiate factory class: " + factory);
-    }
-
-    _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
+    _config = new KafkaBasedConnectorConfig(config);
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -196,8 +161,8 @@ public abstract class AbstractKafkaConnector implements Connector {
 
     KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
 
-    try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
-        "KafkaConnectorPartitionFinder", parsed)) {
+    try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
+        _config.getConsumerProps(), "KafkaConnectorPartitionFinder", parsed)) {
       partitionInfos = consumer.partitionsFor(topic);
       if (partitionInfos == null) {
         throw new DatastreamValidationException("Can't get partition info from kafka for topic: " + topic);

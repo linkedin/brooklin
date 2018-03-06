@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,11 +39,9 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
       KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
-  public KafkaConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps, DatastreamTask task,
-      long commitIntervalMillis, Duration retrySleepDuration, int retryCount, boolean pausePartitionOnError) {
-    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnError,
-        LOG);
-    _consumerFactory = factory;
+  public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
+    super(config, task, LOG);
+    _consumerFactory = config.getConsumerFactory();
   }
 
   @VisibleForTesting

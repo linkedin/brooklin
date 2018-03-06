@@ -42,7 +42,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
   private static final int POLL_TIMEOUT_MS = 25000;
 
-  public static void produceEvents(EmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
+  protected static void produceEvents(EmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
       throws UnsupportedEncodingException {
     Properties props = new Properties();
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.getBrokers());
@@ -258,13 +258,13 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   }
 
   private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
-    KafkaConnectorTask connectorTask =
-        new KafkaConnectorTask(new KafkaConsumerFactoryImpl(), new Properties(), task, 1000, Duration.ofSeconds(0), 5, false);
+    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), new Properties(), "", "", 1000, 5,
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task);
+
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
-    t.setUncaughtExceptionHandler((t1, e) -> {
-      Assert.fail("connector thread died", e);
-    });
+    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
     t.start();
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
