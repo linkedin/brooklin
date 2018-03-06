@@ -24,8 +24,8 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -51,10 +51,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   private Properties getDefaultConfig(Optional<Properties> override) {
     Properties config = new Properties();
-    config.put(KafkaMirrorMakerConnector.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
-    config.put(KafkaMirrorMakerConnector.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
-    config.put(KafkaMirrorMakerConnector.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
-    config.put(AbstractKafkaConnector.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
     override.ifPresent(o -> config.putAll(o));
     return config;
   }

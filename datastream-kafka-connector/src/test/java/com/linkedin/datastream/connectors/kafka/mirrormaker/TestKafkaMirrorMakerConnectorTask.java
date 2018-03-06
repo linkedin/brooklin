@@ -31,6 +31,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -38,6 +39,10 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
+
+  private static final Duration POLL_PERIOD = Duration.ofMillis(100);
+  private static final Duration POLL_TIMEOUT = Duration.ofSeconds(25);
+
 
   public Properties getKafkaProducerProperties() {
     Properties props = new Properties();
@@ -105,7 +110,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     produceEvents(saltyTopic, 1);
     produceEvents(saladTopic, 1);
 
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, 100, 25000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
@@ -151,7 +157,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     KafkaMirrorMakerConnectorTask connectorTask = createKafkaMirrorMakerConnectorTask(datastreamTask);
 
     // Make sure there were 2 initial updates (by onPartitionsAssigned and onPartitionsRevoked)
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, 100, 25000)) {
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 1, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("Paused partitions were not updated at the beginning. Expecting update count 1, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
@@ -185,8 +192,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.checkForUpdateTask(datastreamTask);
 
     // Make sure there was an update, and that there paused partitions.
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
 
@@ -205,20 +213,23 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Make sure only 1 event was seen
     // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
     // be there.
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail(
           "Did not transfer the msgs within timeout. Expected: 4 Tansferred: " + datastreamProducer.getEvents().size());
     }
 
     // Now pause same set of partitions, and make sure there isn't any update.
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 2);
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig(), expectedPartitions);
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail(
           "Transferred msgs when not expected. Expected: 4 Tansferred:  " + datastreamProducer.getEvents().size());
     }
@@ -232,8 +243,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
     connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 2, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 2);
@@ -241,7 +253,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Make sure other 1 extra event was read
     // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
     // be there.
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, 100, 25000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("Transferred messages when not expected, after * partitions were added. Expected: 4 Transferred: "
           + datastreamProducer.getEvents().size());
     }
@@ -249,8 +262,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Now update partition assignment
     // Doesn't matter the partition/topic - we just want to ensure paused partitions are updated (to the same value)
     connectorTask.onPartitionsAssigned(Collections.singletonList(new TopicPartition("randomTopic", 0)));
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 4, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 3, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 3, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     // Expect no change in paused partitions
@@ -260,8 +274,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     datastream.getMetadata().put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, "");
     connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
-    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 5, 100, 25000)) {
-      Assert.fail("Paused partitions were not updated. Expecting update count 5, found: "
+    if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 4, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Paused partitions were not updated. Expecting update count 4, found: "
           + connectorTask.getPausedPartitionsConfigUpdateCount());
     }
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 0);
@@ -271,8 +286,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Make sure other 2 events were read
     // Note: the mock producer doesn't delete previous messages by default, so the previously read records should also
     // be there.
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 6, 100, 25000)) {
-      Assert.fail("Did not transfer the msgs within timeout. Expected: 6 Tansferred:  " + datastreamProducer.getEvents()
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 6, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Did not transfer the msgs within timeout. Expected: 6 Tansferred: " + datastreamProducer.getEvents()
           .size());
     }
 
@@ -327,7 +343,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.checkForUpdateTask(task);
 
     if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig())
-        && connectorTask.getAutoPausedSourcePartitions().isEmpty(), 100, 25000)) {
+        && connectorTask.getAutoPausedSourcePartitions().isEmpty(), POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("Paused partitions were not updated after adding partitions to pause config.");
     }
 
@@ -341,12 +358,68 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(task);
 
-    if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig()), 100, 25000)) {
+    if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig()), POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("Paused partitions were not updated after removing partitions from pause config.");
     }
 
     // verify that all the events got sent (the first 2 events got sent twice)
-    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 7, 100, 25000)) {
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 7, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
+      Assert.fail("datastream producer " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testAutoPauseAndResumeOnSendFailure() throws Exception {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    Datastream datastream =
+        TestKafkaMirrorMakerConnector.createDatastream("pizzaStream", _broker, "\\w+Pizza", metadata);
+    datastream.setTransportProviderName("default");
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString("%s");
+    datastream.setDestination(destination);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create event producer that fails on 3rd event (of 5)
+    MockDatastreamEventProducer datastreamProducer =
+        new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
+    task.setEventProducer(datastreamProducer);
+
+    Properties consumerProps = new Properties();
+    consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    KafkaMirrorMakerConnectorTask connectorTask = createKafkaMirrorMakerConnectorTask(task, consumerProps);
+
+    // produce 5 events
+    produceEvents(yummyTopic, 5);
+
+    // validate that the topic partition was added to auto-paused set
+    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(yummyTopic, 0)),
+        POLL_PERIOD.toMillis(), POLL_TIMEOUT.toMillis())) {
+      Assert.fail("Partition did not auto-pause after multiple send failures.");
+    }
+
+    Assert.assertEquals(datastreamProducer.getEvents().size(), 2,
+        "The events before the failure should have been sent");
+
+    // update the send failure condition so that events flow through once partition is resumed
+    datastreamProducer.updateSendFailCondition((r) -> false);
+
+    Assert.assertTrue(
+        PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().isEmpty(), POLL_PERIOD.toMillis(),
+            POLL_TIMEOUT.toMillis()), "Partition that was auto-paused did not auto-resume.");
+
+    // verify that all the events got sent (the first 2 events got sent twice)
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 7, POLL_PERIOD.toMillis(),
+        POLL_TIMEOUT.toMillis())) {
       Assert.fail("datastream producer " + datastreamProducer.getEvents().size());
     }
 
@@ -361,9 +434,14 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       Properties consumerConfig) throws InterruptedException {
-    KafkaMirrorMakerConnectorTask connectorTask =
-        new KafkaMirrorMakerConnectorTask(new KafkaConsumerFactoryImpl(), consumerConfig, task, 1000,
-            Duration.ofSeconds(0), 5, true);
+    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), consumerConfig, "", "", 1000, 5,
+            Duration.ofSeconds(0), true, Duration.ofSeconds(5)), task);
+    runKafkaMirrorMakerConnectorTask(connectorTask);
+    return connectorTask;
+  }
+
+  private void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask) throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
@@ -371,6 +449,5 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
     }
-    return connectorTask;
   }
 }

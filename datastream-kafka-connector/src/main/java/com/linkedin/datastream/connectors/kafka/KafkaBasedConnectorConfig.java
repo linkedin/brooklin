@@ -1,0 +1,128 @@
+package com.linkedin.datastream.connectors.kafka;
+
+import java.time.Duration;
+import java.util.Properties;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
+
+
+/**
+ * Configs for Kafka-based connectors.
+ */
+public class KafkaBasedConnectorConfig {
+
+  public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
+  public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
+  public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
+  public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
+  public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
+  public static final String CONFIG_RETRY_COUNT = "retryCount";
+  public static final String CONFIG_RETRY_SLEEP_DURATION_MS = "retrySleepDurationMs";
+  public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
+  public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS = "pauseErrorPartitionDurationMs";
+
+  private static final long DEFAULT_RETRY_SLEEP_DURATION_MS = Duration.ofSeconds(5).toMillis();
+  private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS = Duration.ofMinutes(10).toMillis();
+  private static final int DEFAULT_RETRY_COUNT = 5;
+
+  private final Properties _consumerProps;
+  private final VerifiableProperties _connectorProps;
+  private final KafkaConsumerFactory<?, ?> _consumerFactory;
+
+  private final String _defaultKeySerde;
+  private final String _defaultValueSerde;
+  private final long _commitIntervalMillis;
+  private final int _retryCount;
+  private final Duration _retrySleepDuration;
+  private final boolean _pausePartitionOnError;
+  private final Duration _pauseErrorPartitionDuration;
+
+  public KafkaBasedConnectorConfig(Properties properties) {
+    VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
+    _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
+    _defaultValueSerde = verifiableProperties.getString(CONFIG_DEFAULT_VALUE_SERDE, "");
+    _commitIntervalMillis =
+        verifiableProperties.getLongInRange(CONFIG_COMMIT_INTERVAL_MILLIS, Duration.ofMinutes(1).toMillis(), 0,
+            Long.MAX_VALUE);
+    _retryCount = verifiableProperties.getInt(CONFIG_RETRY_COUNT, DEFAULT_RETRY_COUNT);
+    _retrySleepDuration = Duration.ofMillis(
+        verifiableProperties.getLong(CONFIG_RETRY_SLEEP_DURATION_MS, DEFAULT_RETRY_SLEEP_DURATION_MS));
+    _pausePartitionOnError = verifiableProperties.getBoolean(CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.FALSE);
+    _pauseErrorPartitionDuration = Duration.ofMillis(
+        verifiableProperties.getLong(CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
+            DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS));
+
+    String factory =
+        verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
+    _consumerFactory = ReflectionUtils.createInstance(factory);
+    if (_consumerFactory == null) {
+      throw new DatastreamRuntimeException("Unable to instantiate factory class: " + factory);
+    }
+
+    _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
+    _connectorProps = verifiableProperties;
+  }
+
+  @VisibleForTesting
+  public KafkaBasedConnectorConfig(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
+      String defaultKeySerde, String defaultValueSerde, long commitIntervalMillis, int retryCount,
+      Duration retrySleepDuration, boolean pausePartitionOnError, Duration pauseErrorPartitionDuration) {
+    _consumerFactory = consumerFactory;
+    _consumerProps = consumerProps;
+
+    _defaultKeySerde = defaultKeySerde;
+    _defaultValueSerde = defaultValueSerde;
+    _commitIntervalMillis = commitIntervalMillis;
+    _retryCount = retryCount;
+    _retrySleepDuration = retrySleepDuration;
+    _pausePartitionOnError = pausePartitionOnError;
+    _pauseErrorPartitionDuration = pauseErrorPartitionDuration;
+
+    _connectorProps = null;
+  }
+
+  public String getDefaultKeySerde() {
+    return _defaultKeySerde;
+  }
+
+  public String getDefaultValueSerde() {
+    return _defaultValueSerde;
+  }
+
+  public long getCommitIntervalMillis() {
+    return _commitIntervalMillis;
+  }
+
+  public int getRetryCount() {
+    return _retryCount;
+  }
+
+  public Duration getRetrySleepDuration() {
+    return _retrySleepDuration;
+  }
+
+  public boolean getPausePartitionOnError() {
+    return _pausePartitionOnError;
+  }
+
+  public Duration getPauseErrorPartitionDuration() {
+    return _pauseErrorPartitionDuration;
+  }
+
+  public Properties getConsumerProps() {
+    return new Properties(_consumerProps);
+  }
+
+  public KafkaConsumerFactory<?, ?> getConsumerFactory() {
+    return _consumerFactory;
+  }
+
+  public VerifiableProperties getConnectorProps() {
+    return _connectorProps;
+  }
+
+}
