@@ -1,9 +1,8 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.function.BooleanSupplier;
-
-import org.apache.kafka.common.TopicPartition;
-
 
 /**
  * Contains metadata about a paused partition, including the resume criteria and reason for pause.
@@ -25,18 +24,12 @@ public class PausedSourcePartitionMetadata {
     }
   }
 
-  private final TopicPartition _topicPartition;
   private final BooleanSupplier _resumeCondition;
   private final Reason _reason;
 
-  public PausedSourcePartitionMetadata(TopicPartition topicPartition, BooleanSupplier resumeCondition, Reason reason) {
-    _topicPartition = topicPartition;
+  public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason) {
     _resumeCondition = resumeCondition;
     _reason = reason;
-  }
-
-  public TopicPartition getTopicPartition() {
-    return _topicPartition;
   }
 
   public boolean shouldResume() {
@@ -47,8 +40,9 @@ public class PausedSourcePartitionMetadata {
     return _reason;
   }
 
-  @Override
-  public String toString() {
-    return String.format("TopicPartition %s is paused due to: %s", _topicPartition, _reason.getDescription());
+  public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
+    return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
+        Reason.SEND_ERROR);
   }
+
 }
