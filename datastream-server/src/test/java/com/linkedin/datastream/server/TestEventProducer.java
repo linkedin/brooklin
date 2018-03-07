@@ -11,7 +11,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.Meter;
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
@@ -62,7 +62,7 @@ public class TestEventProducer {
 
     EventProducer eventProducer = new EventProducer(task, transport,
         new NoOpCheckpointProvider(), new Properties(), false);
-    Assert.assertNull(getBadMessageRateMeter(datastream));
+    Assert.assertNull(getBadMessageCounter(datastream));
 
     int eventCount = 5;
     for (int i = 0; i < eventCount; i++) {
@@ -103,17 +103,16 @@ public class TestEventProducer {
     Assert.assertEquals(eventCount, numEventsProduced.get());
 
     // Verify bad message count equals to messages produced
-    Meter badMessageRate = getBadMessageRateMeter(datastream);
-    Assert.assertTrue(badMessageRate.getMeanRate() > 0);
-    Assert.assertEquals(failedCount, badMessageRate.getCount());
+    Counter badMessageCounter = getBadMessageCounter(datastream);
+    Assert.assertEquals(failedCount, badMessageCounter.getCount());
 
   }
 
-  private Meter getBadMessageRateMeter(Datastream datastream) {
+  private Counter getBadMessageCounter(Datastream datastream) {
     return DynamicMetricsManager.getInstance().getMetric(String.format("%s.%s.%s",
         EventProducer.class.getSimpleName(),
         datastream.getName(),
-        EventProducer.SKIPPED_BAD_MESSAGES_RATE));
+        EventProducer.SKIPPED_BAD_MESSAGES_COUNTER));
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
