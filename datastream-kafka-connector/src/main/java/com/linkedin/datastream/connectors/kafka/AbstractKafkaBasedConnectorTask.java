@@ -178,9 +178,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
                 topicPartition);
             Instant start = Instant.now();
-            _autoPausedSourcePartitions.put(topicPartition, new PausedSourcePartitionMetadata(topicPartition,
-                () -> Duration.between(start, Instant.now()).compareTo(_pauseErrorPartitionDuration) > 0,
-                PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+            _autoPausedSourcePartitions.put(topicPartition,
+                PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration));
             shouldAddPausePartitionsTask = true;
           }
           // skip other messages for this partition, but can continue processing other partitions
@@ -520,12 +519,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   protected void preConsumerPollHook() {
     // check if any auto-paused partitions need to be resumed
-    for (PausedSourcePartitionMetadata metadata : _autoPausedSourcePartitions.values()) {
-      if (metadata.shouldResume()) {
-        _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
-        break;
-      }
-    }
+    checkForPartitionsToAutoResume();
 
     // check if there was any update in task and take actions
     for (DatastreamConstants.UpdateType updateType : _taskUpdates) {
@@ -540,6 +534,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             _logger.error(msg);
             throw new DatastreamRuntimeException(msg);
         }
+      } else {
+        throw new IllegalStateException("Found null update type in task updates set.");
       }
     }
   }
@@ -571,6 +567,16 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
       _pausedPartitionsConfig.clear();
       _pausedPartitionsConfig.putAll(newPausedSourcePartitionsMap);
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    }
+  }
+
+  /**
+   * Checks for partitions to auto-resume by checking if any of the auto-paused partitions meets criteria to resume. If
+   * such partition is found, add the PAUSE_RESUME_PARTITIONS task to the taskUpdates set.
+   */
+  private void checkForPartitionsToAutoResume() {
+    if (_autoPausedSourcePartitions.values().stream().anyMatch(metadata -> metadata.shouldResume())) {
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }

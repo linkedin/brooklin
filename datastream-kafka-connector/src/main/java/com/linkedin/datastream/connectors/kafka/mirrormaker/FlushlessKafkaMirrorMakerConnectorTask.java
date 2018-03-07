@@ -60,7 +60,7 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
     TopicPartition tp = new TopicPartition(topic, partition);
     if (_flushlessProducer.getInFlightCount(topic, partition) > _maxInFlightMessagesThreshold) {
       // add the partition to the pause list
-      _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(tp,
+      _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
           () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
           PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);

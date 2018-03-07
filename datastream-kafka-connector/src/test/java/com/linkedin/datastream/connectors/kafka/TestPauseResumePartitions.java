@@ -73,9 +73,9 @@ public class TestPauseResumePartitions {
     TopicPartition partition0 = new TopicPartition(topic, 0);
     TopicPartition partition4 = new TopicPartition(topic, 4);
     autoPausePartitions.put(partition0,
-        new PausedSourcePartitionMetadata(partition0, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
     autoPausePartitions.put(partition4,
-        new PausedSourcePartitionMetadata(partition4, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
 
     // verify that 2 of the partitions were designated for pause
     Set<TopicPartition> partitionsToPause =
@@ -108,9 +108,9 @@ public class TestPauseResumePartitions {
     TopicPartition partition5 = new TopicPartition(topic, 5);
     TopicPartition partition7 = new TopicPartition(topic, 7);
     autoPausedPartitions.put(partition5,
-        new PausedSourcePartitionMetadata(partition5, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
     autoPausedPartitions.put(partition7,
-        new PausedSourcePartitionMetadata(partition7, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
 
     // verify that 6 of the partitions are designated for pause
     Set<TopicPartition> partitionsToPause =
@@ -162,9 +162,9 @@ public class TestPauseResumePartitions {
     TopicPartition partition5 = new TopicPartition(topic, 5);
     TopicPartition partition9 = new TopicPartition(topic, 9);
     autoPausedPartitions.put(partition5,
-        new PausedSourcePartitionMetadata(partition5, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
     autoPausedPartitions.put(partition9,
-        new PausedSourcePartitionMetadata(partition9, () -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
+        new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
 
 
     Set<TopicPartition> partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions,
