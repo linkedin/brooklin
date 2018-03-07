@@ -66,11 +66,11 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
       if (stream.hasDestination()) {
         // set default key and value serde
-        if (!stream.getDestination().hasKeySerDe() && !StringUtils.isBlank(_defaultKeySerde)) {
-          stream.getDestination().setKeySerDe(_defaultKeySerde);
+        if (!stream.getDestination().hasKeySerDe() && !StringUtils.isBlank(_config.getDefaultKeySerde())) {
+          stream.getDestination().setKeySerDe(_config.getDefaultKeySerde());
         }
-        if (!stream.getDestination().hasPayloadSerDe() && !StringUtils.isBlank(_defaultValueSerde)) {
-          stream.getDestination().setPayloadSerDe(_defaultValueSerde);
+        if (!stream.getDestination().hasPayloadSerDe() && !StringUtils.isBlank(_config.getDefaultValueSerde())) {
+          stream.getDestination().setPayloadSerDe(_config.getDefaultValueSerde());
         }
       }
 
@@ -81,8 +81,8 @@ public class KafkaConnector extends AbstractKafkaConnector {
         LOG.error(msg);
         throw new DatastreamValidationException(msg);
       }
-      try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_consumerFactory, _consumerProps,
-          "partitionFinder", parsed)) {
+      try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
+          _config.getConsumerProps(), "partitionFinder", parsed)) {
         List<PartitionInfo> partitionInfos = consumer.partitionsFor(parsed.getTopicName());
         if (partitionInfos == null) {
           throw new DatastreamValidationException(
@@ -135,7 +135,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
-    return new KafkaConnectorTask(_consumerFactory, _consumerProps, task, _commitIntervalMillis, RETRY_SLEEP_DURATION,
-        _retryCount, _pausePartitionOnError);
+    return new KafkaConnectorTask(_config, task);
   }
 }

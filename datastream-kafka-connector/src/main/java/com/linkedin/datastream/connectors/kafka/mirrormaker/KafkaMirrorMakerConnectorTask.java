@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +18,7 @@ import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
@@ -52,12 +52,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  protected KafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
-      DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount,
-      boolean pausePartitionOnError) {
-    super(consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount, pausePartitionOnError,
-        LOG);
-    _consumerFactory = factory;
+  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
+    super(config, task, LOG);
+    _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   }
 

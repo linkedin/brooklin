@@ -1,11 +1,9 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -13,7 +11,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
+import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
+import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
@@ -31,22 +31,40 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
   // Use the KafkaMirrorMakerConnectorTask logger
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnectorTask.class.getName());
 
+  protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
+  protected static final String CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD = "minInFlightMessagesThreshold";
+  protected static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
+  protected static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
+
   private final FlushlessEventProducerHandler<Long> _flushlessProducer;
 
-  protected FlushlessKafkaMirrorMakerConnectorTask(KafkaConsumerFactory<?, ?> factory, Properties consumerProps,
-      DatastreamTask task, long commitIntervalMillis, Duration retrySleepDuration, int retryCount,
-      boolean pausePartitionOnSendFailure) {
-    super(factory, consumerProps, task, commitIntervalMillis, retrySleepDuration, retryCount,
-        pausePartitionOnSendFailure);
+  private final long _maxInFlightMessagesThreshold;
+  private final long _minInFlightMessagesThreshold;
+
+  protected FlushlessKafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
+    super(config, task);
     _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
+    _maxInFlightMessagesThreshold =
+        config.getConnectorProps().getLong(CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD);
+    _minInFlightMessagesThreshold =
+        config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
   }
 
   @Override
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord) throws Exception {
     KafkaMirrorMakerCheckpoint sourceCheckpoint =
         new KafkaMirrorMakerCheckpoint(datastreamProducerRecord.getCheckpoint());
-    _flushlessProducer.send(datastreamProducerRecord, sourceCheckpoint.getTopic(), sourceCheckpoint.getPartition(),
-        sourceCheckpoint.getOffset());
+    String topic = sourceCheckpoint.getTopic();
+    int partition = sourceCheckpoint.getPartition();
+    _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset());
+    TopicPartition tp = new TopicPartition(topic, partition);
+    if (_flushlessProducer.getInFlightCount(topic, partition) > _maxInFlightMessagesThreshold) {
+      // add the partition to the pause list
+      _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
+          () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
+          PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
+      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    }
   }
 
   @Override
