@@ -2,6 +2,7 @@ package com.linkedin.datastream;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -70,12 +71,28 @@ public final class BaseRestClientFactory<T> {
    * @param uri URI to the HTTP endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
-   * @return
+   * @return instance of the BaseRestClient
    */
   public synchronized T getClient(String uri, Map<String, String> httpConfig) {
     T client = getOverride(uri);
     if (client == null) {
       client = createClient(getRestClient(uri, httpConfig));
+    }
+    return client;
+  }
+
+  /**
+   * Get a rest client wrapper with custom HTTP configs
+   * @param uri URI to the HTTP endpoint
+   * @param httpConfig custom config for HTTP client, please find the configs in
+   *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
+   * @param clientConfig custom config for the DatastreamRestClient
+   * @return instance of the BaseRestClient which takes in clientConfig as a parameter in the constructor
+   */
+  public synchronized T getClient(String uri, Map<String, String> httpConfig, Properties clientConfig) {
+    T client = getOverride(uri);
+    if (client == null) {
+      client = createClient(getRestClient(uri, httpConfig), clientConfig);
     }
     return client;
   }
@@ -164,6 +181,14 @@ public final class BaseRestClientFactory<T> {
 
   private T createClient(RestClient restClient) {
     T client = ReflectionUtils.createInstance(_restClientClass, restClient);
+    if (client == null) {
+      throw new DatastreamRuntimeException("Failed to instantiate " + _restClientClass);
+    }
+    return client;
+  }
+
+  private T createClient(RestClient restClient, Properties config) {
+    T client = ReflectionUtils.createInstance(_restClientClass, restClient, config);
     if (client == null) {
       throw new DatastreamRuntimeException("Failed to instantiate " + _restClientClass);
     }
