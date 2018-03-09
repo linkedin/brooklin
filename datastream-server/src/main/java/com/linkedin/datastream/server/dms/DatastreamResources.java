@@ -205,6 +205,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       @ActionParam("force") @Optional("false") boolean force) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
+
+    LOG.info("Received request to resume datastream {}", datastream);
+
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Datastream to pause does not exist: " + datastreamName);
@@ -217,17 +220,22 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     List<Datastream> datastreamsToPause =
         force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    LOG.info("Pausing datastreams {}", datastreamsToPause);
     for (Datastream d : datastreamsToPause) {
       try {
         if (DatastreamStatus.READY.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.PAUSED);
           _store.updateDatastream(d.getName(), d, true);
+        } else {
+          LOG.warn("Cannot pause datastream {}, as it is not in READY state. State: {}", d, datastream.getStatus());
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
             "Could not update datastream to paused state: " + d.getName(), e);
       }
     }
+
+    LOG.info("Completed request for pausing datastream {}", datastream);
 
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
@@ -237,6 +245,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       @ActionParam("force") @Optional("false") boolean force) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
+
+    LOG.info("Received request to resume datastream {}", datastream);
+
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Datastream to resume does not exist: " + datastreamName);
@@ -249,11 +260,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     List<Datastream> datastreamsToResume =
         force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    LOG.info("Resuming datastreams {}", datastreamsToResume);
     for (Datastream d : datastreamsToResume) {
       try {
         if (DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
+        } else {
+          LOG.warn("Will not resume datastream {}, as it is already in paused state", d);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
@@ -261,6 +275,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
     }
 
+    LOG.info("Completed request for resuming datastream {}", datastream);
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
@@ -340,6 +355,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Could not update datastream's paused partitions: " + datastream.getName(), e);
     }
 
+    LOG.info("Completed request to pause datastream: {}, source partitions: {}", datastreamName, sourcePartitions);
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
@@ -431,6 +447,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Could not update datastream's paused partitions: " + datastream.getName(), e);
     }
 
+    LOG.info("Completed request to resume datastream: {}, source partitions: {}", datastreamName, sourcePartitions);
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 

@@ -3,11 +3,13 @@ package com.linkedin.datastream.server;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +77,15 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   public long getInFlightCount(String source, int sourcePartition) {
     CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
     return status != null ? status.getInFlightCount() : 0;
+  }
+
+  /**
+   * @return a map of all source partitions to their inflight message counts
+   */
+  public Map<SourcePartition, Long> getInFlightMessagesCounts() {
+    return _callbackStatusMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getInFlightCount()));
   }
 
   /**
