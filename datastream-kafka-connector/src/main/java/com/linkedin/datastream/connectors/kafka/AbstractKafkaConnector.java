@@ -1,10 +1,13 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.net.URI;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +16,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.slf4j.Logger;
@@ -21,6 +26,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -31,12 +37,16 @@ import com.linkedin.datastream.server.DatastreamTask;
 /**
  * Base class for connectors that consume from Kafka.
  */
-public abstract class AbstractKafkaConnector implements Connector {
+public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
   protected final String _name;
   private final Logger _logger;
 
   protected final KafkaBasedConnectorConfig _config;
+
+  enum DiagnosticsRequestType {
+    DATASTREAM_STATE,
+  }
 
   protected final ConcurrentHashMap<DatastreamTask, AbstractKafkaBasedConnectorTask> _runningTasks =
       new ConcurrentHashMap<>();
@@ -173,6 +183,55 @@ public abstract class AbstractKafkaConnector implements Connector {
     }
 
     return partitionInfos;
+  }
+
+  @Override
+  public String process(String query) {
+    _logger.info("Processing query: {}", query);
+    try {
+      URI uri = new URI(query);
+      String path = getPath(query, _logger);
+
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
+        return processDatastreamStateRequest(uri);
+      } else {
+        _logger.error("Could not process query {} with path {}", query, path);
+      }
+    } catch (Exception e) {
+      _logger.error("Failed to process query {}", query, e);
+    }
+    return null;
+  }
+
+  private String processDatastreamStateRequest(URI request) {
+    _logger.info("process Datastream state request: {}", request);
+    Optional<String> datastreamName = URLEncodedUtils.parse(request.getQuery(), Charset.defaultCharset())
+        .stream()
+        .filter(pair -> DATASTREAM_KEY.equalsIgnoreCase(pair.getName()))
+        .map(NameValuePair::getValue)
+        .findFirst();
+    return datastreamName.map(streamName -> _runningTasks.values()
+        .stream()
+        .filter(task -> task.hasDatastream(streamName))
+        .findFirst()
+        .map(t -> t.getKafkaDatastreamStatesResponse())
+        .orElse(null)).map(KafkaDatastreamStatesResponse::toJson).orElse(null);
+  }
+
+  @Override
+  public String reduce(String query, Map<String, String> responses) {
+    _logger.info("reduce query {} with responses {}", query, responses);
+    try {
+      String path = getPath(query, _logger);
+
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
+        return JsonUtils.toJson(responses);
+      }
+    } catch (Exception e) {
+      _logger.error(String.format("Failed to reduce responses %s", query), e);
+      return null;
+    }
+    return null;
   }
 
 }

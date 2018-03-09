@@ -662,6 +662,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return partitionsToPause;
   }
 
+  public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
+    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig);
+  }
+
   /**
    * If the set of paused partitions in the config contains all topics (denoted by REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)
    * or contains the given partition explicitly, then the partition is configured to be paused.
@@ -690,5 +694,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @VisibleForTesting
   public Map<String, Set<String>> getPausedPartitionsConfig() {
     return Collections.unmodifiableMap(_pausedPartitionsConfig);
+  }
+
+  public boolean hasDatastream(String datastreamName) {
+    return _datastreamName.equals(datastreamName);
   }
 }
