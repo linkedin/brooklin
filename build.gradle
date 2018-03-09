@@ -290,6 +290,7 @@ project(':datastream-client') {
     testCompile project(':datastream-testcommon')
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-server')
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
