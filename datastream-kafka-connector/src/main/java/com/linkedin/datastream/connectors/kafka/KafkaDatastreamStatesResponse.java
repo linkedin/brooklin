@@ -30,24 +30,12 @@ public class KafkaDatastreamStatesResponse {
     return _datastream;
   }
 
-  public void setDatastream(String datastream) {
-    _datastream = datastream;
-  }
-
   public Map<TopicPartition, PausedSourcePartitionMetadata> getAutoPausedPartitions() {
     return _autoPausedPartitions;
   }
 
-  public void setAutoPausedPartitions(Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions) {
-    _autoPausedPartitions = autoPausedPartitions;
-  }
-
   public Map<String, Set<String>> getManualPausedPartitions() {
     return _manualPausedPartitions;
-  }
-
-  public void setManualPausedPartitions(Map<String, Set<String>> manualPausedPartitions) {
-    _manualPausedPartitions = manualPausedPartitions;
   }
 
   public static String toJson(KafkaDatastreamStatesResponse obj) {
