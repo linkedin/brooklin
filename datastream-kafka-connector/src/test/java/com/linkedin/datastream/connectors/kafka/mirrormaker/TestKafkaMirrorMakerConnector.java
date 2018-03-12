@@ -424,14 +424,22 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     String result = connector.reduce("/datastream_state?datastream=name", responseMap);
 
-    Assert.assertEquals(result,
-        "{\"instance2\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\",\\\"autoPausedPartitions\\\""
-            + ":{\\\"SaltyPizza-6\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"},\\\"SaltyPizza-17\\\":{\\\"reason\\\":"
-            + "\\\"SEND_ERROR\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],\\\"SaltyPizza\\\":"
-            + "[\\\"1\\\",\\\"9\\\",\\\"25\\\"]}}\",\"instance1\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates"
-            + "\\\",\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"},\\\""
-            + "YummyPizza-10\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza"
-            + "\\\":[\\\"11\\\",\\\"23\\\",\\\"4\\\"],\\\"SaltyPizza\\\":[\\\"77\\\",\\\"2\\\",\\\"5\\\"]}}\"}");
+    Assert.assertTrue(result.contains("\"instance1\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","),
+        "instance1 was not found in reduced result");
+    Assert.assertTrue(result.contains("\"instance2\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","),
+        "instance2 was not found in reduced result");
+    Assert.assertTrue(result.contains("\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":\\\""
+            + "SEND_ERROR\\\"},\\\"YummyPizza-10\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"}}"),
+        "instance1 autoPausedPartitions was not as expected");
+    Assert.assertTrue(result.contains(
+        "\\\"autoPausedPartitions\\\":{\\\"SaltyPizza-6\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"},\\\"SaltyPizza-17\\\""
+            + ":{\\\"reason\\\":\\\"SEND_ERROR\\\"}}"), "instance2 autoPausedPartitions was not as expected");
+    Assert.assertTrue(result.contains("\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"11\\\",\\\"23\\\","
+            + "\\\"4\\\"],\\\"SaltyPizza\\\":[\\\"77\\\",\\\"2\\\",\\\"5\\\"]}"),
+        "instance1 manualPausedPartitions was not as expected");
+    Assert.assertTrue(result.contains("\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],"
+            + "\\\"SaltyPizza\\\":[\\\"1\\\",\\\"9\\\",\\\"25\\\"]}"),
+        "instance2 manualPausedPartitions was not as expected");
   }
 
   private void verifyPausedPartitions(Connector connector, Datastream datastream,

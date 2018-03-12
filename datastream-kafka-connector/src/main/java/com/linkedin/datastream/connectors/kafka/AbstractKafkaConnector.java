@@ -185,6 +185,16 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return partitionInfos;
   }
 
+  /**
+   * Process requests made to the ServerComponentHealthResources diagnostics endpoint. Currently able to process
+   * requests for datastream_state, for which it will return sets of auto and manually paused topic partitions.
+   * Sample query: /datastream_state?datastream=PizzaDatastream
+   * Sample response: {"datastream":"testProcessDatastreamStates",
+   *      "autoPausedPartitions":{"SaltyPizza-6":{"reason":"SEND_ERROR"},"SaltyPizza-17":{"reason":"SEND_ERROR"}},
+   *      "manualPausedPartitions":{"YummyPizza":["19"],"SaltyPizza":["1","9","25"]}}
+   * @param query the query
+   * @return JSON string result, or null if the query could not be understood
+   */
   @Override
   public String process(String query) {
     _logger.info("Processing query: {}", query);
@@ -193,7 +203,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       String path = getPath(query, _logger);
 
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
-        return processDatastreamStateRequest(uri);
+        String response = processDatastreamStateRequest(uri);
+        _logger.info("Query: {} returns response: {}", query, response);
+        return response;
       } else {
         _logger.error("Could not process query {} with path {}", query, path);
       }
@@ -218,6 +230,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         .orElse(null)).map(KafkaDatastreamStatesResponse::toJson).orElse(null);
   }
 
+  /**
+   * Aggregates the responses from all the instances into a single JSON response.
+   * Sample query: /datastream_state?datastream=PizzaDatastream
+   * Sample response:
+   * {"instance2": "{"datastream":"testProcessDatastreamStates",
+   *      "autoPausedPartitions":{"SaltyPizza-6":{"reason":"SEND_ERROR"},"SaltyPizza-17":{"reason":"SEND_ERROR"}},
+   *      "manualPausedPartitions":{"YummyPizza":["19"],"SaltyPizza":["1","9","25"]}}",
+   * "instance1": "{"datastream":"testProcessDatastreamStates",
+   *      "autoPausedPartitions":{"YummyPizza-0":{"reason":"SEND_ERROR"},"YummyPizza-10":{"reason":"SEND_ERROR"}},
+   *      "manualPausedPartitions":{"YummyPizza":["11","23","4"],"SaltyPizza":["77","2","5"]}}"
+   * }
+   * @param query the query
+   * @param responses a map of hosts to their responses
+   * @return a JSON string which is aggregated from all the responses, or null if the query could not be understood
+   */
   @Override
   public String reduce(String query, Map<String, String> responses) {
     _logger.info("reduce query {} with responses {}", query, responses);
