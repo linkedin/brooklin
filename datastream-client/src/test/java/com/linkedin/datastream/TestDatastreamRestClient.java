@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -28,8 +30,20 @@ import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.RetriesExhaustedExeption;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.r2.RemoteInvocationException;
+import com.linkedin.restli.client.Request;
+import com.linkedin.restli.client.Response;
+import com.linkedin.restli.client.ResponseFuture;
+import com.linkedin.restli.client.RestClient;
 import com.linkedin.restli.client.RestLiResponseException;
+import com.linkedin.restli.common.IdResponse;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 
 
 @Test(singleThreaded = true)
@@ -296,5 +310,75 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   public void testDeleteNonExistentDatastream() throws Exception {
     DatastreamRestClient restClient = createRestClient();
     restClient.deleteDatastream("NoSuchDatastream");
+  }
+
+  /*
+   * For timeout retry unit test, pick getDatastream and createDatastream which represent both
+   * methods that have return value and methods that have no return value (void)
+   */
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testCreateDatastreamRetrySucceed() throws Exception {
+    Datastream datastream = generateDatastream(20);
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<IdResponse<String>> timeoutResponse = mock(ResponseFuture.class);
+    ResponseFuture<IdResponse<String>> goodResponse = mock(ResponseFuture.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, timeoutResponse, goodResponse);
+    when(timeoutResponse.getResponse()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    when(goodResponse.getResponse()).thenReturn(mock(Response.class));
+
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "10000");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    restClient.createDatastream(datastream);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testGetDatastreamRetrySucceed() throws Exception {
+    Datastream datastream = generateDatastream(20);
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<Datastream> timeoutResponse = mock(ResponseFuture.class);
+    ResponseFuture<Datastream> goodResponse = mock(ResponseFuture.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, timeoutResponse, goodResponse);
+    when(timeoutResponse.getResponseEntity()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    when(goodResponse.getResponseEntity()).thenReturn(datastream);
+
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "10000");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    Assert.assertEquals(restClient.getDatastream(datastream.getName()).getSource().getConnectionString(),
+        datastream.getSource().getConnectionString());
+  }
+
+  @Test(expectedExceptions = RetriesExhaustedExeption.class)
+  @SuppressWarnings("unchecked")
+  public void testCreateDatastreamRetryExhuast() throws Exception {
+    Datastream datastream = generateDatastream(20);
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<IdResponse<String>> response = mock(ResponseFuture.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(response);
+    when(response.getResponse()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "200");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    restClient.createDatastream(datastream);
+  }
+
+  @Test(expectedExceptions = RetriesExhaustedExeption.class)
+  @SuppressWarnings("unchecked")
+  public void testGetDatastreamRetryExhuast() throws Exception {
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<IdResponse<String>> response = mock(ResponseFuture.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(response);
+    when(response.getResponse()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "200");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    restClient.getDatastream("datastreamName");
   }
 }
