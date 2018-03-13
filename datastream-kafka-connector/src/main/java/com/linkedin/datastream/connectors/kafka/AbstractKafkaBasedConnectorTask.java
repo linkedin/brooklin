@@ -577,6 +577,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   private void checkForPartitionsToAutoResume() {
     if (_autoPausedSourcePartitions.values().stream().anyMatch(metadata -> metadata.shouldResume())) {
+      _logger.info("Found partition to resume, adding PAUSE_RESUME_PARTITIONS to task updates set");
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }

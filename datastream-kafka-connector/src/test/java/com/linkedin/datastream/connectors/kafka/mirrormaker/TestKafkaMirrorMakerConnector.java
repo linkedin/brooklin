@@ -45,15 +45,14 @@ import com.linkedin.datastream.server.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 
-import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.*;
-
+import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
+import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
 
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnector.class);
-  private static final long POLL_TIMEOUT_MS = Duration.ofSeconds(25).toMillis();
-  private static final long POLL_PERIOD_MS = Duration.ofMillis(100).toMillis();
 
   private static final String DATASTREAM_STATE_QUERY = "/datastream_state?datastream=";
 
