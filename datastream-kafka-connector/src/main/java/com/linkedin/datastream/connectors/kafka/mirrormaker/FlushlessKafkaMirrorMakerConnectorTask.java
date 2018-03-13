@@ -48,6 +48,9 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
         config.getConnectorProps().getLong(CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD);
     _minInFlightMessagesThreshold =
         config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
+    LOG.info(
+        "Flushless Kafka MirrorMaker connector task created for task: {}, with minInFlightMessagesThreshold {} and maxInFlightMessagesThreshold {}",
+        task, _minInFlightMessagesThreshold, _maxInFlightMessagesThreshold);
   }
 
   @Override
@@ -58,8 +61,12 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
     int partition = sourceCheckpoint.getPartition();
     _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset());
     TopicPartition tp = new TopicPartition(topic, partition);
-    if (_flushlessProducer.getInFlightCount(topic, partition) > _maxInFlightMessagesThreshold) {
+    long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
+    if (inFlightMessageCount > _maxInFlightMessagesThreshold) {
       // add the partition to the pause list
+      LOG.warn(
+          "In-flight message count of {} for topic partition {} exceeded maxInFlightMessagesThreshold of {}. Will pause partition.",
+          inFlightMessageCount, tp, _maxInFlightMessagesThreshold);
       _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
           () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
           PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
@@ -80,10 +87,9 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
         _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition()).ifPresent(ackCheckpoint -> {
           long committedCheckpoint =
               Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L);
-          if (!Objects.equals(ackCheckpoint, committedCheckpoint)) {
-            LOG.error(
-                "Ack checkpoint should match committed checkpoint after flushing and checkpointing. Ack checkpoint: "
-                    + "{}, consumer position: {}", ackCheckpoint, committedCheckpoint);
+          if (!Objects.equals(ackCheckpoint + 1, committedCheckpoint)) {
+            LOG.error("Ack checkpoint+1 should match committed checkpoint after flushing and checkpointing. "
+                + "Ack checkpoint+1: {}, consumer position: {}", ackCheckpoint + 1, committedCheckpoint);
           }
         });
 
