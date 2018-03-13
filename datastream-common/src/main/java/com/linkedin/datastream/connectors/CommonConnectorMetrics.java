@@ -127,9 +127,19 @@ public class CommonConnectorMetrics {
     public static final String CLIENT_POLL_OVER_TIMEOUT = "clientPollOverTimeout";
     public static final String CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT = "pollIntervalOverSessionTimeout";
 
+    // keeps track of paused partitions that are manually paused
+    public static final String NUM_CONFIG_PAUSED_PARTITIONS = "numConfigPausedPartitions";
+    // keeps track of paused partitions that are auto paused because of error
+    public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR = "numAutoPausedPartitionsOnError";
+    // keeps track of paused partitions that are auto paused because of large number of inflight messages
+    public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES = "numAutoPausedPartitionsOnInFlightMessages";
+
     // Per consumer metrics
     final Meter _numPolls;
     final Histogram _eventCountsPerPoll;
+    final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
+    final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
+    final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
 
     // Aggregated metrics
     final Counter _aggregatedClientPollOverTimeout;
@@ -140,6 +150,9 @@ public class CommonConnectorMetrics {
       _numPolls = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, NUM_POLLS, Meter.class);
       _eventCountsPerPoll = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_COUNTS_PER_POLL,
           Histogram.class);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS, _numConfigPausedPartitions::get);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR, _numAutoPausedPartitionsOnError::get);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES, _numAutoPausedPartitionsOnInFlightMessages::get);
 
       // Getting aggregated metrics from DMM, all keyed instances for the same connector share
       // the a single set of aggregated metrics.
@@ -155,6 +168,10 @@ public class CommonConnectorMetrics {
       super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_POLLS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENT_COUNTS_PER_POLL);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
+
     }
 
     @Override
@@ -170,6 +187,10 @@ public class CommonConnectorMetrics {
       metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_OVER_TIMEOUT));
       metrics.add(new BrooklinCounterInfo(prefix + CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT));
       metrics.add(new BrooklinHistogramInfo(prefix + EVENT_COUNTS_PER_POLL));
+      metrics.add(new BrooklinGaugeInfo(prefix + NUM_CONFIG_PAUSED_PARTITIONS));
+      metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
+      metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
+
       return Collections.unmodifiableList(metrics);
     }
   }
@@ -404,6 +425,30 @@ public class CommonConnectorMetrics {
    */
   public void updateClientPollIntervalOverSessionTimeout(long val) {
     _pollMetrics._aggregatedClientPollIntervalOverSessionTimeout.inc(val);
+  }
+
+  /**
+   * Set number of config (manually) paused partitions
+   * @param val Value to set to
+   */
+  public void updateNumConfigPausedPartitions(long val) {
+    _pollMetrics._numConfigPausedPartitions.set(val);
+  }
+
+  /**
+   * Set number of auto paused partitions
+   * @param val Value to set to
+   */
+  public void updateNumAutoPausedPartitionsOnError(long val) {
+    _pollMetrics._numAutoPausedPartitionsOnError.set(val);
+  }
+
+  /**
+   * Set number of auto paused partitions
+   * @param val Value to set to
+   */
+  public void updateNumAutoPausedPartitionsOnInFlightMessages(long val) {
+    _pollMetrics._numAutoPausedPartitionsOnInFlightMessages.set(val);
   }
 
   /**
