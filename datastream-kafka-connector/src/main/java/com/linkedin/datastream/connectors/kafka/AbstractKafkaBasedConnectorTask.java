@@ -1,12 +1,15 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -39,12 +42,10 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskStatus;
-
 
 /**
  * Base class for connector task, where the connector is Kafka-based. This base class provides basic structure for
@@ -99,7 +100,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   // auto paused partitions map contains partitions that were paused on the fly (due to error or in-flight msg count)
   protected Map<TopicPartition, PausedSourcePartitionMetadata> _autoPausedSourcePartitions = new ConcurrentHashMap<>();
 
-  protected CommonConnectorMetrics _consumerMetrics;
+  protected KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger) {
     _logger = logger;
@@ -126,11 +127,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
 
-    _consumerMetrics = createCommonConnectorMetrics(this.getClass().getSimpleName(), _datastreamName, _logger);
+    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(this.getClass().getSimpleName(), _datastreamName, _logger);
   }
 
-  protected CommonConnectorMetrics createCommonConnectorMetrics(String className, String key, Logger errorLogger) {
-    CommonConnectorMetrics consumerMetrics = new CommonConnectorMetrics(className, key, errorLogger);
+  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String className, String key, Logger errorLogger) {
+    KafkaBasedConnectorTaskMetrics consumerMetrics = new KafkaBasedConnectorTaskMetrics(className, key, errorLogger);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -686,6 +687,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return pausedPartitionsForTopic != null && (
         pausedPartitionsForTopic.contains(DatastreamMetadataConstants.REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC)
             || pausedPartitionsForTopic.contains(Integer.toString(topicPartition.partition())));
+  }
+
+  public static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.addAll(KafkaBasedConnectorTaskMetrics.getEventProcessingMetrics(prefix));
+    metrics.addAll(KafkaBasedConnectorTaskMetrics.getEventPollMetrics(prefix));
+    metrics.addAll(KafkaBasedConnectorTaskMetrics.getPartitionSpecificMetrics(prefix));
+    metrics.addAll(KafkaBasedConnectorTaskMetrics.getKafkaBasedConnectorTaskSpecificMetrics(prefix));
+    return metrics;
   }
 
   @VisibleForTesting

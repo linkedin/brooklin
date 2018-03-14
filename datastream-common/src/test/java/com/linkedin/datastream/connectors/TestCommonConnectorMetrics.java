@@ -121,9 +121,6 @@ public class TestCommonConnectorMetrics {
       connectorConsumer2.updateClientPollOverTimeout(2);
       connectorConsumer1.updateClientPollIntervalOverSessionTimeout(3);
       connectorConsumer2.updateClientPollIntervalOverSessionTimeout(4);
-      connectorConsumer2.updateNumConfigPausedPartitions(15);
-      connectorConsumer2.updateNumAutoPausedPartitionsOnInFlightMessages(25);
-      connectorConsumer2.updateNumAutoPausedPartitionsOnError(35);
     }
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + CommonConnectorMetrics.PollMetrics.NUM_POLLS)).getCount(), 10);
@@ -140,27 +137,6 @@ public class TestCommonConnectorMetrics {
         30);
     Assert.assertEquals(((Counter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
         + CommonConnectorMetrics.PollMetrics.CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT)).getCount(), 70);
-
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(),
-        0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(),
-        0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(),
-        0);
-
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(),
-        15);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(),
-        25);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PollMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(),
-        35);
-
   }
 
   @Test

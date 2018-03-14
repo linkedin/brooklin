@@ -1,7 +1,6 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -20,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -95,11 +93,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos() {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    metrics.addAll(CommonConnectorMetrics.getEventProcessingMetrics(METRICS_PREFIX_REGEX));
-    metrics.addAll(CommonConnectorMetrics.getEventPollMetrics(METRICS_PREFIX_REGEX));
-    metrics.addAll(CommonConnectorMetrics.getPartitionSpecificMetrics(METRICS_PREFIX_REGEX));
-    return metrics;
+    return AbstractKafkaBasedConnectorTask.getMetricInfos(METRICS_PREFIX_REGEX);
   }
 
   @Override
