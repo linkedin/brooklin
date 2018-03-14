@@ -140,7 +140,6 @@ public class CommonConnectorMetrics {
       _numPolls = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, NUM_POLLS, Meter.class);
       _eventCountsPerPoll = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_COUNTS_PER_POLL,
           Histogram.class);
-
       // Getting aggregated metrics from DMM, all keyed instances for the same connector share
       // the a single set of aggregated metrics.
       _aggregatedClientPollOverTimeout =

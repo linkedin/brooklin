@@ -1,7 +1,6 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
@@ -16,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -102,11 +100,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos() {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    metrics.addAll(CommonConnectorMetrics.getEventProcessingMetrics(METRICS_PREFIX_REGEX));
-    metrics.addAll(CommonConnectorMetrics.getEventPollMetrics(METRICS_PREFIX_REGEX));
-    metrics.addAll(CommonConnectorMetrics.getPartitionSpecificMetrics(METRICS_PREFIX_REGEX));
-    return metrics;
+    return AbstractKafkaBasedConnectorTask.getMetricInfos(METRICS_PREFIX_REGEX);
   }
 
 }
