@@ -8,6 +8,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
+import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -54,4 +55,9 @@ public abstract class BaseKafkaZkTest {
     _broker = null;
   }
 
+  protected static void createTopic(ZkUtils zkUtils, String topic) {
+    if (!AdminUtils.topicExists(zkUtils, topic)) {
+      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+    }
+  }
 }

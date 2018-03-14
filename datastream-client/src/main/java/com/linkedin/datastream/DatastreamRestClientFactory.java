@@ -2,6 +2,7 @@ package com.linkedin.datastream;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,21 @@ public final class DatastreamRestClientFactory {
    * @param dmsUri URI to DMS endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
+   * @param clientConfig custom config for the DatastreamRestClient.
+   *                     Supported config entries can be found in {@link DatastreamRestClient}
+   * @return
+   */
+  public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig, Properties clientConfig) {
+    return FACTORY.getClient(dmsUri, httpConfig, clientConfig);
+  }
+
+  /**
+   * Get a DatastreamRestClient with custom HTTP configs and DatastreamRestClient configs
+   * @see BaseRestClientFactory#getClient(String, Map)
+   * @param dmsUri URI to DMS endpoint
+   * @param httpConfig custom config for HTTP client, please find the configs in
+   *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
+   *
    * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig) {

@@ -1,8 +1,12 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 
 import org.slf4j.Logger;
@@ -20,13 +24,27 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(MockDatastreamEventProducer.class);
   private final List<DatastreamProducerRecord> events = Collections.synchronizedList(new ArrayList<>());
   private int numFlushes = 0;
+  private ExecutorService _executorService = Executors.newFixedThreadPool(1);
+  private Duration _callbackThrottleDuration;
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
 
+  private static final Duration DEFAULT_CALLBACK_THROTTLE_DURATION = Duration.ofMillis(0);
+  private static final Predicate<DatastreamProducerRecord> DEFAULT_SEND_FAIL_CONDITION = (r) -> false;
+
   public MockDatastreamEventProducer() {
-    this((record) -> false);
+    this(DEFAULT_CALLBACK_THROTTLE_DURATION, DEFAULT_SEND_FAIL_CONDITION);
   }
 
   public MockDatastreamEventProducer(Predicate<DatastreamProducerRecord> sendFailCondition) {
+    this(DEFAULT_CALLBACK_THROTTLE_DURATION, sendFailCondition);
+  }
+
+  public MockDatastreamEventProducer(Duration callbackThrottleDuration) {
+    this(callbackThrottleDuration, DEFAULT_SEND_FAIL_CONDITION);
+  }
+
+  public MockDatastreamEventProducer(Duration callbackThrottleDuration, Predicate<DatastreamProducerRecord> sendFailCondition) {
+    _callbackThrottleDuration = callbackThrottleDuration;
     _sendFailCondition = sendFailCondition;
   }
 
@@ -36,12 +54,21 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
       throw new DatastreamRuntimeException("Random exception");
     }
 
-    events.add(event);
-    LOG.info("sent event {} , total events {}", event, events.size());
-    DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
-    if (callback != null) {
-      callback.onCompletion(md, null);
-    }
+    // potentially throttle send callbacks by sleeping for specified duration
+    Optional.ofNullable(_callbackThrottleDuration).ifPresent(d -> {
+      _executorService.submit(() -> {
+        try {
+          Thread.sleep(d.toMillis());
+          events.add(event);
+          LOG.info("sent event {} , total events {}", event, events.size());
+          DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
+          callback.onCompletion(md, null);
+        } catch (InterruptedException e) {
+          LOG.error("Sleep was interrupted while throttling send callback");
+          throw new DatastreamRuntimeException("Sleep was interrupted", e);
+        }
+      });
+    });
   }
 
   @Override

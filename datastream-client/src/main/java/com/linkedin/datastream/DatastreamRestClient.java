@@ -1,10 +1,15 @@
 package com.linkedin.datastream;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
+import org.apache.commons.lang3.RandomUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +20,8 @@ import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.RetriesExhaustedExeption;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.restli.client.BatchUpdateRequest;
@@ -43,8 +50,17 @@ import com.linkedin.restli.common.UpdateStatus;
 public class DatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
 
+  // To support retries on the request timeouts
+  public static final String CONFIG_RETRY_PERIOD_MS = "retryPeriodMs";
+  public static final String CONFIG_RETRY_TIMEOUT_MS = "retryTimeoutMs";
+  private static final long DEFAULT_RETRY_PERIOD_MS = Duration.ofSeconds(6).toMillis();
+  private static final long DEFAULT_RETRY_TIMEOUT_MS = Duration.ofSeconds(90).toMillis();
+
   private final DatastreamRequestBuilders _builders;
   private final RestClient _restClient;
+
+  private long _retryPeriodMs = DEFAULT_RETRY_PERIOD_MS;
+  private long _retryTimeoutMs = DEFAULT_RETRY_TIMEOUT_MS;
 
   /**
    * @deprecated Please use factory {@link DatastreamRestClientFactory}
@@ -52,15 +68,43 @@ public class DatastreamRestClient {
    */
   @Deprecated
   public DatastreamRestClient(RestClient restClient) {
+    this(restClient, new Properties());
+  }
+
+  /**
+   * Construct the DatastreamRestClient. Should be called by {@link DatastreamRestClientFactory} only
+   * @param restClient rest.li client to use
+   * @param config config for the DatastreamRestClient. Note that this is not the http config for the underlying
+   *               RestClient
+   */
+  public DatastreamRestClient(RestClient restClient, Properties config) {
+    if (config.containsKey(CONFIG_RETRY_PERIOD_MS)) {
+      _retryPeriodMs = Long.valueOf(config.getProperty(CONFIG_RETRY_PERIOD_MS));
+    }
+    if (config.containsKey(CONFIG_RETRY_TIMEOUT_MS)) {
+      _retryTimeoutMs = Long.valueOf(config.getProperty(CONFIG_RETRY_TIMEOUT_MS));
+    }
+    Validate.isTrue(_retryPeriodMs > 0);
+    Validate.isTrue(_retryTimeoutMs > _retryPeriodMs);
     Validate.notNull(restClient, "null restClient");
     _builders = new DatastreamRequestBuilders();
     _restClient = restClient;
+    LOG.info("DatastreamRestClient created with retryPeriodMs={} retryTimeoutMs={}", _retryPeriodMs, _retryTimeoutMs);
+  }
+
+  private long getRetryPeriodMs() {
+    // give a bit of randomness to the retry period; in the mean time, retry period can't exceed retry timeout
+    return Math.min(Math.round(_retryPeriodMs * RandomUtils.nextDouble(0.6, 1.4)) + 1, _retryTimeoutMs);
+  }
+
+  private long getRetryTimeoutMs() {
+    return _retryTimeoutMs;
   }
 
   private Datastream doGetDatastream(String datastreamName) throws RemoteInvocationException {
     GetRequest<Datastream> request = _builders.get().id(datastreamName).build();
     ResponseFuture<Datastream> datastreamResponseFuture = _restClient.sendRequest(request);
-    return datastreamResponseFuture.getResponse().getEntity();
+    return datastreamResponseFuture.getResponseEntity();
   }
 
   private static boolean isNotFoundHttpStatus(RemoteInvocationException e) {
@@ -81,18 +125,24 @@ public class DatastreamRestClient {
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    */
   public Datastream getDatastream(String datastreamName) {
-    try {
-      return doGetDatastream(datastreamName);
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-        return null;
+    return PollUtils.poll(() -> {
+      try {
+        return doGetDatastream(datastreamName);
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: getDatastream. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage = String.format("Get Datastream {%s} failed with error.", datastreamName);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+          return null; // not reachable; Meltdown hack goes here...
+        }
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -148,15 +198,20 @@ public class DatastreamRestClient {
   }
 
   private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) {
-    ResponseFuture<CollectionResponse<Datastream>> datastreamResponseFuture = _restClient.sendRequest(request);
-    try {
-      return datastreamResponseFuture.getResponse().getEntity().getElements();
-    } catch (RemoteInvocationException e) {
-      String errorMessage = "Get All Datastreams failed with error.";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-    }
-
-    return null;
+    return PollUtils.poll(() -> {
+      ResponseFuture<CollectionResponse<Datastream>> datastreamResponseFuture = _restClient.sendRequest(request);
+      try {
+        return datastreamResponseFuture.getResponse().getEntity().getElements();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: getAllDatastreams. May retry...", e);
+          return null;
+        }
+        String errorMessage = "Get All Datastreams failed with error.";
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        return null; // not reachable
+      }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -195,21 +250,28 @@ public class DatastreamRestClient {
    *   while sending the request or receiving the response.
    */
   public void createDatastream(Datastream datastream) {
-    CreateIdRequest<String, Datastream> request = _builders.create().input(datastream).build();
-    ResponseFuture<IdResponse<String>> datastreamResponseFuture = _restClient.sendRequest(request);
-    try {
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      if (e instanceof RestLiResponseException && ((RestLiResponseException) e).getStatus() == HttpStatus.S_409_CONFLICT
-          .getCode()) {
-        String msg = String.format("Datastream %s already exists", datastream.getName());
-        LOG.warn(msg, e);
-        throw new DatastreamAlreadyExistsException(msg);
-      } else {
-        String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      CreateIdRequest<String, Datastream> request = _builders.create().input(datastream).build();
+      ResponseFuture<IdResponse<String>> datastreamResponseFuture = _restClient.sendRequest(request);
+      try {
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: createDatastream. May retry...", e);
+          return null;
+        }
+        if (e instanceof RestLiResponseException
+            && ((RestLiResponseException) e).getStatus() == HttpStatus.S_409_CONFLICT.getCode()) {
+          String msg = String.format("Datastream %s already exists", datastream.getName());
+          LOG.warn(msg, e);
+          throw new DatastreamAlreadyExistsException(msg);
+        } else {
+          String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+          return null; // not reachable
+        }
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -228,16 +290,23 @@ public class DatastreamRestClient {
    * @param datastreams list of datastreams to be updated
    */
   public void updateDatastream(List<Datastream> datastreams) {
-    BatchUpdateRequest<String, Datastream> request = _builders.batchUpdate()
-        .inputs(datastreams.stream().collect(Collectors.toMap(Datastream::getName, ds -> ds)))
-        .build();
-    ResponseFuture<BatchKVResponse<String, UpdateStatus>> datastreamResponseFuture = _restClient.sendRequest(request);
-    try {
-      // we wont' support partial success. so ignore the result
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to update datastreams", e);
-    }
+    // we wont' support partial success. so ignore the result
+    PollUtils.poll(() -> {
+      BatchUpdateRequest<String, Datastream> request = _builders.batchUpdate()
+          .inputs(datastreams.stream().collect(Collectors.toMap(Datastream::getName, ds -> ds)))
+          .build();
+      ResponseFuture<BatchKVResponse<String, UpdateStatus>> datastreamResponseFuture = _restClient.sendRequest(request);
+      try {
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: updateDatastream. May retry...", e);
+          return null;
+        }
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to update datastreams", e);
+        return null; // not reachable
+      }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -250,19 +319,26 @@ public class DatastreamRestClient {
    *   When the datastream is not found or any other error happens on the server.
    */
   public void deleteDatastream(String datastreamName) {
-    DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
-    ResponseFuture<EmptyRecord> response = _restClient.sendRequest(request);
-    try {
-      response.getResponse();
-    } catch (RemoteInvocationException e) {
-      String errorMessage = String.format("Delete Datastream %s failed with error.", datastreamName);
-      if (isNotFoundHttpStatus(e)) {
-        LOG.error(errorMessage, e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
+      ResponseFuture<EmptyRecord> response = _restClient.sendRequest(request);
+      try {
+        return response.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: deleteDatastream. May retry...", e);
+          return null;
+        }
+        String errorMessage = String.format("Delete Datastream %s failed with error.", datastreamName);
+        if (isNotFoundHttpStatus(e)) {
+          LOG.error(errorMessage, e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -271,18 +347,24 @@ public class DatastreamRestClient {
    * @return whether such datastream exists
    */
   public boolean datastreamExists(String datastreamName) {
-    try {
-      doGetDatastream(datastreamName);
-      return true;
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.debug(String.format("Datastream %s is not found", datastreamName));
-      } else {
-        String errorMessage = String.format("Get Datastream %s failed with error.", datastreamName);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    return PollUtils.poll(() -> {
+      try {
+        doGetDatastream(datastreamName);
+        return Boolean.TRUE;
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: datastreamExists. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.debug(String.format("Datastream %s is not found", datastreamName));
+        } else {
+          String errorMessage = String.format("Get Datastream %s failed with error.", datastreamName);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
       }
-    }
-    return false;
+      return Boolean.FALSE;
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -308,19 +390,26 @@ public class DatastreamRestClient {
    * an error response from the server.
    */
   public void pause(String datastreamName, boolean force) {
-    try {
-      ActionRequest<Void> request = _builders.actionPause().id(datastreamName).forceParam(force).build();
-      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        String errorMessage = String.format("Pause Datastream {%s} failed with error.", datastreamName);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      try {
+        ActionRequest<Void> request = _builders.actionPause().id(datastreamName).forceParam(force).build();
+        ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: pause. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage = String.format("Pause Datastream {%s} failed with error.", datastreamName);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -344,19 +433,26 @@ public class DatastreamRestClient {
    * an error response from the server.
    */
   public void resume(String datastreamName, boolean force) throws RemoteInvocationException {
-    try {
-      ActionRequest<Void> request = _builders.actionResume().id(datastreamName).forceParam(force).build();
-      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        String errorMessage = String.format("Resume Datastream {%s} failed with error.", datastreamName);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      try {
+        ActionRequest<Void> request = _builders.actionResume().id(datastreamName).forceParam(force).build();
+        ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: pause. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage = String.format("Resume Datastream {%s} failed with error.", datastreamName);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -369,13 +465,19 @@ public class DatastreamRestClient {
    * an error response from the server.
    */
   public List<Datastream> findGroup(String datastreamName) {
-    try {
-      FindRequest<Datastream> request = _builders.findByFindGroup().datastreamNameParam(datastreamName).build();
-      return _restClient.sendRequest(request).getResponse().getEntity().getElements();
-    } catch (RemoteInvocationException e) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "findGroup failed with error.", e);
-    }
-    return null;
+    return PollUtils.poll(() -> {
+      try {
+        FindRequest<Datastream> request = _builders.findByFindGroup().datastreamNameParam(datastreamName).build();
+        return _restClient.sendRequest(request).getResponse().getEntity().getElements();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: findGroup. May retry...", e);
+          return null;
+        }
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "findGroup failed with error.", e);
+      }
+      return null; // not reachable
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -390,22 +492,29 @@ public class DatastreamRestClient {
    */
   public void pauseSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {
-    try {
-      ActionRequest<Void> request =
-          _builders.actionPauseSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
-      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        String errorMessage =
-            String.format("Pause Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
-                datastreamName, sourcePartitions);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      try {
+        ActionRequest<Void> request =
+            _builders.actionPauseSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+        ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: pauseSourcePartitions. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage =
+              String.format("Pause Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                  datastreamName, sourcePartitions);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 
   /**
@@ -420,21 +529,28 @@ public class DatastreamRestClient {
    */
   public void resumeSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {
-    try {
-      ActionRequest<Void> request =
-          _builders.actionResumeSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
-      ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
-      datastreamResponseFuture.getResponse();
-    } catch (RemoteInvocationException e) {
-      if (isNotFoundHttpStatus(e)) {
-        LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
-        throw new DatastreamNotFoundException(datastreamName, e);
-      } else {
-        String errorMessage =
-            String.format("Resume Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
-                datastreamName, sourcePartitions);
-        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+    PollUtils.poll(() -> {
+      try {
+        ActionRequest<Void> request =
+            _builders.actionResumeSourcePartitions().id(datastreamName).sourcePartitionsParam(sourcePartitions).build();
+        ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          LOG.warn("Timeout: pauseSourcePartitions. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage =
+              String.format("Resume Datastream partitions failed with error. Datastream: {%s}, Partitions: {%s}",
+                  datastreamName, sourcePartitions);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
       }
-    }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
 }

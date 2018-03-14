@@ -211,6 +211,7 @@ project(':datastream-kafka-connector') {
   dependencies {
     compile project(':datastream-server-api')
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
+    compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:1.5.1"
 
     testCompile project(':datastream-kafka')
@@ -290,6 +291,7 @@ project(':datastream-client') {
     testCompile project(':datastream-testcommon')
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-server')
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 

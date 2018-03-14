@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
 import static org.mockito.Mockito.any;
@@ -70,12 +69,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         index++;
       }
       producer.flush();
-    }
-  }
-
-  private static void createTopic(ZkUtils zkUtils, String topic) {
-    if (!AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.createTopic(zkUtils, topic, 1, 2, new Properties(), null);
     }
   }
 
@@ -259,7 +252,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), new Properties(), "", "", 1000, 5,
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
             Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task);
 
     Thread t = new Thread(connectorTask, "connector thread");
