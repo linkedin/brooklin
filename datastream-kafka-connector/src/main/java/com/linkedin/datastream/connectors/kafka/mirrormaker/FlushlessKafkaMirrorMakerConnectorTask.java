@@ -87,6 +87,8 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
         _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition()).ifPresent(ackCheckpoint -> {
           long committedCheckpoint =
               Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L);
+          // check that ackCheckpoint+1 should equal the committed checkpoint in Kafka. The reason that committed offset
+          // is 1 larger than ackCheckpoint is because Kafka always commits the next offset to consume
           if (!Objects.equals(ackCheckpoint + 1, committedCheckpoint)) {
             LOG.error("Ack checkpoint+1 should match committed checkpoint after flushing and checkpointing. "
                 + "Ack checkpoint+1: {}, consumer position: {}", ackCheckpoint + 1, committedCheckpoint);

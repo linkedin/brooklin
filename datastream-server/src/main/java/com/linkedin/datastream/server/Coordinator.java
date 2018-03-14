@@ -1242,11 +1242,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(NUM_REBALANCES)));
-    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_ERRORS));
-    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex() + NUM_RETRIES));
-    _metrics.add(new BrooklinCounterInfo(buildMetricName(NUM_HEARTBEATS)));
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
+    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_REBALANCES)));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_ERRORS));
+    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
+    _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));
+    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
 
     return Collections.unmodifiableList(_metrics);
   }
