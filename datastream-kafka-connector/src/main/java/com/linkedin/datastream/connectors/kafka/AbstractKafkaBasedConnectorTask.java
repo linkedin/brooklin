@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -42,6 +41,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
