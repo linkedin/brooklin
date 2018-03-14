@@ -386,29 +386,4 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
         .getMetric(task + "." + stream + "." + configPausedPartitionsMetric)).getValue(), numConfigPausedPartitions);
   }
-
-  private KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task)
-      throws InterruptedException {
-    return createKafkaMirrorMakerConnectorTask(task, new Properties());
-  }
-
-  private KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
-      Properties consumerConfig) throws InterruptedException {
-    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), consumerConfig, "", "", 1000, 5,
-            Duration.ofSeconds(0), true, Duration.ofSeconds(5)), task);
-    runKafkaMirrorMakerConnectorTask(connectorTask);
-    return connectorTask;
-  }
-
-  private void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
-      throws InterruptedException {
-    Thread t = new Thread(connectorTask, "connector thread");
-    t.setDaemon(true);
-    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
-    t.start();
-    if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
-      Assert.fail("connector did not start within timeout");
-    }
-  }
 }
