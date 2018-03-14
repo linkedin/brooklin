@@ -68,10 +68,12 @@ public class KafkaBasedConnectorConfig {
   }
 
   @VisibleForTesting
-  public KafkaBasedConnectorConfig(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
-      String defaultKeySerde, String defaultValueSerde, long commitIntervalMillis, int retryCount,
-      Duration retrySleepDuration, boolean pausePartitionOnError, Duration pauseErrorPartitionDuration) {
+  public KafkaBasedConnectorConfig(KafkaConsumerFactory<?, ?> consumerFactory, VerifiableProperties connectorProps,
+      Properties consumerProps, String defaultKeySerde, String defaultValueSerde, long commitIntervalMillis,
+      int retryCount, Duration retrySleepDuration, boolean pausePartitionOnError,
+      Duration pauseErrorPartitionDuration) {
     _consumerFactory = consumerFactory;
+    _connectorProps = connectorProps;
     _consumerProps = consumerProps;
 
     _defaultKeySerde = defaultKeySerde;
@@ -81,8 +83,6 @@ public class KafkaBasedConnectorConfig {
     _retrySleepDuration = retrySleepDuration;
     _pausePartitionOnError = pausePartitionOnError;
     _pauseErrorPartitionDuration = pauseErrorPartitionDuration;
-
-    _connectorProps = null;
   }
 
   public String getDefaultKeySerde() {

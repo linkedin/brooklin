@@ -17,6 +17,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
@@ -25,7 +26,10 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 final class KafkaMirrorMakerConnectorTestUtils {
 
-  protected static Properties getKafkaProducerProperties(EmbeddedZookeeperKafkaCluster kafkaCluster) {
+  static final long POLL_PERIOD_MS = Duration.ofMillis(100).toMillis();
+  static final long POLL_TIMEOUT_MS = Duration.ofSeconds(25).toMillis();
+
+  static Properties getKafkaProducerProperties(EmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaCluster.getBrokers());
     props.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -39,7 +43,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return props;
   }
 
-  protected static void produceEvents(String topic, int numEvents, EmbeddedZookeeperKafkaCluster kafkaCluster) {
+  static void produceEvents(String topic, int numEvents, EmbeddedZookeeperKafkaCluster kafkaCluster) {
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster))) {
       for (int i = 0; i < numEvents; i++) {
         producer.send(
@@ -54,7 +58,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     }
   }
 
-  protected static Datastream createDatastream(String name, String broker, String sourceRegex, StringMap metadata) {
+  static Datastream createDatastream(String name, String broker, String sourceRegex, StringMap metadata) {
     DatastreamSource source = new DatastreamSource();
     source.setConnectionString("kafka://" + broker + "/" + sourceRegex);
     Datastream datastream = new Datastream();
@@ -66,7 +70,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return datastream;
   }
 
-  protected static Datastream createDatastream(String name, String broker, String sourceRegex) {
+  static Datastream createDatastream(String name, String broker, String sourceRegex) {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
     Datastream datastream =  createDatastream(name, broker, sourceRegex, metadata);
@@ -76,25 +80,38 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return datastream;
   }
 
-  protected static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task)
-      throws InterruptedException {
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task) {
     return createKafkaMirrorMakerConnectorTask(task, new Properties());
   }
 
-  protected static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       Properties consumerConfig) {
     return createKafkaMirrorMakerConnectorTask(task, consumerConfig, Duration.ofMillis(0));
   }
 
-  protected static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       Properties consumerConfig, Duration pauseErrorPartitionDuration) {
-    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), consumerConfig, "", "", 1000, 5,
+    return new KafkaMirrorMakerConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
             Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task);
-    return connectorTask;
   }
 
-  protected static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
+  static FlushlessKafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
+      Properties consumerConfig, long unpauseThreshold, long pauseThreshold) {
+    Properties connectorProps = new Properties();
+    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD,
+        String.valueOf(unpauseThreshold));
+    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD,
+        String.valueOf(pauseThreshold));
+    VerifiableProperties verifiableProperties = new VerifiableProperties(connectorProps);
+
+    KafkaBasedConnectorConfig config =
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, consumerConfig, "", "",
+            1000, 5, Duration.ofSeconds(0), true, Duration.ofSeconds(0));
+    return new FlushlessKafkaMirrorMakerConnectorTask(config, task);
+  }
+
+  static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
       throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
