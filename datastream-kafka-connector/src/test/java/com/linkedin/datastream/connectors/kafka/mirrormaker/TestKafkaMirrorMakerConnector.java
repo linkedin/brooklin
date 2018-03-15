@@ -58,7 +58,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   private CachedDatastreamReader _cachedDatastreamReader;
 
-  private Properties getDefaultConfig(Optional<Properties> override) {
+  public static Properties getDefaultConfig(Optional<Properties> override) {
     Properties config = new Properties();
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");

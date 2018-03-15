@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -16,6 +17,12 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.google.common.collect.Sets;
+
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnector;
+import com.linkedin.datastream.connectors.kafka.mirrormaker.TestKafkaMirrorMakerConnector;
+
 
 /**
  * Unit tests for helper functions inside AbstractKafkaBasedConnectorTask that determine which partitions should be
@@ -172,5 +179,26 @@ public class TestPauseResumePartitions {
     // verify that partition 9 was removed from auto-pause list since it's no longer assigned
     Assert.assertEquals(partitionsToPause, Sets.newHashSet(partition5),
         "Partition should have been removed from auto-pause set, since it is not in the assignment");
+  }
+
+  /**
+   * Test that the Kafka connectors support PAUSE_RESUME_PARTITIONS. The test case is intentially in this class because
+   * this class does not make any ZK/Kafka connections, and this test case does not require it. The test classes for
+   * the connectors do have the overhead of setting up and tearing down such connections.
+   */
+  @Test
+  public void testConnectorSupportsPauseResumePartitionsUpdate() {
+    KafkaConnector kafkaConnector = new KafkaConnector("test", TestKafkaConnector.getDefaultConfig(null));
+
+    Assert.assertTrue(kafkaConnector.isDatastreamUpdateTypeSupported(new Datastream(),
+        DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS),
+        "KafkaConnector should support PAUSE_RESUME_PARTITIONS update type.");
+
+    KafkaMirrorMakerConnector mmConnector = new KafkaMirrorMakerConnector("MirrorMakerConnector",
+        TestKafkaMirrorMakerConnector.getDefaultConfig(Optional.empty()));
+
+    Assert.assertTrue(mmConnector.isDatastreamUpdateTypeSupported(new Datastream(),
+        DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS),
+        "KafkaMirrorMakerConnector should support PAUSE_RESUME_PARTITIONS update type.");
   }
 }
