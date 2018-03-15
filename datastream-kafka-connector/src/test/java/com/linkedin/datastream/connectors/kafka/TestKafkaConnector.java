@@ -20,7 +20,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 @Test
 public class TestKafkaConnector extends BaseKafkaZkTest {
 
-  private Properties getDefaultConfig(Properties override) {
+  static Properties getDefaultConfig(Properties override) {
     Properties config = new Properties();
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");

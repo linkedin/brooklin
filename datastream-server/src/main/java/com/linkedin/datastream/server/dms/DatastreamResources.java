@@ -373,7 +373,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Get datastream.
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     // Log for debugging purposes.
-    LOG.info("resoumeSourcePartitions called for datastream: {}, with partitions: {}", datastreamName,
+    LOG.info("resumeSourcePartitions called for datastream: {}, with partitions: {}", datastreamName,
         sourcePartitions);
 
     Datastream datastream = _store.getDatastream(datastreamName);
