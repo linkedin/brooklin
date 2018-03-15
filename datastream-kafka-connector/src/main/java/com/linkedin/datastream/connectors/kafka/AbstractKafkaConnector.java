@@ -23,6 +23,7 @@ import org.apache.kafka.common.PartitionInfo;
 import org.slf4j.Logger;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -259,6 +260,23 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       return null;
     }
     return null;
+  }
+
+  /**
+   * Used by the server to query connector about whether certain types of updates are supported for a datastream.
+   * Kafka connectors currently support pause/resume of partitions
+   * @param datastream the datastream
+   * @param updateType Type of datastream update
+   * @return true if the connector supports the type of datastream update; false otherwise
+   */
+  @Override
+  public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+    switch (updateType) {
+      case PAUSE_RESUME_PARTITIONS:
+        return true;
+      default:
+        return false;
+    }
   }
 
 }

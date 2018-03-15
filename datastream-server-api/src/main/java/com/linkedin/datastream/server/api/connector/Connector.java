@@ -69,12 +69,13 @@ public interface Connector extends MetricsAware {
   }
 
   /**
-   * Checks if certain update type is supported by given connector. Can be used to validate if given update operation is supported for given connector(s).
+   * Checks if certain update type is supported by given connector. Can be used to validate if given update operation is
+   * supported for given connector(s).
    * @param updateType Type of datastream update
    * @throws DatastreamValidationException when connector doesn't support update type.
    */
   default boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
-    return  false;
+    return false;
   }
 
   /**
