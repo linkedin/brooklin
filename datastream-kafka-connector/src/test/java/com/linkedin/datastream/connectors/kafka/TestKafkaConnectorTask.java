@@ -40,6 +40,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
   private static final int POLL_TIMEOUT_MS = 25000;
+  private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
 
   protected static void produceEvents(EmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
       throws UnsupportedEncodingException {
@@ -126,7 +127,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   @Test
@@ -153,7 +155,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   @Test
@@ -231,7 +234,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   private Datastream getDatastream(String broker, String topic) {

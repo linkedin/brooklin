@@ -64,6 +64,6 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
 }

@@ -32,6 +32,8 @@ import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMa
 
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
+  private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
+
   @Test
   public void testConsumeFromMultipleTopics() throws Exception {
     String yummyTopic = "YummyPizza";
@@ -71,7 +73,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   @Test
@@ -241,7 +244,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(5000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   @Test
@@ -313,7 +317,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(30000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   @Test
@@ -368,7 +373,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     validatePausedPartitionsMetrics("KafkaMirrorMakerConnectorTask", datastream.getName(), 0, 0, 0);
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(30000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
   }
 
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,

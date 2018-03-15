@@ -58,7 +58,9 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
     Optional.ofNullable(_callbackThrottleDuration).ifPresent(d -> {
       _executorService.submit(() -> {
         try {
-          Thread.sleep(d.toMillis());
+          if (!d.isZero()) {
+            Thread.sleep(d.toMillis());
+          }
           events.add(event);
           LOG.info("sent event {} , total events {}", event, events.size());
           DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
