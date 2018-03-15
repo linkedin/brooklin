@@ -423,10 +423,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     String result = connector.reduce("/datastream_state?datastream=name", responseMap);
 
-    Assert.assertTrue(result.contains("\"instance1\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","),
-        "instance1 was not found in reduced result");
-    Assert.assertTrue(result.contains("\"instance2\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","),
-        "instance2 was not found in reduced result");
+    Assert.assertTrue(result.contains("\"instance1\""), "instance1 was not found in reduced result");
+    Assert.assertTrue(result.contains("\"instance2\""), "instance2 was not found in reduced result");
     Assert.assertTrue(result.contains("\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":\\\""
             + "SEND_ERROR\\\"},\\\"YummyPizza-10\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\"}}"),
         "instance1 autoPausedPartitions was not as expected");
