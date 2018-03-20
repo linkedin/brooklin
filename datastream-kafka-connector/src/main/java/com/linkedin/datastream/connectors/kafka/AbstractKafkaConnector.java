@@ -112,7 +112,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _runningTasks.values().forEach(AbstractKafkaBasedConnectorTask::stop);
     //TODO - should wait?
     _runningTasks.clear();
-    if (!ThreadUtils.shutdownExecutor(_executor, Duration.of(5, ChronoUnit.SECONDS), _logger)) {
+    if (!ThreadUtils.shutdownExecutor(_executor, Duration.of(20, ChronoUnit.SECONDS), _logger)) {
       _logger.warn("Failed to shut down cleanly.");
     }
     _logger.info("stopped.");
