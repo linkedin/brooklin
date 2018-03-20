@@ -11,8 +11,11 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
+import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -117,6 +120,17 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
       consumer.commitSync(offsets);
       _lastCommittedTime = System.currentTimeMillis();
     }
+  }
+
+  @VisibleForTesting
+  long getInFlightMessagesCount(String source, int partition) {
+    return _flushlessProducer.getInFlightCount(source, partition);
+  }
+
+  @Override
+  public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
+    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
+        _flushlessProducer.getInFlightMessagesCounts());
   }
 }
 
