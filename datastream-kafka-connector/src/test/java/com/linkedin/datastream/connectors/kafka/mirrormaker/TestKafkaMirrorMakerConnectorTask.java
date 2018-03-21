@@ -22,6 +22,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -71,6 +72,18 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       Assert.assertTrue(destinationTopic.endsWith("Pizza"),
           "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
     }
+
+    // verify the states response returned by diagnostics endpoint contains correct counts
+    KafkaDatastreamStatesResponse response = connectorTask.getKafkaDatastreamStatesResponse();
+    Set<TopicPartition> assignedTopicPartitions = response.getAssignedTopicPartitions();
+    Assert.assertNotNull(assignedTopicPartitions,
+        "Assigned topic partitions in diagnostics response should not have been null");
+    Assert.assertTrue(assignedTopicPartitions.contains(new TopicPartition(yummyTopic, 0)),
+        "Assigned topic partitions in diagnostics response should have contained YummyPizza-0");
+    Assert.assertTrue(assignedTopicPartitions.contains(new TopicPartition(saltyTopic, 0)),
+        "Assigned topic partitions in diagnostics response should have contained SaltyPizza-0");
+    Assert.assertFalse(assignedTopicPartitions.contains(new TopicPartition(saladTopic, 0)),
+        "Assigned topic partitions in diagnostics response should not have contained saladTopic-0");
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

@@ -130,7 +130,7 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
   @Override
   public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
     return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
-        _flushlessProducer.getInFlightMessagesCounts());
+        _consumerAssignment, _flushlessProducer.getInFlightMessagesCounts());
   }
 }
 

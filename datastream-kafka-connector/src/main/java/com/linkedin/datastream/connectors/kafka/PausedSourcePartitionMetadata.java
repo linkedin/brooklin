@@ -4,9 +4,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
 
+import org.codehaus.jackson.annotate.JsonPropertyOrder;
+
+
 /**
  * Contains metadata about a paused partition, including the resume criteria and reason for pause.
  */
+@JsonPropertyOrder({"reason", "description"})
 public class PausedSourcePartitionMetadata {
 
   public enum Reason {
@@ -26,10 +30,12 @@ public class PausedSourcePartitionMetadata {
 
   private final BooleanSupplier _resumeCondition;
   private final Reason _reason;
+  private final String _description;
 
   public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason) {
     _resumeCondition = resumeCondition;
     _reason = reason;
+    _description = reason.getDescription();
   }
 
   public boolean shouldResume() {
@@ -38,6 +44,10 @@ public class PausedSourcePartitionMetadata {
 
   public Reason getReason() {
     return _reason;
+  }
+
+  public String getDescription() {
+    return _description;
   }
 
   public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
