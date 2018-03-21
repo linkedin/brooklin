@@ -90,6 +90,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile String _taskName;
   protected DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
+  protected Set<TopicPartition> _consumerAssignment = Collections.emptySet();
 
   // Datastream task updates that need to be processed
   protected final Set<DatastreamConstants.UpdateType> _taskUpdates = Sets.newConcurrentHashSet();
@@ -507,6 +508,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics.updateRebalanceRate(1);
     _logger.info("Partition ownership assigned for {}.", partitions);
 
+    _consumerAssignment = Sets.newHashSet(partitions);
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
@@ -676,7 +678,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
-    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig);
+    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
+        _consumerAssignment);
   }
 
   /**
