@@ -1,5 +1,27 @@
 package com.linkedin.datastream.server.dms;
 
+import com.linkedin.data.template.StringMap;
+import com.linkedin.datastream.DatastreamRestClient;
+import com.linkedin.datastream.DatastreamRestClientFactory;
+import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
+import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.ActionResult;
+import com.linkedin.restli.server.BatchUpdateRequest;
+import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.PathKeys;
+import com.linkedin.restli.server.RestLiServiceException;
+import com.linkedin.restli.server.UpdateResponse;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -9,35 +31,11 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-
-import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamSource;
-import com.linkedin.datastream.common.DatastreamStatus;
-import com.linkedin.datastream.common.DatastreamUtils;
-import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.DatastreamRestClient;
-import com.linkedin.datastream.DatastreamRestClientFactory;
-import com.linkedin.datastream.connectors.DummyConnector;
-import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
-import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
-import com.linkedin.datastream.server.TestDatastreamServer;
-import com.linkedin.data.template.StringMap;
-import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.ActionResult;
-import com.linkedin.restli.server.BatchUpdateRequest;
-import com.linkedin.restli.server.CreateResponse;
-import com.linkedin.restli.server.PagingContext;
-import com.linkedin.restli.server.PathKeys;
-import com.linkedin.restli.server.RestLiServiceException;
-import com.linkedin.restli.server.UpdateResponse;
 
 
 /**
@@ -66,11 +64,34 @@ public class TestDatastreamResources {
       ds.setSource(new DatastreamSource());
       ds.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     }
+
     if (!missingFields.contains("metadata")) {
       StringMap metadata = new StringMap();
-      metadata.put("owner", "person_" + seed);
+      metadata.put(DatastreamMetadataConstants.OWNER_KEY, "person_" + seed);
       ds.setMetadata(metadata);
     }
+
+    ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
+    return ds;
+  }
+
+  public static Datastream generateEncryptedDatastream(int seed, boolean setEncryptedMetadata, boolean setByotMetadata) {
+    Datastream ds = new Datastream();
+    ds.setName("name_" + seed);
+    ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.OWNER_KEY, "person_" + seed);
+    if (setEncryptedMetadata) {
+      metadata.put(DatastreamMetadataConstants.DESTINATION_ENCRYPTION_REQUIRED, "true");
+    }
+    if (setByotMetadata) {
+      metadata.put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
+    }
+    ds.setMetadata(metadata);
 
     ds.setDestination(new DatastreamDestination());
     ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
@@ -456,6 +477,26 @@ public class TestDatastreamResources {
       Datastream updatedDatastream1 = resource.get(datastream1.getName());
       return updatedDatastream1.getMetadata().get("key").equals("value2");
     }, 100, 10000));
+  }
+
+  @Test
+  public void testCreateEncryptedDatastream() throws Exception {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Happy Path
+    Datastream encryptedDS = generateEncryptedDatastream(1, true, true);
+    CreateResponse response = resource.create(encryptedDS);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Regression for Byot
+    Datastream justByotDS = generateEncryptedDatastream(3, false, true);
+    DatastreamDestination destination = new DatastreamDestination()
+        .setConnectionString("http://localhost:21324/foo");
+    justByotDS.setDestination(destination);
+    response = resource.create(justByotDS);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
   }
 
   @Test
