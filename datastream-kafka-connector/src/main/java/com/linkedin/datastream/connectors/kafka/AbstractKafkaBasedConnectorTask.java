@@ -499,6 +499,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       maybeCommitOffsets(_consumer, true); // happens inline as part of poll
     }
 
+    _consumerAssignment = Sets.newHashSet(_consumer.assignment());
+    _logger.info("Current assignment is {}", _consumerAssignment);
+
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
@@ -509,6 +512,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Partition ownership assigned for {}.", partitions);
 
     _consumerAssignment = Sets.newHashSet(partitions);
+    _logger.info("Current assignment is {}", _consumerAssignment);
+
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
