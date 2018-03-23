@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
-import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -87,16 +86,12 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
 
-  public static final String CFG_SKIP_BAD_MESSAGE = "skipBadMessage";
-  public static final String SKIPPED_BAD_MESSAGES_COUNTER = "skippedBadMessagesCounter";
-
   private final String _datastreamName;
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
   private final int _availabilityThresholdAlternateSlaMs;
   private Instant _lastFlushTime = Instant.now();
   private final Duration _flushInterval;
-  private final boolean _skipBadMessagesEnabled;
 
   /**
    * Construct an EventProducer instance.
@@ -144,10 +139,7 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
         EVENTS_PRODUCED_OUTSIDE_SLA, 0);
 
-    _skipBadMessagesEnabled = skipBadMessageEnabled(task);
-    if (_skipBadMessagesEnabled) {
-      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamName, SKIPPED_BAD_MESSAGES_COUNTER, 0);
-    }
+
   }
 
   public int getProducerId() {
@@ -190,27 +182,7 @@ public class EventProducer implements DatastreamEventProducer {
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
-      if (_skipBadMessagesEnabled) {
-      /*
-       * If flag _skipBadMessagesEnabled is set, then message are skipped after an unsuccessful send
-       * Example of problems:
-       * - Message is above the message size supported by the destination.
-       * - The message can not be encoded to conform to the destination format (e.g. missing a field).
-       *
-       * This flag should only be set to true for use cases that can tolerate messages lost.
-       *
-       * Unfortunately the error could be a transient network problem, and not a problem with the message itself.
-       * For this reason is strongly recommended to put alerts in the SKIPPED_BAD_MESSAGES_RATE.
-       *
-       * TODO: Try to define a special exception for "badMessage" so we can differentiate between a send error,
-       * or a message compliance error. Right now is very hard to do that, because  will require to refactor a lot
-       * of library and code we do not control.
-       */
-        _logger.error("Skipping Message. task: {} ; error: {}", _datastreamTask, e);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamName, SKIPPED_BAD_MESSAGES_COUNTER, 1);
-      } else {
-        throw new DatastreamRuntimeException(errorMessage, e);
-      }
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
 
     // It is possible that the connector is not calling flush at regular intervals, In which case we will force a periodic flush.
@@ -348,7 +320,6 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + TOTAL_EVENTS_PRODUCED));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + EVENT_PRODUCE_RATE));
-    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + SKIPPED_BAD_MESSAGES_COUNTER));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
@@ -358,18 +329,5 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + FLUSH_LATENCY_MS_STRING));
 
     return Collections.unmodifiableList(metrics);
-  }
-
-  /**
-   * Look for config {@value CFG_SKIP_BAD_MESSAGE} in the datastream metadata and returns its value.
-   * Default value is false.
-   */
-  private static boolean skipBadMessageEnabled(DatastreamTask task) {
-    return task.getDatastreams()
-        .stream()
-        .findAny()
-        .map(Datastream::getMetadata)
-        .map(metadata -> metadata.getOrDefault(CFG_SKIP_BAD_MESSAGE, "false").toLowerCase().equals("true"))
-        .orElse(false);
   }
 }
