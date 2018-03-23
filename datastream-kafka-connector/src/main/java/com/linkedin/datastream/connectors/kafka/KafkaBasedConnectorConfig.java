@@ -114,9 +114,10 @@ public class KafkaBasedConnectorConfig {
   }
 
   public Properties getConsumerProps() {
-    return new Properties(_consumerProps);
+    Properties consumerProps = new Properties();
+    consumerProps.putAll(_consumerProps);
+    return consumerProps;
   }
-
   public KafkaConsumerFactory<?, ?> getConsumerFactory() {
     return _consumerFactory;
   }
