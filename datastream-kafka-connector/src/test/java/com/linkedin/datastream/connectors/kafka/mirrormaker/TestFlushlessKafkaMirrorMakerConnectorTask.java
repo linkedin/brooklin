@@ -2,7 +2,6 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.testng.Assert;
@@ -35,11 +34,10 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer(Duration.ofMillis(500));
     task.setEventProducer(datastreamProducer);
 
-    KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, new Properties(), 0, 2, 4,
-            true, Duration.ofSeconds(0));
+    FlushlessKafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 2, 4,
+            Duration.ofSeconds(0));
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
-
 
     // verify there are no paused partitions
     Assert.assertTrue(connectorTask.getAutoPausedSourcePartitions().isEmpty(),
@@ -51,6 +49,8 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     // verify that the partition was auto-paused due to inflight-message count exceeding 4
     Assert.assertTrue(PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().size() == 1, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS), "partition should have been auto-paused after sending 5 messages");
+    // verify that flow control was triggered
+    Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 1, "Flow control should have been triggered");
 
     // verify that the 5 events were eventually sent
     if (!PollUtils.poll(
@@ -66,6 +66,44 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
       Assert.fail("did not auto-resume and transfer the remaining msgs within timeout. transferred "
           + datastreamProducer.getEvents().size());
     }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
+  }
+
+  @Test
+  public void testFlowControlDisabled() throws Exception {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer(Duration.ofMillis(500));
+    task.setEventProducer(datastreamProducer);
+
+    FlushlessKafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, false, 2, 4,
+            Duration.ofSeconds(0));
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // verify there are no paused partitions
+    Assert.assertTrue(connectorTask.getAutoPausedSourcePartitions().isEmpty(),
+        "auto-paused source partitions set should have been empty.");
+
+    // produce 5 events
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
+
+    // verify that the 5 events were sent
+    if (!PollUtils.poll(
+        () -> datastreamProducer.getEvents().size() == 5, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // verify that flow control was never triggered
+    Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 0, "Flow control should not have been triggered, as feature is disabled.");
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
@@ -89,8 +127,8 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     task.setEventProducer(datastreamProducer);
 
     FlushlessKafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, new Properties(), 0, 50, 100,
-            true, Duration.ofDays(1));
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 50, 100,
+            Duration.ofDays(1));
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce events to each topic
