@@ -238,7 +238,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  private Datastream getDatastream(String broker, String topic) {
+  static Datastream getDatastream(String broker, String topic) {
     DatastreamSource source = new DatastreamSource();
     source.setConnectionString("kafka://" + broker + "/" + topic);
     DatastreamDestination destination = new DatastreamDestination();
