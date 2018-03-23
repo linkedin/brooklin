@@ -36,24 +36,30 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
 
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
   protected static final String CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD = "minInFlightMessagesThreshold";
+  protected static final String CONFIG_FLOW_CONTROL_ENABLED = "flowControlEnabled";
   protected static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
   protected static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
 
   private final FlushlessEventProducerHandler<Long> _flushlessProducer;
 
+  private final boolean _flowControlEnabled;
   private final long _maxInFlightMessagesThreshold;
   private final long _minInFlightMessagesThreshold;
+
+  private int _flowControlTriggerCount = 0;
 
   protected FlushlessKafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
     super(config, task);
     _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
+
+    _flowControlEnabled = config.getConnectorProps().getBoolean(CONFIG_FLOW_CONTROL_ENABLED, false);
     _maxInFlightMessagesThreshold =
         config.getConnectorProps().getLong(CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD);
     _minInFlightMessagesThreshold =
         config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
-    LOG.info(
-        "Flushless Kafka MirrorMaker connector task created for task: {}, with minInFlightMessagesThreshold {} and maxInFlightMessagesThreshold {}",
-        task, _minInFlightMessagesThreshold, _maxInFlightMessagesThreshold);
+    LOG.info("Flushless Kafka MirrorMaker connector task created for task: {}, with flowControlEnabled={}, "
+            + "minInFlightMessagesThreshold={}, maxInFlightMessagesThreshold={}", task, _flowControlEnabled,
+        _minInFlightMessagesThreshold, _maxInFlightMessagesThreshold);
   }
 
   @Override
@@ -63,17 +69,20 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
     String topic = sourceCheckpoint.getTopic();
     int partition = sourceCheckpoint.getPartition();
     _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset());
-    TopicPartition tp = new TopicPartition(topic, partition);
-    long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
-    if (inFlightMessageCount > _maxInFlightMessagesThreshold) {
-      // add the partition to the pause list
-      LOG.warn(
-          "In-flight message count of {} for topic partition {} exceeded maxInFlightMessagesThreshold of {}. Will pause partition.",
-          inFlightMessageCount, tp, _maxInFlightMessagesThreshold);
-      _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
-          () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
-          PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
-      _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    if (_flowControlEnabled) {
+      TopicPartition tp = new TopicPartition(topic, partition);
+      long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
+      if (inFlightMessageCount > _maxInFlightMessagesThreshold) {
+        // add the partition to the pause list
+        LOG.warn(
+            "In-flight message count of {} for topic partition {} exceeded maxInFlightMessagesThreshold of {}. Will pause partition.",
+            inFlightMessageCount, tp, _maxInFlightMessagesThreshold);
+        _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
+            () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
+            PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
+        _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+        _flowControlTriggerCount++;
+      }
     }
   }
 
@@ -125,6 +134,11 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
   @VisibleForTesting
   long getInFlightMessagesCount(String source, int partition) {
     return _flushlessProducer.getInFlightCount(source, partition);
+  }
+
+  @VisibleForTesting
+  int getFlowControlTriggerCount() {
+    return _flowControlTriggerCount;
   }
 
   @Override

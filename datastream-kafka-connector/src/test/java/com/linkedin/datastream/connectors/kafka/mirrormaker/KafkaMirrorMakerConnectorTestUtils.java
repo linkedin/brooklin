@@ -97,9 +97,11 @@ final class KafkaMirrorMakerConnectorTestUtils {
   }
 
   static FlushlessKafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
-      Properties consumerConfig, int retryCount, long autoResumeThreshold, long autoPauseThreshold,
-      boolean pausePartitionOnError, Duration pauseErrorPartitionDuration) {
+      boolean flowControlEnabled, long autoResumeThreshold, long autoPauseThreshold,
+      Duration pauseErrorPartitionDuration) {
     Properties connectorProps = new Properties();
+    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_FLOW_CONTROL_ENABLED,
+        String.valueOf(flowControlEnabled));
     connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD,
         String.valueOf(autoResumeThreshold));
     connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD,
@@ -107,8 +109,8 @@ final class KafkaMirrorMakerConnectorTestUtils {
     VerifiableProperties verifiableProperties = new VerifiableProperties(connectorProps);
 
     KafkaBasedConnectorConfig config =
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, consumerConfig, "", "",
-            1000, retryCount, Duration.ofSeconds(0), pausePartitionOnError, pauseErrorPartitionDuration);
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
+            1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
     return new FlushlessKafkaMirrorMakerConnectorTask(config, task);
   }
 
