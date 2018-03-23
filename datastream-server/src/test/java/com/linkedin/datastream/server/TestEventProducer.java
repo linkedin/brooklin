@@ -20,7 +20,6 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
-import com.linkedin.datastream.server.transport.NoOpTransportProvider;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
@@ -49,7 +48,7 @@ public class TestEventProducer {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
 
     AtomicInteger numEventsProduced = new AtomicInteger();
-    TransportProvider transport = new NoOpTransportProvider() {
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
       @Override
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
         numEventsProduced.incrementAndGet();
