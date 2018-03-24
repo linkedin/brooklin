@@ -2,6 +2,7 @@ package com.linkedin.datastream.metrics;
 
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang.Validate;
@@ -13,6 +14,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
 import javax.annotation.Nullable;
@@ -306,6 +308,39 @@ public class DynamicMetricsManager {
    */
   public void createOrUpdateMeter(String classSimpleName, String metricName, long value) {
     createOrUpdateMeter(classSimpleName, null, metricName, value);
+  }
+
+  private Histogram registerAndGetHistogram(String fullMetricName, long windowTimeMs) {
+    Histogram histogram = new Histogram(new SlidingTimeWindowReservoir(windowTimeMs, TimeUnit.MILLISECONDS));
+    try {
+      return _metricRegistry.register(fullMetricName, histogram);
+    } catch (IllegalArgumentException e) {
+      // This ideally can only happen with parallel unit tests
+      LOG.warn("Failed to register for metrics {}", fullMetricName);
+      LOG.warn("IllegalArgumentException during Histogram registration", e);
+      return histogram;
+    }
+  }
+
+  /**
+   * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
+   * If the histogram does not exist, create one using {@link SlidingTimeWindowReservoir} with the specified window
+   * time in ms. This can be useful for certain metrics that don't want to use the
+   * default {@link com.codahale.metrics.ExponentiallyDecayingReservoir}
+   * @param classSimpleName the simple name of the underlying class
+   * @param key the key (i.e. topic or partition) for the metric
+   * @param metricName the metric name
+   * @param windowTimeMs the length of the window time in ms
+   * @param value the value to update on the histogram
+   */
+  public void createOrUpdateSlidingWindowHistogram(String classSimpleName, String key, String metricName,
+      long windowTimeMs, long value) {
+    validateArguments(classSimpleName, metricName);
+    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
+    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElse(
+        registerAndGetHistogram(fullMetricName, windowTimeMs));
+    histogram.update(value);
+    updateCache(classSimpleName, fullMetricName, histogram);
   }
 
   /**
