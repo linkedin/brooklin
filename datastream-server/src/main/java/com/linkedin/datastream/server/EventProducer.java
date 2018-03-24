@@ -85,6 +85,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String AGGREGATE = "aggregate";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
+  private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(5).toMillis();
 
   private final String _datastreamName;
   private final int _availabilityThresholdSlaMs;
@@ -199,12 +200,14 @@ public class EventProducer implements DatastreamEventProducer {
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, metadata.getTopic(), EVENTS_LATENCY_MS_STRING,
-          sourceToDestinationLatencyMs);
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
-          sourceToDestinationLatencyMs);
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
-          EVENTS_LATENCY_MS_STRING, sourceToDestinationLatencyMs);
+      // Using a time sliding window for reporting latency specifically.
+      // Otherwise we report very stuck max value for slow source
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(), EVENTS_LATENCY_MS_STRING,
+          LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
+          LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
+          EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
 
       if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, 1);
