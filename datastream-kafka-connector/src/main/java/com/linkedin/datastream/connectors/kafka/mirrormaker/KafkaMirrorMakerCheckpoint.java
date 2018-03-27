@@ -4,10 +4,10 @@ import org.apache.commons.lang.Validate;
 
 
 /**
- * Represents a KafkaMirrorMaker source checkpoint in format: topic-partition-offset
+ * Represents a KafkaMirrorMaker source checkpoint in format: topic/partition/offset
  */
 public class KafkaMirrorMakerCheckpoint {
-  private static final String DELIMITER = "-";
+  private static final String DELIMITER = "/";
   private String _topic;
   private int _partition;
   private long _offset;

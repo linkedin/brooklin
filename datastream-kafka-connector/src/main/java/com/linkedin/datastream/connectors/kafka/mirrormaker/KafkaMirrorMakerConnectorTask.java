@@ -51,7 +51,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConnectionString _mirrorMakerSource;
 
   protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
-    super(config, task, LOG);
+    super(config, task, LOG, CLASS_NAME);
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   }

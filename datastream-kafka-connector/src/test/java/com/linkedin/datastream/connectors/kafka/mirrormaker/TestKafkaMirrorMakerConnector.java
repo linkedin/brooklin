@@ -35,6 +35,7 @@ import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
@@ -385,12 +386,23 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     String datastreamName = "testProcessDatastreamStates";
 
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+
     // build instance 1 results
+    Set<TopicPartition> assignedPartitions1 = new HashSet<>();
+    assignedPartitions1.add(new TopicPartition(yummyTopic, 0));
+    assignedPartitions1.add(new TopicPartition(yummyTopic, 4));
+    assignedPartitions1.add(new TopicPartition(yummyTopic, 10));
+    assignedPartitions1.add(new TopicPartition(yummyTopic, 11));
+    assignedPartitions1.add(new TopicPartition(yummyTopic, 23));
+    assignedPartitions1.add(new TopicPartition(saltyTopic, 2));
+    assignedPartitions1.add(new TopicPartition(saltyTopic, 5));
+    assignedPartitions1.add(new TopicPartition(saltyTopic, 77));
+
     Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions1 = new HashMap<>();
     Map<String, Set<String>> manualPausedPartitions1 = new HashMap<>();
 
-    String yummyTopic = "YummyPizza";
-    String saltyTopic = "SaltyPizza";
     autoPausedPartitions1.put(new TopicPartition(yummyTopic, 0),
         new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
     autoPausedPartitions1.put(new TopicPartition(yummyTopic, 10),
@@ -398,11 +410,24 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     manualPausedPartitions1.put(saltyTopic, Sets.newHashSet("2", "5", "77"));
     manualPausedPartitions1.put(yummyTopic, Sets.newHashSet("4", "11", "23"));
+
+    Map<FlushlessEventProducerHandler.SourcePartition, Long> inflightMsgCounts1 = new HashMap<>();
+    inflightMsgCounts1.put(new FlushlessEventProducerHandler.SourcePartition(yummyTopic, 4), 6L);
+
     KafkaDatastreamStatesResponse process1Response =
         new KafkaDatastreamStatesResponse(datastreamName, autoPausedPartitions1, manualPausedPartitions1,
-            Collections.emptySet());
+            assignedPartitions1, inflightMsgCounts1);
 
     // build instance 2 results
+    Set<TopicPartition> assignedPartitions2 = new HashSet<>();
+    assignedPartitions2.add(new TopicPartition(yummyTopic, 19));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 1));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 6));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 9));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 17));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 19));
+    assignedPartitions2.add(new TopicPartition(saltyTopic, 25));
+
     Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions2 = new HashMap<>();
     Map<String, Set<String>> manualPausedPartitions2 = new HashMap<>();
 
@@ -414,9 +439,12 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     manualPausedPartitions2.put(saltyTopic, Sets.newHashSet("1", "9", "25"));
     manualPausedPartitions2.put(yummyTopic, Sets.newHashSet("19"));
 
+    Map<FlushlessEventProducerHandler.SourcePartition, Long> inflightMsgCounts2 = new HashMap<>();
+    inflightMsgCounts2.put(new FlushlessEventProducerHandler.SourcePartition(saltyTopic, 9), 20L);
+
     KafkaDatastreamStatesResponse process2Response =
         new KafkaDatastreamStatesResponse(datastreamName, autoPausedPartitions2, manualPausedPartitions2,
-            Collections.emptySet());
+            assignedPartitions2, inflightMsgCounts2);
 
     Map<String, String> responseMap = new HashMap<>();
     responseMap.put("instance1", KafkaDatastreamStatesResponse.toJson(process1Response));
@@ -425,19 +453,23 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String result = connector.reduce("/datastream_state?datastream=name", responseMap);
 
     Assert.assertTrue(result.contains("\"instance1\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","
-            + "\\\"assignedTopicPartitions\\\":[],\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":"
-            + "\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"},"
-            + "\\\"YummyPizza-10\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages "
-            + "from this partition\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"11\\\",\\\"23\\\","
-            + "\\\"4\\\"],\\\"SaltyPizza\\\":[\\\"77\\\",\\\"2\\\",\\\"5\\\"]},\\\"inFlightMessageCounts\\\":{}}\""),
+        + "\\\"assignedTopicPartitions\\\":[\\\"YummyPizza-4\\\",\\\"SaltyPizza-5\\\",\\\"YummyPizza-0\\\","
+        + "\\\"SaltyPizza-2\\\",\\\"YummyPizza-11\\\",\\\"YummyPizza-10\\\",\\\"SaltyPizza-77\\\","
+        + "\\\"YummyPizza-23\\\"],\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":\\\"SEND_ERROR"
+        + "\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"},\\\"YummyPizza-10\\\":{"
+        + "\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition"
+        + "\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"11\\\",\\\"23\\\",\\\"4\\\"],\\\"SaltyPizza"
+        + "\\\":[\\\"77\\\",\\\"2\\\",\\\"5\\\"]},\\\"inFlightMessageCounts\\\":{\\\"YummyPizza-4\\\":6}}\""),
         "instance1 results were not as expected");
     Assert.assertTrue(result.contains("\"instance2\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","
-        + "\\\"assignedTopicPartitions\\\":[],\\\"autoPausedPartitions\\\":{\\\"SaltyPizza-6\\\":{\\\"reason\\\":"
-        + "\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"},"
-        + "\\\"SaltyPizza-17\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages "
-        + "from this partition\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],\\\"SaltyPizza"
-        + "\\\":[\\\"1\\\",\\\"9\\\",\\\"25\\\"]},\\\"inFlightMessageCounts\\\":{}}\""), "instance2 results "
-        + "were not as expected");
+            + "\\\"assignedTopicPartitions\\\":[\\\"YummyPizza-19\\\",\\\"SaltyPizza-19\\\",\\\"SaltyPizza-6\\\","
+            + "\\\"SaltyPizza-1\\\",\\\"SaltyPizza-17\\\",\\\"SaltyPizza-9\\\",\\\"SaltyPizza-25\\\"],"
+            + "\\\"autoPausedPartitions\\\":{\\\"SaltyPizza-6\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description"
+            + "\\\":\\\"Failed to produce messages from this partition\\\"},\\\"SaltyPizza-17\\\":{\\\"reason\\\":"
+            + "\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"}},"
+            + "\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],\\\"SaltyPizza\\\":[\\\"1\\\",\\\"9"
+            + "\\\",\\\"25\\\"]},\\\"inFlightMessageCounts\\\":{\\\"SaltyPizza-9\\\":20}}\""),
+        "instance2 results were not as expected");
   }
 
   private void verifyPausedPartitions(Connector connector, Datastream datastream,
