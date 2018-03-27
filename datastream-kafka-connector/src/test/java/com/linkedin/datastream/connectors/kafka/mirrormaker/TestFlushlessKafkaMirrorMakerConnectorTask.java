@@ -7,21 +7,28 @@ import java.util.concurrent.TimeUnit;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.*;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
 
 
 public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
+  private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
+
   @Test
+  @SuppressWarnings("unchecked")
   public void testAutoPauseAndResume() throws Exception {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
@@ -52,6 +59,12 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     // verify that flow control was triggered
     Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 1, "Flow control should have been triggered");
 
+    Gauge<Long> metric = DynamicMetricsManager.getInstance()
+        .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + ".pizzaStream."
+            + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
+    Assert.assertEquals(metric.getValue(), Long.valueOf(1),
+        "Metric for numAutoPausedPartitionsOnInFlightMessages was not incremented");
+
     // verify that the 5 events were eventually sent
     if (!PollUtils.poll(
         () -> datastreamProducer.getEvents().size() == 5, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
@@ -68,7 +81,7 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     }
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
 
   @Test
@@ -106,7 +119,7 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 0, "Flow control should not have been triggered, as feature is disabled.");
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
 
   @Test
@@ -165,6 +178,6 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
 
     connectorTask.stop();
-    Assert.assertTrue(connectorTask.awaitStop(10000, TimeUnit.MILLISECONDS), "did not shut down on time");
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS), "did not shut down on time");
   }
 }

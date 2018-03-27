@@ -38,7 +38,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
   public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
-    super(config, task, LOG);
+    super(config, task, LOG, CLASS_NAME);
     _consumerFactory = config.getConsumerFactory();
   }
 
