@@ -187,5 +187,10 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     public int getPartition() {
       return getValue();
     }
+
+    @Override
+    public String toString() {
+      return getSource() + "-" + getPartition();
+    }
   }
 }

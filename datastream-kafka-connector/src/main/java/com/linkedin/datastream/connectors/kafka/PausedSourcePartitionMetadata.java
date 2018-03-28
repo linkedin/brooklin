@@ -55,4 +55,8 @@ public class PausedSourcePartitionMetadata {
         Reason.SEND_ERROR);
   }
 
+  @Override
+  public String toString() {
+    return _reason.toString();
+  }
 }
