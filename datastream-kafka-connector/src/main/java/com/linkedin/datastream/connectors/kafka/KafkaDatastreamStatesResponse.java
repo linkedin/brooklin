@@ -28,7 +28,7 @@ public class KafkaDatastreamStatesResponse {
   private Set<TopicPartition> _assignedTopicPartitions;
 
   // Map of source partition to number of in-flight message counts
-  Map<FlushlessEventProducerHandler.SourcePartition, Long> _inFlightMessageCounts;
+  private Map<FlushlessEventProducerHandler.SourcePartition, Long> _inFlightMessageCounts;
 
   public KafkaDatastreamStatesResponse(String datastream,
       Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions,

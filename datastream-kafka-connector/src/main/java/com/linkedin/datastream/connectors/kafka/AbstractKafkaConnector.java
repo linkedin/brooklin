@@ -165,7 +165,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private List<PartitionInfo> getKafkaTopicPartitions(Datastream datastream, String topic)
       throws DatastreamValidationException {
-    List<PartitionInfo> partitionInfos = null;
+    List<PartitionInfo> partitionInfos;
 
     DatastreamSource source = datastream.getSource();
     String connectionString = source.getConnectionString();
@@ -227,7 +227,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         .stream()
         .filter(task -> task.hasDatastream(streamName))
         .findFirst()
-        .map(t -> t.getKafkaDatastreamStatesResponse())
+        .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
         .orElse(null)).map(KafkaDatastreamStatesResponse::toJson).orElse(null);
   }
 
