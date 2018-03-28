@@ -19,9 +19,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of paused partitions that are auto paused because of large number of inflight messages
   public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES = "numAutoPausedPartitionsOnInFlightMessages";
 
-  final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
-  final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
-  final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
+  private final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
 
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger) {

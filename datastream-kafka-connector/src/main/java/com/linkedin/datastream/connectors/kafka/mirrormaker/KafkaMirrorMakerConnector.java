@@ -46,6 +46,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   @Override
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
+
     // verify that the MirrorMaker Datastream will not be re-used
     if (DatastreamUtils.isReuseAllowed(stream)) {
       throw new DatastreamValidationException(
@@ -64,16 +65,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           .put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
     }
 
-    if (DatastreamUtils.isReuseAllowed(stream)) {
-      throw new DatastreamValidationException(
-          String.format("Destination reuse is not allowed for connector %s. Datastream: %s", stream.getConnectorName(),
-              stream));
-    }
-
     // verify that the source regular expression can be compiled
     KafkaConnectionString connectionString = KafkaConnectionString.valueOf(stream.getSource().getConnectionString());
     try {
-      Pattern.compile(connectionString.getTopicName());
+      Pattern pattern = Pattern.compile(connectionString.getTopicName());
+      LOG.info("Successfully compiled topic name pattern {}", pattern);
     } catch (PatternSyntaxException e) {
       throw new DatastreamValidationException(
           String.format("Regular expression in Datastream source connection string (%s) is ill-formatted.",

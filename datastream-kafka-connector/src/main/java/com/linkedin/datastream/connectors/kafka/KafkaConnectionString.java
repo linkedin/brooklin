@@ -14,8 +14,8 @@ import java.util.StringJoiner;
  */
 public class KafkaConnectionString {
   public static final String BROKER_LIST_DELIMITER = ",";
-  public static final String PREFIX_SCHEME_KAFKA = "kafka://";
-  public static final String PREFIX_SCHEME_SECURE_KAFKA = "kafkassl://";
+  private static final String PREFIX_SCHEME_KAFKA = "kafka://";
+  private static final String PREFIX_SCHEME_SECURE_KAFKA = "kafkassl://";
 
   private final List<KafkaBrokerAddress> _brokers;
   private final String _topicName;

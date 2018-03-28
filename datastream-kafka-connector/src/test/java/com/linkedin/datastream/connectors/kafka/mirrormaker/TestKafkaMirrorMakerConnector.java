@@ -14,6 +14,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 import kafka.admin.AdminUtils;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,8 +58,6 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   private static final String DATASTREAM_STATE_QUERY = "/datastream_state?datastream=";
 
-  private CachedDatastreamReader _cachedDatastreamReader;
-
   public static Properties getDefaultConfig(Optional<Properties> override) {
     Properties config = new Properties();
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
@@ -86,8 +85,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
-    _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
-    Coordinator coordinator = new Coordinator(_cachedDatastreamReader, props);
+    CachedDatastreamReader cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
+    Coordinator coordinator = new Coordinator(cachedDatastreamReader, props);
     DummyTransportProviderAdminFactory factory = new DummyTransportProviderAdminFactory();
     coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
         factory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
@@ -205,7 +204,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     // assert that flushless task is created
     Assert.assertTrue(connector.createKafkaBasedConnectorTask(
-        new DatastreamTaskImpl(Arrays.asList(ds))) instanceof FlushlessKafkaMirrorMakerConnectorTask);
+        new DatastreamTaskImpl(Collections.singletonList(ds))) instanceof FlushlessKafkaMirrorMakerConnectorTask);
   }
 
   @Test
@@ -217,7 +216,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     // assert that flushless task is not created
     Assert.assertTrue(connector.createKafkaBasedConnectorTask(
-        new DatastreamTaskImpl(Arrays.asList(ds))) instanceof KafkaMirrorMakerConnectorTask);
+        new DatastreamTaskImpl(Collections.singletonList(ds))) instanceof KafkaMirrorMakerConnectorTask);
   }
 
   @Test
@@ -264,9 +263,9 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
 
     // Make sure numbers aren't touched
-    pausedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
+    pausedPartitions.put(topic, new HashSet<>(Collections.singletonList("1")));
     // prepare expected partitions for validation
-    expectedPartitions.put(topic, new HashSet<>(Arrays.asList("1")));
+    expectedPartitions.put(topic, new HashSet<>(Collections.singletonList("1")));
 
     verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
 
@@ -300,7 +299,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     connector.start();
 
     // notify connector of new task
-    connector.onAssignmentChange(Arrays.asList(task));
+    connector.onAssignmentChange(Collections.singletonList(task));
 
     // produce an event to each of the 3 topics
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
@@ -325,7 +324,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
 
     // notify connector of paused partition update
-    connector.onAssignmentChange(Arrays.asList(task));
+    connector.onAssignmentChange(Collections.singletonList(task));
 
     if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
         .contains("\"manualPausedPartitions\":{\"SaltyPizza\":[\"0\"]}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
@@ -338,7 +337,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
 
     // notify connector of resumed partition update
-    connector.onAssignmentChange(Arrays.asList(task));
+    connector.onAssignmentChange(Collections.singletonList(task));
 
     if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
         .contains("\"manualPausedPartitions\":{}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
@@ -361,6 +360,111 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         .contains("\"autoPausedPartitions\":{}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("autoPausedPartitions was not properly retrieved from process() after auto-resume");
     }
+
+    connector.stop();
+  }
+
+  @Test
+  public void testStartConsumingFromNewTopic() {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    Properties override = new Properties();
+    override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
+    connector.start();
+
+    // notify connector of new task
+    connector.onAssignmentChange(Collections.singletonList(task));
+
+    // produce an event to YummyPizza
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // verify the YummyPizza event was received
+    DatastreamProducerRecord record = datastreamProducer.getEvents().get(0);
+    Assert.assertEquals(record.getDestination().get(), yummyTopic,
+        "Expected record from YummyPizza topic but got record from " + record.getDestination().get());
+
+    // create a new topic ending in "Pizza" and produce an event to it
+    createTopic(_zkUtils, saltyTopic);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // verify the SaltyPizza event was received
+    record = datastreamProducer.getEvents().get(1);
+    Assert.assertEquals(record.getDestination().get(), saltyTopic,
+        "Expected record from SaltyPizza topic but got record from " + record.getDestination().get());
+
+    connector.stop();
+  }
+
+  @Test
+  public void testConsumptionUnaffectedByDeleteTopic() {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    Properties override = new Properties();
+    override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
+    connector.start();
+
+    // notify connector of new task
+    connector.onAssignmentChange(Collections.singletonList(task));
+
+    // produce an event to YummyPizza
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // clear the buffer for easier validation
+    datastreamProducer.getEvents().clear();
+
+    // delete the topic
+    deleteTopic(_zkUtils, yummyTopic);
+
+    // produce another event to SaltyPizza
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not get the event from SaltyPizza topic");
+    }
+
+    // verify the SaltyPizza event was received
+    DatastreamProducerRecord record = datastreamProducer.getEvents().get(0);
+    Assert.assertEquals(record.getDestination().get(), saltyTopic,
+        "Expected record from SaltyPizza topic but got record from " + record.getDestination().get());
 
     connector.stop();
   }

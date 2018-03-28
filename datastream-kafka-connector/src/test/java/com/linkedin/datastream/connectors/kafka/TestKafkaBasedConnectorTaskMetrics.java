@@ -1,7 +1,10 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import java.lang.reflect.Method;
 import org.slf4j.Logger;
@@ -37,6 +40,9 @@ public class TestKafkaBasedConnectorTaskMetrics {
     connectorConsumer1.createPollMetrics();
     connectorConsumer2.createPollMetrics();
 
+    connectorConsumer1.updateNumPolls(5);
+    connectorConsumer1.updateEventCountsPerPoll(10);
+    connectorConsumer1.updateEventCountsPerPoll(40);
     connectorConsumer2.updateNumConfigPausedPartitions(15);
     connectorConsumer2.updateNumAutoPausedPartitionsOnInFlightMessages(25);
     connectorConsumer2.updateNumAutoPausedPartitionsOnError(35);
@@ -47,6 +53,13 @@ public class TestKafkaBasedConnectorTaskMetrics {
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 0);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 0);
+
+    Assert.assertEquals(
+        ((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME + "numPolls")).getCount(), 5);
+    Assert.assertEquals(((Histogram) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER1_NAME + "eventCountsPerPoll")).getSnapshot().getMin(), 10);
+    Assert.assertEquals(((Histogram) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER1_NAME + "eventCountsPerPoll")).getSnapshot().getMax(), 40);
 
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 15);

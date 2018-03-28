@@ -3,6 +3,7 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkConnection;
+import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -11,6 +12,7 @@ import com.codahale.metrics.MetricRegistry;
 import kafka.admin.AdminUtils;
 import kafka.utils.ZkUtils;
 
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -34,6 +36,7 @@ public abstract class BaseKafkaZkTest {
     Properties kafkaConfig = new Properties();
     // we will disable auto topic creation for tests
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
+    kafkaConfig.setProperty("delete.topic.enable", Boolean.TRUE.toString());
     _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
     _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
@@ -58,6 +61,16 @@ public abstract class BaseKafkaZkTest {
   protected static void createTopic(ZkUtils zkUtils, String topic) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
       AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+    }
+  }
+
+  protected static void deleteTopic(ZkUtils zkUtils, String topic) {
+    if (AdminUtils.topicExists(zkUtils, topic)) {
+      AdminUtils.deleteTopic(zkUtils, topic);
+
+      if (!PollUtils.poll(() -> !AdminUtils.topicExists(zkUtils, topic), 100, 25000)) {
+        Assert.fail("topic was not properly deleted " + topic);
+      }
     }
   }
 }
