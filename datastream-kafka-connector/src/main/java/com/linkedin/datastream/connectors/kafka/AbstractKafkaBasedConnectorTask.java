@@ -71,6 +71,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   // lifecycle
   protected volatile boolean _shouldDie = false;
+  protected volatile long _lastPolledTimeMs = System.currentTimeMillis();
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
 
@@ -87,6 +88,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   // state
   protected volatile Thread _thread;
+
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
@@ -160,6 +162,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   protected abstract DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime)
       throws Exception;
+
+  /**
+   * Get the taskName
+   */
+  protected String getTaskName() {
+    return _taskName;
+  }
+
 
   /**
    * Translate the Kafka consumer records if necessary and send the batch of records to destination.
@@ -312,6 +322,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     ConsumerRecords<?, ?> records;
     try {
       long curPollTime = System.currentTimeMillis();
+      _lastPolledTimeMs = curPollTime;
       records = _consumer.poll(pollInterval);
       long pollDurationMs = System.currentTimeMillis() - curPollTime;
       if (pollDurationMs > pollInterval + POLL_BUFFER_TIME_MS) {
@@ -337,6 +348,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       handlePollRecordsException(e);
       return ConsumerRecords.EMPTY;
     }
+  }
+
+  protected long getLastPolledTimeMs() {
+    return _lastPolledTimeMs;
   }
 
   /**
@@ -730,4 +745,5 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   public boolean hasDatastream(String datastreamName) {
     return _datastreamName.equals(datastreamName);
   }
+
 }

@@ -22,9 +22,9 @@ public class BrooklinEnvelopeMetadataConstants {
   // Table for which the event belongs
   public static final String TABLE = "Table";
 
-  // Timestamp of when the event was last modified in the source
+  // Timestamp of when the event was last modified in the source where the event was generated
   public static final String EVENT_TIMESTAMP = "EventTimestamp";
 
-  // Timestamp of the event source
+  // Timestamp of the event when it was written in the last leg (i.e. the Source of the connector)
   public static final String SOURCE_TIMESTAMP = "SourceTimestamp";
 }

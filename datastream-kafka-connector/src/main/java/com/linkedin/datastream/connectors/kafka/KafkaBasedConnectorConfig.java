@@ -24,10 +24,15 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_RETRY_SLEEP_DURATION_MS = "retrySleepDurationMs";
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS = "pauseErrorPartitionDurationMs";
+  public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
+  public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
 
   private static final long DEFAULT_RETRY_SLEEP_DURATION_MS = Duration.ofSeconds(5).toMillis();
   private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS = Duration.ofMinutes(10).toMillis();
   private static final int DEFAULT_RETRY_COUNT = 5;
+  private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
+  public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
+  public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -40,6 +45,9 @@ public class KafkaBasedConnectorConfig {
   private final Duration _retrySleepDuration;
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
+
+  private final int _daemonThreadIntervalSeconds;
+  private final long _nonGoodStateThresholdMs;
 
   public KafkaBasedConnectorConfig(Properties properties) {
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
@@ -55,6 +63,9 @@ public class KafkaBasedConnectorConfig {
     _pauseErrorPartitionDuration = Duration.ofMillis(
         verifiableProperties.getLong(CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
             DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS));
+    _daemonThreadIntervalSeconds = verifiableProperties.getInt(DAEMON_THREAD_INTERVAL_SECONDS, DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS);
+    _nonGoodStateThresholdMs = verifiableProperties.getLongInRange(NON_GOOD_STATE_THRESHOLD_MS, DEFAULT_NON_GOOD_STATE_THRESHOLD_MS,
+        MIN_NON_GOOD_STATE_THRESHOLD_MS, Long.MAX_VALUE);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -83,6 +94,8 @@ public class KafkaBasedConnectorConfig {
     _retrySleepDuration = retrySleepDuration;
     _pausePartitionOnError = pausePartitionOnError;
     _pauseErrorPartitionDuration = pauseErrorPartitionDuration;
+    _daemonThreadIntervalSeconds = DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS;
+    _nonGoodStateThresholdMs = DEFAULT_NON_GOOD_STATE_THRESHOLD_MS;
   }
 
   public String getDefaultKeySerde() {
@@ -126,4 +139,11 @@ public class KafkaBasedConnectorConfig {
     return _connectorProps;
   }
 
+  public int getDaemonThreadIntervalSeconds() {
+    return _daemonThreadIntervalSeconds;
+  }
+
+  public long getNonGoodStateThresholdMs() {
+    return _nonGoodStateThresholdMs;
+  }
 }
