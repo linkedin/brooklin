@@ -8,14 +8,15 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.StringJoiner;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.record.TimestampType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
@@ -105,7 +106,17 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     metadata.put("kafka-origin-partition", partitionStr);
     String offsetStr = String.valueOf(fromKafka.offset());
     metadata.put("kafka-origin-offset", offsetStr);
-    metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(readTime.toEpochMilli()));
+
+    if (fromKafka.timestampType() == TimestampType.CREATE_TIME) {
+      // If the kafka header contains the create time. We store the event creation time as event timestamp
+      metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
+    } else if (fromKafka.timestampType() == TimestampType.LOG_APPEND_TIME) {
+      // If the kafka header contains the log append time, We use that as event source Timestamp
+      // which will be used to calculate the SLA.
+      metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
+      metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(readTime.toEpochMilli()));
+    }
+
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     //TODO - copy over headers if/when they are ever supported
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
