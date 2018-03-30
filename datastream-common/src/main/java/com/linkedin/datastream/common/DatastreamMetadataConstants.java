@@ -38,14 +38,19 @@ public class DatastreamMetadataConstants {
   public static final String TASK_PREFIX = "system.taskPrefix";
 
   /**
+   * Common prefix for all destination related metadata
+   */
+  public static final String SYSTEM_DESTINATION_PREFIX = "system.destination.";
+
+  /**
    * Timestamp in Epoch-millis when destination was created
    */
-  public static final String DESTINATION_CREATION_MS = "system.destination.creation.ms";
+  public static final String DESTINATION_CREATION_MS = SYSTEM_DESTINATION_PREFIX + "creation.ms";
 
   /**
    * Duration in Epoch-millis before destination starts to delete messages
    */
-  public static final String DESTINATION_RETENION_MS = "system.destination.retention.ms";
+  public static final String DESTINATION_RETENION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
 
   /**
    * Indicates if the data store in destination requires to be encrypted or not
@@ -55,7 +60,7 @@ public class DatastreamMetadataConstants {
   /**
    * The name of the schema used to serialize the messages in the destination
    */
-  public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = "system.destination.payloadSchemaName";
+  public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
 
   /**
    * Timestamp of datastream creation in epoch-milis
