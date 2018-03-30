@@ -68,6 +68,7 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
@@ -1194,9 +1195,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (existingDatastream.isPresent()) {
       populateDatastreamDestinationFromExistingDatastream(datastream, existingDatastream.get());
-      datastream.getMetadata()
-          .put(DatastreamMetadataConstants.TASK_PREFIX,
-              existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
     } else {
       if (!_transportProviderAdmins.containsKey(datastream.getTransportProviderName())) {
         throw new DatastreamValidationException(
@@ -1221,23 +1219,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     datastream.setDestination(destination);
 
     // Copy destination-related metadata
-    if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
-      datastream.getMetadata()
-          .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS,
-              existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_CREATION_MS));
-    }
-
-    if (existingStream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_RETENION_MS)) {
-      datastream.getMetadata()
-          .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS,
-              existingStream.getMetadata().get(DatastreamMetadataConstants.DESTINATION_RETENION_MS));
-    }
+    existingStream.getMetadata().entrySet().stream()
+        .filter(e -> e.getKey().startsWith(SYSTEM_DESTINATION_PREFIX))
+        .forEach(e -> datastream.getMetadata().put(e.getKey(), e.getValue()));
 
     // If the existing datastream group is paused, also pause this datastream.
     // This is to avoid the creation of a datastream to RESUME event production.
     if (existingStream.getStatus().equals(DatastreamStatus.PAUSED)) {
       datastream.setStatus(DatastreamStatus.PAUSED);
     }
+
+    datastream.getMetadata()
+        .put(DatastreamMetadataConstants.TASK_PREFIX,
+            existingStream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
   }
 
   @Override
