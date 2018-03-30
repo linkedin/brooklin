@@ -265,7 +265,7 @@ public class DynamicMetricsManager {
 
     // create and register the metric if it does not exist
     Counter counter =
-        (Counter) checkCache(classSimpleName, fullMetricName).orElse(_metricRegistry.counter(fullMetricName));
+        (Counter) checkCache(classSimpleName, fullMetricName).orElseGet(() -> _metricRegistry.counter(fullMetricName));
     counter.inc(value);
     updateCache(classSimpleName, fullMetricName, counter);
   }
@@ -294,7 +294,7 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
     // create and register the metric if it does not exist
-    Meter meter = (Meter) checkCache(classSimpleName, fullMetricName).orElse(_metricRegistry.meter(fullMetricName));
+    Meter meter = (Meter) checkCache(classSimpleName, fullMetricName).orElseGet(() -> _metricRegistry.meter(fullMetricName));
 
     meter.mark(value);
     updateCache(classSimpleName, fullMetricName, meter);
@@ -337,8 +337,8 @@ public class DynamicMetricsManager {
       long windowTimeMs, long value) {
     validateArguments(classSimpleName, metricName);
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElse(
-        registerAndGetHistogram(fullMetricName, windowTimeMs));
+    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElseGet(
+        () -> registerAndGetHistogram(fullMetricName, windowTimeMs));
     histogram.update(value);
     updateCache(classSimpleName, fullMetricName, histogram);
   }
@@ -355,8 +355,8 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
 
     // create and register the metric if it does not exist
-    Histogram histogram =
-        (Histogram) checkCache(classSimpleName, fullMetricName).orElse(_metricRegistry.histogram(fullMetricName));
+    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElseGet(
+        () -> _metricRegistry.histogram(fullMetricName));
     histogram.update(value);
     updateCache(classSimpleName, fullMetricName, histogram);
   }
