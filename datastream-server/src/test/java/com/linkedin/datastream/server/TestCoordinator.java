@@ -59,6 +59,7 @@ import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
 import static org.mockito.Mockito.anyLong;
@@ -2099,6 +2100,57 @@ public class TestCoordinator {
       exceptionReceived = true;
     }
     Assert.assertTrue(exceptionReceived);
+  }
+
+  @Test
+  public void testDatastreamDedupMetadataCopy() throws Exception {
+    String testCluster = "testDatastreamDedupMetadataCopy";
+
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+        new SourceBasedDeduper(), null);
+    coordinator1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream [] datastreams = DatastreamTestUtils.createDatastreams(connectorType, "stream1", "stream2");
+
+    // Add extra destination metadata to stream0
+    String destMetaKey = SYSTEM_DESTINATION_PREFIX + "foo";
+    String destMetaVal = "bar";
+    datastreams[0].getMetadata().put(destMetaKey, destMetaVal);
+    datastreams[0].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix");
+
+    // Store stream0 first
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[0]);
+    // wait for stream0 to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    LOG.info("Created datastream: {}", datastreams[0]);
+
+    // Trigger the code that does the dedup and metadata copying
+    datastreams[1].setSource(datastreams[0].getSource());
+    datastreams[1].removeDestination();
+    coordinator1.initializeDatastream(datastreams[1]);
+
+    // Ensure both streams have the same destination (are deduped)
+    Datastream stream1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream1");
+    Datastream stream2 = datastreams[1];
+    Assert.assertEquals(stream1.getDestination(), stream2.getDestination());
+
+    // Ensure all destination-related metadata are copied into the deduped stream
+    Assert.assertTrue(stream1.getMetadata().entrySet()
+        .stream()
+        .filter(e -> e.getKey().startsWith(DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX))
+        .allMatch(e -> e.getValue().equals(stream2.getMetadata().get(e.getKey()))));
+
+    // Explicitly check the additional metadata
+    Assert.assertEquals(stream2.getMetadata().get(destMetaKey), destMetaVal);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
