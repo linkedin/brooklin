@@ -34,6 +34,8 @@ public class TestAbstractKafkaConnector {
     PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
+
+    connector.stop();
   }
 
   @Test
@@ -47,6 +49,8 @@ public class TestAbstractKafkaConnector {
     PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
+
+    connector.stop();
   }
 
   public class TestKafkaConnector extends AbstractKafkaConnector {
