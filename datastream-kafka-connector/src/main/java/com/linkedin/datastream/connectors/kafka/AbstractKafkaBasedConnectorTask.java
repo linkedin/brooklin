@@ -106,7 +106,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
-      String metricsPrefix) {
+      String className) {
     _logger = logger;
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
@@ -131,11 +131,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
 
+    String metricsPrefix = config.getOverrideMetricsPrefix().orElse(className);
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
   }
 
-  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String className, String key, Logger errorLogger) {
-    KafkaBasedConnectorTaskMetrics consumerMetrics = new KafkaBasedConnectorTaskMetrics(className, key, errorLogger);
+  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key, Logger errorLogger) {
+    KafkaBasedConnectorTaskMetrics consumerMetrics = new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();

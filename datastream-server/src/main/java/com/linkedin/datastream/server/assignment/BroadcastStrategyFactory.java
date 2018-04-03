@@ -9,7 +9,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 public class BroadcastStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_MAX_TASKS = "maxTasks";
-  public static final int DEFAULT_MAX_TASKS = 6;
+  public static final int DEFAULT_MAX_TASKS = 12;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
