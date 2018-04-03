@@ -1,19 +1,32 @@
 package com.linkedin.datastream.server;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Objects;
+
 import org.apache.commons.lang.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 /**
  * Represent the status of a DatastreamTask with a code and message.
  */
 public class DatastreamTaskStatus {
+  private static final Logger LOG = LoggerFactory.getLogger(DatastreamTaskStatus.class);
+
   public enum Code { OK, ERROR, COMPLETE, PAUSED }
 
   private Code _code;
   private String _message;
 
+  private long _timeStamp = System.currentTimeMillis();
+
+  private String _hostName;
+
   // Needed for JSON deserialization
   public DatastreamTaskStatus() {
+    _hostName = "";
   }
 
   public DatastreamTaskStatus(Code code, String message) {
@@ -22,6 +35,16 @@ public class DatastreamTaskStatus {
     }
     _code = code;
     _message = message;
+    _hostName = localHostName();
+  }
+
+  private String localHostName() {
+    try {
+      return InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      LOG.warn("Couldn't get the hostname");
+      return "unknown";
+    }
   }
 
   /**
@@ -64,6 +87,36 @@ public class DatastreamTaskStatus {
    */
   public static DatastreamTaskStatus paused() {
     return new DatastreamTaskStatus(Code.PAUSED, "Paused");
+  }
+
+  /**
+   * @return the timestamp of the status
+   */
+  public long getTimeStamp() {
+    return _timeStamp;
+  }
+
+  /**
+   * Set the timestamp. Needed for JsonUtils.
+   * @param timeStamp timestamp
+   */
+  public void setTimeStamp(long timeStamp) {
+    _timeStamp = timeStamp;
+  }
+
+  /**
+   * @return the hostname where the last status was written
+   */
+  public String getHostName() {
+    return _hostName;
+  }
+
+  /**
+   * Set the hostname. Needed for JsonUtils.
+   * @param hostName hostName
+   */
+  public void setHostName(String hostName) {
+    _hostName = hostName;
   }
 
   /**
@@ -113,6 +166,7 @@ public class DatastreamTaskStatus {
 
   @Override
   public String toString() {
-    return String.format("TaskStatus: code=%s, msg=%s", _code, _message);
+    return String.format("TaskStatus: Timestamp=%d, hostname=%s, code=%s, msg=%s, ", _timeStamp, _hostName, _code,
+        _message);
   }
 }
