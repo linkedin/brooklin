@@ -191,6 +191,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String someTopic = "someTopic";
     Assert.assertEquals(transportProviderAdmin.getDestination(someTopic),
         String.format(stream.getDestination().getConnectionString(), someTopic));
+
+    coordinator.stop();
   }
 
   @Test
@@ -274,6 +276,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     // prepare expected partitions for validation
     expectedPartitions.put(topic, new HashSet<>(Arrays.asList("0", "1")));
     verifyPausedPartitions(connector, datastream, pausedPartitions, expectedPartitions);
+
+    coordinator.stop();
   }
 
   @Test
@@ -574,6 +578,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
             + "\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],\\\"SaltyPizza\\\":[\\\"1\\\",\\\"9"
             + "\\\",\\\"25\\\"]},\\\"inFlightMessageCounts\\\":{\\\"SaltyPizza-9\\\":20}}\""),
         "instance2 results were not as expected");
+
+    connector.stop();
   }
 
   private void verifyPausedPartitions(Connector connector, Datastream datastream,
