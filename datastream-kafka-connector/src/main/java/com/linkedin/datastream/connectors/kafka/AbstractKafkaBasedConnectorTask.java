@@ -18,6 +18,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.Validate;
+import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -40,6 +42,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamEventProducer;
@@ -55,6 +58,9 @@ import com.linkedin.datastream.server.DatastreamTaskStatus;
 abstract public class AbstractKafkaBasedConnectorTask implements Runnable, ConsumerRebalanceListener {
 
   protected final Logger _logger;
+
+  private static final long COMMIT_RETRY_TIMEOUT_MS = 5000;
+  private static final long COMMIT_RETRY_INTERVAL_MS = 1000;
 
   protected static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
   protected static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
@@ -276,7 +282,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     } catch (Exception e) {
       _logger.error("{} failed with exception.", _taskName, e);
-      _datastreamTask.setStatus(DatastreamTaskStatus.error(e.getMessage()));
+      _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
     } finally {
       _stoppedLatch.countDown();
@@ -445,8 +451,29 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
-      consumer.commitSync();
+      commitWithRetries(consumer);
       _lastCommittedTime = System.currentTimeMillis();
+    }
+  }
+
+  private void commitWithRetries(Consumer<?, ?> consumer) throws DatastreamRuntimeException {
+    boolean result = PollUtils.poll(() -> {
+      try {
+        consumer.commitSync();
+      } catch (CommitFailedException e) {
+        _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
+        return false;
+      }
+
+      return true;
+    }, COMMIT_RETRY_INTERVAL_MS, COMMIT_RETRY_TIMEOUT_MS);
+
+    if (!result) {
+      String msg = "Commit failed after several retries, Giving up.";
+      _logger.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    } else {
+      _logger.info("Commit succeeded.");
     }
   }
 
