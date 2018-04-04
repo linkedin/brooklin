@@ -54,16 +54,14 @@ public class TestFlushlessKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest 
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
 
     // verify that the partition was auto-paused due to inflight-message count exceeding 4
-    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().size() == 1, POLL_PERIOD_MS,
-        POLL_TIMEOUT_MS), "partition should have been auto-paused after sending 5 messages");
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Gauge<Long> metric = DynamicMetricsManager.getInstance()
+          .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + ".pizzaStream."
+              + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
+      return connectorTask.getAutoPausedSourcePartitions().size() == 1 && metric.getValue().equals(Long.valueOf(1));
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS), "partition should have been auto-paused after sending 5 messages");
     // verify that flow control was triggered
     Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 1, "Flow control should have been triggered");
-
-    Gauge<Long> metric = DynamicMetricsManager.getInstance()
-        .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + ".pizzaStream."
-            + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
-    Assert.assertEquals(metric.getValue(), Long.valueOf(1),
-        "Metric for numAutoPausedPartitionsOnInFlightMessages was not incremented");
 
     // verify that the 5 events were eventually sent
     if (!PollUtils.poll(
