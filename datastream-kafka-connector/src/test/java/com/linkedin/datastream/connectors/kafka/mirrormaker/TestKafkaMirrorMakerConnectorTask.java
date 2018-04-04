@@ -261,8 +261,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  // TODO: fix the flaky test: DDSDBUS-13037
-  @Test(enabled = false)
+  @Test
   public void testAutoPauseOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
@@ -335,7 +334,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  @Test(enabled = false)
+  @Test
   public void testAutoPauseAndResumeOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);

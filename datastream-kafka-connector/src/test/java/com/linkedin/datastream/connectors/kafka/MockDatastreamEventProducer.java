@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
@@ -22,25 +21,22 @@ import com.linkedin.datastream.server.api.transport.SendCallback;
 public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   private static final Logger LOG = LoggerFactory.getLogger(MockDatastreamEventProducer.class);
-  private final List<DatastreamProducerRecord> events = Collections.synchronizedList(new ArrayList<>());
-  private int numFlushes = 0;
+  private final List<DatastreamProducerRecord> _events = Collections.synchronizedList(new ArrayList<>());
+  private int _numFlushes = 0;
   private ExecutorService _executorService = Executors.newFixedThreadPool(1);
   private Duration _callbackThrottleDuration;
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
 
-  private static final Duration DEFAULT_CALLBACK_THROTTLE_DURATION = Duration.ofMillis(0);
-  private static final Predicate<DatastreamProducerRecord> DEFAULT_SEND_FAIL_CONDITION = (r) -> false;
-
   public MockDatastreamEventProducer() {
-    this(DEFAULT_CALLBACK_THROTTLE_DURATION, DEFAULT_SEND_FAIL_CONDITION);
+    this(null, null);
   }
 
   public MockDatastreamEventProducer(Predicate<DatastreamProducerRecord> sendFailCondition) {
-    this(DEFAULT_CALLBACK_THROTTLE_DURATION, sendFailCondition);
+    this(null, sendFailCondition);
   }
 
   public MockDatastreamEventProducer(Duration callbackThrottleDuration) {
-    this(callbackThrottleDuration, DEFAULT_SEND_FAIL_CONDITION);
+    this(callbackThrottleDuration, null);
   }
 
   public MockDatastreamEventProducer(Duration callbackThrottleDuration, Predicate<DatastreamProducerRecord> sendFailCondition) {
@@ -50,40 +46,48 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   @Override
   public void send(DatastreamProducerRecord event, SendCallback callback) {
-    if (_sendFailCondition.test(event)) {
+    if (_sendFailCondition != null && _sendFailCondition.test(event)) {
       throw new DatastreamRuntimeException("Random exception");
     }
 
-    // potentially throttle send callbacks by sleeping for specified duration
-    Optional.ofNullable(_callbackThrottleDuration).ifPresent(d -> {
+    if (_callbackThrottleDuration != null) {
+      // throttle send callbacks by sleeping for specified duration before sending event
       _executorService.submit(() -> {
         try {
-          if (!d.isZero()) {
-            Thread.sleep(d.toMillis());
+          if (!_callbackThrottleDuration.isZero()) {
+            Thread.sleep(_callbackThrottleDuration.toMillis());
           }
-          events.add(event);
-          LOG.info("sent event {} , total events {}", event, events.size());
-          DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
-          callback.onCompletion(md, null);
+          sendEvent(event, callback);
         } catch (InterruptedException e) {
           LOG.error("Sleep was interrupted while throttling send callback");
           throw new DatastreamRuntimeException("Sleep was interrupted", e);
         }
       });
-    });
+    } else {
+      sendEvent(event, callback);
+    }
+  }
+
+  private void sendEvent(DatastreamProducerRecord event, SendCallback callback) {
+    _events.add(event);
+    LOG.info("sent event {}, total _events {}", event, _events.size());
+    DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
+    if (callback != null) {
+      callback.onCompletion(md, null);
+    }
   }
 
   @Override
   public void flush() {
-    numFlushes++;
+    _numFlushes++;
   }
 
   public List<DatastreamProducerRecord> getEvents() {
-    return events;
+    return _events;
   }
 
   public int getNumFlushes() {
-    return numFlushes;
+    return _numFlushes;
   }
 
   public void updateSendFailCondition(Predicate<DatastreamProducerRecord> sendFailCondition) {
