@@ -48,8 +48,8 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
 
   private int _flowControlTriggerCount = 0;
 
-  protected FlushlessKafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
-    super(config, task);
+  protected FlushlessKafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName) {
+    super(config, task, connectorName);
     _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
 
     _flowControlEnabled = config.getConnectorProps().getBoolean(CONFIG_FLOW_CONTROL_ENABLED, false);

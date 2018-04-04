@@ -1,7 +1,6 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.Properties;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -27,7 +26,6 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS = "pauseErrorPartitionDurationMs";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
-  public static final String CONFIG_OVERRIDE_METRICS_PREFIX = "overrideMetricsPrefix";
 
   private static final long DEFAULT_RETRY_SLEEP_DURATION_MS = Duration.ofSeconds(5).toMillis();
   private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS = Duration.ofMinutes(10).toMillis();
@@ -50,8 +48,6 @@ public class KafkaBasedConnectorConfig {
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMs;
-
-  private String _overrideMetricsPrefix;
 
   public KafkaBasedConnectorConfig(Properties properties) {
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
@@ -78,8 +74,6 @@ public class KafkaBasedConnectorConfig {
       throw new DatastreamRuntimeException("Unable to instantiate factory class: " + factory);
     }
 
-    _overrideMetricsPrefix = verifiableProperties.getString(CONFIG_OVERRIDE_METRICS_PREFIX, null);
-
     _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
     _connectorProps = verifiableProperties;
   }
@@ -102,15 +96,6 @@ public class KafkaBasedConnectorConfig {
     _pauseErrorPartitionDuration = pauseErrorPartitionDuration;
     _daemonThreadIntervalSeconds = DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS;
     _nonGoodStateThresholdMs = DEFAULT_NON_GOOD_STATE_THRESHOLD_MS;
-  }
-
-  /**
-   * Get override metrics prefix which is going to be used in metrics report
-   * @return override metrics prefix string
-   *         Optional.empty() if it's not defined
-   */
-  public Optional<String> getOverrideMetricsPrefix() {
-    return Optional.ofNullable(_overrideMetricsPrefix);
   }
 
   public String getDefaultKeySerde() {

@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -106,7 +107,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
-      String className) {
+      String metricsPrefix) {
     _logger = logger;
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
@@ -130,9 +131,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }));
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
+    _consumerMetrics =
+        createKafkaBasedConnectorTaskMetrics(metricsPrefix,
+            _datastreamName, _logger);
+  }
 
-    String metricsPrefix = config.getOverrideMetricsPrefix().orElse(className);
-    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
+  protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
+    return StringUtils.isBlank(connectorName) ? simpleClassName : connectorName + "." + simpleClassName;
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key, Logger errorLogger) {
