@@ -290,6 +290,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (_consumer != null) {
       _consumer.wakeup();
     }
+    _consumerMetrics.deregisterMetrics();
     _thread.interrupt();
   }
 
