@@ -40,7 +40,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnectorTask.class.getName());
   private static final String CLASS_NAME = KafkaMirrorMakerConnectorTask.class.getSimpleName();
-  private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
 
   private static final String KAFKA_ORIGIN_CLUSTER = "kafka-origin-cluster";
   private static final String KAFKA_ORIGIN_TOPIC = "kafka-origin-topic";
@@ -50,8 +49,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
-    super(config, task, LOG, CLASS_NAME);
+  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName) {
+    // both this and Flushless mirror maker task will use the same metrics prefix
+    // this is to ensure that metrics don't change because of the "enableFlushless" config change
+    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   }
@@ -99,8 +100,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return builder.build();
   }
 
-  public static List<BrooklinMetricInfo> getMetricInfos() {
-    return AbstractKafkaBasedConnectorTask.getMetricInfos(METRICS_PREFIX_REGEX);
+  public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
+    return AbstractKafkaBasedConnectorTask.getMetricInfos(
+        generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
   }
 
 }

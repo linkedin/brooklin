@@ -28,18 +28,16 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
+  private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
-  private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
-  // Regular expression to capture all metrics by this kafka connector.
-  private static final String METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
 
   private KafkaConnectionString _srcConnString =
       KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
-  public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task) {
-    super(config, task, LOG, CLASS_NAME);
+  public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName) {
+    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
   }
 
@@ -93,8 +91,9 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
         .orElse(srcConnString + "-to-" + dstConnString);
   }
 
-  public static List<BrooklinMetricInfo> getMetricInfos() {
-    return AbstractKafkaBasedConnectorTask.getMetricInfos(METRICS_PREFIX_REGEX);
+  public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
+    return AbstractKafkaBasedConnectorTask.getMetricInfos(
+        generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
   }
 
   @Override

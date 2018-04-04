@@ -33,8 +33,8 @@ public class KafkaConnector extends AbstractKafkaConnector {
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
-  public KafkaConnector(String name, Properties config) {
-    super(name, config, LOG);
+  public KafkaConnector(String connectorName, Properties config) {
+    super(connectorName, config, LOG);
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =
@@ -126,7 +126,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return Collections.unmodifiableList(KafkaConnectorTask.getMetricInfos());
+    return Collections.unmodifiableList(KafkaConnectorTask.getMetricInfos(_connectorName));
   }
 
   private Boolean isWhiteListedCluster(KafkaConnectionString connectionStr) {
@@ -135,6 +135,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
-    return new KafkaConnectorTask(_config, task);
+    return new KafkaConnectorTask(_config, task, _connectorName);
   }
 }
