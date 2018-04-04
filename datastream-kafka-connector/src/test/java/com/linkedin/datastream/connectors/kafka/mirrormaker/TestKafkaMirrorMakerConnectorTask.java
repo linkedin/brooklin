@@ -22,6 +22,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -392,17 +393,18 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,
       long numAutoPausedPartitionsOnInFlightMessages, long numConfigPausedPartitions) {
-    String autoPausePartitionOnErrorMetric = "numAutoPausedPartitionsOnError";
-    String autoPausePartitionOnInFlightMessagesMetric = "numAutoPausedPartitionsOnInFlightMessages";
-    String configPausedPartitionsMetric = "numConfigPausedPartitions";
 
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
-            .getMetric(task + "." + stream + "." + autoPausePartitionOnErrorMetric)).getValue(),
+            .getMetric(String.join(".", task, stream,
+                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR))).getValue(),
         numAutoPausedPartitionsOnError);
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
-            .getMetric(task + "." + stream + "." + autoPausePartitionOnInFlightMessagesMetric)).getValue(),
+            .getMetric(String.join(".", task, stream,
+                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES))).getValue(),
         numAutoPausedPartitionsOnInFlightMessages);
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
-        .getMetric(task + "." + stream + "." + configPausedPartitionsMetric)).getValue(), numConfigPausedPartitions);
+            .getMetric(
+                String.join(".", task, stream, KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS))).getValue(),
+        numConfigPausedPartitions);
   }
 }

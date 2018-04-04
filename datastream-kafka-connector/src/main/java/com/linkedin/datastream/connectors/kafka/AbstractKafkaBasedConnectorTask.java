@@ -90,7 +90,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile Thread _thread;
 
   protected volatile String _taskName;
-  protected DatastreamEventProducer _producer;
+  protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
   protected Set<TopicPartition> _consumerAssignment = Collections.emptySet();
 
@@ -99,11 +99,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @VisibleForTesting
   int _pausedPartitionsConfigUpdateCount = 0;
   // paused partitions config contains the topic partitions that are configured for pause (via Datastream metadata)
-  protected Map<String, Set<String>> _pausedPartitionsConfig = new ConcurrentHashMap<>();
+  protected final Map<String, Set<String>> _pausedPartitionsConfig = new ConcurrentHashMap<>();
   // auto paused partitions map contains partitions that were paused on the fly (due to error or in-flight msg count)
-  protected Map<TopicPartition, PausedSourcePartitionMetadata> _autoPausedSourcePartitions = new ConcurrentHashMap<>();
+  protected final Map<TopicPartition, PausedSourcePartitionMetadata> _autoPausedSourcePartitions = new ConcurrentHashMap<>();
 
-  protected KafkaBasedConnectorTaskMetrics _consumerMetrics;
+  protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String className) {
@@ -556,7 +556,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             pausePartitions();
             break;
           default:
-            String msg = String.format("Unknown update type {} for task {}.", updateType, _taskName);
+            String msg = String.format("Unknown update type %s for task %s.", updateType, _taskName);
             _logger.error(msg);
             throw new DatastreamRuntimeException(msg);
         }
@@ -602,7 +602,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * such partition is found, add the PAUSE_RESUME_PARTITIONS task to the taskUpdates set.
    */
   private void checkForPartitionsToAutoResume() {
-    if (_autoPausedSourcePartitions.values().stream().anyMatch(metadata -> metadata.shouldResume())) {
+    if (_autoPausedSourcePartitions.values().stream().anyMatch(PausedSourcePartitionMetadata::shouldResume)) {
       _logger.info("Found partition to resume, adding PAUSE_RESUME_PARTITIONS to task updates set");
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
