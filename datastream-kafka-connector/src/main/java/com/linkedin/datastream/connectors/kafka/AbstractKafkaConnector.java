@@ -41,7 +41,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
-  protected final String _name;
+  protected final String _connectorName;
   private final Logger _logger;
 
   private AtomicInteger threadCounter = new AtomicInteger(0);
@@ -63,13 +63,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         public Thread newThread(@NotNull Runnable r) {
           Thread t = new Thread(r);
           t.setDaemon(true);
-          t.setName(String.format("%s daemon thread", _name));
+          t.setName(String.format("%s daemon thread", _connectorName));
           return t;
         }
       });
 
   public AbstractKafkaConnector(String connectorName, Properties config, Logger logger) {
-    _name = connectorName;
+    _connectorName = connectorName;
     _logger = logger;
 
     _config = new KafkaBasedConnectorConfig(config);
@@ -106,7 +106,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public Thread createTaskThread(AbstractKafkaBasedConnectorTask task) {
     Thread t = new Thread(task);
     t.setDaemon(true);
-    t.setName(String.format("%s task thread %s %d", _name, task.getTaskName(), threadCounter.incrementAndGet()));
+    t.setName(String.format("%s task thread %s %d", _connectorName, task.getTaskName(), threadCounter.incrementAndGet()));
     t.setUncaughtExceptionHandler((thread, e) -> {
       _logger.error(String.format("thread %s has died due to uncaught exception.", thread.getName()), e);
     });

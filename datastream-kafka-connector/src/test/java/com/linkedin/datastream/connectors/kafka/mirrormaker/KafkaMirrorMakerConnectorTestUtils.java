@@ -93,7 +93,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
       Properties consumerConfig, Duration pauseErrorPartitionDuration) {
     return new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
-            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task);
+            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "");
   }
 
   static FlushlessKafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
@@ -111,7 +111,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     KafkaBasedConnectorConfig config =
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
-    return new FlushlessKafkaMirrorMakerConnectorTask(config, task);
+    return new FlushlessKafkaMirrorMakerConnectorTask(config, task, "");
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
