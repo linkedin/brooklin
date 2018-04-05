@@ -457,15 +457,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
-      commitWithRetries(consumer);
+      commitWithRetries(consumer, Optional.empty());
       _lastCommittedTime = System.currentTimeMillis();
     }
   }
 
-  private void commitWithRetries(Consumer<?, ?> consumer) throws DatastreamRuntimeException {
+  protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
+      throws DatastreamRuntimeException {
     boolean result = PollUtils.poll(() -> {
       try {
-        consumer.commitSync();
+        if (offsets.isPresent()) {
+          consumer.commitSync(offsets.get());
+        } else {
+          consumer.commitSync();
+        }
       } catch (CommitFailedException e) {
         _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
         return false;

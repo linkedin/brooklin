@@ -145,25 +145,24 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     KafkaDestination kafkaDestination = KafkaDestination.parse(connectionString);
     String topicName = kafkaDestination.getTopicName();
 
-    int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-    LOG.info(
-        String.format("Creating topic with name %s partitions=%d with properties %s", topicName, numberOfPartitions,
-            topicConfig));
-
-    // Add default retention if no topic-level retention is specified
-    if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
-      topicConfig.put(TOPIC_RETENTION_MS, String.valueOf(_retention.toMillis()));
-    }
-
     try {
       // Create only if it doesn't exist.
       if (!AdminUtils.topicExists(_zkUtils, topicName)) {
+        int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
+        LOG.info("Creating topic with name {} partitions={} with properties %s", topicName, numberOfPartitions,
+                topicConfig);
+
+        // Add default retention if no topic-level retention is specified
+        if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
+          topicConfig.put(TOPIC_RETENTION_MS, String.valueOf(_retention.toMillis()));
+        }
+
         AdminUtils.createTopic(_zkUtils, topicName, numberOfPartitions, replicationFactor, topicConfig, RackAwareMode.Disabled$.MODULE$);
       } else {
-        LOG.warn(String.format("Topic with name %s already exists", topicName));
+        LOG.warn("Topic with name {} already exists", topicName);
       }
     } catch (Throwable e) {
-      LOG.error(String.format("Creating topic %s failed with exception %s ", topicName, e));
+      LOG.error("Creating topic {} failed with exception {}", topicName, e);
       throw e;
     }
   }
@@ -197,10 +196,10 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       if (AdminUtils.topicExists(_zkUtils, topicName)) {
         AdminUtils.deleteTopic(_zkUtils, topicName);
       } else {
-        LOG.warn(String.format("Trying to delete topic %s that doesn't exist", topicName));
+        LOG.warn("Trying to delete topic {} that doesn't exist", topicName);
       }
     } catch (Throwable e) {
-      LOG.error(String.format("Deleting topic %s failed with exception %s", topicName, e));
+      LOG.error("Deleting topic {} failed with exception {}", topicName, e);
       throw e;
     }
   }
