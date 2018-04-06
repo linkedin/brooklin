@@ -24,7 +24,6 @@ import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.SendFailedException;
@@ -34,22 +33,11 @@ import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
 
 
 /**
- * EventProducer class uses the transport to send events and handles save/restore checkpoints
- * automatically if {@link EventProducer.CheckpointPolicy#DATASTREAM} is specified.
- * Otherwise, it exposes the safe checkpoints which are guaranteed to have been flushed.
+ * EventProducer class uses the transport to send events.
  */
 public class EventProducer implements DatastreamEventProducer {
 
   private final DatastreamTask _datastreamTask;
-  private final SerDeSet _serDeSet;
-
-  /**
-   * Policy for checkpoint handling
-   */
-  enum CheckpointPolicy {
-    DATASTREAM,
-    CUSTOM
-  }
 
   private static final String MODULE = EventProducer.class.getSimpleName();
   private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
@@ -67,7 +55,6 @@ public class EventProducer implements DatastreamEventProducer {
 
   private final TransportProvider _transportProvider;
   private final CheckpointProvider _checkpointProvider;
-  private final CheckpointPolicy _checkpointPolicy;
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private static final String TOTAL_EVENTS_PRODUCED = "totalEventsProduced";
@@ -87,7 +74,6 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(5).toMillis();
 
-  private final String _datastreamName;
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
   private final int _availabilityThresholdAlternateSlaMs;
@@ -109,10 +95,7 @@ public class EventProducer implements DatastreamEventProducer {
     Validate.notNull(config, "null config");
 
     _datastreamTask = task;
-    _datastreamName = task.getDatastreams().get(0).getName();
-    _serDeSet = task.getDestinationSerDes();
     _transportProvider = transportProvider;
-    _checkpointPolicy = customCheckpointing ? CheckpointPolicy.CUSTOM : CheckpointPolicy.DATASTREAM;
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
     _logger = LoggerFactory.getLogger(String.format("%s:%d", MODULE, _producerId));
 
@@ -139,8 +122,6 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 0);
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
         EVENTS_PRODUCED_OUTSIDE_SLA, 0);
-
-
   }
 
   public int getProducerId() {
@@ -186,7 +167,7 @@ public class EventProducer implements DatastreamEventProducer {
       throw new DatastreamRuntimeException(errorMessage, e);
     }
 
-    // It is possible that the connector is not calling flush at regular intervals, In which case we will force a periodic flush.
+    // Force a periodic flush, in case connector is not calling flush at regular intervals
     if (Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
       flush();
     }
@@ -317,7 +298,6 @@ public class EventProducer implements DatastreamEventProducer {
 
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    String className = EventProducer.class.getSimpleName();
 
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));

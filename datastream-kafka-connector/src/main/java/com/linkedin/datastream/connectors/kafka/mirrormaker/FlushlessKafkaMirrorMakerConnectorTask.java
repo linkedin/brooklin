@@ -93,7 +93,7 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
     if (hardCommit) { // hard commit (flush and commit checkpoints)
       LOG.info("Calling flush on the producer.");
       _datastreamTask.getEventProducer().flush();
-      consumer.commitSync();
+      commitWithRetries(consumer, Optional.empty());
       // verify that the producer is caught up with the consumer, since flush was called
       for (TopicPartition tp : consumer.assignment()) {
         _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition()).ifPresent(ackCheckpoint -> {
@@ -126,7 +126,7 @@ class FlushlessKafkaMirrorMakerConnectorTask extends KafkaMirrorMakerConnectorTa
         _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
             .ifPresent(o -> offsets.put(tp, new OffsetAndMetadata(o + 1)));
       }
-      consumer.commitSync(offsets);
+      commitWithRetries(consumer, Optional.of(offsets));
       _lastCommittedTime = System.currentTimeMillis();
     }
   }
