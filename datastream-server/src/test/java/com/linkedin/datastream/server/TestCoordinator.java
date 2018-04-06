@@ -1,6 +1,6 @@
 package com.linkedin.datastream.server;
 
-import com.codahale.metrics.Gauge;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +23,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 

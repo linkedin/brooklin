@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.DatastreamUtils;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,7 +24,7 @@ import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
-
+import com.linkedin.datastream.common.DatastreamUtils;
 
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
