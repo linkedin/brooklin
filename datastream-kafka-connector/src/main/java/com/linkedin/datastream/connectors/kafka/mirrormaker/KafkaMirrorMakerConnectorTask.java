@@ -1,10 +1,12 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import com.linkedin.datastream.common.DatastreamUtils;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -68,8 +70,21 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
+    setGroupId(properties);
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
+  }
+
+  public void setGroupId(Properties properties) {
+    // check if group ID is overridden in metadata
+    Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(_datastreamTask.getDatastreams());
+
+    if (!groupIds.isEmpty()) {
+      // if group ID is present in metadata, add it to properties even if present already.
+      properties.put(ConsumerConfig.GROUP_ID_CONFIG, groupIds.toArray()[0]);
+    } else {
+      properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamName);
+    }
   }
 
   @Override

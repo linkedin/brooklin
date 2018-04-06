@@ -8,8 +8,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
+import java.util.stream.Collectors;
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.annotate.JsonIgnore;
 import org.slf4j.Logger;
@@ -329,4 +331,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void setCheckpoints(Map<Integer, String> checkpoints) {
     _checkpoints = new HashMap<>(checkpoints);
   }
+
+  public static Set<String> getGroupIdsForDatastreamGroup(DatastreamTask task) {
+    return task.getDatastreams()
+        .stream()
+        .map(ds -> ds.getMetadata().get(DatastreamMetadataConstants.GROUP_ID_CONFIG))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+  }
+
 }

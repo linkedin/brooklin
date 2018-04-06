@@ -93,4 +93,9 @@ public class DatastreamMetadataConstants {
    * Regex indicating pausing all partitions in a topic
    */
   public static final String REGEX_PAUSE_ALL_PARTITIONS_IN_A_TOPIC = "*";
+
+  /**
+   * Key to set consumer group ID of the datastream.
+   */
+  public static final String GROUP_ID_CONFIG = "group.id";
 }

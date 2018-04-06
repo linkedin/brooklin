@@ -1,10 +1,10 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.DatastreamUtils;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.StringJoiner;
 
@@ -83,10 +83,8 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
         KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
     String dstConnString = task.getDatastreamDestination().getConnectionString();
 
-    return task.getDatastreams()
+    return DatastreamUtils.getMetadataGroupIDs(task.getDatastreams())
         .stream()
-        .map(ds -> ds.getMetadata().get(ConsumerConfig.GROUP_ID_CONFIG))
-        .filter(Objects::nonNull)
         .findFirst()
         .orElse(srcConnString + "-to-" + dstConnString);
   }

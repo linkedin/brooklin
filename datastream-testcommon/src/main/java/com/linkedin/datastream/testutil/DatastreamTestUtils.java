@@ -153,6 +153,26 @@ public class DatastreamTestUtils {
     return datastreams;
   }
 
+  /**
+   * Create a list of Datastreams with default fields and store them into ZooKeeper.
+   * This can be used when the test does not need to modify the default fields.
+   * @param zkClient zookeeper client
+   * @param cluster name of the datastream cluster
+   * @param connectorType connector type string
+   * @param datastreamNames list of datastream names
+   * @return datastream [ ]
+   * @throws DatastreamException the datastream exception
+   */
+  public static Datastream[] createAndStoreDatastreamsWithSameSource(ZkClient zkClient, String cluster, String connectorType,
+      String source, String... datastreamNames) throws DatastreamException {
+    Datastream[] datastreams = createDatastreams(connectorType, datastreamNames);
+    for (Datastream ds: datastreams) {
+      datastreams[0].getSource().setConnectionString(source);
+      ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, source);
+    }
+    storeDatastreams(zkClient, cluster, datastreams);
+    return datastreams;
+  }
   public static Datastream getDatastream(ZkClient zkClient, String cluster, String datastreamName) {
     zkClient.ensurePath(KeyBuilder.datastreams(cluster));
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);

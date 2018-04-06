@@ -1,5 +1,6 @@
 package com.linkedin.datastream.server;
 
+import com.codahale.metrics.Gauge;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -2151,6 +2152,77 @@ public class TestCoordinator {
 
     // Explicitly check the additional metadata
     Assert.assertEquals(stream2.getMetadata().get(destMetaKey), destMetaVal);
+  }
+
+  @Test
+  public void testMetadataGroupIdOverride() throws Exception {
+    String testCluster = "testSimpleAssignmentReassignWithNewInstances";
+    String testConnectorType = "testConnectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    LOG.info("Creating the coordinator and connector instance");
+    //
+    // create 1 instance
+    //
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
+        null);
+    instance1.start();
+
+    LOG.info("Creating two datastream");
+
+    //
+    // create 2 datastreams with same source (same datastream group) and verify assignment
+    //
+    DatastreamTestUtils.createAndStoreDatastreamsWithSameSource(zkClient, testCluster, testConnectorType, "source",
+        "datastream0");
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+    DatastreamTestUtils.createAndStoreDatastreamsWithSameSource(zkClient, testCluster, testConnectorType, "source",
+        "datastream1");
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+
+    //
+    // change datastream0's group id and validate assignment
+    //
+    Datastream ds0 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream0");
+    ds0.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds0);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+
+    //
+    // Now change datastream1's group id to same group id and validate assignment
+    //
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+
+    //
+    // now change group id for datastream1 and make sure datastreams are ignored for assignment
+    //
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group1");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS);
+    Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
+        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATAGROUPS)).getValue(), 1);
+
+    //
+    // now make the group IDs consistent again, and make sure datastreams aren't ignored anymore
+    //
+    ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
+    Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
+        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATAGROUPS)).getValue(), 0);
+
+    //
+    // clean up
+    //
+    zkClient.close();
+    instance1.stop();
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
