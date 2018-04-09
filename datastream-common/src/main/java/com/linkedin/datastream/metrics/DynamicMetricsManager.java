@@ -310,15 +310,16 @@ public class DynamicMetricsManager {
     createOrUpdateMeter(classSimpleName, null, metricName, value);
   }
 
-  private Histogram registerAndGetHistogram(String fullMetricName, long windowTimeMs) {
+  // This function should only be called after "checkCache". So using "synchronized" shouldn't be a problem. The race
+  // will only happen briefly after the process starts and before the cache is populated.
+  private synchronized Histogram registerAndGetSlidingWindowHistogram(String fullMetricName, long windowTimeMs) {
     Histogram histogram = new Histogram(new SlidingTimeWindowReservoir(windowTimeMs, TimeUnit.MILLISECONDS));
     try {
       return _metricRegistry.register(fullMetricName, histogram);
     } catch (IllegalArgumentException e) {
-      // This ideally can only happen with parallel unit tests
-      LOG.warn("Failed to register for metrics {}", fullMetricName);
-      LOG.warn("IllegalArgumentException during Histogram registration", e);
-      return histogram;
+      // This could happen when multiple threads call createOrUpdateSlidingWindowHistogram simultaneously
+      // In that case the line below will just return the one that got registered first.
+      return _metricRegistry.histogram(fullMetricName);
     }
   }
 
@@ -338,7 +339,7 @@ public class DynamicMetricsManager {
     validateArguments(classSimpleName, metricName);
     String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
     Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElseGet(
-        () -> registerAndGetHistogram(fullMetricName, windowTimeMs));
+        () -> registerAndGetSlidingWindowHistogram(fullMetricName, windowTimeMs));
     histogram.update(value);
     updateCache(classSimpleName, fullMetricName, histogram);
   }
