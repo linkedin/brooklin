@@ -97,5 +97,5 @@ public class DatastreamMetadataConstants {
   /**
    * Key to set consumer group ID of the datastream.
    */
-  public static final String GROUP_ID_CONFIG = "group.id";
+  public static final String GROUP_ID = "group.id";
 }

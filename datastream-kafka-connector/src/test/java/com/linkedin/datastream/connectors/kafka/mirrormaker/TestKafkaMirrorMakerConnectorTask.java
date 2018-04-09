@@ -409,7 +409,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.setGroupId(consumerProps);
     Assert.assertEquals(consumerProps.get(ConsumerConfig.GROUP_ID_CONFIG), "datastream");
 
-    datastream.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "groupId");
+    datastream.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "groupId");
     connectorTask.setGroupId(consumerProps);
     Assert.assertEquals(consumerProps.get(ConsumerConfig.GROUP_ID_CONFIG), "groupId");
   }

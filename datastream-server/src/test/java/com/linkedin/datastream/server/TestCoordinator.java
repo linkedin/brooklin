@@ -2187,7 +2187,7 @@ public class TestCoordinator {
     // change datastream0's group id and validate assignment
     //
     Datastream ds0 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream0");
-    ds0.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    ds0.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "group0");
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds0);
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
 
@@ -2195,7 +2195,7 @@ public class TestCoordinator {
     // Now change datastream1's group id to same group id and validate assignment
     //
     Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
-    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "group0");
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
 
@@ -2203,21 +2203,21 @@ public class TestCoordinator {
     // now change group id for datastream1 and make sure datastreams are ignored for assignment
     //
     ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
-    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "group1");
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS);
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
-        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATAGROUPS)).getValue(), 1);
+        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATASTREAM_GROUPS)).getValue(), 1);
 
     //
     // now make the group IDs consistent again, and make sure datastreams aren't ignored anymore
     //
     ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
-    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID_CONFIG, "group0");
+    ds1.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "group0");
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream0");
     Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
-        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATAGROUPS)).getValue(), 0);
+        .getMetric("Coordinator." + Coordinator.NUM_INVALID_GROUP_ID_DATASTREAM_GROUPS)).getValue(), 0);
 
     //
     // clean up

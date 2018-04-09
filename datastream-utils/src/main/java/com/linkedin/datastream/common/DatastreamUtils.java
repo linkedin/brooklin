@@ -190,7 +190,8 @@ public final class DatastreamUtils {
     Set<String> groupIds = new HashSet<>();
     return datastreams
         .stream()
-        .map(ds -> ds.getMetadata().get(DatastreamMetadataConstants.GROUP_ID_CONFIG))
+        .filter(Datastream::hasMetadata)
+        .map(ds -> ds.getMetadata().get(DatastreamMetadataConstants.GROUP_ID))
         .filter(Objects::nonNull)
         .collect(Collectors.toSet());
   }

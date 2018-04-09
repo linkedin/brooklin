@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import com.linkedin.datastream.common.DatastreamUtils;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -81,6 +81,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
     if (!groupIds.isEmpty()) {
       // if group ID is present in metadata, add it to properties even if present already.
+      LOG.info("Overriding group ID for MM datastream: {} . Overridden group id: {}", _datastreamName,
+          groupIds.toArray()[0]);
       properties.put(ConsumerConfig.GROUP_ID_CONFIG, groupIds.toArray()[0]);
     } else {
       properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamName);
