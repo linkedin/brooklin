@@ -11,11 +11,16 @@ import org.apache.commons.lang3.StringUtils;
  * Utility class to simplify usage of Restli.
  */
 public final class RestliUtils {
+  private static final String URI_SCHEME = "http://";
+  private static final String URI_SCHEME_SSL = "https://";
 
-  private static final String DEFAULT_URI_SCHEME = "http://";
-
-  public static String sanitizeUri(String dmsUri) {
-    return StringUtils.prependIfMissing(StringUtils.appendIfMissing(dmsUri, "/"), DEFAULT_URI_SCHEME);
+  public static String sanitizeUri(String uri) {
+    uri = uri.toLowerCase();
+    if (!uri.startsWith(URI_SCHEME) && !uri.startsWith(URI_SCHEME_SSL)) {
+      // use plaintext by default
+      uri = URI_SCHEME + uri;
+    }
+    return StringUtils.appendIfMissing(uri, "/");
   }
 
   /**

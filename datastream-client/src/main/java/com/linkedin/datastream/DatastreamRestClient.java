@@ -260,16 +260,23 @@ public class DatastreamRestClient {
           LOG.warn("Timeout: createDatastream. May retry...", e);
           return null;
         }
-        if (e instanceof RestLiResponseException
-            && ((RestLiResponseException) e).getStatus() == HttpStatus.S_409_CONFLICT.getCode()) {
-          String msg = String.format("Datastream %s already exists", datastream.getName());
-          LOG.warn(msg, e);
-          throw new DatastreamAlreadyExistsException(msg);
-        } else {
-          String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
-          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-          return null; // not reachable
+
+        if (e instanceof RestLiResponseException) {
+          int errorCode = ((RestLiResponseException) e).getStatus();
+          if (errorCode == HttpStatus.S_409_CONFLICT.getCode()) {
+            String msg = String.format("Datastream %s already exists", datastream.getName());
+            LOG.warn(msg, e);
+            throw new DatastreamAlreadyExistsException(msg);
+          } else if (errorCode == HttpStatus.S_403_FORBIDDEN.getCode()) {
+            // Handle any DMS REST authorization failure for the caller principal
+            String msg = "Client is not authorized to invoke Datastream-CREATE, stream=" + datastream.getName();
+            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, e);
+          }
         }
+
+        String errorMessage = String.format("Create Datastream %s failed with error.", datastream);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        return null; // unreachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
   }
