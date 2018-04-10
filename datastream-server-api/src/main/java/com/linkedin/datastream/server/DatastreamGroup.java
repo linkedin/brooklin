@@ -72,7 +72,6 @@ public class DatastreamGroup {
     return allPaused;
   }
 
-
   // Returns true if the task belongs to this group.
   public boolean belongsTo(DatastreamTask task) {
     return  task.getTaskPrefix().equals(getTaskPrefix());

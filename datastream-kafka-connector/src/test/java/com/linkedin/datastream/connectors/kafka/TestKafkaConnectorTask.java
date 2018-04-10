@@ -1,7 +1,9 @@
 package com.linkedin.datastream.connectors.kafka;
 
+
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -28,6 +30,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -76,18 +79,37 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testGroupId() throws Exception {
     String topic = "MyTopicForGrpId";
-    Datastream datastream = getDatastream(_broker, topic);
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    Datastream datastream1 = getDatastream(_broker, topic);
+    Datastream datastream2 = getDatastream(_broker, topic);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(datastream1, datastream2));
+    KafkaBasedConnectorTaskMetrics consumerMetrics =
+        new KafkaBasedConnectorTaskMetrics(TestKafkaConnectorTask.class.getName(), "testConsumer", LOG);
+    consumerMetrics.createEventProcessingMetrics();
 
     String defaultGrpId =
-        datastream.getSource().getConnectionString() + "-to-" + datastream.getDestination().getConnectionString();
+        datastream1.getSource().getConnectionString() + "-to-" + datastream1.getDestination().getConnectionString();
 
     // Testing with default group id
-    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), defaultGrpId);
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), defaultGrpId);
 
-    // Test with explicit group id
-    datastream.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
-    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task), "MyGroupId");
+    // Test with setting explicit group id in one datastream
+    datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), "MyGroupId");
+
+    // Test with explicitly setting group id in both datastream
+    datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), "MyGroupId");
+
+    // now set different group ids in 2 datastreams and make sure validation fails
+    datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
+    boolean exceptionSeen = false;
+    try {
+      KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG);
+    } catch (DatastreamRuntimeException e) {
+      exceptionSeen = true;
+    }
+    Assert.assertTrue(exceptionSeen);
   }
 
   @Test

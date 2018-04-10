@@ -941,7 +941,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
       List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
           .filter(x -> x.getConnectorName().equals(connectorType))
-          .filter(g -> !pausedDatastreamGroups.contains(g))
+          .filter(g -> !(pausedDatastreamGroups.contains(g)))
           .collect(Collectors.toList());
 
       // Get the list of tasks per instance for the given connector type
@@ -991,7 +991,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return pausedTasks;
   }
 
-  /**
+    /**
    * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
    * connector per connector type.
    *
