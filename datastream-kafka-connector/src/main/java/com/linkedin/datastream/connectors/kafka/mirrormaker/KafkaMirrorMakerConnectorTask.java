@@ -26,7 +26,6 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 
-
 /**
  * KafkaMirrorMakerConnectorTask consumes from Kafka using regular expression pattern subscription. This means that the
  * task is consuming from multiple topics at once. When a new topic falls into the subscription, the task should
@@ -68,6 +67,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
+    properties.put(ConsumerConfig.GROUP_ID_CONFIG, getKafkaGroupId(_datastreamTask, _consumerMetrics, LOG));
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
   }

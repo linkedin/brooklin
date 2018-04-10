@@ -1,15 +1,17 @@
 package com.linkedin.datastream.common;
 
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
@@ -177,5 +179,19 @@ public final class DatastreamUtils {
       map.put(source, partitions);
     }
     return map;
+  }
+
+  /**
+   * Given a list of datastreams, returns the set of unique metadata group IDs from those datastreams.
+   * @param datastreams Collection
+   * @return Set
+   */
+  public static Set<String> getMetadataGroupIDs(Collection<Datastream> datastreams) {
+    return datastreams
+        .stream()
+        .filter(Datastream::hasMetadata)
+        .map(ds -> ds.getMetadata().get(DatastreamMetadataConstants.GROUP_ID))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
   }
 }
