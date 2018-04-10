@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka;
 
 
+import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -786,4 +787,26 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return _datastreamName.equals(datastreamName);
   }
 
+  @VisibleForTesting
+  public static String getKafkaGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics, Logger logger) {
+    Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(task.getDatastreams());
+    if (!groupIds.isEmpty()) {
+      if (groupIds.size() != 1) {
+        String errMsg =
+            String.format("Found multiple consumer group ids for connector task: %s. Group IDs: %s. Datastreams: %s",
+                task.getId(), groupIds, task.getDatastreams());
+        consumerMetrics.updateErrorRate(1, errMsg, null);
+        throw new DatastreamRuntimeException(errMsg);
+      }
+      // if group ID is present in metadata, add it to properties even if present already.
+      logger.info("Found overridden group ID for Kafka datastream task: {} . Overridden group id: {} Datastreams: %s",
+          task.getId(), groupIds.toArray()[0], task.getDatastreams());
+      return (String) groupIds.toArray()[0];
+    } else {
+      KafkaConnectionString srcConnString =
+          KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
+      String dstConnString = task.getDatastreamDestination().getConnectionString();
+      return srcConnString + "-to-" + dstConnString;
+    }
+  }
 }

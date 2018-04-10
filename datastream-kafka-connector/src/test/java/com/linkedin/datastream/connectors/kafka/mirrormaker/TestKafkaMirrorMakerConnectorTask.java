@@ -391,29 +391,6 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  @Test
-  public void testGroupId() throws Exception {
-    String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
-
-    // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream", _broker, "\\w+Pizza");
-
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
-    Properties consumerProps = new Properties();
-    consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-    KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps, Duration.ofSeconds(5));
-
-    connectorTask.setGroupId(consumerProps);
-    Assert.assertEquals(consumerProps.get(ConsumerConfig.GROUP_ID_CONFIG), "datastream");
-
-    datastream.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "groupId");
-    connectorTask.setGroupId(consumerProps);
-    Assert.assertEquals(consumerProps.get(ConsumerConfig.GROUP_ID_CONFIG), "groupId");
-  }
-
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,
       long numAutoPausedPartitionsOnInFlightMessages, long numConfigPausedPartitions) {
 

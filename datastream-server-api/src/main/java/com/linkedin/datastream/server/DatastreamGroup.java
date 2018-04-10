@@ -2,7 +2,6 @@ package com.linkedin.datastream.server;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
@@ -71,15 +70,6 @@ public class DatastreamGroup {
       LOG.warn("Some datastreams are paused in a group, while others are not. " + "Datastreams: " + streamsWithStatus);
     }
     return allPaused;
-  }
-
-  public boolean hasInvalidMetadataGroupIds() {
-    Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(_datastreams);
-    if (groupIds.size() > 1) {
-      LOG.error("Found datastream group with inconsistent group Ids. Task prefix: {} Group IDs: {} Datastreams: {}", _taskPrefix, groupIds, _datastreams);
-      return true;
-    }
-    return false;
   }
 
   // Returns true if the task belongs to this group.

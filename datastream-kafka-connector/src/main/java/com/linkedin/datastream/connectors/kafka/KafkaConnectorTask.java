@@ -24,7 +24,6 @@ import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.common.DatastreamUtils;
 
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
@@ -73,19 +72,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
 
   @Override
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
-    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_datastreamTask), _srcConnString);
-  }
-
-  @VisibleForTesting
-  static String getKafkaGroupId(DatastreamTask task) {
-    KafkaConnectionString srcConnString =
-        KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
-    String dstConnString = task.getDatastreamDestination().getConnectionString();
-
-    return DatastreamUtils.getMetadataGroupIDs(task.getDatastreams())
-        .stream()
-        .findFirst()
-        .orElse(srcConnString + "-to-" + dstConnString);
+    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_datastreamTask, _consumerMetrics, LOG), _srcConnString);
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {

@@ -188,12 +188,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_RETRIES = "numRetries";
   private static final String NUM_HEARTBEATS = "numHeartbeats";
 
-  // metric to track #datastream groups with invalid/mismatched group IDs
-  // mismatch can happen if 2 datastreams in same datastream group have overridden group id in metadata
-  // and the values are different.
-  public static final String NUM_INVALID_GROUP_ID_DATASTREAM_GROUPS = "numInvalidGroupIdDatagroups";
-  private static AtomicLong _numInvalidGroupIdDatastreamGroups = new AtomicLong(0L);
-
   private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
   private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
 
@@ -228,7 +222,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
-    _dynamicMetricsManager.registerGauge(MODULE, NUM_INVALID_GROUP_ID_DATASTREAM_GROUPS, () -> _numInvalidGroupIdDatastreamGroups.get());
 
     // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
@@ -944,20 +937,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     newAssignmentsByInstance.put(PAUSED_INSTANCE, pausedTasks);
 
-    // Make sure group IDs are consistent within datastream group. If not, discard the datastream group and log error.
-    // Definition of "inconsistent" group IDs is if datastream group has datastreams with different group IDs in their metadata.
-    Set<DatastreamGroup> invalidGroupIdsdatastreamGroups =
-        datastreamGroups.stream().filter(DatastreamGroup::hasInvalidMetadataGroupIds).collect(Collectors.toSet());
-    _numInvalidGroupIdDatastreamGroups.set(invalidGroupIdsdatastreamGroups.size());
-    _log.error(
-        "Found datastream groups with invalid group ids, which will be skipped for task assignment. The groups are: {}",
-        invalidGroupIdsdatastreamGroups);
-
     for (String connectorType : _connectors.keySet()) {
       AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
       List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
           .filter(x -> x.getConnectorName().equals(connectorType))
-          .filter(g -> !(pausedDatastreamGroups.contains(g) || invalidGroupIdsdatastreamGroups.contains(g)))
+          .filter(g -> !(pausedDatastreamGroups.contains(g)))
           .collect(Collectors.toList());
 
       // Get the list of tasks per instance for the given connector type
@@ -1257,7 +1241,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
     _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));
     _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
-    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, NUM_INVALID_GROUP_ID_DATASTREAM_GROUPS)));
 
     return Collections.unmodifiableList(_metrics);
   }

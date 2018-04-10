@@ -187,7 +187,6 @@ public final class DatastreamUtils {
    * @return Set
    */
   public static Set<String> getMetadataGroupIDs(Collection<Datastream> datastreams) {
-    Set<String> groupIds = new HashSet<>();
     return datastreams
         .stream()
         .filter(Datastream::hasMetadata)

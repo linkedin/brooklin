@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -16,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -27,7 +25,6 @@ import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
-
 
 /**
  * KafkaMirrorMakerConnectorTask consumes from Kafka using regular expression pattern subscription. This means that the
@@ -70,23 +67,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
-    setGroupId(properties);
+    properties.put(ConsumerConfig.GROUP_ID_CONFIG, getKafkaGroupId(_datastreamTask, _consumerMetrics, LOG));
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
-  }
-
-  public void setGroupId(Properties properties) {
-    // check if group ID is overridden in metadata
-    Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(_datastreamTask.getDatastreams());
-
-    if (!groupIds.isEmpty()) {
-      // if group ID is present in metadata, add it to properties even if present already.
-      LOG.info("Overriding group ID for MM datastream: {} . Overridden group id: {}", _datastreamName,
-          groupIds.toArray()[0]);
-      properties.put(ConsumerConfig.GROUP_ID_CONFIG, groupIds.toArray()[0]);
-    } else {
-      properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, _datastreamName);
-    }
   }
 
   @Override
