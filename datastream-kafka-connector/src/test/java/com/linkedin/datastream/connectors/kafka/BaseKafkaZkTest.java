@@ -36,6 +36,7 @@ public abstract class BaseKafkaZkTest {
     Properties kafkaConfig = new Properties();
     // we will disable auto topic creation for tests
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
+    kafkaConfig.setProperty("offsets.topic.replication.factor", "1");
     kafkaConfig.setProperty("delete.topic.enable", Boolean.TRUE.toString());
     _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
