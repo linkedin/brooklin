@@ -6,14 +6,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.kafka.common.utils.Time;
+
+import kafka.server.KafkaConfig;
+import kafka.server.KafkaServer;
 
 import com.linkedin.datastream.common.FileUtils;
 import com.linkedin.datastream.common.NetworkUtils;
 
-import java.util.concurrent.TimeUnit;
-import kafka.server.KafkaConfig;
-import kafka.server.KafkaServer;
-import kafka.utils.Time;
 
 
 /**
