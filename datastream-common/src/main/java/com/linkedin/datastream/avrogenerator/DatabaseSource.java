@@ -6,6 +6,8 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.jetbrains.annotations.NotNull;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+
 
 /**
  * The Schema generator operates by making queries to the targeted database in order to
@@ -52,6 +54,16 @@ public abstract class DatabaseSource {
    * @return true if primitive
    */
   public abstract boolean isPrimitive(String fieldTypeName) throws SQLException;
+
+  /**
+   * Retrieve the list of tables in the specified Database.
+   * @param databaseName Database to fetch list of tables for.
+   * @return List of tables in the Database
+   * @throws SQLException
+   */
+  public List<String> getAllTablesInDatabase() throws SQLException {
+    throw new DatastreamRuntimeException("getAllTablesInDatabase operation not supported");
+  }
 
   /**
    * Retrieve the table Metadata containing information such as all of Column names
