@@ -6,9 +6,6 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.jetbrains.annotations.NotNull;
 
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-
-
 /**
  * The Schema generator operates by making queries to the targeted database in order to
  * grab information about the Database Field Types.
@@ -57,12 +54,11 @@ public abstract class DatabaseSource {
 
   /**
    * Retrieve the list of tables in the specified Database.
-   * @param databaseName Database to fetch list of tables for.
    * @return List of tables in the Database
    * @throws SQLException
    */
   public List<String> getAllTablesInDatabase() throws SQLException {
-    throw new DatastreamRuntimeException("getAllTablesInDatabase operation not supported");
+    throw new UnsupportedOperationException("getAllTablesInDatabase operation not supported");
   }
 
   /**
