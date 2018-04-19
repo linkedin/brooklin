@@ -3,7 +3,6 @@ package com.linkedin.datastream.common;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 
 /**
@@ -53,20 +52,25 @@ public final class PollUtils {
   }
 
   /**
-   * Blocking poll the condition until it's met or time exceeds timeoutMs with supplier
+   * Blocking poll the condition until it's met or time exceeds timeoutMs with interruptableSupplier
    * @param cond predicate object representing the condition
    * @param periodMs periodMs between two polling iterations (ms)
    * @param timeoutMs time before exit polling if condition is never met (ms)
-   * @param supplier input argument for the predicate
+   * @param interruptableSupplier input argument for the predicate
    * @return an Optional of the result satisfying the condition, empty if it couldn't
    */
-  public static <T> Optional<T> poll(Supplier<T> supplier, Predicate<T> cond, long periodMs, long timeoutMs) {
+  public static <T> Optional<T> poll(InterruptableSupplier<T> interruptableSupplier, Predicate<T> cond, long periodMs, long timeoutMs) {
     long elapsedMs = 0;
     if (periodMs > timeoutMs) {
       return Optional.empty();
     }
     while (true) {
-      T ret = supplier.get();
+      T ret;
+      try {
+        ret = interruptableSupplier.get();
+      } catch (InterruptedException e) {
+        break;
+      }
       if (cond.test(ret)) {
         return Optional.of(ret);
       }
