@@ -788,7 +788,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   @VisibleForTesting
-  public static String getKafkaGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics, Logger logger) {
+  public static String getTaskMetadataGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics,
+      Logger logger) {
     Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(task.getDatastreams());
     if (!groupIds.isEmpty()) {
       if (groupIds.size() != 1) {
@@ -802,11 +803,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       logger.info("Found overridden group ID for Kafka datastream task: {} . Overridden group id: {} Datastreams: %s",
           task.getId(), groupIds.toArray()[0], task.getDatastreams());
       return (String) groupIds.toArray()[0];
-    } else {
-      KafkaConnectionString srcConnString =
-          KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
-      String dstConnString = task.getDatastreamDestination().getConnectionString();
-      return srcConnString + "-to-" + dstConnString;
     }
+
+    return null;
   }
 }

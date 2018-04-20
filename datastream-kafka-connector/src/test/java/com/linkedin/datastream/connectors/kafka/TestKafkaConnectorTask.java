@@ -77,7 +77,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testGroupId() throws Exception {
+  public void testKafkaGroupId() throws Exception {
     String topic = "MyTopicForGrpId";
     Datastream datastream1 = getDatastream(_broker, topic);
     Datastream datastream2 = getDatastream(_broker, topic);
