@@ -17,6 +17,7 @@ import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
@@ -47,12 +48,15 @@ public class TestEventProducer {
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "test-ds")[0];
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
 
+    String someTopicName = "someTopicName";
     AtomicInteger numEventsProduced = new AtomicInteger();
     TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
       @Override
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
         numEventsProduced.incrementAndGet();
-        super.send(destination, record, onComplete);
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(null));
+        onComplete.onCompletion(metadata, null);
       }
     };
 
@@ -64,10 +68,37 @@ public class TestEventProducer {
       eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
     }
     Assert.assertEquals(eventCount, numEventsProduced.get());
+
+    // Verify per-topic metrics exist, since they are enabled by default
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING));
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING));
   }
 
+  @Test
+  public void testPerDatastreamMetrics() {
+    String datastreamName = "datastream-testPerDatastreamMetrics";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
 
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider();
 
+    Properties props = new Properties();
+    props.put(EventProducer.CONFIG_ENABLE_PER_TOPIC_METRICS, Boolean.FALSE.toString());
+    EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> {
+    });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    // Verify per-datastream metrics exist
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + datastreamName + "." + EventProducer.EVENTS_LATENCY_MS_STRING));
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + datastreamName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING));
+  }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
     return createDatastreamProducerRecord(0, "0", 1);
