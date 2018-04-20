@@ -45,6 +45,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
 
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
+  public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
 
   // Default flush interval, It is intentionally kept at low frequency. If a particular connectors wants
   // a more frequent flush (high traffic connectors), it can perform that on it's own.
@@ -61,8 +62,8 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String EVENTS_PRODUCED_WITHIN_SLA = "eventsProducedWithinSla";
   private static final String EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA = "eventsProducedWithinAlternateSla";
   private static final String EVENT_PRODUCE_RATE = "eventProduceRate";
-  private static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
-  private static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
+  static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
+  static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   private static final String FLUSH_LATENCY_MS_STRING = "flushLatencyMs";
 
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
@@ -78,6 +79,7 @@ public class EventProducer implements DatastreamEventProducer {
   // Alternate SLA for comparision with the main
   private final int _availabilityThresholdAlternateSlaMs;
   private Instant _lastFlushTime = Instant.now();
+  private final boolean _enablePerTopicMetrics;
   private final Duration _flushInterval;
 
   /**
@@ -114,6 +116,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     _flushInterval =
         Duration.ofMillis(Long.parseLong(config.getProperty(CONFIG_FLUSH_INTERVAL_MS, DEFAULT_FLUSH_INTERVAL_MS)));
+
+    _enablePerTopicMetrics =
+        Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_METRICS, Boolean.TRUE.toString()));
 
     _logger.info(String.format("Created event producer with customCheckpointing=%s", customCheckpointing));
 
@@ -177,13 +182,17 @@ public class EventProducer implements DatastreamEventProducer {
   // per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
   // to avoid over-counting.
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamProducerRecord record) {
+    // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
+    String datastreamName = _datastreamTask.getDatastreams().get(0).getName();
+    String topicOrDatastreamName =
+        _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
       // Using a time sliding window for reporting latency specifically.
       // Otherwise we report very stuck max value for slow source
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(), EVENTS_LATENCY_MS_STRING,
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName, EVENTS_LATENCY_MS_STRING,
           LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
           LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
@@ -195,14 +204,14 @@ public class EventProducer implements DatastreamEventProducer {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
             EVENTS_PRODUCED_WITHIN_SLA, 1);
       } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, EVENTS_PRODUCED_OUTSIDE_SLA, 1);
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 1);
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
             EVENTS_PRODUCED_OUTSIDE_SLA, 1);
         _logger.debug(
-            String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
-                sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(),
-                metadata.getTopic(), metadata.getPartition(), _availabilityThresholdSlaMs));
+            "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
+            sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
+            metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
       }
 
       if (sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs) {
@@ -210,11 +219,12 @@ public class EventProducer implements DatastreamEventProducer {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
             EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
       } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName,
+            EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA, 1);
         _logger.debug(
-            String.format("Event latency of %d for source %s, topic %s, partition %d exceeded SLA of %d milliseconds",
-                sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(),
-                metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs));
+            "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
+            sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
+            metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
       }
 
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
@@ -225,7 +235,7 @@ public class EventProducer implements DatastreamEventProducer {
     // Report the time it took to just send the events to destination
     record.getEventsSendTimestamp().ifPresent(sendTimestamp -> {
       long sendLatency = System.currentTimeMillis() - sendTimestamp;
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, metadata.getTopic(), EVENTS_SEND_LATENCY_MS_STRING,
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, topicOrDatastreamName, EVENTS_SEND_LATENCY_MS_STRING,
           sendLatency);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
