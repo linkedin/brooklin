@@ -13,8 +13,11 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
@@ -67,7 +70,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
-    properties.put(ConsumerConfig.GROUP_ID_CONFIG, getKafkaGroupId(_datastreamTask, _consumerMetrics, LOG));
+    properties.put(ConsumerConfig.GROUP_ID_CONFIG, getMirrorMakerGroupId(_datastreamTask, _consumerMetrics, LOG));
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
   }
@@ -105,4 +108,14 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
   }
 
+  @VisibleForTesting
+  public static String getMirrorMakerGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics, Logger logger) {
+    String groupId = getTaskMetadataGroupId(task, consumerMetrics, logger);
+    if (null == groupId) {
+      groupId = task.getDatastreams().get(0).getName();
+      LOG.info(String.format("Constructed group ID: %s for task: %s", groupId, task.getId()));
+    }
+    LOG.info(String.format("Setting group ID: %s for task: %s", groupId, task.getId()));
+    return groupId;
+  }
 }
