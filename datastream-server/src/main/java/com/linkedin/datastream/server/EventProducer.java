@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -43,6 +44,9 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
 
   private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
+
+  public static final String CFG_SKIP_MSG_SERIALIZATION_ERRORS = "skipMessageOnSerializationErrors";
+  public static final String DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS = "false";
 
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
@@ -78,6 +82,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
   private final int _availabilityThresholdAlternateSlaMs;
+  private final boolean _skipMessageOnSerializationErrors;
   private Instant _lastFlushTime = Instant.now();
   private final boolean _enablePerTopicMetrics;
   private final Duration _flushInterval;
@@ -107,12 +112,13 @@ public class EventProducer implements DatastreamEventProducer {
       _checkpointProvider = checkpointProvider;
     }
 
+    _skipMessageOnSerializationErrors = getSkipMessageOnSerializationErrors(task, config);
+
     _availabilityThresholdSlaMs =
         Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS));
 
-    _availabilityThresholdAlternateSlaMs =
-        Integer.parseInt(config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS,
-            DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
+    _availabilityThresholdAlternateSlaMs = Integer.parseInt(
+        config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
 
     _flushInterval =
         Duration.ofMillis(Long.parseLong(config.getProperty(CONFIG_FLUSH_INTERVAL_MS, DEFAULT_FLUSH_INTERVAL_MS)));
@@ -158,8 +164,17 @@ public class EventProducer implements DatastreamEventProducer {
     try {
       // Validate
       validateEventRecord(record);
-      // Serialize
-      record.serializeEvents(_datastreamTask.getDestinationSerDes());
+      try {
+        // Serialize
+        record.serializeEvents(_datastreamTask.getDestinationSerDes());
+      } catch (Exception e) {
+        if (_skipMessageOnSerializationErrors) {
+          _logger.info("Skipping the message on serialization error as configured.", e);
+          return;
+        }
+        throw e;
+      }
+
       // Send
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
@@ -219,8 +234,8 @@ public class EventProducer implements DatastreamEventProducer {
         _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
             EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
       } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName,
-            EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA,
+            1);
         _logger.debug(
             "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
             sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
@@ -266,6 +281,24 @@ public class EventProducer implements DatastreamEventProducer {
     if (sendCallback != null) {
       sendCallback.onCompletion(metadata, sendFailedException);
     }
+  }
+
+  /**
+   * Look for config {@value CFG_SKIP_MSG_SERIALIZATION_ERRORS} in the datastream metadata and returns its value.
+   * Default value is false.
+   */
+  private Boolean getSkipMessageOnSerializationErrors(DatastreamTask task, Properties config) {
+    // Find the producer config
+    String skipMessageOnSerializationErrors =
+        config.getProperty(CFG_SKIP_MSG_SERIALIZATION_ERRORS, DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS);
+
+    // Datastream configuration will override the producer config.
+    return Boolean.parseBoolean(task.getDatastreams()
+        .stream()
+        .findFirst()
+        .map(Datastream::getMetadata)
+        .map(metadata -> metadata.getOrDefault(CFG_SKIP_MSG_SERIALIZATION_ERRORS, skipMessageOnSerializationErrors))
+        .orElse(skipMessageOnSerializationErrors));
   }
 
   @Override
