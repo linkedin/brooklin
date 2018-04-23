@@ -594,8 +594,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Invalid input params for create request", e);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ",
-          e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to initialize Datastream: " + datastream, e);
     } catch (DatastreamAlreadyExistsException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,

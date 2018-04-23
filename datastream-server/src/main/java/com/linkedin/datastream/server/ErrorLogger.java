@@ -34,7 +34,7 @@ public final class ErrorLogger {
   }
 
   /**
-   * Log error and throw RestliServiceException
+   * Log error message and throw RestliServiceException
    * @param status HTTP status
    * @param msg error message
    */
@@ -43,7 +43,10 @@ public final class ErrorLogger {
   }
 
   /**
-   * Log error and throw RestliServiceException with inner exception
+   * Log an error message and throw RestliServiceException afterwards with the specified status.
+   * If an inner exception is present and:
+   *   - error code is 5xx: include the full inner exception in the server-side logs.
+   *   - otherwise: include only the short description of the exception in the logs.
    * @param status HTTP status
    * @param msg error message
    * @param e inner exception
@@ -51,14 +54,16 @@ public final class ErrorLogger {
   public void logAndThrowRestLiServiceException(HttpStatus status, String msg, Exception e) {
     String id = UUID.randomUUID().toString();
     id = id.substring(0, Math.min(6, id.length()));
-    if (e != null) {
-      _logger.error(String.format("[%s] %s", id, msg), e);
-      throw new RestLiServiceException(status,
-          String.format("msg=%s; cause=%s; instance=%s; id=%s;", msg, e.toString(), _instance, id));
+    String cause = e == null ? "None" : e.getMessage();
+
+    if (status.getCode() >= HttpStatus.S_500_INTERNAL_SERVER_ERROR.getCode()) {
+      // Logger ignores any null args so no need to validate e
+      _logger.error("[{}] {}", id, msg, e);
     } else {
-      _logger.error(String.format("[%s] %s", id, msg));
-      throw new RestLiServiceException(status,
-          String.format("msg=%s; cause=%s; instance=%s; id=%s;", msg, "None", _instance, id));
+      _logger.warn("[{}] {}, cause={}", id, msg, cause);
     }
+
+    throw new RestLiServiceException(status,
+        String.format("msg=%s; cause=%s; instance=%s; id=%s;", msg, cause, _instance, id));
   }
 }
