@@ -561,7 +561,6 @@ public class TestCoordinator {
       resource.create(ds2);
       Assert.fail("DatastreamValidationException expected on creation of testDatastream2 with a pre-used destination");
     } catch (RestLiServiceException e) {
-      Assert.assertTrue(e.getMessage().contains("DatastreamValidationException"));
     }
 
     ds2.getDestination().setConnectionString("testDestination2"); // Should succeed with a different destination
