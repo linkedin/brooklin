@@ -17,6 +17,8 @@ import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.serde.SerDe;
+import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -75,6 +77,51 @@ public class TestEventProducer {
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING));
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING));
+  }
+
+
+
+  @Test
+  public void testSendWithSerdeErrors() {
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "test-ds")[0];
+    datastream.getMetadata().put(EventProducer.CFG_SKIP_MSG_SERIALIZATION_ERRORS, "true");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    SerDeSet serDeSet = new SerDeSet(null, null, new SerDe() {
+      @Override
+      public Object deserialize(byte[] data) {
+        return null;
+      }
+
+      @Override
+      public byte[] serialize(Object object) {
+        throw new RuntimeException();
+      }
+    });
+    task.assignSerDes(serDeSet);
+
+
+
+    String someTopicName = "someTopicName";
+    AtomicInteger numEventsProduced = new AtomicInteger();
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        numEventsProduced.incrementAndGet();
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(null));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    EventProducer eventProducer = new EventProducer(task, transport,
+        new NoOpCheckpointProvider(), new Properties(), false);
+
+    int eventCount = 5;
+    for (int i = 0; i < eventCount; i++) {
+      eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+    }
+    Assert.assertEquals(0, numEventsProduced.get());
+
   }
 
   @Test
