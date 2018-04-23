@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -19,8 +22,10 @@ import com.codahale.metrics.Gauge;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
@@ -35,6 +40,7 @@ import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMa
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
+  private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnectorTask.class);
 
   @Test
   public void testConsumeFromMultipleTopics() throws Exception {
@@ -389,6 +395,43 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+
+  @Test
+  public void testMirrorMakerGroupId() throws Exception {
+    String topic = "MyTopicForGrpId";
+    Datastream datastream1 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "topic");
+    Datastream datastream2 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "topic");
+
+    // This situation (multiple datastreams in MM task) in theory shouldn't be there for MM (as it doesn't allow duplication)
+    // Creating the task with multiple datastreams strictly for testing purposes.
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(datastream1, datastream2));
+    CommonConnectorMetrics consumerMetrics =
+        new CommonConnectorMetrics(TestKafkaMirrorMakerConnectorTask.class.getName(), "testConsumer", LOG);
+    consumerMetrics.createEventProcessingMetrics();
+
+    String defaultGrpId = datastream1.getName();
+
+    // Testing with default group id
+    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), defaultGrpId);
+
+    // Test with setting explicit group id in one datastream
+    datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
+    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), "MyGroupId");
+
+    // Test with explicitly setting group id in both datastream
+    datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
+    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), "MyGroupId");
+
+    // now set different group ids in 2 datastreams and make sure validation fails
+    datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
+    boolean exceptionSeen = false;
+    try {
+      KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG);
+    } catch (DatastreamRuntimeException e) {
+      exceptionSeen = true;
+    }
+    Assert.assertTrue(exceptionSeen);
   }
 
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,
