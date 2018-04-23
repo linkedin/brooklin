@@ -139,9 +139,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }));
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
-    _consumerMetrics =
-        createKafkaBasedConnectorTaskMetrics(metricsPrefix,
-            _datastreamName, _logger);
+    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
