@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,14 +28,14 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 
 /**
  * This Assignment Strategy follow the following rules:
- * a) The number of tasks for each datastream can be different. There will be a default value
- *    in case the datastream does not have one defined.
- * b) In any case, for each datastream the number of tasks cannot be greater than the number of instances.
- * c) At most one task from each datastream, can be assigned to each instances.
- * d) The differences on the number of tasks assigned between any two instances,
- *    should be less than or equal to one.
- * e) Try to preserve previous tasks assignment, in order to minimize the number of tasks
- *    movements.
+ * a) The number of tasks for each datastream can be different. There will be a default value in case the datastream
+ * does not have one defined.
+ * b) For each datastream the number of tasks might be greater than the number of instances, but only as many as
+ *    dsTaskLimitPerInstance. The default is 1.
+ * c) The differences on the number of tasks assigned between any two instances should be less than or equal to one.
+ * d) Try to preserve previous tasks assignment, in order to minimize the number of task movements.
+ * e) The tasks for a datastream might not be balanced across the instances; however, the tasks across all datastreams
+ *    will be balanced such that condition (c) above is held.
  *
  * How this strategy works?
  * It does the assignment in three steps:
@@ -48,33 +49,44 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(StickyMulticastStrategy.class.getName());
 
   private final int _maxTasks;
+  private final int _dsTaskLimitPerInstance;
 
   public StickyMulticastStrategy(int maxTasks) {
-    // If maxTasks is less than one, then just create one task for each instance.
-    _maxTasks = maxTasks < 1 ? Integer.MAX_VALUE : maxTasks;
+    this(maxTasks, 1);
+  }
+
+  public StickyMulticastStrategy(int maxTasks, int dsTaskLimitPerInstance) {
+    Validate.inclusiveBetween(1, Integer.MAX_VALUE, maxTasks,
+        "Default maxTasks should be between 1 and Integer.MAX_VALUE");
+    Validate.inclusiveBetween(1, 10000, dsTaskLimitPerInstance,
+        "Default dsTaskLimitPerInstance should be between 1 and 10000");
+    _maxTasks = maxTasks;
+    _dsTaskLimitPerInstance = dsTaskLimitPerInstance;
   }
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
-    LOG.info(String.format("Trying to assign datastreams {%s} to instances {%s} and the current assignment is {%s}",
-        datastreams, instances, currentAssignment));
+    LOG.info("Trying to assign datastreams {} to instances {} and the current assignment is {}", datastreams, instances,
+        currentAssignment);
 
-    if (instances.size() == 0) {
+    if (instances.isEmpty()) {
       // Nothing to do.
       return Collections.emptyMap();
     }
 
+    Map<String, Set<DatastreamTask>> oldAssignment = new HashMap<>();
+    Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
-    Map<String, Map<String, DatastreamTask>> oldAssignment = new HashMap<>();
-    Map<String, Map<String, DatastreamTask>> newAssignment = new HashMap<>();
+    Map<String, Set<DatastreamTask>> currentAssignmentCopy = new HashMap<>(currentAssignment.size());
+    currentAssignment.forEach((k, v) -> currentAssignmentCopy.put(k, new HashSet<>(v)));
 
     for (String instance : instances) {
-      newAssignment.put(instance, new HashMap<>());
-      oldAssignment.put(instance, new HashMap<>());
+      newAssignment.put(instance, new HashSet<>());
+      oldAssignment.put(instance, new HashSet<>());
       if (currentAssignment.containsKey(instance)) {
-        currentAssignment.get(instance).forEach(t -> oldAssignment.get(instance).put(t.getTaskPrefix(), t));
+        currentAssignment.get(instance).forEach(t -> oldAssignment.get(instance).add(t));
       }
     }
 
@@ -83,20 +95,23 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     // STEP1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
-      int numTask = getNumTasks(dg, instances.size());
+      int numTasks = getNumTasks(dg, instances.size());
       for (String instance : instances) {
-        if (numTask <= 0) {
+        if (numTasks <= 0) {
           break; // exit loop;
         }
-        Optional<DatastreamTask> foundDatastreamTask =
-            Optional.ofNullable(oldAssignment.get(instance).get(dg.getTaskPrefix()));
-        if (foundDatastreamTask.isPresent()) {
-          newAssignment.get(instance).put(foundDatastreamTask.get().getTaskPrefix(), foundDatastreamTask.get());
-          numTask--;
+        List<DatastreamTask> foundDatastreamTasks = Optional.ofNullable(currentAssignmentCopy.get(instance))
+            .map(c -> c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix())).collect(Collectors.toList()))
+            .orElse(Collections.emptyList());
+
+        if (!foundDatastreamTasks.isEmpty()) {
+          newAssignment.get(instance).addAll(foundDatastreamTasks);
+          currentAssignmentCopy.get(instance).removeAll(foundDatastreamTasks);
+          numTasks -= foundDatastreamTasks.size();
         }
       }
-      if (numTask > 0) {
-        unallocated.put(dg, numTask);
+      if (numTasks > 0) {
+        unallocated.put(dg, numTasks);
       }
     }
 
@@ -104,31 +119,28 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     List<String> instancesBySize = new ArrayList<>(instances);
     instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
 
-    // STEP2: Distribute the unallocated tasks, to the instances with the lowest number of tasks.
+    // STEP2: Distribute the unallocated tasks to the instances with the lowest number of tasks.
     for (DatastreamGroup dg : unallocated.keySet()) {
       int pendingTasks = unallocated.get(dg);
 
-      for (String instance : instancesBySize) {
-        if (!newAssignment.get(instance).containsKey(dg.getTaskPrefix())) {
+      while (pendingTasks > 0) {
+        // round-robin to the instances
+        for (String instance : instancesBySize) {
           DatastreamTask task = new DatastreamTaskImpl(dg.getDatastreams());
-          newAssignment.get(instance).put(task.getTaskPrefix(), task);
+          newAssignment.get(instance).add(task);
           pendingTasks--;
           if (pendingTasks == 0) {
             break;
           }
         }
-      }
-      if (pendingTasks > 0) {
-        // This should never happen.
-        throw new RuntimeException("Invalid state. There are more tasks than instances.");
-      }
 
-      // sort the instance to preserve the invariance
-      instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+        // sort the instance to preserve the invariance
+        instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+      }
     }
 
     // Target number of tasks per instances.
-    int tasksTotal = newAssignment.values().stream().mapToInt(Map::size).sum();
+    int tasksTotal = newAssignment.values().stream().mapToInt(Set::size).sum();
     int minTasksPerInstance = tasksTotal / instances.size();
 
     // STEP3: Do some rebalance to increase the task count in instances below the minTasksPerInstance.
@@ -137,14 +149,12 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       String largeInstance = instancesBySize.get(instancesBySize.size() - 1);
 
       // Look for tasks that can be move from the large instance to the small instance
-      for (DatastreamTask task : new ArrayList<>(newAssignment.get(largeInstance).values())) {
-        if (!newAssignment.get(smallInstance).containsKey(task.getTaskPrefix())) {
-          newAssignment.get(largeInstance).remove(task.getTaskPrefix());
-          newAssignment.get(smallInstance).put(task.getTaskPrefix(), new DatastreamTaskImpl(task.getDatastreams()));
-          if (newAssignment.get(smallInstance).size() >= minTasksPerInstance
-              || newAssignment.get(largeInstance).size() <= minTasksPerInstance + 1) {
-            break;
-          }
+      for (DatastreamTask task : new ArrayList<>(newAssignment.get(largeInstance))) {
+        newAssignment.get(largeInstance).remove(task);
+        newAssignment.get(smallInstance).add(new DatastreamTaskImpl(task.getDatastreams()));
+        if (newAssignment.get(smallInstance).size() >= minTasksPerInstance
+            || newAssignment.get(largeInstance).size() <= minTasksPerInstance + 1) {
+          break;
         }
       }
 
@@ -153,16 +163,12 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     }
 
     // STEP4: Format the result with the right data structure.
-    Map<String, Set<DatastreamTask>> result = newAssignment.entrySet()
-        .stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, p -> new HashSet<>(p.getValue().values())));
-
-    LOG.info(String.format("New assignment is {%s}", result));
+    LOG.info("New assignment is {}", newAssignment);
 
     // STEP5: Some Sanity Checks, to detect missing tasks.
-    sanityChecks(datastreams, instances, result);
+    sanityChecks(datastreams, instances, newAssignment);
 
-    return result;
+    return newAssignment;
   }
 
   private void sanityChecks(List<DatastreamGroup> datastreams, List<String> instances,
@@ -188,18 +194,16 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   }
 
   private int getNumTasks(DatastreamGroup dg, int numInstances) {
-    // Look for an override in any of the datastream.
-    // In case of multiple overrides, select the largest.
-    // If not override is present then use the default "_maxTasks"
-    int maxTasks = dg.getDatastreams()
-        .stream()
+    // Look for an override in any of the datastream. In the case of multiple overrides, select the largest.
+    // If no override is present then use the default "_maxTasks" from config.
+    int numTasks = dg.getDatastreams().stream()
         .map(ds -> ds.getMetadata().get(CFG_MAX_TASKS))
         .filter(Objects::nonNull)
         .mapToInt(Integer::valueOf)
         .map(x -> x < 1 ? Integer.MAX_VALUE : x)
         .max()
         .orElse(_maxTasks);
-    return Math.min(maxTasks, numInstances);
+    return Math.min(numTasks, numInstances * _dsTaskLimitPerInstance);
   }
 
 }
