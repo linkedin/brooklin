@@ -9,32 +9,36 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.SqlTypeInterpreter;
-import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
 
 /**
  * Generic JDBC Source Reader. Can be used for executing a generic query on the given source using chunking algorithm.
- * The reader acts as an iterator for Database records and returns a DatabaseRow record on each poll and will perform
- * the next chunked query as required.
+ * The reader acts as an iterator for Database records and returns a GenericRecord representation a row per poll and
+ * will perform the next chunked query as required.
  * A typical flow to use the reader would look like this:
  * <pre>
  *  try {
  *    DatabaseChunkedReader reader = new DatabaseChunkedReader (...)
- *    reader.start()
- *    for (DatabaseRow record = reader.poll(); record != null; record = reader.poll()) {
+ *    reader.start(null)
+ *    for (GenericRecord record = reader.poll(); record != null; record = reader.poll()) {
  *      processRecord(record);
  *    }
  *  }
@@ -54,7 +58,6 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 public class DatabaseChunkedReader implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReader.class);
 
-  private final DataSource _dataSource;
   private final DatabaseSource _databaseSource;
   private final Connection _connection;
 
@@ -72,7 +75,7 @@ public class DatabaseChunkedReader implements Closeable {
   private final String _sourceQuery;
   private final String _readerId;
   private final String _database;
-  private final String _chunkingTable;
+  private final String _table;
   private final ChunkedQueryManager _chunkedQueryManager;
   private final boolean _skipBadMessagesEnabled;
 
@@ -110,10 +113,9 @@ public class DatabaseChunkedReader implements Closeable {
       DatabaseSource databaseSource, String id) throws SQLException {
     _databaseChunkedReaderConfig = new DatabaseChunkedReaderConfig(props);
     _sourceQuery = sourceQuery;
-    _dataSource = source;
     _databaseSource = databaseSource;
     _readerId = id;
-    _chunkingTable = table;
+    _table = table;
     _fetchSize = _databaseChunkedReaderConfig.getFetchSize();
     _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
     _maxChunkIndex = _databaseChunkedReaderConfig.getNumChunkBuckets() - 1;
@@ -135,14 +137,19 @@ public class DatabaseChunkedReader implements Closeable {
     validateQuery(sourceQuery);
   }
 
-  private void initializeChunkingKeyInfo() throws SQLException, SchemaGenerationException {
-    _databaseSource.getPrimaryKeyFields(_chunkingTable).stream().forEach(k -> _chunkingKeys.put(k, null));
+  private void initializeDatabaseMetadata() throws SQLException, SchemaGenerationException {
+    _databaseSource.getPrimaryKeyFields(_table).stream().forEach(k -> _chunkingKeys.put(k, null));
     if (_chunkingKeys.isEmpty()) {
       _metrics.updateErrorRate();
 
-      String msg = "Failed to get primary keys for table " + _chunkingTable + ". Cannot chunk without it";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
+      // There can be tables without primary keys. Let user to handle it.
+      String msg = "Failed to get primary keys for table " + _table + ". Cannot chunk without it";
+      throw new IllegalArgumentException(msg);
+    }
+
+    _tableSchema = _databaseSource.getTableSchema(_table);
+    if (_tableSchema == null) {
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to get schema for table " + _table);
     }
   }
 
@@ -150,7 +157,7 @@ public class DatabaseChunkedReader implements Closeable {
     _chunkedQueryManager.validateQuery(query);
   }
 
-  private void executeFirstChunkedQuery() throws SQLException {
+  private void generateChunkedQueries() throws SQLException {
     String firstQuery =
         _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
             _maxChunkIndex, _chunkIndex);
@@ -158,14 +165,19 @@ public class DatabaseChunkedReader implements Closeable {
     _firstStmt.setFetchSize(_fetchSize);
     _firstStmt.setQueryTimeout(_queryTimeoutSecs);
 
-    executeChunkedQuery(_firstStmt);
+    _chunkedQuery =
+        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
+            _maxChunkIndex, _chunkIndex);
+    _queryStmt = _connection.prepareStatement(_chunkedQuery);
+    _queryStmt.setFetchSize(_fetchSize);
+    _queryStmt.setQueryTimeout(_queryTimeoutSecs);
   }
 
   /**
    * Fill in the key values from previous query result
    */
-  private void prepareChunkedQuery() throws SQLException {
-    _chunkedQueryManager.prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
+  private void prepareChunkedQuery(PreparedStatement stmt, List<Object> keys) throws SQLException {
+    _chunkedQueryManager.prepareChunkedQuery(stmt, keys);
   }
 
   private void executeChunkedQuery(PreparedStatement stmt) throws SQLException {
@@ -174,6 +186,23 @@ public class DatabaseChunkedReader implements Closeable {
     _metrics.updateQueryExecutionDuration(System.currentTimeMillis() - timeStart);
     _metrics.updateQueryExecutionRate();
   }
+
+  private void executeFirstChunkedQuery() throws SQLException {
+    // Based on checkpoint state execute the first chunked query or the chunked query with checkpointed key values
+    boolean checkpointsSaved = _chunkingKeys.values().iterator().next() != null;
+    if (checkpointsSaved) {
+      prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
+      executeChunkedQuery(_queryStmt);
+    } else {
+      executeChunkedQuery(_firstStmt);
+    }
+  }
+
+  private void executeNextChunkedQuery() throws SQLException {
+    prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
+    executeChunkedQuery(_queryStmt);
+  }
+
 
   private void releaseResources(String msg) {
     LOG.info(msg);
@@ -209,56 +238,75 @@ public class DatabaseChunkedReader implements Closeable {
   /**
    * Prepare reader for poll. Calling start on a reader multiple times, is allowed and will release previous resources
    * and reset the reader to prepare for another round of reading the table from start.
-   * So all of these are acceptible flows:
+   * So all of these are acceptable flows:
    *  start -> poll -> poll -> close;
    *  start -> poll -> poll -> close -> start -> poll .. -> close;
    *  start -> poll -> poll -> start -> poll .. -> close -> start -> poll .. -> close;
    *  start -> close -> start -> poll .. -> close
+   * @param checkpoint Row characterized by Checkpoint map to start reading from. The reader can be made to start reading
+   *                   from a specific row which can be identified uniquely by the primary[/unique] key columns having
+   *                   values as specified in the Checkpoint map. Can be null in which case the table is read from
+   *                   from the start.
    * @throws SQLException
+   * @throws SchemaGenerationException
    */
-  public void start() throws SQLException, SchemaGenerationException {
+  public void start(Map<String, Object> checkpoint) throws SQLException, SchemaGenerationException {
     if (_initialized) {
       close();
     }
-
-    _metrics = new DatabaseChunkedReaderMetrics(String.join(".", _database , _chunkingTable), _readerId);
-
-    initializeChunkingKeyInfo();
-    _chunkedQuery =
-        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
-            _maxChunkIndex, _chunkIndex);
-    _tableSchema = _databaseSource.getTableSchema(_chunkingTable);
+    _metrics = new DatabaseChunkedReaderMetrics(String.join(".", _database, _table), _readerId);
+    initializeDatabaseMetadata();
+    generateChunkedQueries();
+    loadCheckpoint(checkpoint);
     _initialized = true;
   }
 
-  private DatabaseRow getNextRow() throws SQLException {
+  private void loadCheckpoint(Map<String, Object> checkpoint) {
+    if (checkpoint == null || checkpoint.isEmpty()) {
+      LOG.warn("No checkpoints supplied. Skipping checkpoint load");
+      return;
+    }
+
+    String err = String.format("Load checkpoint called with %s keys when expected %s. Checkpoint supplied %s",
+        checkpoint.size(), _chunkingKeys.size(), checkpoint);
+    Validate.isTrue(checkpoint.size() == _chunkingKeys.size(), err);
+    _chunkingKeys.keySet().forEach(k -> {
+      Validate.isTrue(checkpoint.containsKey(k),
+          String.format("Load checkpoint called without key %s. Checkpoint map supplied : %s", k, checkpoint));
+      _chunkingKeys.put(k, checkpoint.get(k));
+    });
+  }
+
+
+  private GenericRecord getNextRow() throws SQLException {
     _numRowsInResult++;
     try {
       ResultSetMetaData rsmd = _queryResultSet.getMetaData();
       int colCount = rsmd.getColumnCount();
-      DatabaseRow row = new DatabaseRow();
+      GenericRecord payloadRecord = new GenericData.Record(_tableSchema);
       for (int i = 1; i <= colCount; i++) {
         String colName = rsmd.getColumnName(i);
-        int colType = rsmd.getColumnType(i);
         String formattedColName = _interpreter.formatColumnName(colName);
         Object result = _interpreter.sqlObjectToAvro(_queryResultSet.getObject(i), formattedColName, _tableSchema);
-        row.addField(formattedColName, result, colType);
+        payloadRecord.put(formattedColName, result);
         if (_chunkingKeys.containsKey(colName)) {
+          if (result == null) {
+            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG,  colName + " field is not expected to be null");
+          }
           _chunkingKeys.put(colName, result);
         }
       }
-      return row;
+      return payloadRecord;
     } catch (SQLException e) {
       _metrics.updateErrorRate();
 
       if (_skipBadMessagesEnabled) {
         LOG.warn("Skipping row due to SQL exception", e);
         _metrics.updateSkipBadMessagesRate();
-        return null;
       } else {
-        LOG.error("Failed to interpret row and skipBadMessage not enabled", e);
-        throw e;
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to interpret row and skipBadMessage not enabled", e);
       }
+      return null;
     }
   }
 
@@ -267,24 +315,20 @@ public class DatabaseChunkedReader implements Closeable {
    * It acts as a buffered reader, performing more queries if the previous query returned chunk size rows.
    * Client should call start before poll. Calling start without reading all records will result in resetting the reader
    * back to start after releasing resources.
-   * @return The next row from the DB as served by the query constraints and null if end of records
+   * @return Null if end of records or the next row from the DB as served by the query constraints. Record is returned as
+   *         a GenericRecord with schema specified per getTableSchema call on the DatabaseSource for the source table.
    * @throws SQLException
    */
-  public DatabaseRow poll() throws SQLException {
+  public GenericRecord poll() throws SQLException {
     if (!_initialized) {
       throw new DatastreamRuntimeException("call start before calling poll for records");
     }
 
-    if (_queryResultSet == null) { // If first poll
+    if (_queryResultSet == null) {
       executeFirstChunkedQuery();
-
-      // Prepare chunked query for next round
-      _queryStmt = _connection.prepareStatement(_chunkedQuery);
-      _queryStmt.setFetchSize(_fetchSize);
-      _queryStmt.setQueryTimeout(_queryTimeoutSecs);
     }
 
-    DatabaseRow row = null;
+    GenericRecord row = null;
     while (row == null) {
       if (!_queryResultSet.next()) {
         // If previous query read less than requested chunks, we are at the end of the table.
@@ -295,8 +339,7 @@ public class DatabaseChunkedReader implements Closeable {
 
         // Perform the next chunked query
         _numRowsInResult = 0;
-        prepareChunkedQuery();
-        executeChunkedQuery(_queryStmt);
+        executeNextChunkedQuery();
         if (!_queryResultSet.next()) {
           return null;
         }
