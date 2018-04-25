@@ -191,8 +191,7 @@ public class DatabaseChunkedReader implements Closeable {
     // Based on checkpoint state execute the first chunked query or the chunked query with checkpointed key values
     boolean checkpointsSaved = _chunkingKeys.values().iterator().next() != null;
     if (checkpointsSaved) {
-      prepareChunkedQuery(_queryStmt, new ArrayList<>(_chunkingKeys.values()));
-      executeChunkedQuery(_queryStmt);
+      executeNextChunkedQuery();
     } else {
       executeChunkedQuery(_firstStmt);
     }
@@ -267,9 +266,9 @@ public class DatabaseChunkedReader implements Closeable {
       return;
     }
 
-    String err = String.format("Load checkpoint called with %s keys when expected %s. Checkpoint supplied %s",
-        checkpoint.size(), _chunkingKeys.size(), checkpoint);
-    Validate.isTrue(checkpoint.size() == _chunkingKeys.size(), err);
+    Validate.isTrue(checkpoint.size() == _chunkingKeys.size(),
+        String.format("Load checkpoint called with %s keys when expected %s. Checkpoint supplied %s",
+            checkpoint.size(), _chunkingKeys.size(), checkpoint));
     _chunkingKeys.keySet().forEach(k -> {
       Validate.isTrue(checkpoint.containsKey(k),
           String.format("Load checkpoint called without key %s. Checkpoint map supplied : %s", k, checkpoint));
