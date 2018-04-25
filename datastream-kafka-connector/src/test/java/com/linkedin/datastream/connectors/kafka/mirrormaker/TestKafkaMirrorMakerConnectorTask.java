@@ -436,18 +436,20 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,
       long numAutoPausedPartitionsOnInFlightMessages, long numConfigPausedPartitions) {
-
-    Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
+    Assert.assertTrue(PollUtils.poll(() -> (long) ((Gauge) DynamicMetricsManager.getInstance()
             .getMetric(String.join(".", task, stream,
-                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR))).getValue(),
-        numAutoPausedPartitionsOnError);
-    Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
+                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR))).getValue()
+            == numAutoPausedPartitionsOnError, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
+        "numAutoPausedPartitionsOnError metric failed to update");
+    Assert.assertTrue(PollUtils.poll(() -> (long) ((Gauge) DynamicMetricsManager.getInstance()
             .getMetric(String.join(".", task, stream,
-                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES))).getValue(),
-        numAutoPausedPartitionsOnInFlightMessages);
-    Assert.assertEquals((long) ((Gauge) DynamicMetricsManager.getInstance()
+                KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES))).getValue()
+            == numAutoPausedPartitionsOnInFlightMessages, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
+        "numAutoPausedPartitionsOnInFlightMessages metric failed to update");
+    Assert.assertTrue(PollUtils.poll(() -> (long) ((Gauge) DynamicMetricsManager.getInstance()
             .getMetric(
-                String.join(".", task, stream, KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS))).getValue(),
-        numConfigPausedPartitions);
+                String.join(".", task, stream, KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS))).getValue()
+            == numConfigPausedPartitions, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
+        "numConfigPausedPartitions metric failed to update");
   }
 }
