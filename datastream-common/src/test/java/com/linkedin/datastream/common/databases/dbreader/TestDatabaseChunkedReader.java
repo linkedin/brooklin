@@ -14,9 +14,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.mockito.Mockito;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -72,7 +75,7 @@ public class TestDatabaseChunkedReader {
     return createTestDBReaderProperties(chunkSize, numBuckets, index, false);
   }
 
-  private Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index,
+  private static Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index,
       Boolean skipBadMsg) {
     Properties props = new Properties();
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
@@ -89,10 +92,17 @@ public class TestDatabaseChunkedReader {
     return props;
   }
 
-  private void verifyData(List<DatabaseRow> actual, List<DatabaseRow> expected) {
+  private static void verifyData(DatabaseRow expected, GenericRecord actual) {
+    Assert.assertEquals(actual.getSchema().getFields().size(), expected.getColumnCount());
+    Map<String, Object> expectedColumns = expected.getRecords().stream().collect(Collectors.toMap(x -> x.getColName(), x -> x.getValue()));
+    actual.getSchema().getFields().forEach(field ->
+        Assert.assertEquals(expectedColumns.get(field.name()), actual.get(field.name())));
+  }
+
+  private static void verifyData(List<GenericRecord> actual, List<DatabaseRow> expected) {
     Assert.assertEquals(expected.size(), actual.size());
     for (int i = 0; i < actual.size(); i++) {
-      Assert.assertEquals(expected.get(i), actual.get(i));
+      verifyData(expected.get(i), actual.get(i));
     }
   }
 
@@ -217,7 +227,7 @@ public class TestDatabaseChunkedReader {
     List<Properties> props = new ArrayList<>();
     List<DataSource> mockSources = new ArrayList<>();
 
-    Map<Integer, List<DatabaseRow>> data = new HashMap<>();
+    Map<Integer, List<GenericRecord>> data = new HashMap<>();
     for (int i = 0; i < numBuckets; i++) {
       props.add(createTestDBReaderProperties(chunkSize, numBuckets, i));
       data.put(i, new ArrayList<>());
@@ -230,8 +240,8 @@ public class TestDatabaseChunkedReader {
       try (DatabaseChunkedReader reader =
           new DatabaseChunkedReader(props.get(i), mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
               TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
-        reader.start();
-        for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
+        reader.start(null);
+        for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
           data.get(i).add(row);
         }
       }
@@ -280,9 +290,11 @@ public class TestDatabaseChunkedReader {
     int count = 0;
     DatabaseChunkedReader reader =
         new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
-    reader.start();
-    for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
-      Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
+    reader.start(null);
+    for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
+      GenericRecord expected = new GenericData.Record(TEST_SIMPLE_SCHEMA);
+      expected.put("key1", 1);
+      Assert.assertEquals(row, expected);
       count++;
     }
     Assert.assertEquals(2, count);
@@ -296,5 +308,32 @@ public class TestDatabaseChunkedReader {
         readerId, DatabaseChunkedReaderMetrics.SKIPPED_BAD_MESSAGES_RATE);
     Assert.assertEquals(((Meter) _dynamicMetricsManager.getMetric(fullMetricName)).getCount(), 2);
     reader.close();
+  }
+
+  @Test
+  public void testCheckpointedChunkedReader() throws SQLException, SchemaGenerationException {
+    // Verify the first query is a chunked query.
+    Properties props = createTestDBReaderProperties(10, 1, 0, true);
+    DataSource mockDs = Mockito.mock(DataSource.class);
+    Connection mockConnection = Mockito.mock(Connection.class);
+    PreparedStatement mockStmt = Mockito.mock(PreparedStatement.class);
+    Mockito.when(mockConnection.prepareStatement(anyString())).thenReturn(mockStmt);
+    Mockito.when(mockDs.getConnection()).thenReturn(mockConnection);
+    // Create other mocks and parameter list to create the readers.
+    DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
+    Mockito.when(mockDBSource.getPrimaryKeyFields(anyString())).thenReturn(TEST_SIMPLE_KEYS);
+    Mockito.when(mockDBSource.getTableSchema(anyString())).thenReturn(TEST_SIMPLE_SCHEMA);
+    ResultSet mockRs = Mockito.mock(ResultSet.class);
+    Mockito.when(mockRs.next()).thenReturn(false); //No results for the query. Test to ensure the first query is a chunked query
+    Mockito.when(mockStmt.executeQuery()).thenReturn(mockRs);
+    DatabaseChunkedReader reader =
+        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource,
+            "TEST_CHECKPOINT");
+    Map<String, Object> checkpoint = new HashMap<>();
+    checkpoint.put("key1", 99);
+    reader.start(checkpoint);
+    reader.poll();
+    // Verify that a call to setObject was done with supplied key value
+    Mockito.verify(mockStmt, Mockito.times(1)).setObject(1, 99);
   }
 }
