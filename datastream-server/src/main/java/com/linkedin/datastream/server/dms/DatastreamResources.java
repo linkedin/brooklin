@@ -480,7 +480,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public Datastream get(String name) {
     try {
-      LOG.info(String.format("Get datastream called for datastream %s", name));
+      LOG.info("Get datastream called for datastream {}", name);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
       return _store.getDatastream(name);
     } catch (Exception e) {
@@ -496,7 +496,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
     try {
-      LOG.info(String.format("Get all datastreams called with paging context %s", pagingContext));
+      LOG.info("Get all datastreams called with paging context {}", pagingContext);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
           .map(_store::getDatastream)
@@ -521,7 +521,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public List<Datastream> findGroup(@Context PagingContext pagingContext,
       @QueryParam("datastreamName") String datastreamName) {
     try {
-      LOG.info(String.format("findDuplicates called with paging context %s", pagingContext));
+      LOG.info("findDuplicates called with paging context {}", pagingContext);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, FINDER_CALL, 1);
       Datastream datastream = _store.getDatastream(datastreamName);
       if (datastream == null) {
@@ -544,9 +544,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public CreateResponse create(Datastream datastream) {
     try {
-      LOG.info(String.format("Create datastream called with datastream %s", datastream));
+      LOG.info("Create datastream called with datastream {}", datastream);
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Handling request on object: %s thread: %s", this, Thread.currentThread());
+        LOG.debug("Handling request on object: {} thread: {}", this, Thread.currentThread());
       }
 
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CREATE_CALL, 1);
@@ -579,14 +579,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       _coordinator.initializeDatastream(datastream);
 
-      LOG.debug("Persisting initialized datastream to zookeeper: %s", datastream);
+      LOG.debug("Persisting initialized datastream to zookeeper: {}", datastream);
 
       _store.createDatastream(datastream.getName(), datastream);
 
       Duration delta = Duration.between(startTime, Instant.now());
       _createCallLatencyMs.set(delta.toMillis());
 
-      LOG.info("Datastream persisted to zookeeper, total time used: %d ms", delta.toMillis());
+      LOG.info("Datastream persisted to zookeeper, total time used: {} ms", delta.toMillis());
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (IllegalArgumentException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -594,8 +594,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Invalid input params for create request", e);
     } catch (DatastreamValidationException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to initialize Datastream: ",
-          e);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Failed to initialize Datastream: " + datastream, e);
     } catch (DatastreamAlreadyExistsException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_409_CONFLICT,

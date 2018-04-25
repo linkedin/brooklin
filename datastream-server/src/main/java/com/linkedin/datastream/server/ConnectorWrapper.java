@@ -129,6 +129,8 @@ public class ConnectorWrapper {
         stream.setDestination(new DatastreamDestination());
       }
       _connector.initializeDatastream(stream, allDatastreams);
+    } catch (DatastreamValidationException ex) {
+      throw ex;
     } catch (Exception ex) {
       logErrorAndException("initializeDatastream", ex);
       throw ex;
