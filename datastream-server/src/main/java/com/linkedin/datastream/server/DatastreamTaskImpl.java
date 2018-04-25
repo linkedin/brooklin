@@ -61,6 +61,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
+  // Number of tasks created for the datastream group to which this task belongs
+  private long _numTasks;
+
   private String _taskPrefix;
 
   // List of partitions the task covers.
@@ -78,10 +81,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   public DatastreamTaskImpl(List<Datastream> datastreams) {
-    this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
+    this(datastreams, UUID.randomUUID().toString(), new ArrayList<>(), -1);
   }
 
-  public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions) {
+  public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions, int numTasks) {
     Validate.notEmpty(datastreams, "empty datastream");
     Validate.notNull(id, "null id");
 
@@ -91,6 +94,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _datastreams = datastreams;
     _taskPrefix = datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
     _id = id;
+    _numTasks = numTasks;
     _partitions = new ArrayList<>();
     if (partitions != null && partitions.size() > 0) {
       _partitions.addAll(partitions);
@@ -166,6 +170,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public List<Integer> getPartitions() {
     return _partitions;
+  }
+
+  @Override
+  public long getNumDatastreamTasks() {
+    return _numTasks;
   }
 
   @JsonIgnore

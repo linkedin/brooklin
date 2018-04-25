@@ -13,11 +13,6 @@ import java.util.stream.Collectors;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.connectors.DummyConnector;
@@ -26,6 +21,11 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+
+import static com.linkedin.datastream.server.assignment.LoadbalancingStrategy.*;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.*;
 
 
 public class TestLoadbalancingStrategy {
@@ -243,5 +243,100 @@ public class TestLoadbalancingStrategy {
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 2);
     }
+  }
+
+
+  @Test
+  public void testLoadbalancingStrategyUseMaxTaskForPartitioning() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
+    Properties properties = new Properties();
+    properties.setProperty(CFG_USE_MAX_TASKS_FOR_PARTITIONING, "true");
+    properties.setProperty(CFG_MAX_TASKS, "6");
+
+    LoadbalancingStrategy strategy = new LoadbalancingStrategy(properties);
+    ZkAdapter adapter = createMockAdapter();
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    for (String instance : instances) {
+      Assert.assertEquals(assignment.get(instance).size(), 2);
+      assignment.get(instance).forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
+    }
+    assignment.keySet().forEach(instance ->
+        assignment.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    String[] newInstances = new String[]{"instance1", "instance2"};
+    Map<String, Set<DatastreamTask>> newAssignment =
+        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+
+    Assert.assertEquals(newAssignment.get(newInstances[0]).size(), 3);
+    Assert.assertEquals(newAssignment.get(newInstances[1]).size(), 3);
+    newAssignment.keySet().forEach(instance ->
+        newAssignment.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    ds1.getSource().setPartitions(12);
+    datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
+    Map<String, Set<DatastreamTask>> assignmentWithPartition =
+        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+    assignmentWithPartition.keySet().forEach(instance ->
+        assignmentWithPartition.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    Assert.assertEquals(assignmentWithPartition.get(newInstances[0]).size(), 3);
+    Assert.assertEquals(assignmentWithPartition.get(newInstances[1]).size(), 3);
+  }
+
+  @Test
+  public void testLoadbalancingStrategyIgnoreCorruptions() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
+    Properties properties = new Properties();
+    properties.setProperty(CFG_USE_MAX_TASKS_FOR_PARTITIONING, "true");
+    properties.setProperty(CFG_MAX_TASKS, "6");
+
+    LoadbalancingStrategy strategy = new LoadbalancingStrategy(properties);
+    ZkAdapter adapter = createMockAdapter();
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    for (String instance : instances) {
+      Assert.assertEquals(assignment.get(instance).size(), 2);
+      assignment.get(instance).forEach(t -> ((DatastreamTaskImpl) t).setZkAdapter(adapter));
+    }
+    assignment.keySet().forEach(instance ->
+        assignment.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    String[] newInstances = new String[]{"instance1", "instance2"};
+    Map<String, Set<DatastreamTask>> newAssignment =
+        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+
+    Assert.assertEquals(newAssignment.get(newInstances[0]).size(), 3);
+    Assert.assertEquals(newAssignment.get(newInstances[1]).size(), 3);
+    newAssignment.keySet().forEach(instance ->
+        newAssignment.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    // Update max tasks now
+    properties.setProperty(CFG_MAX_TASKS, "4");
+    LoadbalancingStrategy newStrategy = new LoadbalancingStrategy(properties);
+    Map<String, Set<DatastreamTask>> assignmentWithChangedPartition =
+        newStrategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+
+    Assert.assertEquals(assignmentWithChangedPartition.get(newInstances[0]).size(), 3);
+    Assert.assertEquals(assignmentWithChangedPartition.get(newInstances[1]).size(), 3);
+    assignmentWithChangedPartition.keySet().forEach(instance ->
+        assignmentWithChangedPartition.get(instance).forEach(task -> Assert.assertEquals(task.getNumDatastreamTasks(), 6)));
+
+    // Update max tasks now and should not see any tasks assigned
+    properties.setProperty(CFG_IGNORE_PARTITION_CORRUPTIONS, "false");
+    LoadbalancingStrategy newStrategyDontIgnoreError = new LoadbalancingStrategy(properties);
+    Map<String, Set<DatastreamTask>> newAssignmentWithChangedPartition =
+        newStrategyDontIgnoreError.assign(datastreams, Arrays.asList(newInstances), assignment);
+
+    Assert.assertEquals(newAssignmentWithChangedPartition.get(newInstances[0]).size(), 0);
+    Assert.assertEquals(newAssignmentWithChangedPartition.get(newInstances[1]).size(), 0);
   }
 }
