@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,8 +19,10 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 
 /**
- * The number of tasks created for datastream is min(numberOfInstances, maxTasks),
- * unless maxTasks is less than 1, in that case it create one task for each instance.
+ * The number of tasks created for datastream is configurable using "maxTasks" config. This can also be overriden at the
+ * Datastream level via the Datastream metadata "maxTasks". The number of tasks is not necessarily capped at the
+ * number of instances, so each instance could process multiple tasks for the same Datastream. The maximum number of
+ * datastream tasks (for the same datastream) that an instance will be assigned is configurable.
  *
  * All the tasks are redistributed across all the instances equally.
  */
@@ -28,60 +31,75 @@ public class BroadcastStrategy implements AssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(BroadcastStrategy.class.getName());
 
   private final int _maxTasks;
+  private final int _dsTaskLimitPerInstance;
 
   public BroadcastStrategy(int maxTasks) {
-    // If maxTasks is less than one, then just create one task for each instance.
-    _maxTasks = maxTasks < 1 ? Integer.MAX_VALUE : maxTasks;
+    this(maxTasks, 1);
+  }
+
+  public BroadcastStrategy(int maxTasks, int dsTaskLimitPerInstance) {
+    Validate.inclusiveBetween(1, Integer.MAX_VALUE, maxTasks,
+        "Default maxTasks should be between 1 and Integer.MAX_VALUE");
+    Validate.inclusiveBetween(1, 10000, dsTaskLimitPerInstance,
+        "Default dsTaskLimitPerInstance should be between 1 and 10000");
+    _maxTasks = maxTasks;
+    _dsTaskLimitPerInstance = dsTaskLimitPerInstance;
   }
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
-    LOG.info(String.format("Trying to assign datastreams {%s} to instances {%s} and the current assignment is {%s}",
-        datastreams, instances, currentAssignment));
+    LOG.info("Trying to assign datastreams {} to instances {} and the current assignment is {}", datastreams, instances,
+        currentAssignment);
 
-    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
+    Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
+
+    // Make a copy of the current assignment, since the strategy modifies it during calculation
+    Map<String, Set<DatastreamTask>> currentAssignmentCopy = new HashMap<>(currentAssignment.size());
+    currentAssignment.forEach((k, v) -> currentAssignmentCopy.put(k, new HashSet<>(v)));
 
     for (String instance : instances) {
-      assignment.put(instance, new HashSet<>());
-      currentAssignment.computeIfAbsent(instance, (x) -> new HashSet<>());
+      newAssignment.put(instance, new HashSet<>());
+      currentAssignmentCopy.putIfAbsent(instance, new HashSet<>());
     }
 
     int instancePos = 0;
     for (DatastreamGroup dg : datastreams) {
-      int numTask = getNumTasks(dg, instances.size());
-      for (int taskPos = 0; taskPos < numTask; taskPos++) {
+      int numTasks = getNumTasks(dg, instances.size());
+      for (int taskPos = 0; taskPos < numTasks; taskPos++) {
         String instance = instances.get(instancePos);
 
-        DatastreamTask foundDatastreamTask = currentAssignment.get(instance)
+        DatastreamTask foundDatastreamTask = currentAssignmentCopy.get(instance)
             .stream()
             .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
             .findFirst()
             .orElse(new DatastreamTaskImpl(dg.getDatastreams()));
-        assignment.get(instance).add(foundDatastreamTask);
+
+        currentAssignmentCopy.get(instance).remove(foundDatastreamTask);
+        newAssignment.get(instance).add(foundDatastreamTask);
 
         // Move to the next instance
         instancePos = (instancePos + 1) % instances.size();
       }
     }
 
-    LOG.info(String.format("New assignment is {%s}", assignment));
+    LOG.info("New assignment is {}", newAssignment);
 
-    return assignment;
+    return newAssignment;
   }
 
   private int getNumTasks(DatastreamGroup dg, int numInstances) {
-    // Look for an override in any of the datastream.
-    // In case of multiple overrides, select the largest.
-    // If not override is present then use the default "_maxTasks"
-    int maxTasks = dg.getDatastreams().stream()
+    // Look for an override in any of the datastream. In the case of multiple overrides, select the largest.
+    // If no override is present then use the default "_maxTasks" from config.
+    int numTasks = dg.getDatastreams().stream()
         .map(ds -> ds.getMetadata().get(CFG_MAX_TASKS))
         .filter(Objects::nonNull)
         .mapToInt(Integer::valueOf)
         .map(x -> x < 1 ? Integer.MAX_VALUE : x)
         .max()
         .orElse(_maxTasks);
-    return  Math.min(maxTasks, numInstances);
+    return Math.min(numTasks, numInstances * _dsTaskLimitPerInstance);
   }
+
 }
