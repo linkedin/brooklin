@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,20 +47,10 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyMulticastStrategy.class.getName());
 
-  private final int _maxTasks;
-  private final int _dsTaskLimitPerInstance;
+  private final Optional<Integer> _maxTasks;
 
-  public StickyMulticastStrategy(int maxTasks) {
-    this(maxTasks, 1);
-  }
-
-  public StickyMulticastStrategy(int maxTasks, int dsTaskLimitPerInstance) {
-    Validate.inclusiveBetween(1, Integer.MAX_VALUE, maxTasks,
-        "Default maxTasks should be between 1 and Integer.MAX_VALUE");
-    Validate.inclusiveBetween(1, 10000, dsTaskLimitPerInstance,
-        "Default dsTaskLimitPerInstance should be between 1 and 10000");
+  public StickyMulticastStrategy(Optional<Integer> maxTasks) {
     _maxTasks = maxTasks;
-    _dsTaskLimitPerInstance = dsTaskLimitPerInstance;
   }
 
   @Override
@@ -196,14 +185,14 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   private int getNumTasks(DatastreamGroup dg, int numInstances) {
     // Look for an override in any of the datastream. In the case of multiple overrides, select the largest.
     // If no override is present then use the default "_maxTasks" from config.
-    int numTasks = dg.getDatastreams().stream()
+    return dg.getDatastreams()
+        .stream()
         .map(ds -> ds.getMetadata().get(CFG_MAX_TASKS))
         .filter(Objects::nonNull)
         .mapToInt(Integer::valueOf)
-        .map(x -> x < 1 ? Integer.MAX_VALUE : x)
+        .filter(x -> x > 0)
         .max()
-        .orElse(_maxTasks);
-    return Math.min(numTasks, numInstances * _dsTaskLimitPerInstance);
+        .orElse(_maxTasks.orElse(numInstances));
   }
 
 }
