@@ -28,14 +28,20 @@ public class DynamicMetricsManager {
 
   private static DynamicMetricsManager _instance = null;
   private MetricRegistry _metricRegistry;
+  static final String NO_KEY_PLACEHOLDER = "NO_KEY";
 
-  // Metrics indexed by simple class name
-  // Simple class name -> full metric name -> metric
-  // The map helps reducing contention on the internal map of MetricRegistry.
-  // This is created solely for the createOrUpdate APIs, not by registerMetric
-  // because the former can be called repeatedly to update the metric whereas
-  // the latter is typically only called once per metric during initialization.
-  private final ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>> _indexedMetrics;
+  // Metrics indexed by simple class name, key (if exists), and metric name
+  // Simple class name -> key -> metric name -> Metric object
+  //   For example: LiKafkaTransportProvider.topicName.eventsProcessedRate
+  //   would be stored in the cache as: LiKafkaTransportProvider -> topicName -> eventsProcessedRate -> Meter object
+  // If key is not used, in the case of class level metrics, "NO_KEY" will be used as a placeholder in the cache
+  //   For example: LiKafkaTransportProvider.errorRate
+  //   would be stored in the cache as: LiKafkaTransportProvider -> NO_KEY -> errorRate -> Meter object
+  // The map helps reducing contention on the internal map of MetricRegistry. The multiple levels of indexing by each
+  // part of the full metric name helps to avoid too many String concatenations, which impacts performance.
+  // This is created solely for the createOrUpdate APIs, not by registerMetric because the former can be called
+  // repeatedly to update the metric whereas the latter is typically only called once per metric during initialization.
+  private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>>> _indexedMetrics;
 
   private DynamicMetricsManager(MetricRegistry metricRegistry) {
     _metricRegistry = metricRegistry;
@@ -89,15 +95,21 @@ public class DynamicMetricsManager {
     return _instance;
   }
 
-  private Optional<Metric> checkCache(String simpleClassName, String fullMetricName) {
-    return Optional.ofNullable(getClassMetrics(simpleClassName).get(fullMetricName));
+  Optional<Metric> checkCache(String simpleClassName, String key, String metric) {
+    String keyIndex = key == null ? NO_KEY_PLACEHOLDER : key;
+    return Optional.of(getClassMetrics(simpleClassName))
+        .map(classMetrics -> classMetrics.get(keyIndex))
+        .map(keyMetrics -> keyMetrics.get(metric));
   }
 
-  private void updateCache(String simpleClassName, String fullMetricName, Metric metric) {
-    getClassMetrics(simpleClassName).putIfAbsent(fullMetricName, metric);
+  private void updateCache(String simpleClassName, String key, String metricName, Metric metric) {
+    String keyIndex = key == null ? NO_KEY_PLACEHOLDER : key;
+    ConcurrentHashMap<String, Metric> keyMetrics =
+        getClassMetrics(simpleClassName).computeIfAbsent(keyIndex, k -> new ConcurrentHashMap<>());
+    keyMetrics.put(metricName, metric);
   }
 
-  private ConcurrentHashMap<String, Metric> getClassMetrics(String simpleClassName) {
+  private ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>> getClassMetrics(String simpleClassName) {
     return _indexedMetrics.computeIfAbsent(simpleClassName, k -> new ConcurrentHashMap<>());
   }
 
@@ -234,8 +246,11 @@ public class DynamicMetricsManager {
       _metricRegistry.remove(fullMetricName);
     } finally {
       // Always update our the index
-      if (_indexedMetrics.contains(simpleName)) {
-        _indexedMetrics.get(simpleName).remove(fullMetricName);
+      if (_indexedMetrics.containsKey(simpleName)) {
+        String keyIndex = key == null ? NO_KEY_PLACEHOLDER : key;
+        if (_indexedMetrics.get(simpleName).containsKey(keyIndex)) {
+          _indexedMetrics.get(simpleName).get(keyIndex).remove(metricName);
+        }
       }
     }
   }
@@ -247,7 +262,7 @@ public class DynamicMetricsManager {
    * @param metricName the metric name
    */
   public void unregisterMetric(String simpleName, String metricName) {
-    unregisterMetric(simpleName, metricName);
+    unregisterMetric(simpleName, null, metricName);
   }
 
   /**
@@ -261,13 +276,13 @@ public class DynamicMetricsManager {
   public void createOrUpdateCounter(String classSimpleName, String key, String metricName, long value) {
     validateArguments(classSimpleName, metricName);
 
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-
     // create and register the metric if it does not exist
-    Counter counter =
-        (Counter) checkCache(classSimpleName, fullMetricName).orElseGet(() -> _metricRegistry.counter(fullMetricName));
+    Counter counter = (Counter) checkCache(classSimpleName, key, metricName).orElseGet(() -> {
+      Counter newCounter = _metricRegistry.counter(MetricRegistry.name(classSimpleName, key, metricName));
+      updateCache(classSimpleName, key, metricName, newCounter);
+      return newCounter;
+    });
     counter.inc(value);
-    updateCache(classSimpleName, fullMetricName, counter);
   }
 
   /**
@@ -291,13 +306,13 @@ public class DynamicMetricsManager {
   public void createOrUpdateMeter(String classSimpleName, String key, String metricName, long value) {
     validateArguments(classSimpleName, metricName);
 
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-
     // create and register the metric if it does not exist
-    Meter meter = (Meter) checkCache(classSimpleName, fullMetricName).orElseGet(() -> _metricRegistry.meter(fullMetricName));
-
+    Meter meter = (Meter) checkCache(classSimpleName, key, metricName).orElseGet(() -> {
+      Meter newMeter = _metricRegistry.meter(MetricRegistry.name(classSimpleName, key, metricName));
+      updateCache(classSimpleName, key, metricName, newMeter);
+      return newMeter;
+    });
     meter.mark(value);
-    updateCache(classSimpleName, fullMetricName, meter);
   }
 
   /**
@@ -337,11 +352,13 @@ public class DynamicMetricsManager {
   public void createOrUpdateSlidingWindowHistogram(String classSimpleName, String key, String metricName,
       long windowTimeMs, long value) {
     validateArguments(classSimpleName, metricName);
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElseGet(
-        () -> registerAndGetSlidingWindowHistogram(fullMetricName, windowTimeMs));
+    Histogram histogram = (Histogram) checkCache(classSimpleName, key, metricName).orElseGet(() -> {
+      Histogram newHistogram =
+          registerAndGetSlidingWindowHistogram(MetricRegistry.name(classSimpleName, key, metricName), windowTimeMs);
+      updateCache(classSimpleName, key, metricName, newHistogram);
+      return newHistogram;
+    });
     histogram.update(value);
-    updateCache(classSimpleName, fullMetricName, histogram);
   }
 
   /**
@@ -353,13 +370,13 @@ public class DynamicMetricsManager {
    */
   public void createOrUpdateHistogram(String classSimpleName, String key, String metricName, long value) {
     validateArguments(classSimpleName, metricName);
-    String fullMetricName = MetricRegistry.name(classSimpleName, key, metricName);
-
     // create and register the metric if it does not exist
-    Histogram histogram = (Histogram) checkCache(classSimpleName, fullMetricName).orElseGet(
-        () -> _metricRegistry.histogram(fullMetricName));
+    Histogram histogram = (Histogram) checkCache(classSimpleName, key, metricName).orElseGet(() -> {
+      Histogram newHistogram = _metricRegistry.histogram(MetricRegistry.name(classSimpleName, key, metricName));
+      updateCache(classSimpleName, key, metricName, newHistogram);
+      return newHistogram;
+    });
     histogram.update(value);
-    updateCache(classSimpleName, fullMetricName, histogram);
   }
 
   /**
