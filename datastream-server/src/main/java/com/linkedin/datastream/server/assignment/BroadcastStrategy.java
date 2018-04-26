@@ -5,9 +5,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
-import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,8 +21,8 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 /**
  * The number of tasks created for datastream is configurable using "maxTasks" config. This can also be overriden at the
  * Datastream level via the Datastream metadata "maxTasks". The number of tasks is not necessarily capped at the
- * number of instances, so each instance could process multiple tasks for the same Datastream. The maximum number of
- * datastream tasks (for the same datastream) that an instance will be assigned is configurable.
+ * number of instances, so each instance could process multiple tasks for the same Datastream. If "maxTasks" is not
+ * provided, the strategy will broadcast one task to each of the instances in the cluster.
  *
  * All the tasks are redistributed across all the instances equally.
  */
@@ -30,20 +30,10 @@ public class BroadcastStrategy implements AssignmentStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(BroadcastStrategy.class.getName());
 
-  private final int _maxTasks;
-  private final int _dsTaskLimitPerInstance;
+  private final Optional<Integer> _maxTasks;
 
-  public BroadcastStrategy(int maxTasks) {
-    this(maxTasks, 1);
-  }
-
-  public BroadcastStrategy(int maxTasks, int dsTaskLimitPerInstance) {
-    Validate.inclusiveBetween(1, Integer.MAX_VALUE, maxTasks,
-        "Default maxTasks should be between 1 and Integer.MAX_VALUE");
-    Validate.inclusiveBetween(1, 10000, dsTaskLimitPerInstance,
-        "Default dsTaskLimitPerInstance should be between 1 and 10000");
+  public BroadcastStrategy(Optional<Integer> maxTasks) {
     _maxTasks = maxTasks;
-    _dsTaskLimitPerInstance = dsTaskLimitPerInstance;
   }
 
   @Override
@@ -92,14 +82,14 @@ public class BroadcastStrategy implements AssignmentStrategy {
   private int getNumTasks(DatastreamGroup dg, int numInstances) {
     // Look for an override in any of the datastream. In the case of multiple overrides, select the largest.
     // If no override is present then use the default "_maxTasks" from config.
-    int numTasks = dg.getDatastreams().stream()
+    return dg.getDatastreams()
+        .stream()
         .map(ds -> ds.getMetadata().get(CFG_MAX_TASKS))
         .filter(Objects::nonNull)
         .mapToInt(Integer::valueOf)
-        .map(x -> x < 1 ? Integer.MAX_VALUE : x)
+        .filter(x -> x > 0)
         .max()
-        .orElse(_maxTasks);
-    return Math.min(numTasks, numInstances * _dsTaskLimitPerInstance);
+        .orElse(_maxTasks.orElse(numInstances));
   }
 
 }

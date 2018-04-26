@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import java.util.stream.IntStream;
@@ -23,7 +24,6 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
 
 
 public class TestBroadcastStrategy {
@@ -34,7 +34,7 @@ public class TestBroadcastStrategy {
   public void testCreatesAssignmentAcrossAllInstances() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     for (String instance : instances) {
@@ -42,9 +42,10 @@ public class TestBroadcastStrategy {
     }
 
     // test with broadcast strategy where max tasks is not capped by instances size
-    BroadcastStrategy unlimitedStrategy = new BroadcastStrategy(DEFAULT_MAX_TASKS, 100);
+    int maxTasksConfig = 12;
+    BroadcastStrategy unlimitedStrategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
     assignment = unlimitedStrategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-    int expected = datastreams.size() * DEFAULT_MAX_TASKS / instances.length;
+    int expected = datastreams.size() * maxTasksConfig / instances.length;
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), expected);
     }
@@ -57,13 +58,13 @@ public class TestBroadcastStrategy {
     int maxTasks = 7;
     int expectedTotalTasks = numDatastreams * maxTasks;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
-    doTestMaxTasks(new BroadcastStrategy(maxTasks), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new BroadcastStrategy(Optional.of(maxTasks)), numInstances, expectedTotalTasks, datastreams);
 
     // test with broadcast strategy where max tasks is not capped by instances size
     numInstances = 7;
     maxTasks = 20;
     expectedTotalTasks = numDatastreams * maxTasks;
-    doTestMaxTasks(new BroadcastStrategy(maxTasks, 1000), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new BroadcastStrategy(Optional.of(maxTasks)), numInstances, expectedTotalTasks, datastreams);
   }
 
   @Test
@@ -74,24 +75,13 @@ public class TestBroadcastStrategy {
     List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
     datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "18");
     int expectedTotalTasks = numDatastreams * maxTasks + (18 - maxTasks);
-    doTestMaxTasks(new BroadcastStrategy(maxTasks), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new BroadcastStrategy(Optional.of(maxTasks)), numInstances, expectedTotalTasks, datastreams);
 
     // test with broadcast strategy where max tasks is not capped by instances size
     numInstances = 6;
     maxTasks = 32;
     expectedTotalTasks = numDatastreams * maxTasks - (maxTasks - 18);
-    doTestMaxTasks(new BroadcastStrategy(maxTasks, 1000), numInstances, expectedTotalTasks, datastreams);
-  }
-
-  @Test
-  public void testDsTaskLimitPerInstance() {
-    int numDatastreams = 10;
-    int numInstances = 3;
-    int maxTasks = 9;
-    int dsTaskLimitPerInstance = 2;
-    int expectedTotalTasks = numDatastreams * numInstances * dsTaskLimitPerInstance;
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
-    doTestMaxTasks(new BroadcastStrategy(maxTasks, dsTaskLimitPerInstance), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new BroadcastStrategy(Optional.of(maxTasks)), numInstances, expectedTotalTasks, datastreams);
   }
 
   private void doTestMaxTasks(BroadcastStrategy strategy, int numInstances, int expectedTotalTasks,
@@ -124,7 +114,7 @@ public class TestBroadcastStrategy {
   public void testDontCreateNewTasksWhenCalledSecondTime() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
@@ -138,7 +128,8 @@ public class TestBroadcastStrategy {
     }
 
     // test with broadcast strategy where max tasks is not capped by instances size
-    strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS, 100);
+    int maxTasksConfig = 12;
+    strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
     assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
     newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
     for (String instance : instances) {
@@ -155,7 +146,7 @@ public class TestBroadcastStrategy {
   public void testRemoveDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     datastreams.remove(0);
@@ -170,8 +161,9 @@ public class TestBroadcastStrategy {
     }
 
     // test with broadcast strategy where max tasks is not capped by instances size
+    int maxTasksConfig = 12;
     datastreams = generateDatastreams("ds", 5);
-    strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS, 100);
+    strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
     assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     datastreams.remove(0);
@@ -182,7 +174,7 @@ public class TestBroadcastStrategy {
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-      Assert.assertEquals(oldAssignmentTasks.size() - (DEFAULT_MAX_TASKS / instances.size()),
+      Assert.assertEquals(oldAssignmentTasks.size() - (maxTasksConfig / instances.size()),
           newAssignmentTasks.size());
     }
   }
@@ -191,7 +183,7 @@ public class TestBroadcastStrategy {
   public void testCreateNewTasksOnlyForNewDatastreamWhenDatastreamIsCreated() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
@@ -210,8 +202,9 @@ public class TestBroadcastStrategy {
     }
 
     // test with broadcast strategy where max tasks is not capped by instances size
+    int maxTasksConfig = 12;
     datastreams = generateDatastreams("ds", 5);
-    strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS, 100);
+    strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
     assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
     newDatastreams = new ArrayList<>(datastreams);
@@ -224,7 +217,7 @@ public class TestBroadcastStrategy {
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-      Assert.assertEquals(oldAssignmentTasks.size() + (DEFAULT_MAX_TASKS / instances.size()),
+      Assert.assertEquals(oldAssignmentTasks.size() + (maxTasksConfig / instances.size()),
           newAssignmentTasks.size());
       Assert.assertTrue(oldAssignmentTasks.stream()
           .allMatch(x -> x.getTaskPrefix().equals(newDatastream1.getTaskPrefix()) || newAssignmentTasks.contains(x)));
@@ -236,7 +229,7 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
@@ -259,15 +252,16 @@ public class TestBroadcastStrategy {
     // where num tasks is not limited by instance size is being used
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
+    int maxTasksConfig = 12;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
-    BroadcastStrategy strategy = new BroadcastStrategy(DEFAULT_MAX_TASKS, 100);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
     Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
 
     // Ensure that the datastream tasks for the existing instances didn't change.
-    int expectedNumTasksPerInstance = DEFAULT_MAX_TASKS * datastreams.size() / newInstances.size();
+    int expectedNumTasksPerInstance = maxTasksConfig * datastreams.size() / newInstances.size();
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);

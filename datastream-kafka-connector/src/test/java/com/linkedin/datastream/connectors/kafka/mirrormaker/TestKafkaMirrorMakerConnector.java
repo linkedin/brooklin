@@ -49,7 +49,6 @@ import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
-import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.DEFAULT_MAX_TASKS;
 
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
@@ -173,7 +172,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     KafkaMirrorMakerConnector connector =
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
     Coordinator coordinator = createCoordinator(_kafkaCluster.getZkConnection(), "testPopulateDatastreamDestination");
-    coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+    coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin = getKafkaTransportProviderAdmin();
@@ -231,7 +230,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
     Coordinator coordinator =
         createCoordinator(_kafkaCluster.getZkConnection(), "testValidateDatastreamUpdatePausedPartitions");
-    coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(DEFAULT_MAX_TASKS), false,
+    coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin = getKafkaTransportProviderAdmin();
