@@ -219,12 +219,18 @@ public class CommonConnectorMetrics {
 
     public void resetStuckPartitions() {
       long numStuckPartitions = _numStuckPartitions.getAndSet(0);
-      AGGREGATED_NUM_STUCK_PARTITIONS.get(_className).getAndAdd(-numStuckPartitions);
+      AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
+      if (aggregatedMetric != null) {
+        aggregatedMetric.getAndAdd(-numStuckPartitions);
+      }
     }
 
     public void updateStuckPartitions(long val) {
       long delta = val - _numStuckPartitions.getAndSet(val);
-      AGGREGATED_NUM_STUCK_PARTITIONS.get(_className).getAndAdd(delta);
+      AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
+      if (aggregatedMetric != null) {
+        aggregatedMetric.getAndAdd(delta);
+      }
     }
 
     // Must be static as MetricInfos are requested from static context
