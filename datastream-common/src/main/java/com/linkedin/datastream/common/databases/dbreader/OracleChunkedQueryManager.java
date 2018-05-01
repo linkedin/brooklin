@@ -119,7 +119,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
     innerQuery.append(" " + generateOderByClause(keys));
 
 
-    // wrap this in a ROWNUM constraint of its own since ROWNUM is applied before ORDER-by
+    // wrap this in a ROWNUM constraint of its own since ROWNUM is applied before ORDER-by if used together in one constraint
     innerQuery.insert(0, SELECT_FROM).append(" ) WHERE ROWNUM <= ").append(chunkSize);
     return innerQuery.toString();
   }
@@ -174,47 +174,33 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
   }
 
   /**
-   * Generate chunked query which ignores previously seen rows. An example query with 3 keys MEMBER_ID , ANET_ID , SETTING_ID:
-   *   SELECT * FROM
-   *   (
-   *      SELECT * FROM
-   *      (
-   *        SELECT * FROM
+   * Generate chunked query which ignores previously seen rows. An example query will look like this:
+   *  SELECT * FROM
+   *  (
+   *    SELECT * FROM
    *        (
-   *          SELECT * FROM MEMBER_ANET_SETTINGS
-   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
-   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
-   *          AND MEMBER_ID > ? AND ROWNUM <= 10
-   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
-   *      )
-   *      UNION ALL
-   *      SELECT * FROM
-   *      (
-   *        SELECT * FROM
-   *        (
-   *          SELECT * FROM MEMBER_ANET_SETTINGS
-   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
-   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
-   *          AND MEMBER_ID = ?
-   *          AND ANET_ID > ?
-   *          AND ROWNUM <= 10
-   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
-   *      )
-   *      UNION ALL
-   *      SELECT * FROM
-   *      (
-   *        SELECT * FROM
-   *        (
-   *          SELECT * FROM MEMBER_ANET_SETTINGS
-   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
-   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
-   *          AND MEMBER_ID = ?
-   *          AND ANET_ID = ?
-   *          AND SETTING_ID > ?
-   *          AND ROWNUM <= 10
-   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
-   *      )
-   *   ) WHERE ROWNUM <= 10 ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
+   *            SELECT * FROM
+   *                (
+   *                    SELECT * FROM
+   *                        (
+   *                            SELECT * FROM TABLE
+   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ?
+   *                        ORDER BY KEY1 , KEY2
+   *                ) WHERE ROWNUM <= 10
+   *
+   *            UNION ALL
+   *
+   *            SELECT * FROM
+   *                (
+   *                    SELECT * FROM
+   *                        (
+   *                            SELECT * FROM TABLE
+   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ?
+   *                ORDER BY KEY1 , KEY2
+   *        ) WHERE ROWNUM <= 10
+   *      ) ORDER BY KEY1 , KEY2
+   *
+   *   ) WHERE ROWNUM <= 10
    */
   @Override
   public String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
