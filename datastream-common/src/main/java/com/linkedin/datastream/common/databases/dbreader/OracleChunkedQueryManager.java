@@ -2,70 +2,230 @@ package com.linkedin.datastream.common.databases.dbreader;
 
 import java.util.List;
 
-import com.linkedin.datastream.common.DatastreamRuntimeException;
+import org.apache.commons.lang.Validate;
 
 
 /**
  * Oracle chunked query manager.
  */
 public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
+  private static final String SELECT_FROM = "SELECT * FROM ( ";
 
   /**
-   * Throws DatastreamRuntimeException if invalid query.
-   * Query is invalid if
-   * 1. It has a join
-   * 2. All the primary keys are not part of the selected columns
-   * 3. If there is no ORDER BY clause or if they are not ordered in the same order as a unique index.
-   * 4. If the table in the inner query doesnt match the table supplied in the reader parameter
-   * @param query
+   * Generate predicate for filtering rows hashing to the assigned partitions.
+   * Ex:
+   * <pre>
+   * SELECT * FROM ( nestedQuery )
+   * WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
+   *         OR
+   *         ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2
+   *       )
+   * </pre>
+   * using the base partitioning predicate
+   * <pre>
+   *   ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 )
+   * </pre>
    */
-  public void validateQuery(String query) {
-    // todo : Implement this. Is there a better way than string parsing?
+  private static String generateFullHashPredicate(String nestedQuery, String perPartitionHashPredicate,
+      List<Integer> partitions) {
+    StringBuilder fullHashPredicate = new StringBuilder("SELECT * FROM ( " + nestedQuery + " ) WHERE ( ");
+
+    fullHashPredicate.append(perPartitionHashPredicate + " = " + partitions.get(0));
+    if (partitions.size() > 1) {
+      for (int i = 1; i < partitions.size(); i++) {
+        fullHashPredicate.append(" OR ");
+        fullHashPredicate.append(perPartitionHashPredicate);
+        fullHashPredicate.append(" = ");
+        fullHashPredicate.append(partitions.get(i));
+      }
+    }
+    fullHashPredicate.append(" )");
+
+    return fullHashPredicate.toString();
   }
 
-  private String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize,
-      long maxBuckets, long currentIndex, boolean isFirstRun) {
-    if (keys.isEmpty()) {
-      throw new DatastreamRuntimeException("Need keys to generate chunked query. No keys supplied");
-    }
-
+  /**
+   * Generates the predicate that will be used to shard keys into partitions. Example:
+   * ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) where
+   * partition count = 10. The <i>max_bucket</i> value in ORA_HASH(expr [, max_bucket ]) = PARTITION_NUMBER
+   * is the max value returned by the hash function, so values run from 0 to partitionCount - 1.
+   */
+  private static String generatePerPartitionHash(List<String> keys, int partitionCount) {
     int keyCount = keys.size();
-    StringBuilder tmp = new StringBuilder();
-    tmp.append(keys.get(0));
-    for (int i = 1; i < keyCount; i++) {
-      tmp.append("," + keys.get(i));
-    }
-    String pkeyString = tmp.toString();
+    StringBuilder perPartitionHashPredicate = new StringBuilder();
 
-    StringBuilder query = new StringBuilder();
-    query.append("SELECT * FROM ( ");
-    query.append(nestedQuery);
-    query.append(" ) ");
-    query.append("WHERE ORA_HASH ( ");
-
-    if (keyCount > 1) {
-      query.append("CONCAT ( " + pkeyString + " )");
+    if (keyCount == 1) {
+      perPartitionHashPredicate.append(keys.get(0));
     } else {
-      query.append(pkeyString);
+      perPartitionHashPredicate.append("CONCAT ( ");
+      perPartitionHashPredicate.append(keys.get(0));
+      perPartitionHashPredicate.append(" , ");
+      perPartitionHashPredicate.append(keys.get(1));
+      perPartitionHashPredicate.append(" )");
+
+      for (int i = 2; i < keyCount; i++) {
+        perPartitionHashPredicate.insert(0, "CONCAT ( ");
+        perPartitionHashPredicate.append(" , ");
+        perPartitionHashPredicate.append(keys.get(i));
+        perPartitionHashPredicate.append(" )");
+      }
     }
 
-    query.append(" , " + maxBuckets + " ) = " + currentIndex);
-    if (!isFirstRun) {
-      query.append(" AND " + generateKeyChunkingPredicate(keys));
+    perPartitionHashPredicate.insert(0, "ORA_HASH ( ");
+
+    perPartitionHashPredicate.append(" , " + (partitionCount - 1) + " )");
+
+    return perPartitionHashPredicate.toString();
+  }
+
+  private static String generateOderByClause(List<String> keys) {
+    StringBuilder clause = new StringBuilder();
+    clause.append("ORDER BY ");
+    clause.append(keys.get(0));
+    for (int i = 1; i < keys.size(); i++) {
+      clause.append(" , " + keys.get(i));
+    }
+    return clause.toString();
+  }
+
+  /** Generate the first paginated query. No rows can be ignored, so only has hashing predicate for filtering row with
+   *  keys hashing to assigned partitions.
+   *  <pre>
+   *    SELECT * FROM
+   *    (
+   *       SELECT * FROM
+   *       (
+   *         SELECT * FROM ANET_MEMBERS
+   *       ) WHERE (ORA_HASH ( CONCAT ( MEMBER_ID , ANET_ID ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( MEMBER_ID , ANET_ID ) , 9 ) = 5 )
+   *         ORDER BY MEMBER_ID , ANET_ID
+   *    ) WHERE ROWNUM <= 10
+   *  </pre>
+   * @param nestedQuery Query for the table/view
+   * @param keys Unique keys to use for chunking
+   * @param chunkSize Rows to read pr query
+   * @param partitionCount Partition count
+   * @param partitions Partitions assigned from sharding
+   * @return Query
+   */
+  @Override
+   public String generateFirstQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
+      List<Integer> partitions) {
+    Validate.isTrue(!keys.isEmpty(), "Need keys to generate chunked query. No keys supplied");
+
+    String orderedPartitionedQuery =
+        generateFullHashPredicate(nestedQuery, generatePerPartitionHash(keys, partitionCount), partitions);
+
+    StringBuilder innerQuery = new StringBuilder(orderedPartitionedQuery);
+    innerQuery.append(" " + generateOderByClause(keys));
+
+
+    // wrap this in a ROWNUM constraint of its own since ROWNUM is applied before ORDER-by
+    innerQuery.insert(0, SELECT_FROM).append(" ) WHERE ROWNUM <= ").append(chunkSize);
+    return innerQuery.toString();
+  }
+
+  /**
+   * For two keys K1 and K2 with last row from previous query having values V1 and V2, the predicate to ignore rows
+   * previously seen could have been <b>WHERE (( k1 > V1 ) OR ( k1 = V1 AND k2 > V2 ) )</b>
+   * However the use of the OR clause leads to Oracle query optimizer not using RANGE-INDEX scan and instead
+   * ends up doing a full index scan leading to o(n^2) read complexity.
+   * To make use of RANGE-INDEX scan optimally, the query can be transformed into separate queries handling each
+   * part of the OR and a union of all the individual queries. The union however does require the result be sorted again,
+   * and the overall complexity is O(KC lg C) where C is the chunk size and K = n/c, the number of queries done.
+   * O(KC lg C) = O(n lg C) and since C is typically very small compared to n, it still gives far better complexity
+   * compared to the non-range index scan approach.
+   */
+  private static String generateChunkedQueryHelper(String nestedQuery, List<String> keys, long chunkCount) {
+    StringBuilder query = new StringBuilder();
+
+    // for each key, the query will progressively add a = previous key parts and > this key part
+    int keyCount = keys.size();
+    for (int i = 0; i < keyCount; i++) {
+      if (i != 0) {
+        query.append(" UNION ALL ");
+      }
+
+      StringBuilder subQuery = new StringBuilder(nestedQuery);
+      int j = 0;
+      for (; j < i; j++) {
+        subQuery.append(" AND ").append(keys.get(j)).append(" = ?");
+      }
+
+      // last key for this sub query, so ignore anything less than
+      subQuery.append(" AND ").append(keys.get(j)).append(" > ?");
+
+      subQuery.append(" " + generateOderByClause(keys));
+
+      // ROWNUM needs to be added to its own SELECT * and cannot go with ORDER-BY clause sine ROWNUM gets applied before
+      // order by
+      subQuery.insert(0, SELECT_FROM).append(" ) WHERE ROWNUM <= ").append(chunkCount);
+
+      // append the subquery to main query
+      query.append(subQuery);
     }
 
-    query.append(" AND ROWNUM <= " + chunkSize);
+    // The outermost query should have a ROWNUM and ORDER-By constraint of its own if if had more than 1 key
+    if (keyCount > 1) {
+      query.insert(0, SELECT_FROM).append(" ) " + generateOderByClause(keys));
+      query.insert(0, SELECT_FROM).append(" ) WHERE ROWNUM <= ").append(chunkCount);
+    }
+
     return query.toString();
   }
 
-  public String generateFirstQuery(String nestedQuery, List<String> keys, long chunkSize,
-      long maxBuckets, long currentIndex) {
-    return generateChunkedQuery(nestedQuery, keys, chunkSize, maxBuckets, currentIndex, true);
-  }
-
+  /**
+   * Generate chunked query which ignores previously seen rows. An example query with 3 keys MEMBER_ID , ANET_ID , SETTING_ID:
+   *   SELECT * FROM
+   *   (
+   *      SELECT * FROM
+   *      (
+   *        SELECT * FROM
+   *        (
+   *          SELECT * FROM MEMBER_ANET_SETTINGS
+   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
+   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
+   *          AND MEMBER_ID > ? AND ROWNUM <= 10
+   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
+   *      )
+   *      UNION ALL
+   *      SELECT * FROM
+   *      (
+   *        SELECT * FROM
+   *        (
+   *          SELECT * FROM MEMBER_ANET_SETTINGS
+   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
+   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
+   *          AND MEMBER_ID = ?
+   *          AND ANET_ID > ?
+   *          AND ROWNUM <= 10
+   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
+   *      )
+   *      UNION ALL
+   *      SELECT * FROM
+   *      (
+   *        SELECT * FROM
+   *        (
+   *          SELECT * FROM MEMBER_ANET_SETTINGS
+   *        ) WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
+   *          OR ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2 )
+   *          AND MEMBER_ID = ?
+   *          AND ANET_ID = ?
+   *          AND SETTING_ID > ?
+   *          AND ROWNUM <= 10
+   *          ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
+   *      )
+   *   ) WHERE ROWNUM <= 10 ORDER BY MEMBER_ID , MEMBER_ID , MEMBER_ID
+   */
   @Override
-  public String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, long maxBuckets,
-      long currentIndex) {
-    return generateChunkedQuery(nestedQuery, keys, chunkSize, maxBuckets, currentIndex, false);
+  public String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
+      List<Integer> partitions) {
+    Validate.isTrue(!keys.isEmpty(), "Need keys to generate chunked query. No keys supplied");
+
+    String shardedQuery =
+        generateFullHashPredicate(nestedQuery, generatePerPartitionHash(keys, partitionCount), partitions);
+    StringBuilder innerQuery = new StringBuilder().append(shardedQuery);
+
+    // Add predicate to ignore previously seen rows.
+    return generateChunkedQueryHelper(innerQuery.toString(), keys, chunkSize);
   }
 }

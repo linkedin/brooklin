@@ -7,53 +7,35 @@ import java.util.List;
 
 public interface ChunkedQueryManager {
   /**
-   * Validate the nested query to be compatible for chunking
+   * Validate the nested query to be compatible for chunking.
+   * Throws IllegalArgumentException
    * @param query
    */
-  void validateQuery(String query);
+  void validateQuery(String query) throws IllegalArgumentException;
 
   /**
    * With chunking, the first query cannot ignore any rows and subsequent ones will ignore row previously
-   * seen. So we might need a different query the first time.
-   *
-   * An example Oracle chunked query for an input query "SELECT * FROM table" and keys {k1, k2} will look like
-   * <pre>
-   *    SELECT * FROM
-   *      ( SELECT * FROM table )
-   *    WHERE ORA_HASH ( CONCAT ( k1,k2 ) , 10 ) = 3
-   *    AND ROWNUM <= 10000
-   * where maxChunkIndex is 10, currentIndex is 3 and chunkSize is 10000
-   * </pre>
-   *
-   * @param nestedQuery
-   * @param keys
-   * @param chunkSize
-   * @param maxChunkIndex
-   * @param currentIndex
-   * @return
+   * seen. So we need a different query the first time.
+   * @param nestedQuery Query to filter columns
+   * @param keys Primary keys to use for chunking rows
+   * @param chunkSize Number of rows to chunk in a query
+   * @param partitionCount Total partitions that the keys are hashed into
+   * @param partitions Partitions that this query should return keys for
+   * @return First chunked query to the database
    */
-  String generateFirstQuery(String nestedQuery, List<String> keys, long chunkSize, long maxChunkIndex, long currentIndex);
-
+  String generateFirstQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
+      List<Integer> partitions);
   /**
    * Generate the final query after appending the chunking predicate.
-   * An example Oracle chunked query for an input query "SELECT * FROM table" and keys {k1, k2} will look like
-   * <pre>
-   *    SELECT * FROM
-   *      ( SELECT * FROM table )
-   *    WHERE ORA_HASH ( CONCAT ( k1,k2 ) , 10 ) = 3
-   +    AND ( ( k1 > ? ) OR ( k1 = ? AND k2 > ? ) )
-   *    AND ROWNUM <= 10000
-   * </pre>
-   * where maxChunkIndex is 10, currentIndex is 3 and chunkSize is 10000
-   *
-   * @param nestedQuery The inner query to be wrapped with chunking predicate
-   * @param keys Ordered list of keys to be used for generating chunking predicate
-   * @param chunkSize Chunk size
-   * @param maxchunkIndex Max chunking buckets
-   * @param currentIndex Chunk index to match
-   * @return
+   * @param nestedQuery Query to filter columns
+   * @param keys Primary keys to use for chunking rows
+   * @param chunkSize Number of rows to chunk in a query
+   * @param partitionCount Total partitions that the keys are hashed into
+   * @param partitions Partitions that this query should return keys for
+   * @return Chunked query to the database which ignores previously seen rows
    */
-  String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, long maxchunkIndex, long currentIndex);
+  String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
+      List<Integer> partitions);
 
   /**
    * Set the variables in the preparedStatement query.

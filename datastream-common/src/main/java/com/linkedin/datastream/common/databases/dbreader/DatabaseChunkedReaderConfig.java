@@ -29,8 +29,6 @@ public class DatabaseChunkedReaderConfig {
   // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
   // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
   public static final String ROW_COUNT_LIMIT = "chunk.rowCountLimit";
-  public static final String NUM_CHUNK_BUCKETS = "chunk.numBuckets";
-  public static final String CHUNK_INDEX = "chunk.index";
   public static final String DATABASE_INTERPRETER_CLASS_NAME = "database.reader";
   public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
 
@@ -42,8 +40,6 @@ public class DatabaseChunkedReaderConfig {
   private final int _queryTimeout;
   private final int _fetchSize;
   private final long _rowCountLimit;
-  private final long _numChunkBuckets;
-  private final long _chunkIndex;
   private SqlTypeInterpreter _interpreter;
   private ChunkedQueryManager _chunkedQueryManager;
   private boolean _shouldSkipBadMessage;
@@ -57,9 +53,7 @@ public class DatabaseChunkedReaderConfig {
     Validate.inclusiveBetween(0, Integer.MAX_VALUE, _fetchSize);
     _rowCountLimit = verifiableProperties.getLong(ROW_COUNT_LIMIT, DEFAULT_ROW_COUNT_LIMIT);
     Validate.inclusiveBetween(100, Long.MAX_VALUE, _fetchSize);
-    _numChunkBuckets = verifiableProperties.getLong(NUM_CHUNK_BUCKETS);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
-    _chunkIndex = verifiableProperties.getLong(CHUNK_INDEX);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
 
@@ -96,14 +90,6 @@ public class DatabaseChunkedReaderConfig {
 
   public long getRowCountLimit() {
     return _rowCountLimit;
-  }
-
-  public long getNumChunkBuckets() {
-    return _numChunkBuckets;
-  }
-
-  public long getChunkIndex() {
-    return _chunkIndex;
   }
 
   public SqlTypeInterpreter getDatabaseInterpreter() {
