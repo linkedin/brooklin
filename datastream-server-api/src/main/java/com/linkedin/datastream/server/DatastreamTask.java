@@ -71,6 +71,11 @@ public interface DatastreamTask {
   String getDatastreamTaskName();
 
   /**
+   * @return the number of tasks created for the datastream group to which this task belongs
+   */
+  long getNumDatastreamTasks();
+
+  /**
    * @return whether the destination is a user managed.
    */
   boolean isUserManagedDestination();

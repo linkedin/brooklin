@@ -32,14 +32,23 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(LoadbalancingStrategy.class.getName());
 
   public static final int DEFAULT_OVER_PARTITIONING_FACTOR = 2;
-  public static final String CFG_OVER_PARTITIONING_FACTOR = "overPartitioningFactor";
-
+  public static final String CFG_OVER_PARTITIONING_FACTOR = "_overPartitioningFactor";
+  public static final String CFG_USE_MAX_TASKS_FOR_PARTITIONING = "useMaxTaskForPartitioning";
+  public static final String CFG_MAX_TASKS = "maxTasks";
   public static final String CFG_MIN_TASKS = "TasksPerDatastream";
+  public static final String CFG_IGNORE_PARTITION_CORRUPTIONS = "ignorePartitionCorruptions";
+
   public static final int DEFAULT_MIN_TASKS = -1;
+  public static final boolean DEFAULT_USE_MAX_TASKS_FOR_PARTITIONING = false;
+  public static final int DEFAULT_MAX_TASKS = 10;
+  public static final boolean DEFAULT_IGNORE_PARTITION_CORRUPTIONS = true;
 
   // If the instances are down while the assignment is happening. We need to ensure that at least min tasks are created
-  private final int minTasks;
-  private final int overPartitioningFactor;
+  private final int _minTasks;
+  private final int _overPartitioningFactor;
+  private final int _maxTasks;
+  private final boolean _useMaxTaskForPartitioning;
+  private final boolean _ignorePartitionCorruptions;
 
   public LoadbalancingStrategy() {
     this(new Properties());
@@ -47,8 +56,12 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   public LoadbalancingStrategy(Properties properties) {
     VerifiableProperties props = new VerifiableProperties(properties);
-    overPartitioningFactor = props.getInt(CFG_OVER_PARTITIONING_FACTOR, DEFAULT_OVER_PARTITIONING_FACTOR);
-    minTasks = props.getInt(CFG_MIN_TASKS, DEFAULT_MIN_TASKS);
+
+    _overPartitioningFactor = props.getInt(CFG_OVER_PARTITIONING_FACTOR, DEFAULT_OVER_PARTITIONING_FACTOR);
+    _minTasks = props.getInt(CFG_MIN_TASKS, DEFAULT_MIN_TASKS);
+    _maxTasks = props.getInt(CFG_MAX_TASKS, DEFAULT_MAX_TASKS);
+    _useMaxTaskForPartitioning = props.getBoolean(CFG_USE_MAX_TASKS_FOR_PARTITIONING, DEFAULT_USE_MAX_TASKS_FOR_PARTITIONING);
+    _ignorePartitionCorruptions = props.getBoolean(CFG_IGNORE_PARTITION_CORRUPTIONS, DEFAULT_IGNORE_PARTITION_CORRUPTIONS);
   }
 
   @Override
@@ -61,7 +74,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       return new HashMap<>();
     }
 
-    int maxTasksPerDatastream = Math.max(instances.size() * overPartitioningFactor, minTasks);
+    int maxTasksPerDatastream = Math.max(instances.size() * _overPartitioningFactor, _minTasks);
     List<DatastreamTask> datastreamTasks = getDatastreamTasks(datastreams, currentAssignment, maxTasksPerDatastream);
     datastreamTasks.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
     instances.sort(String::compareTo);
@@ -90,6 +103,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
     List<DatastreamTask> currentlyAssignedDatastreamTasks = new ArrayList<>();
     currentAssignment.values().forEach(currentlyAssignedDatastreamTasks::addAll);
 
+    boolean isSuccess = true;
     for (DatastreamGroup dg : datastreams) {
       Set<DatastreamTask> tasksForDatastreamGroup = currentlyAssignedDatastreamTasks.stream()
           .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
@@ -100,37 +114,46 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
         tasksForDatastreamGroup = createTasksForDatastream(dg, maxTasksPerDatastream);
       } else {
         Datastream datastream = dg.getDatastreams().get(0);
-        if (datastream.hasSource() && datastream.getSource().hasPartitions()) {
-          // Check that all partitions are covered with existing tasks.
-          int numberOfDatastreamPartitions = datastream.getSource().getPartitions();
-          Set<Integer> assignedPartitions = new HashSet<>();
-          int count = 0;
-          for (DatastreamTask task : tasksForDatastreamGroup) {
-            count += task.getPartitions().size();
-            assignedPartitions.addAll(task.getPartitions());
-          }
-          if (count != numberOfDatastreamPartitions || assignedPartitions.size() != numberOfDatastreamPartitions) {
-            LOG.error(
-                "Corrupted partition information for datastream {}. Expected number of partitions {}, actual {}: {}",
-                datastream.getName(), numberOfDatastreamPartitions, count, assignedPartitions);
-          }
+        // Check that all partitions are covered with existing tasks.
+        int numberOfDatastreamPartitions = getNumberOfDatastreamPartitions(dg);
+        Set<Integer> assignedPartitions = new HashSet<>();
+        int count = 0;
+        for (DatastreamTask task : tasksForDatastreamGroup) {
+          count += task.getPartitions().size();
+          assignedPartitions.addAll(task.getPartitions());
+        }
+        if (count != numberOfDatastreamPartitions || assignedPartitions.size() != numberOfDatastreamPartitions) {
+          LOG.warn(
+              "Corrupted partition information for datastream {}. Expected number of partitions {}, actual {}: {}",
+              datastream.getName(), numberOfDatastreamPartitions, count, assignedPartitions);
+          isSuccess = false;
         }
       }
 
-      allTasks.addAll(tasksForDatastreamGroup);
+      if (isSuccess || _ignorePartitionCorruptions) {
+        allTasks.addAll(tasksForDatastreamGroup);
+      } else {
+        LOG.error("Ignoring tasks for datastream {} since partition information is corrupted. Fix info for rebalance "
+            + "to reassign tasks", dg.getDatastreams().get(0).getName());
+      }
     }
 
     return new ArrayList<>(allTasks);
   }
 
+  private int getNumberOfDatastreamPartitions(DatastreamGroup datastream) {
+    return (_useMaxTaskForPartitioning ? _maxTasks :
+        datastream.getSourcePartitions().orElse(1));
+  }
+
   private Set<DatastreamTask> createTasksForDatastream(DatastreamGroup datastream, int maxTasksPerDatastream) {
-    int numberOfDatastreamPartitions = datastream.getSourcePartitions().orElse(1);
+    int numberOfDatastreamPartitions = getNumberOfDatastreamPartitions(datastream);
     int tasksPerDatastream =
         maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
     Set<DatastreamTask> tasks = new HashSet<>();
     for (int index = 0; index < tasksPerDatastream; index++) {
       tasks.add(new DatastreamTaskImpl(datastream.getDatastreams(), Integer.toString(index),
-          assignPartitionsToTask(numberOfDatastreamPartitions, index, tasksPerDatastream)));
+          assignPartitionsToTask(numberOfDatastreamPartitions, index, tasksPerDatastream), tasksPerDatastream));
     }
 
     return tasks;
