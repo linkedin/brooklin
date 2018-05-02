@@ -1,14 +1,15 @@
 package com.linkedin.datastream.common.databases.dbreader;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.List;
-
 import org.apache.commons.lang.Validate;
 
 
 /**
  * Oracle chunked query manager.
  */
-public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
+public class OracleChunkedQueryManager implements ChunkedQueryManager {
   private static final String SELECT_FROM = "SELECT * FROM ( ";
 
   /**
@@ -29,18 +30,12 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
   private static String generateFullHashPredicate(String nestedQuery, String perPartitionHashPredicate,
       List<Integer> partitions) {
     StringBuilder fullHashPredicate = new StringBuilder("SELECT * FROM ( " + nestedQuery + " ) WHERE ( ");
-
-    fullHashPredicate.append(perPartitionHashPredicate + " = " + partitions.get(0));
-    if (partitions.size() > 1) {
-      for (int i = 1; i < partitions.size(); i++) {
-        fullHashPredicate.append(" OR ");
-        fullHashPredicate.append(perPartitionHashPredicate);
-        fullHashPredicate.append(" = ");
-        fullHashPredicate.append(partitions.get(i));
-      }
+    int numPartitions = partitions.size();
+    fullHashPredicate.append(perPartitionHashPredicate).append(" IN ( ").append(partitions.get(0));
+    for (int i = 1; i < numPartitions; i++) {
+      fullHashPredicate.append(" , ").append(partitions.get(i));
     }
-    fullHashPredicate.append(" )");
-
+    fullHashPredicate.append(" ) )");
     return fullHashPredicate.toString();
   }
 
@@ -78,7 +73,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
     return perPartitionHashPredicate.toString();
   }
 
-  private static String generateOderByClause(List<String> keys) {
+  private static String generateOrderByClause(List<String> keys) {
     StringBuilder clause = new StringBuilder();
     clause.append("ORDER BY ");
     clause.append(keys.get(0));
@@ -116,7 +111,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
         generateFullHashPredicate(nestedQuery, generatePerPartitionHash(keys, partitionCount), partitions);
 
     StringBuilder innerQuery = new StringBuilder(orderedPartitionedQuery);
-    innerQuery.append(" " + generateOderByClause(keys));
+    innerQuery.append(" " + generateOrderByClause(keys));
 
 
     // wrap this in a ROWNUM constraint of its own since ROWNUM is applied before ORDER-by if used together in one constraint
@@ -154,7 +149,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
       // last key for this sub query, so ignore anything less than
       subQuery.append(" AND ").append(keys.get(j)).append(" > ?");
 
-      subQuery.append(" " + generateOderByClause(keys));
+      subQuery.append(" " + generateOrderByClause(keys));
 
       // ROWNUM needs to be added to its own SELECT * and cannot go with ORDER-BY clause sine ROWNUM gets applied before
       // order by
@@ -166,7 +161,7 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
 
     // The outermost query should have a ROWNUM and ORDER-By constraint of its own if if had more than 1 key
     if (keyCount > 1) {
-      query.insert(0, SELECT_FROM).append(" ) " + generateOderByClause(keys));
+      query.insert(0, SELECT_FROM).append(" ) " + generateOrderByClause(keys));
       query.insert(0, SELECT_FROM).append(" ) WHERE ROWNUM <= ").append(chunkCount);
     }
 
@@ -213,5 +208,45 @@ public class OracleChunkedQueryManager extends AbstractChunkedQueryManager {
 
     // Add predicate to ignore previously seen rows.
     return generateChunkedQueryHelper(innerQuery.toString(), keys, chunkSize);
+  }
+
+  @Override
+  public void prepareChunkedQuery(PreparedStatement stmt, List<Object> values) throws SQLException {
+    int count = values.size();
+
+    // Bind all variables in the PreparedStatement i.e. the '?' to values supplied in the list.
+
+    // For the example query
+    //
+    //  SELECT * FROM
+    //  (
+    //    SELECT * FROM
+    //        (
+    //            SELECT * FROM
+    //                (
+    //                    SELECT * FROM
+    //                        (
+    //                            SELECT * FROM TABLE
+    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ?
+    //                        ORDER BY KEY1 , KEY2
+    //                ) WHERE ROWNUM <= 10
+    //            UNION ALL
+    //            SELECT * FROM
+    //                (
+    //                    SELECT * FROM
+    //                        (
+    //                            SELECT * FROM TABLE
+    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ?
+    //                ORDER BY KEY1 , KEY2
+    //        ) WHERE ROWNUM <= 10
+    //      ) ORDER BY KEY1 , KEY2
+    //   ) WHERE ROWNUM <= 10
+    // the value for Key1 and Key2 needs to be plugged in order. The index values for PreparedStatement.setObject start
+    // at 1.
+    for (int i = 0, index = 1; i < count; i++) {
+      for (int j = 0; j <= i; j++, index++) {
+        stmt.setObject(index, values.get(j));
+      }
+    }
   }
 }

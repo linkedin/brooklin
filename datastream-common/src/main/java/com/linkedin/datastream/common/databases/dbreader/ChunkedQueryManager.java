@@ -11,7 +11,9 @@ public interface ChunkedQueryManager {
    * Throws IllegalArgumentException
    * @param query
    */
-  void validateQuery(String query) throws IllegalArgumentException;
+  default void validateQuery(String query) throws IllegalArgumentException {
+
+  }
 
   /**
    * With chunking, the first query cannot ignore any rows and subsequent ones will ignore row previously

@@ -18,13 +18,13 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *      SELECT * FROM
      *          (
      *              SELECT * FROM TABLE
-     *          ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 3 )
+     *          ) WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 3 ) )
      *          ORDER BY KEY1
      *  ) WHERE ROWNUM <= 10
      */
 
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( KEY1 , 9 ) = 3 ) ORDER BY KEY1 ) WHERE ROWNUM <= 10";
+        + "WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 3 ) ) ORDER BY KEY1 ) WHERE ROWNUM <= 10";
 
     /**
      *  SELECT * FROM
@@ -32,13 +32,13 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *      SELECT * FROM
      *          (
      *              SELECT * FROM TABLE
-     *          ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 3 ) AND KEY1 > ?
+     *          ) WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 3 ) ) AND KEY1 > ?
      *          ORDER BY KEY1
      *  ) WHERE ROWNUM <= 10
      */
     String chunkedExpected =
         "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-            + "WHERE ( ORA_HASH ( KEY1 , 9 ) = 3 ) AND KEY1 > ? ORDER BY KEY1 ) WHERE ROWNUM <= 10";
+            + "WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 3 ) ) AND KEY1 > ? ORDER BY KEY1 ) WHERE ROWNUM <= 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEY, CHUNK_SIZE, PARTITION_COUNT, PARTITION);
   }
 
@@ -54,12 +54,12 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *       SELECT * FROM
      *           (
      *               SELECT * FROM TABLE
-     *           ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 2 OR ORA_HASH ( KEY1 , 9 ) = 5 )
+     *           ) WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 2 , 5 ) )
      *       ORDER BY KEY1
      *   ) WHERE ROWNUM <= 10
      */
-    String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 2 "
-        + "OR ORA_HASH ( KEY1 , 9 ) = 5 ) ORDER BY KEY1 ) WHERE ROWNUM <= 10";
+    String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) WHERE"
+        + " ( ORA_HASH ( KEY1 , 9 ) IN ( 2 , 5 ) ) ORDER BY KEY1 ) WHERE ROWNUM <= 10";
 
     /**
      *   SELECT * FROM
@@ -67,12 +67,12 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *       SELECT * FROM
      *           (
      *               SELECT * FROM TABLE
-     *           ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 2 OR ORA_HASH ( KEY1 , 9 ) = 5 ) AND KEY1 > ?
+     *           ) WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 2 , 5 ) ) AND KEY1 > ?
      *           ORDER BY KEY1
      *   ) WHERE ROWNUM <= 10
      */
-    String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) WHERE ( ORA_HASH ( KEY1 , 9 ) = 2 "
-        + "OR ORA_HASH ( KEY1 , 9 ) = 5 ) AND KEY1 > ? ORDER BY KEY1 ) WHERE ROWNUM <= 10";
+    String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) WHERE ( ORA_HASH ( KEY1 , 9 ) IN ( 2 , 5 ) ) "
+        + "AND KEY1 > ? ORDER BY KEY1 ) WHERE ROWNUM <= 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEY, CHUNK_SIZE, PARTITION_COUNT,
         PARTITIONS);
   }
@@ -88,12 +88,12 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *        SELECT * FROM
      *            (
      *                SELECT * FROM TABLE
-     *            ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 )
+     *            ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) )
      *        ORDER BY KEY1 , KEY2
      *    ) WHERE ROWNUM <= 10
      */
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
 
     /**
      *  SELECT * FROM
@@ -105,7 +105,7 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *                          SELECT * FROM
      *                              (
      *                                  SELECT * FROM TABLE
-     *                              ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ?
+     *                              ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 > ?
      *                              ORDER BY KEY1 , KEY2
      *                      ) WHERE ROWNUM <= 10
      *
@@ -116,7 +116,7 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *                          SELECT * FROM
      *                              (
      *                                  SELECT * FROM TABLE
-     *                              ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ?
+     *                              ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 = ? AND KEY2 > ?
      *                      ORDER BY KEY1 , KEY2
      *              ) WHERE ROWNUM <= 10
      *      ) ORDER BY KEY1 , KEY2
@@ -124,9 +124,9 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *  ) WHERE ROWNUM <= 10
      */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ? ORDER BY KEY1 , KEY2 ) "
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 > ? ORDER BY KEY1 , KEY2 ) "
         + "WHERE ROWNUM <= 10 UNION ALL SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ? ORDER BY KEY1 , KEY2 ) "
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 = ? AND KEY2 > ? ORDER BY KEY1 , KEY2 ) "
         + "WHERE ROWNUM <= 10 ) ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEYS, CHUNK_SIZE, PARTITION_COUNT,
         PARTITION);
@@ -144,13 +144,12 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *       SELECT * FROM
      *           (
      *               SELECT * FROM TABLE
-     *           ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 )
+     *           ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) )
      *       ORDER BY KEY1 , KEY2
      *   ) WHERE ROWNUM <= 10
      */
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 ) "
-        + "ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) ) ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
 
     /**
      *  SELECT * FROM
@@ -162,7 +161,7 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *                 SELECT * FROM
      *                 (
      *                       SELECT * FROM TABLE
-     *                 ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 ) AND KEY1 > ?
+     *                 ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) ) AND KEY1 > ?
      *                   ORDER BY KEY1 , KEY2
      *            ) WHERE ROWNUM <= 10
      *
@@ -173,7 +172,7 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      *                  SELECT * FROM
      *                  (
      *                       SELECT * FROM TABLE
-     *                  ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 ) AND KEY1 = ? AND KEY2 > ?
+     *                  ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) ) AND KEY1 = ? AND KEY2 > ?
      *                    ORDER BY KEY1 , KEY2
      *            ) WHERE ROWNUM <= 10
      *       ) ORDER BY KEY1 , KEY2
@@ -182,9 +181,9 @@ public class TestOracleChunkedQueryManager extends TestChunkedQueryManagerBase {
      */
 
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 ) "
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) ) "
         + "AND KEY1 > ? ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10 UNION ALL SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) "
-        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 5 ) "
+        + "WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 2 , 5 ) ) "
         + "AND KEY1 = ? AND KEY2 > ? ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10 ) ORDER BY KEY1 , KEY2 ) WHERE ROWNUM <= 10";
 
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEYS, CHUNK_SIZE, PARTITION_COUNT,

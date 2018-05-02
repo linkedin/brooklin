@@ -1,19 +1,20 @@
 package com.linkedin.datastream.common.databases.dbreader;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.List;
-
 import org.apache.commons.lang.Validate;
 
 
 /**
  * Query manager for Mysql
  */
-public class MySqlChunkedQueryManager extends AbstractChunkedQueryManager {
+public class MySqlChunkedQueryManager implements ChunkedQueryManager {
   private static final String SELECT_FROM = "SELECT * FROM ( ";
 
-  /** Generate base predicate for shariding keys to given number of partitions.
+  /** Generate base predicate for sharding keys to given number of partitions.
    *  Ex: MOD ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 10 ) for a table with 3 keys {K1, K2, K3} and 10 partitions */
-  private String generatePerPartitionHashPredicate(List<String> keys, long partitionCount) {
+  private static String generatePerPartitionHashPredicate(List<String> keys, int partitionCount) {
     StringBuilder query = new StringBuilder();
     int keyCount = keys.size();
     // Mysql CONCAT is not a binary operator and can take any number of arguments, including a single argument
@@ -32,23 +33,23 @@ public class MySqlChunkedQueryManager extends AbstractChunkedQueryManager {
   }
 
   /** Generate predicate for filtering rows hashing to the assigned partitions :
-   *  Ex: WHERE ( MOD ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 10 ) = 1 OR MOD ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 10 ) = 6 )
+   *  Ex: WHERE ( MOD ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 10 ) IN (1 , 6 ) )
    *  where 1 and 6 are the assigned partitions, 10 the partition count and, {K1, K2, K3} the keys of the table
    */
-  private String generateFullPartitionHashPredicate(String perPartitionPredicate, List<Integer> partitions) {
+  private static String generateFullPartitionHashPredicate(String perPartitionPredicate, List<Integer> partitions) {
     StringBuilder query = new StringBuilder();
     int numPartitions = partitions.size();
 
-    query.append("WHERE ( ").append(perPartitionPredicate).append(" = ").append(partitions.get(0));
+    query.append("WHERE ( ").append(perPartitionPredicate).append(" IN ( ").append(partitions.get(0));
     for (int i = 1; i < numPartitions; i++) {
-      query.append(" OR ").append(perPartitionPredicate).append(" = ").append(partitions.get(i));
+      query.append(" , ").append(partitions.get(i));
     }
-    query.append(" )");
+    query.append(" ) )");
 
     return query.toString();
   }
 
-  private String generateKeyChunkingPredicate(List<String> keys) {
+  private static String generateKeyChunkingPredicate(List<String> keys) {
     StringBuilder str = new StringBuilder();
     int numkeys = keys.size();
     str.append("( " + keys.get(0) + " > ? )");
@@ -62,7 +63,7 @@ public class MySqlChunkedQueryManager extends AbstractChunkedQueryManager {
     return str.toString();
   }
 
-  private String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
+  private static String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
       List<Integer> partitions, boolean isFirstRun) {
     Validate.isTrue(!keys.isEmpty(), "Need keys to generate chunked query. No keys supplied");
 
@@ -97,5 +98,32 @@ public class MySqlChunkedQueryManager extends AbstractChunkedQueryManager {
   public String generateChunkedQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
       List<Integer> partitions) {
     return generateChunkedQuery(nestedQuery, keys, chunkSize, partitionCount, partitions, false);
+  }
+
+  @Override
+  public void prepareChunkedQuery(PreparedStatement stmt, List<Object> values) throws SQLException {
+    int count = values.size();
+
+    // Bind all variables in the PreparedStatement i.e. the '?' to values supplied in the list.
+
+    // For the example query
+    //
+    //  SELECT * FROM
+    //  (
+    //      SELECT * FROM
+    //          (
+    //              SELECT * FROM TABLE
+    //          ) nestedTab1 WHERE ( MOD ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) )
+    //      AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
+    //      ORDER BY KEY1 , KEY2
+    //  ) as nestedTab2 LIMIT 10;
+    //
+    // the value for KEY1 and KEY2 needs to be plugged in order. The index values for PreparedStatement.setObject start
+    // at 1.
+    for (int i = 0, index = 1; i < count; i++) {
+      for (int j = 0; j <= i; j++, index++) {
+        stmt.setObject(index, values.get(j));
+      }
+    }
   }
 }
