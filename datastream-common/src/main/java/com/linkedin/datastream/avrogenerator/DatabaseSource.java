@@ -85,6 +85,13 @@ public abstract class DatabaseSource {
   public abstract List<String> getPrimaryKeyFields(String tableName) throws SQLException, SchemaGenerationException;
 
   /**
+   * Retrieve the partition count for the source if partitioned. 1 if not partitioned.
+   */
+  public int getPartitionCount() {
+    return 1;
+  }
+
+  /**
    * Create and execute a query to get all the fields from the Database table/view
    */
   public abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;

@@ -66,8 +66,7 @@ public class DatabaseChunkedReader implements Closeable {
   // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
   // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
   private final long _rowCountLimit;
-  private final long _maxChunkIndex;
-  private final long _chunkIndex;
+  private final List<Integer> _partitions = new ArrayList<>();
   private final int _queryTimeoutSecs;
   // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
   // ResultSet from the server.
@@ -84,6 +83,7 @@ public class DatabaseChunkedReader implements Closeable {
   private final LinkedHashMap<String, Object> _chunkingKeys = new LinkedHashMap<>();
 
   private boolean _initialized = false;
+  private int _numPartitions;
   private String _chunkedQuery;
   private PreparedStatement _firstStmt;
   private PreparedStatement _queryStmt;
@@ -118,9 +118,7 @@ public class DatabaseChunkedReader implements Closeable {
     _table = table;
     _fetchSize = _databaseChunkedReaderConfig.getFetchSize();
     _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
-    _maxChunkIndex = _databaseChunkedReaderConfig.getNumChunkBuckets() - 1;
     _rowCountLimit = _databaseChunkedReaderConfig.getRowCountLimit();
-    _chunkIndex = _databaseChunkedReaderConfig.getChunkIndex();
     _connection = source.getConnection();
     _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
@@ -137,14 +135,18 @@ public class DatabaseChunkedReader implements Closeable {
     validateQuery(sourceQuery);
   }
 
-  private void initializeDatabaseMetadata() throws SQLException, SchemaGenerationException {
+  private void initializeDatabaseMetadata(List<Integer> partitions) throws SQLException, SchemaGenerationException {
+    // Verify the partitions are valid.
+    _numPartitions = _databaseSource.getPartitionCount();
+    partitions.forEach(p -> Validate.isTrue(p >= 0 && p < _numPartitions));
+
     _databaseSource.getPrimaryKeyFields(_table).stream().forEach(k -> _chunkingKeys.put(k, null));
     if (_chunkingKeys.isEmpty()) {
       _metrics.updateErrorRate();
 
       // There can be tables without primary keys. Let user to handle it.
       String msg = "Failed to get primary keys for table " + _table + ". Cannot chunk without it";
-      throw new IllegalArgumentException(msg);
+      throw new DatastreamRuntimeException(msg, new InvalidKeyException());
     }
 
     _tableSchema = _databaseSource.getTableSchema(_table);
@@ -159,15 +161,15 @@ public class DatabaseChunkedReader implements Closeable {
 
   private void generateChunkedQueries() throws SQLException {
     String firstQuery =
-        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
-            _maxChunkIndex, _chunkIndex);
+        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<String>(_chunkingKeys.keySet()), _rowCountLimit,
+            _numPartitions, _partitions);
     _firstStmt = _connection.prepareStatement(firstQuery);
     _firstStmt.setFetchSize(_fetchSize);
     _firstStmt.setQueryTimeout(_queryTimeoutSecs);
 
     _chunkedQuery =
-        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
-            _maxChunkIndex, _chunkIndex);
+        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<String>(_chunkingKeys.keySet()), _rowCountLimit,
+            _numPartitions, _partitions);
     _queryStmt = _connection.prepareStatement(_chunkedQuery);
     _queryStmt.setFetchSize(_fetchSize);
     _queryStmt.setQueryTimeout(_queryTimeoutSecs);
@@ -235,26 +237,25 @@ public class DatabaseChunkedReader implements Closeable {
   }
 
   /**
-   * Prepare reader for poll. Calling start on a reader multiple times, is allowed and will release previous resources
-   * and reset the reader to prepare for another round of reading the table from start.
-   * So all of these are acceptable flows:
-   *  start -> poll -> poll -> close;
-   *  start -> poll -> poll -> close -> start -> poll .. -> close;
-   *  start -> poll -> poll -> start -> poll .. -> close -> start -> poll .. -> close;
-   *  start -> close -> start -> poll .. -> close
-   * @param checkpoint Row characterized by Checkpoint map to start reading from. The reader can be made to start reading
-   *                   from a specific row which can be identified uniquely by the primary[/unique] key columns having
-   *                   values as specified in the Checkpoint map. Can be null in which case the table is read from
-   *                   from the start.
+   * Prepare reader for poll. Calling start on a reader multiple times, is not allowed.
+   * A valid flow: subscribe() -> poll().* -> close()
+   * @param checkpoint Row offset to start reading from. The row greater than the checkpointed row will be returned by
+   *                   the first poll. The reader can be made to start reading from a specific row which identified
+   *                   uniquely by the primary[/unique] key columns having values as specified in the checkpoint map.
+   *                   If null, table is read from from the first row ordered by the primary keys.
+   *                   For example the table with primary key columns K1 and K2, having a row with K1 = V1 and K2 = V2
+   *                   can be read starting at row immediately following this row by specifying the map {k1=V1, K2=V2}
    * @throws SQLException
    * @throws SchemaGenerationException
    */
-  public void start(Map<String, Object> checkpoint) throws SQLException, SchemaGenerationException {
+  public void subscribe(List<Integer> partitions, Map<String, Object> checkpoint) throws SQLException, SchemaGenerationException {
     if (_initialized) {
-      close();
+      throw new DatastreamRuntimeException("Subscribing an already subscribed reader");
     }
+
     _metrics = new DatabaseChunkedReaderMetrics(String.join(".", _database, _table), _readerId);
-    initializeDatabaseMetadata();
+    _partitions.addAll(partitions);
+    initializeDatabaseMetadata(partitions);
     generateChunkedQueries();
     loadCheckpoint(checkpoint);
     _initialized = true;
@@ -320,7 +321,7 @@ public class DatabaseChunkedReader implements Closeable {
    */
   public GenericRecord poll() throws SQLException {
     if (!_initialized) {
-      throw new DatastreamRuntimeException("call start before calling poll for records");
+      throw new DatastreamRuntimeException("Cannot poll on unsubscribed reader. Call subscribe() first");
     }
 
     if (_queryResultSet == null) {
