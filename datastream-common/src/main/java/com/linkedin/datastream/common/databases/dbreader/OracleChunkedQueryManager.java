@@ -17,10 +17,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
    * Ex:
    * <pre>
    * SELECT * FROM ( nestedQuery )
-   * WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 1
-   *         OR
-   *         ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) = 2
-   *       )
+   * WHERE ( ORA_HASH ( CONCAT ( CONCAT ( MEMBER_ID , ANET_ID ) , SETTING_ID ) , 9 ) IN ( 1 , 2 ) )
    * </pre>
    * using the base partitioning predicate
    * <pre>
@@ -91,7 +88,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
    *       SELECT * FROM
    *       (
    *         SELECT * FROM ANET_MEMBERS
-   *       ) WHERE (ORA_HASH ( CONCAT ( MEMBER_ID , ANET_ID ) , 9 ) = 2 OR ORA_HASH ( CONCAT ( MEMBER_ID , ANET_ID ) , 9 ) = 5 )
+   *       ) WHERE (ORA_HASH ( CONCAT ( MEMBER_ID , ANET_ID ) , 9 ) IN ( 2 , 5 ) )
    *         ORDER BY MEMBER_ID , ANET_ID
    *    ) WHERE ROWNUM <= 10
    *  </pre>
@@ -179,7 +176,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
    *                    SELECT * FROM
    *                        (
    *                            SELECT * FROM TABLE
-   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ?
+   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 > ?
    *                        ORDER BY KEY1 , KEY2
    *                ) WHERE ROWNUM <= 10
    *
@@ -190,7 +187,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
    *                    SELECT * FROM
    *                        (
    *                            SELECT * FROM TABLE
-   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ?
+   *                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 = ? AND KEY2 > ?
    *                ORDER BY KEY1 , KEY2
    *        ) WHERE ROWNUM <= 10
    *      ) ORDER BY KEY1 , KEY2
@@ -227,7 +224,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
     //                    SELECT * FROM
     //                        (
     //                            SELECT * FROM TABLE
-    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 > ?
+    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 > ?
     //                        ORDER BY KEY1 , KEY2
     //                ) WHERE ROWNUM <= 10
     //            UNION ALL
@@ -236,7 +233,7 @@ public class OracleChunkedQueryManager implements ChunkedQueryManager {
     //                    SELECT * FROM
     //                        (
     //                            SELECT * FROM TABLE
-    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) = 3 ) AND KEY1 = ? AND KEY2 > ?
+    //                        ) WHERE ( ORA_HASH ( CONCAT ( KEY1 , KEY2 ) , 9 ) IN ( 3 ) ) AND KEY1 = ? AND KEY2 > ?
     //                ORDER BY KEY1 , KEY2
     //        ) WHERE ROWNUM <= 10
     //      ) ORDER BY KEY1 , KEY2
