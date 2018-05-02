@@ -71,19 +71,16 @@ public class TestDatabaseChunkedReader {
     _dynamicMetricsManager = DynamicMetricsManager.createInstance(new MetricRegistry());
   }
 
-  private Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index) {
-    return createTestDBReaderProperties(chunkSize, numBuckets, index, false);
+  private Properties createTestDBReaderProperties(Integer chunkSize) {
+    return createTestDBReaderProperties(chunkSize, false);
   }
 
-  private static Properties createTestDBReaderProperties(Integer chunkSize, Integer numBuckets, Integer index,
-      Boolean skipBadMsg) {
+  private static Properties createTestDBReaderProperties(Integer chunkSize, Boolean skipBadMsg) {
     Properties props = new Properties();
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + ROW_COUNT_LIMIT, chunkSize.toString());
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + NUM_CHUNK_BUCKETS, numBuckets.toString());
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + CHUNK_INDEX, index.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
         "com.linkedin.datastream.common.databases.PassThroughSqlTypeInterpreter");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,
@@ -113,7 +110,7 @@ public class TestDatabaseChunkedReader {
    */
   @Test
   public void testRowCount() throws Exception {
-    int numBuckets = 4;
+    int numPartitions = 4;
     int chunkSize = 3;
 
     /* Test uses 4 readers with the expects the following results when reading 'TEST_DB_TEST_TABLE'
@@ -223,24 +220,24 @@ public class TestDatabaseChunkedReader {
     DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
     Mockito.when(mockDBSource.getPrimaryKeyFields(TEST_COMPOSITE_KEY_TABLE)).thenReturn(TEST_COMPOSITE_PKEYS);
     Mockito.when(mockDBSource.getTableSchema(TEST_COMPOSITE_KEY_TABLE)).thenReturn(TEST_COMPOSITE_KEY_TABLE_SCHEMA);
-
-    List<Properties> props = new ArrayList<>();
+    Mockito.when(mockDBSource.getPartitionCount()).thenReturn(1);
+    Properties props = createTestDBReaderProperties(chunkSize);
     List<DataSource> mockSources = new ArrayList<>();
 
     Map<Integer, List<GenericRecord>> data = new HashMap<>();
-    for (int i = 0; i < numBuckets; i++) {
-      props.add(createTestDBReaderProperties(chunkSize, numBuckets, i));
+
+    for (int i = 0; i < numPartitions; i++) {
       data.put(i, new ArrayList<>());
       DataSource mockDs = Mockito.mock(DataSource.class);
           Mockito.when(mockDs.getConnection()).thenReturn(new MockJDBCConnection(keyMapList.get(i), dataMapList.get(i)));
       mockSources.add(mockDs);
     }
 
-    for (int i = 0; i < numBuckets; i++) {
+    for (int i = 0; i < numPartitions; i++) {
       try (DatabaseChunkedReader reader =
-          new DatabaseChunkedReader(props.get(i), mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
+          new DatabaseChunkedReader(props, mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
               TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
-        reader.start(null);
+        reader.subscribe(Collections.singletonList(new Integer(0)), null);
         for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
           data.get(i).add(row);
         }
@@ -256,7 +253,6 @@ public class TestDatabaseChunkedReader {
 
   @Test
   void testSkipBadMessages() throws SQLException, SchemaGenerationException {
-    int numBuckets = 4;
     int chunkSize = 3;
     String readerId = "testSkipBadMessages";
 
@@ -264,8 +260,9 @@ public class TestDatabaseChunkedReader {
     DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
     Mockito.when(mockDBSource.getPrimaryKeyFields(anyString())).thenReturn(TEST_SIMPLE_KEYS);
     Mockito.when(mockDBSource.getTableSchema(anyString())).thenReturn(TEST_SIMPLE_SCHEMA);
+    Mockito.when(mockDBSource.getPartitionCount()).thenReturn(1);
 
-    Properties props = createTestDBReaderProperties(chunkSize, numBuckets, 0, true);
+    Properties props = createTestDBReaderProperties(chunkSize, true);
     DataSource mockDs = Mockito.mock(DataSource.class);
     Connection mockConnection = Mockito.mock(Connection.class);
     PreparedStatement mockStmt = Mockito.mock(PreparedStatement.class);
@@ -290,7 +287,7 @@ public class TestDatabaseChunkedReader {
     int count = 0;
     DatabaseChunkedReader reader =
         new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
-    reader.start(null);
+    reader.subscribe(Collections.singletonList(new Integer(0)), null);
     for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
       GenericRecord expected = new GenericData.Record(TEST_SIMPLE_SCHEMA);
       expected.put("key1", 1);
@@ -313,7 +310,7 @@ public class TestDatabaseChunkedReader {
   @Test
   public void testCheckpointedChunkedReader() throws SQLException, SchemaGenerationException {
     // Verify the first query is a chunked query.
-    Properties props = createTestDBReaderProperties(10, 1, 0, true);
+    Properties props = createTestDBReaderProperties(10, true);
     DataSource mockDs = Mockito.mock(DataSource.class);
     Connection mockConnection = Mockito.mock(Connection.class);
     PreparedStatement mockStmt = Mockito.mock(PreparedStatement.class);
@@ -323,6 +320,7 @@ public class TestDatabaseChunkedReader {
     DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
     Mockito.when(mockDBSource.getPrimaryKeyFields(anyString())).thenReturn(TEST_SIMPLE_KEYS);
     Mockito.when(mockDBSource.getTableSchema(anyString())).thenReturn(TEST_SIMPLE_SCHEMA);
+    Mockito.when(mockDBSource.getPartitionCount()).thenReturn(1);
     ResultSet mockRs = Mockito.mock(ResultSet.class);
     Mockito.when(mockRs.next()).thenReturn(false); //No results for the query. Test to ensure the first query is a chunked query
     Mockito.when(mockStmt.executeQuery()).thenReturn(mockRs);
@@ -331,7 +329,7 @@ public class TestDatabaseChunkedReader {
             "TEST_CHECKPOINT");
     Map<String, Object> checkpoint = new HashMap<>();
     checkpoint.put("key1", 99);
-    reader.start(checkpoint);
+    reader.subscribe(Collections.singletonList(new Integer(0)), checkpoint);
     reader.poll();
     // Verify that a call to setObject was done with supplied key value
     Mockito.verify(mockStmt, Mockito.times(1)).setObject(1, 99);
