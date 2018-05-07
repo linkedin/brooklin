@@ -21,6 +21,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.LogUtils;
 import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
@@ -314,7 +315,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public String toString() {
     // toString() is mainly for logging purpose, feel free to modify the content/format
-    return String.format("%s(%s), partitions=%s", getDatastreamTaskName(), _connectorType, _partitions);
+    return String.format("%s(%s), partitions=%s", getDatastreamTaskName(), _connectorType,
+        LogUtils.logNumberArrayInRange(_partitions));
   }
 
   public void setZkAdapter(ZkAdapter adapter) {
