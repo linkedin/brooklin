@@ -131,7 +131,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
       return _inFlight.size();
     }
 
-    public void register(T checkpoint) {
+    public synchronized void register(T checkpoint) {
       _inFlight.add(checkpoint);
     }
 
