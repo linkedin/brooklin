@@ -189,7 +189,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     String someTopic = "someTopic";
     Assert.assertEquals(transportProviderAdmin.getDestination(someTopic),
-        String.format(stream.getDestination().getConnectionString(), someTopic));
+        stream.getDestination().getConnectionString().replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, someTopic));
 
     coordinator.stop();
   }

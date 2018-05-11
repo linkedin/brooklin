@@ -31,6 +31,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
   private final boolean _isFlushlessModeEnabled;
 
+  protected static final String MM_TOPIC_PLACEHOLDER = "*";
+
   public KafkaMirrorMakerConnector(String connectorName, Properties config) {
     super(connectorName, config, LOG);
     _isFlushlessModeEnabled =
@@ -79,8 +81,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   @Override
   public String getDestinationName(Datastream stream) {
-    // return %s so that topic can be inserted into the destination string at produce time
-    return "%s";
+    // return topic placeholder string so that topic can be inserted into the destination string at produce time
+    return MM_TOPIC_PLACEHOLDER;
   }
 
   @Override

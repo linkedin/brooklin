@@ -99,7 +99,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(readTime.toEpochMilli());
     builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
-    builder.setDestination(String.format(_datastreamTask.getDatastreamDestination().getConnectionString(), topic));
+    builder.setDestination(_datastreamTask.getDatastreamDestination()
+        .getConnectionString()
+        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, topic));
     return builder.build();
   }
 
