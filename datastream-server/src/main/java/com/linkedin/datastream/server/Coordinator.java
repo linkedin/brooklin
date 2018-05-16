@@ -254,7 +254,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.ensureConnectorZNode(connector.getConnectorType());
 
       // call connector::start API
-      connector.start();
+      connector.start(connectorInfo.getCheckpointProvider());
 
       _log.info("Coordinator started");
     }
@@ -1023,7 +1023,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     connectorMetrics.ifPresent(_metrics::addAll);
 
     ConnectorInfo connectorInfo =
-        new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, deduper, authorizerName);
+        new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, _cpProvider, deduper, authorizerName);
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics

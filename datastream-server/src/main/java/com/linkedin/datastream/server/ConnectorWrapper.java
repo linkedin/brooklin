@@ -11,6 +11,7 @@ import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -70,11 +71,11 @@ public class ConnectorWrapper {
         _connectorType, _instanceName, _endTime - _startTime));
   }
 
-  public void start() {
+  public void start(CheckpointProvider checkpointProvider) {
     logApiStart("start");
 
     try {
-      _connector.start();
+      _connector.start(checkpointProvider);
     } catch (Exception ex) {
       logErrorAndException("start", ex);
       throw ex;

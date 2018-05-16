@@ -11,9 +11,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
-import kafka.admin.AdminUtils;
-
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -21,12 +18,15 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.Sets;
+import kafka.admin.AdminUtils;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
-import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
@@ -35,20 +35,19 @@ import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
-import com.linkedin.datastream.server.DatastreamProducerRecord;
-import com.linkedin.datastream.server.FlushlessEventProducerHandler;
-import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.CoordinatorConfig;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.SourceBasedDeduper;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 
-import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
-import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
+import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.*;
 
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
@@ -299,7 +298,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     KafkaMirrorMakerConnector connector =
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
-    connector.start();
+    connector.start(null);
 
     // notify connector of new task
     connector.onAssignmentChange(Collections.singletonList(task));
@@ -386,7 +385,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
     KafkaMirrorMakerConnector connector =
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
-    connector.start();
+    connector.start(null);
 
     // notify connector of new task
     connector.onAssignmentChange(Collections.singletonList(task));
@@ -439,7 +438,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
     KafkaMirrorMakerConnector connector =
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
-    connector.start();
+    connector.start(null);
 
     // notify connector of new task
     connector.onAssignmentChange(Collections.singletonList(task));
@@ -477,7 +476,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     KafkaMirrorMakerConnector connector =
         new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
 
-    connector.start();
+    connector.start(null);
 
     Assert.assertNull(connector.process(""));
     Assert.assertNull(connector.process("/not_datastream_state?datastream=name"));

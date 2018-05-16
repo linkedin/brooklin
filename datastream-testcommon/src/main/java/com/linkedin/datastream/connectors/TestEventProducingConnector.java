@@ -18,9 +18,6 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
@@ -32,7 +29,10 @@ import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
+
+import static java.util.concurrent.TimeUnit.*;
 
 
 /**
@@ -74,7 +74,7 @@ public class TestEventProducingConnector implements Connector {
   }
 
   @Override
-  public synchronized void start() {
+  public synchronized void start(CheckpointProvider checkpointProvider) {
     LOG.info("Start called.");
   }
 

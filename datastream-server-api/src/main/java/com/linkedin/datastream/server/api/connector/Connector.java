@@ -13,6 +13,7 @@ import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -21,12 +22,12 @@ import com.linkedin.datastream.server.DatastreamTask;
  *  Coordinator is shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
 public interface Connector extends MetricsAware {
-
   /**
-   * Method to start the connector. This is called immediately after the connector is instantiated.
-   * This typically happens when brooklin server starts up.
+   * Method to start the connector.
+   * This is called immediately after the connector is instantiated. This typically happens when brooklin server starts up.
+   * @param checkpointProvider CheckpointProvider if the connector needs a checkpoint store.
    */
-  void start();
+  void start(CheckpointProvider checkpointProvider);
 
   /**
    * Method to stop the connector. This is called when the brooklin server is being stopped.

@@ -51,6 +51,7 @@ import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -149,7 +150,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public void start() {
+    public void start(CheckpointProvider checkpointProvider) {
       _isStarted = true;
       LOG.info("Connector " + _name + " started");
     }
@@ -249,7 +250,7 @@ public class TestCoordinator {
     //
     Connector testConnector = new Connector() {
       @Override
-      public void start() {
+      public void start(CheckpointProvider checkpointProvider) {
       }
 
       @Override
@@ -1532,7 +1533,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public void start() {
+    public void start(CheckpointProvider checkpointProvider) {
 
     }
 
