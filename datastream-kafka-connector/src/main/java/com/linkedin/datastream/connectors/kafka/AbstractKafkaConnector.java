@@ -33,6 +33,7 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -123,7 +124,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   @Override
-  public void start() {
+  public void start(CheckpointProvider checkpointProvider) {
     _daemonThreadExecutorService.scheduleAtFixedRate(() -> {
       try {
         if (!_runningTasks.isEmpty()) {

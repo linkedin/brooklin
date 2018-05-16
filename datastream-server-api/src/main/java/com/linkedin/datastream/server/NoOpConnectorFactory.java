@@ -1,11 +1,13 @@
 package com.linkedin.datastream.server;
 
+import java.util.List;
+import java.util.Properties;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import java.util.List;
-import java.util.Properties;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -19,7 +21,7 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
 
   public static class NoOpConnector implements Connector {
     @Override
-    public void start() {
+    public void start(CheckpointProvider checkpointProvider) {
     }
 
     @Override

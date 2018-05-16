@@ -32,6 +32,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.connectors.oracle.triggerbased.consumer.OracleConsumerConfig;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 public class OracleConnector implements Connector {
@@ -116,7 +117,8 @@ public class OracleConnector implements Connector {
    * the {@code ::start()} method, which constantly checks to make sure that
    * the handlers are operating.
    */
-  public void start() {
+  @Override
+  public void start(CheckpointProvider checkpointProvider) {
     LOG.info("Oracle TriggerBased Connector start Requested");
 
     if (_daemonThreadExecutorService == null) {

@@ -22,26 +22,12 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  *  Coordinator is shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
 public interface Connector extends MetricsAware {
-
-  /**
-   * Method to start the connector. This is called immediately after the connector is instantiated.
-   * This typically happens when brooklin server starts up.
-   */
-  void start();
-
   /**
    * Method to start the connector.
    * This is called immediately after the connector is instantiated. This typically happens when brooklin server starts up.
-   *
-   * This API will eventually replace the no argument version and is meant to help manage dependent modules not breaking
-   * from not implementing this API. Once all modules have moved to this version of the API, the other API will be removed
-   * and default implementation removed.
-   *
-   * @param checkpointProvider DatastreamCheckpointProvider if the connector needs a checkpoint store.
+   * @param checkpointProvider CheckpointProvider if the connector needs a checkpoint store.
    */
-  default void start(CheckpointProvider checkpointProvider) {
-    start();
-  }
+  void start(CheckpointProvider checkpointProvider);
 
   /**
    * Method to stop the connector. This is called when the brooklin server is being stopped.

@@ -30,7 +30,7 @@ public class TestAbstractKafkaConnector {
     TestKafkaConnector connector = new TestKafkaConnector(false, props);
     DatastreamTask datastreamTask = new DatastreamTaskImpl();
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
-    connector.start();
+    connector.start(null);
     PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
@@ -45,7 +45,7 @@ public class TestAbstractKafkaConnector {
     TestKafkaConnector connector = new TestKafkaConnector(true, props);
     DatastreamTask datastreamTask = new DatastreamTaskImpl();
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
-    connector.start();
+    connector.start(null);
     PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
