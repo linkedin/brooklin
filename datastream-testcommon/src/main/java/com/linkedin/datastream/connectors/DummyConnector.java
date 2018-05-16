@@ -11,6 +11,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -32,7 +33,7 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   }
 
   @Override
-  public void start() {
+  public void start(CheckpointProvider checkpointProvider) {
   }
 
   @Override

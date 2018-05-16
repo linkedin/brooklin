@@ -21,6 +21,7 @@ import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
@@ -50,7 +51,7 @@ public class FileConnector implements Connector {
   }
 
   @Override
-  public void start() {
+  public void start(CheckpointProvider checkpointProvider) {
     LOG.info("FileConnector started");
   }
 
