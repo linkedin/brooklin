@@ -19,6 +19,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
@@ -81,16 +82,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     // verify the states response returned by diagnostics endpoint contains correct counts
-    KafkaDatastreamStatesResponse response = connectorTask.getKafkaDatastreamStatesResponse();
-    Set<TopicPartition> assignedTopicPartitions = response.getAssignedTopicPartitions();
-    Assert.assertNotNull(assignedTopicPartitions,
-        "Assigned topic partitions in diagnostics response should not have been null");
-    Assert.assertTrue(assignedTopicPartitions.contains(new TopicPartition(yummyTopic, 0)),
-        "Assigned topic partitions in diagnostics response should have contained YummyPizza-0");
-    Assert.assertTrue(assignedTopicPartitions.contains(new TopicPartition(saltyTopic, 0)),
-        "Assigned topic partitions in diagnostics response should have contained SaltyPizza-0");
-    Assert.assertFalse(assignedTopicPartitions.contains(new TopicPartition(saladTopic, 0)),
-        "Assigned topic partitions in diagnostics response should not have contained saladTopic-0");
+    validateTaskConsumerAssignment(connectorTask,
+        Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
@@ -398,8 +391,61 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testDeleteSourceTopic() throws Exception {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // verify the task is subscribed to both topics
+    validateTaskConsumerAssignment(connectorTask,
+        Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
+
+    // produce an event to each of the topics
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 100, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+
+    // delete YummyPizza topic
+    deleteTopic(_zkUtils, yummyTopic);
+
+    // verify the task is no longer subscribed to the deleted topic YummyPizza
+    boolean partitionRevoked = PollUtils.poll(() -> {
+          Set<TopicPartition> assigned = connectorTask.getKafkaDatastreamStatesResponse().getAssignedTopicPartitions();
+          return assigned.size() == 1 && assigned.contains(new TopicPartition(saltyTopic, 0));
+        }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    Assert.assertTrue(partitionRevoked, "The deleted topic should have been revoked, but is still assigned");
+
+    // produce another event to SaltyPizza
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+
+    // verify that 2 events produced to SaltyPizza were received
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents()
+        .stream()
+        .filter(record -> record.getDestination().get().endsWith(saltyTopic))
+        .count() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
   public void testMirrorMakerGroupId() throws Exception {
-    String topic = "MyTopicForGrpId";
     Datastream datastream1 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "topic");
     Datastream datastream2 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "topic");
 
@@ -432,6 +478,21 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       exceptionSeen = true;
     }
     Assert.assertTrue(exceptionSeen);
+  }
+
+  private void validateTaskConsumerAssignment(KafkaMirrorMakerConnectorTask connectorTask,
+      Set<TopicPartition> expectedAssignment) {
+    KafkaDatastreamStatesResponse response = connectorTask.getKafkaDatastreamStatesResponse();
+    Set<TopicPartition> assignedTopicPartitions = response.getAssignedTopicPartitions();
+    if (expectedAssignment.isEmpty()) {
+      Assert.assertTrue(assignedTopicPartitions == null || assignedTopicPartitions.isEmpty(),
+          "There should have been no assigned topic partitions");
+    } else {
+      Assert.assertEquals(assignedTopicPartitions.size(), expectedAssignment.size(),
+          "Topic partition assignment count is wrong");
+      expectedAssignment.forEach(tp -> Assert.assertTrue(assignedTopicPartitions.contains(tp),
+          "Assigned topic partitions in diagnostics response should have contained  " + tp));
+    }
   }
 
   private void validatePausedPartitionsMetrics(String task, String stream, long numAutoPausedPartitionsOnError,
