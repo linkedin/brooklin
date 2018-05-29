@@ -222,11 +222,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     int sendAttempts = 0;
     while (true) {
       sendAttempts++;
-      int numBytes = record.serializedKeySize() + record.serializedValueSize();
-      _consumerMetrics.updateBytesProcessedRate(numBytes);
       DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
       try {
         sendDatastreamProducerRecord(datastreamProducerRecord);
+        int numBytes = record.serializedKeySize() + record.serializedValueSize();
+        _consumerMetrics.updateBytesProcessedRate(numBytes);
         return; // Break the retry loop and exit.
       } catch (Exception e) {
         _logger.error("Error sending Message. task: {} ; error: {};", _taskName, e.toString());
@@ -550,8 +550,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
-    if (!_shouldDie) { // There is a commit at the end of the run method, skip extra commit in shouldDie mode.
-      maybeCommitOffsets(_consumer, true); // happens inline as part of poll
+    if (!_shouldDie && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
+      try {
+        maybeCommitOffsets(_consumer, true); // happens inline as part of poll
+      } catch (Exception e) {
+        // log the exception and let the new partition owner just read from previous checkpoint
+        _logger.warn("Caught exception while trying to commit offsets in onPartitionsRevoked with partitions {}.",
+            topicPartitions, e);
+      }
     }
 
     _consumerAssignment = Sets.newHashSet(_consumer.assignment());
