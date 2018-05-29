@@ -14,12 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericRecord;
 import org.mockito.Mockito;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -89,17 +86,10 @@ public class TestDatabaseChunkedReader {
     return props;
   }
 
-  private static void verifyData(DatabaseRow expected, GenericRecord actual) {
-    Assert.assertEquals(actual.getSchema().getFields().size(), expected.getColumnCount());
-    Map<String, Object> expectedColumns = expected.getRecords().stream().collect(Collectors.toMap(x -> x.getColName(), x -> x.getValue()));
-    actual.getSchema().getFields().forEach(field ->
-        Assert.assertEquals(expectedColumns.get(field.name()), actual.get(field.name())));
-  }
-
-  private static void verifyData(List<GenericRecord> actual, List<DatabaseRow> expected) {
+  private void verifyData(List<DatabaseRow> actual, List<DatabaseRow> expected) {
     Assert.assertEquals(expected.size(), actual.size());
     for (int i = 0; i < actual.size(); i++) {
-      verifyData(expected.get(i), actual.get(i));
+      Assert.assertEquals(expected.get(i), actual.get(i));
     }
   }
 
@@ -224,7 +214,7 @@ public class TestDatabaseChunkedReader {
     Properties props = createTestDBReaderProperties(chunkSize);
     List<DataSource> mockSources = new ArrayList<>();
 
-    Map<Integer, List<GenericRecord>> data = new HashMap<>();
+    Map<Integer, List<DatabaseRow>> data = new HashMap<>();
 
     for (int i = 0; i < numPartitions; i++) {
       data.put(i, new ArrayList<>());
@@ -238,7 +228,7 @@ public class TestDatabaseChunkedReader {
           new DatabaseChunkedReader(props, mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
               TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
         reader.subscribe(Collections.singletonList(new Integer(0)), null);
-        for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
+        for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
           data.get(i).add(row);
         }
       }
@@ -288,10 +278,8 @@ public class TestDatabaseChunkedReader {
     DatabaseChunkedReader reader =
         new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
     reader.subscribe(Collections.singletonList(new Integer(0)), null);
-    for (GenericRecord row = reader.poll(); row != null; row = reader.poll()) {
-      GenericRecord expected = new GenericData.Record(TEST_SIMPLE_SCHEMA);
-      expected.put("key1", 1);
-      Assert.assertEquals(row, expected);
+    for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
+      Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
       count++;
     }
     Assert.assertEquals(2, count);
