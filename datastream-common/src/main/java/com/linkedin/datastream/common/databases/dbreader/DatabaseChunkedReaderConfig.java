@@ -27,7 +27,6 @@ public class DatabaseChunkedReaderConfig {
   // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
   // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
   public static final String ROW_COUNT_LIMIT = "chunk.rowCountLimit";
-  public static final String DATABASE_INTERPRETER_CLASS_NAME = "database.reader";
   public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
 
   private static final int DEFAULT_QUERY_TIMEOUT_SECS = 0;
