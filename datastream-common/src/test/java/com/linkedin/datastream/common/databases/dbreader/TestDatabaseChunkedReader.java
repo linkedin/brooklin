@@ -78,8 +78,6 @@ public class TestDatabaseChunkedReader {
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + ROW_COUNT_LIMIT, chunkSize.toString());
-    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_INTERPRETER_CLASS_NAME,
-        "com.linkedin.datastream.common.databases.PassThroughSqlTypeInterpreter");
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,
         "com.linkedin.datastream.common.databases.dbreader.OracleChunkedQueryManager");
 

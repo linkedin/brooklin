@@ -23,10 +23,8 @@ import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.SqlTypeInterpreter;
 import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-
 
 /**
  * Generic JDBC Source Reader. Can be used for executing a generic query on the given source using chunking algorithm.
@@ -89,7 +87,6 @@ public class DatabaseChunkedReader implements Closeable {
   private ResultSet _queryResultSet;
   private long _numRowsInResult = 0;
   private Schema _tableSchema;
-  private SqlTypeInterpreter _interpreter;
 
   private DatabaseChunkedReaderMetrics _metrics;
 
