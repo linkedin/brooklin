@@ -120,7 +120,6 @@ public class DatabaseChunkedReader implements Closeable {
     _rowCountLimit = _databaseChunkedReaderConfig.getRowCountLimit();
     _connection = source.getConnection();
     Validate.notNull(_connection, "getConnection returned null for source" + source);
-    _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     _skipBadMessagesEnabled = _databaseChunkedReaderConfig.shouldSkipBadMessage();
 

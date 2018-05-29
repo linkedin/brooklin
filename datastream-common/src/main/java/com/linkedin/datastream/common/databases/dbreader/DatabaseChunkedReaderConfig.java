@@ -1,16 +1,13 @@
 package com.linkedin.datastream.common.databases.dbreader;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import java.util.Properties;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.SqlTypeInterpreter;
-import com.linkedin.datastream.common.VerifiableProperties;
 
 
 /**
@@ -22,7 +19,7 @@ public class DatabaseChunkedReaderConfig {
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
   // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
   // ResultSet from the server. This is used to limit the memory requirements on the client driver. Oracle server will
-  // cache the query results and only return fetcSize rows to the driver.
+  // cache the query results and only return fetchSize rows to the driver.
   public static final String FETCH_SIZE = "fetchSize";
   public static final String SKIP_BAD_MESSAGE = "skipBadMessage";
   // Max number of rows to fetch for each query. This will help the server limit the number of full row
@@ -40,7 +37,6 @@ public class DatabaseChunkedReaderConfig {
   private final int _queryTimeout;
   private final int _fetchSize;
   private final long _rowCountLimit;
-  private SqlTypeInterpreter _interpreter;
   private ChunkedQueryManager _chunkedQueryManager;
   private boolean _shouldSkipBadMessage;
 
@@ -56,14 +52,6 @@ public class DatabaseChunkedReaderConfig {
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
-
-    String tableReader = verifiableProperties.getString(DATABASE_INTERPRETER_CLASS_NAME);
-    if (StringUtils.isBlank(tableReader)) {
-      String msg = "Database type interpreter class name is not set or is blank";
-      LOG.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
-    _interpreter = ReflectionUtils.createInstance(tableReader);
 
     String queryManagerClass = verifiableProperties.getString(DATABASE_QUERY_MANAGER_CLASS_NAME);
     if (StringUtils.isBlank(queryManagerClass)) {
@@ -90,10 +78,6 @@ public class DatabaseChunkedReaderConfig {
 
   public long getRowCountLimit() {
     return _rowCountLimit;
-  }
-
-  public SqlTypeInterpreter getDatabaseInterpreter() {
-    return _interpreter;
   }
 
   public ChunkedQueryManager getChunkedQueryManager() {
