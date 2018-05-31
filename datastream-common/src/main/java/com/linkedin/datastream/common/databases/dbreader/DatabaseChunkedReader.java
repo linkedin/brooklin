@@ -281,15 +281,15 @@ public class DatabaseChunkedReader implements Closeable {
       int colCount = rsmd.getColumnCount();
       DatabaseRow payloadRecord = new DatabaseRow();
       for (int i = 1; i <= colCount; i++) {
-        String colName = rsmd.getColumnName(i);
-        Object column = _queryResultSet.getObject(i);
-        payloadRecord.addField(colName, column, rsmd.getColumnType(i));
+        String columnName = rsmd.getColumnName(i);
+        Object columnValue = _queryResultSet.getObject(i);
+        payloadRecord.addField(columnName, columnValue, rsmd.getColumnType(i));
         // If column is one of the key values, save the result from query to perform chunking query in the future
-        if (_chunkingKeys.containsKey(colName)) {
-          if (column == null) {
-            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG,  colName + " field is not expected to be null");
+        if (_chunkingKeys.containsKey(columnName)) {
+          if (columnValue == null) {
+            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, columnName + " field is not expected to be null");
           }
-          _chunkingKeys.put(colName, column);
+          _chunkingKeys.put(columnName, columnValue);
         }
       }
       return payloadRecord;
