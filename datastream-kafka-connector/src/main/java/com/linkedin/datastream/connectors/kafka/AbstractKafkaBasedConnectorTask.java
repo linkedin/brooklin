@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang.exception.ExceptionUtils;
-import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -31,6 +30,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
@@ -188,14 +188,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param records the Kafka consumer records
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
-  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) throws Exception {
+  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) {
     boolean shouldAddPausePartitionsTask = false;
     // iterate through each topic partition one at a time, for better isolation
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
           sendMessage(record, readTime);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
           _consumerMetrics.updateErrorRate(1);
           // seek to previous checkpoints for this topic partition
           seekToLastCheckpoint(Collections.singleton(topicPartition));
@@ -256,34 +256,37 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _eventsProcessedCountLoggedTime = Instant.now();
 
     try {
-      try (Consumer<?, ?> consumer = createKafkaConsumer(_consumerProps)) {
-        _consumer = consumer;
-        consumerSubscribe();
+      _consumer = createKafkaConsumer(_consumerProps);
+      consumerSubscribe();
 
-        ConsumerRecords<?, ?> records;
-        while (!_shouldDie) {
-          // perform any pre-computations before poll()
-          preConsumerPollHook();
+      ConsumerRecords<?, ?> records;
+      while (!_shouldDie) {
+        // perform any pre-computations before poll()
+        preConsumerPollHook();
 
-          // read a batch of records
-          records = pollRecords(pollInterval);
+        // read a batch of records
+        records = pollRecords(pollInterval);
 
-          // handle startup notification if this is the 1st poll call
-          if (startingUp) {
-            pollInterval = getPollIntervalMs();
-            startingUp = false;
-            _startedLatch.countDown();
-          }
+        // handle startup notification if this is the 1st poll call
+        if (startingUp) {
+          pollInterval = getPollIntervalMs();
+          startingUp = false;
+          _startedLatch.countDown();
+        }
 
-          if (records != null && !records.isEmpty()) {
-            Instant readTime = Instant.now();
-            processRecords(records, readTime);
-            trackEventsProcessedProgress(records.count());
-          }
-        } // end while loop
+        if (records != null && !records.isEmpty()) {
+          Instant readTime = Instant.now();
+          processRecords(records, readTime);
+          trackEventsProcessedProgress(records.count());
+        }
+      } // end while loop
 
-        // shutdown
-        maybeCommitOffsets(consumer, true);
+      // shutdown
+      maybeCommitOffsets(_consumer, true);
+    } catch (WakeupException e) {
+      if (!_shouldDie) {
+        _logger.error("Got WakeupException while not in shutdown mode.", e);
+        throw e;
       }
     } catch (Exception e) {
       _logger.error("{} failed with exception.", _taskName, e);
@@ -291,6 +294,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       throw new DatastreamRuntimeException(e);
     } finally {
       _stoppedLatch.countDown();
+      _consumer.close();
       _logger.info("{} stopped", _taskName);
     }
   }
@@ -355,7 +359,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       handleNoOffsetForPartitionException(e);
       return ConsumerRecords.EMPTY;
     } catch (WakeupException e) {
-      _logger.warn("Got a WakeupException, shutdown in progress {}.", e);
+      _logger.warn("Got a WakeupException, shutdown in progress.", e);
       return ConsumerRecords.EMPTY;
     } catch (Exception e) {
       handlePollRecordsException(e);
@@ -373,22 +377,18 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTime the time at which the records were successfully polled from Kafka
    */
   protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime) {
-    try {
-      // send the batch out the other end
-      // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
-      //                  in case the _shouldDie signal is set (similar to kafka wakeup)
-      translateAndSendBatch(records, readTime);
+    // send the batch out the other end
+    // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
+    //                  in case the _shouldDie signal is set (similar to kafka wakeup)
+    translateAndSendBatch(records, readTime);
 
-      if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMs) {
-        _consumerMetrics.updateProcessingAboveThreshold(1);
-      }
+    if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMs) {
+      _consumerMetrics.updateProcessingAboveThreshold(1);
+    }
 
-      if (!_shouldDie) {
-        // potentially commit our offsets (if its been long enough and all sends were successful)
-        maybeCommitOffsets(_consumer, false);
-      }
-    } catch (Exception e) {
-      handleProcessRecordsException(e);
+    if (!_shouldDie) {
+      // potentially commit our offsets (if its been long enough and all sends were successful)
+      maybeCommitOffsets(_consumer, false);
     }
   }
 
@@ -425,20 +425,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Handle exception during processRecords(). The base behavior is to seek to previous checkpoints and retry on the
-   * next poll.
-   * @param e the Exception
-   */
-  protected void handleProcessRecordsException(Exception e) {
-    _logger.info("Sending the messages failed with exception: {}", e);
-    if (_shouldDie) {
-      _logger.warn("Exiting without commit, no point to try to recover in shouldDie mode.");
-      return; // return to skip the commit after the while loop
-    }
-    seekToLastCheckpoint(_consumer.assignment());
-  }
-
-  /**
    * @return the poll timeout (in milliseconds) to use in the Kafka consumer poll().
    */
   protected long getPollIntervalMs() {
@@ -457,7 +443,16 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
-      commitWithRetries(consumer, Optional.empty());
+      try {
+        commitWithRetries(consumer, Optional.empty());
+      } catch (DatastreamRuntimeException e) {
+        if (force) { // if forced commit then throw exception
+          _logger.error("Forced commit failed after retrying, so exiting.", e);
+          throw e;
+        } else {
+          _logger.warn("Commit failed after several retries.", e);
+        }
+      }
       _lastCommittedTime = System.currentTimeMillis();
     }
   }
@@ -471,7 +466,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         } else {
           consumer.commitSync();
         }
-      } catch (CommitFailedException e) {
+      } catch (KafkaException e) {
         _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
         return false;
       }
@@ -502,7 +497,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       if (offset == null) {
         tpWithNoCommits.add(tp);
       } else {
-        lastCheckpoint.put(tp, _consumer.committed(tp));
+        lastCheckpoint.put(tp, offset);
       }
     });
     _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
