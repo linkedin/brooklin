@@ -14,8 +14,6 @@ import java.util.Properties;
 import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
@@ -25,9 +23,8 @@ import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
-import com.linkedin.datastream.common.SqlTypeInterpreter;
+import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-
 
 /**
  * Generic JDBC Source Reader. Can be used for executing a generic query on the given source using chunking algorithm.
@@ -90,7 +87,6 @@ public class DatabaseChunkedReader implements Closeable {
   private ResultSet _queryResultSet;
   private long _numRowsInResult = 0;
   private Schema _tableSchema;
-  private SqlTypeInterpreter _interpreter;
 
   private DatabaseChunkedReaderMetrics _metrics;
 
@@ -120,7 +116,7 @@ public class DatabaseChunkedReader implements Closeable {
     _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
     _rowCountLimit = _databaseChunkedReaderConfig.getRowCountLimit();
     _connection = source.getConnection();
-    _interpreter = _databaseChunkedReaderConfig.getDatabaseInterpreter();
+    Validate.notNull(_connection, "getConnection returned null for source" + source);
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     _skipBadMessagesEnabled = _databaseChunkedReaderConfig.shouldSkipBadMessage();
 
@@ -278,22 +274,22 @@ public class DatabaseChunkedReader implements Closeable {
   }
 
 
-  private GenericRecord getNextRow() throws SQLException {
+  private DatabaseRow getNextRow() throws SQLException {
     _numRowsInResult++;
     try {
       ResultSetMetaData rsmd = _queryResultSet.getMetaData();
       int colCount = rsmd.getColumnCount();
-      GenericRecord payloadRecord = new GenericData.Record(_tableSchema);
+      DatabaseRow payloadRecord = new DatabaseRow();
       for (int i = 1; i <= colCount; i++) {
-        String colName = rsmd.getColumnName(i);
-        String formattedColName = _interpreter.formatColumnName(colName);
-        Object result = _interpreter.sqlObjectToAvro(_queryResultSet.getObject(i), formattedColName, _tableSchema);
-        payloadRecord.put(formattedColName, result);
-        if (_chunkingKeys.containsKey(colName)) {
-          if (result == null) {
-            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG,  colName + " field is not expected to be null");
+        String columnName = rsmd.getColumnName(i);
+        Object columnValue = _queryResultSet.getObject(i);
+        payloadRecord.addField(columnName, columnValue, rsmd.getColumnType(i));
+        // If column is one of the key values, save the result from query to perform chunking query in the future
+        if (_chunkingKeys.containsKey(columnName)) {
+          if (columnValue == null) {
+            ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, columnName + " field is not expected to be null");
           }
-          _chunkingKeys.put(colName, result);
+          _chunkingKeys.put(columnName, columnValue);
         }
       }
       return payloadRecord;
@@ -319,7 +315,7 @@ public class DatabaseChunkedReader implements Closeable {
    *         a GenericRecord with schema specified per getTableSchema call on the DatabaseSource for the source table.
    * @throws SQLException
    */
-  public GenericRecord poll() throws SQLException {
+  public DatabaseRow poll() throws SQLException {
     if (!_initialized) {
       throw new DatastreamRuntimeException("Cannot poll on unsubscribed reader. Call subscribe() first");
     }
@@ -328,7 +324,7 @@ public class DatabaseChunkedReader implements Closeable {
       executeFirstChunkedQuery();
     }
 
-    GenericRecord row = null;
+    DatabaseRow row = null;
     while (row == null) {
       if (!_queryResultSet.next()) {
         // If previous query read less than requested chunks, we are at the end of the table.
