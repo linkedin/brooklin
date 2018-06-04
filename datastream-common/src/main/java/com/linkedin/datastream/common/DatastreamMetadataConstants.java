@@ -98,4 +98,10 @@ public class DatastreamMetadataConstants {
    * Key to set consumer group ID of the datastream.
    */
   public static final String GROUP_ID = "group.id";
+
+  /**
+   * Key to get target zk node address
+   */
+  public static final String TARGET_ZK = "target.zk";
+
 }

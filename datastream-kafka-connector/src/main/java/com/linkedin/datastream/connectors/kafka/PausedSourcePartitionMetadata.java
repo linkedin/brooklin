@@ -15,7 +15,8 @@ public class PausedSourcePartitionMetadata {
 
   public enum Reason {
     EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD("Number of in-flight messages for partition exceeded threshold"),
-    SEND_ERROR("Failed to produce messages from this partition");
+    SEND_ERROR("Failed to produce messages from this partition"),
+    TOPIC_NOT_CREATED("Topic not created on the destination side");
 
     private final String _description;
 
