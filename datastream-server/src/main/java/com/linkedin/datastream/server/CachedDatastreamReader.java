@@ -142,7 +142,7 @@ public class CachedDatastreamReader {
 
       if (ds == null) {
         LOG.info("Datastream {} does not exist in cache/ZK.", datastreamName);
-      } else if (!DatastreamUtils.isConnectorManagedDestination(ds) && !DatastreamUtils.hasValidDestination(ds)) {
+      } else if (!DatastreamUtils.hasValidDestination(ds)) {
         LOG.info("Datastream {} does not have a valid destination yet and is not ready for use.", datastreamName);
       } else {
         _datastreams.put(datastreamName, ds);
