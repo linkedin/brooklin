@@ -115,12 +115,20 @@ public final class DatastreamUtils {
         && !stream.getSource().getConnectionString().isEmpty();
   }
 
+  /**
+   * A stream has a valid destination if:
+   * a) the metadata denotes that the stream has a connector-managed destination (so destination info is not required)
+   * b) the stream contains non-empty destination connection string and partition count greater than zero
+   * @param stream the datastream to validate destination for
+   * @return true if the condition above applies; false otherwise
+   */
   public static boolean hasValidDestination(Datastream stream) {
-    return stream.hasDestination()
+    return isConnectorManagedDestination(stream)
+        || (stream.hasDestination()
         && stream.getDestination().hasConnectionString()
         && !stream.getDestination().getConnectionString().isEmpty()
         && stream.getDestination().hasPartitions()
-        && stream.getDestination().getPartitions() > 0;
+        && stream.getDestination().getPartitions() > 0);
   }
 
   public static boolean hasValidOwner(Datastream stream) {
