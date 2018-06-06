@@ -17,6 +17,7 @@ public class KafkaBasedConnectorConfig {
 
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
+  public static final String CONFIG_POLL_TIMEOUT_MILLIS = "pollTimeoutMs";
   public static final String CONFIG_CONSUMER_FACTORY_CLASS = "consumerFactoryClassName";
   public static final String CONFIG_DEFAULT_KEY_SERDE = "defaultKeySerde";
   public static final String CONFIG_DEFAULT_VALUE_SERDE = "defaultValueSerde";
@@ -26,13 +27,16 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS = "pauseErrorPartitionDurationMs";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
+  public static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
 
   private static final long DEFAULT_RETRY_SLEEP_DURATION_MS = Duration.ofSeconds(5).toMillis();
   private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS = Duration.ofMinutes(10).toMillis();
+  private static final long DEFAULT_POLL_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
   private static final int DEFAULT_RETRY_COUNT = 5;
   private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
+  private static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -41,10 +45,12 @@ public class KafkaBasedConnectorConfig {
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
   private final long _commitIntervalMillis;
+  private final long _pollTimeoutMillis;
   private final int _retryCount;
   private final Duration _retrySleepDuration;
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
+  private final long _processingDelayLogThresholdMs;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMs;
@@ -56,6 +62,9 @@ public class KafkaBasedConnectorConfig {
     _commitIntervalMillis =
         verifiableProperties.getLongInRange(CONFIG_COMMIT_INTERVAL_MILLIS, Duration.ofMinutes(1).toMillis(), 0,
             Long.MAX_VALUE);
+    _pollTimeoutMillis =
+        verifiableProperties.getLongInRange(CONFIG_POLL_TIMEOUT_MILLIS, DEFAULT_POLL_TIMEOUT_MS, 0,
+            Long.MAX_VALUE);
     _retryCount = verifiableProperties.getInt(CONFIG_RETRY_COUNT, DEFAULT_RETRY_COUNT);
     _retrySleepDuration = Duration.ofMillis(
         verifiableProperties.getLong(CONFIG_RETRY_SLEEP_DURATION_MS, DEFAULT_RETRY_SLEEP_DURATION_MS));
@@ -63,9 +72,13 @@ public class KafkaBasedConnectorConfig {
     _pauseErrorPartitionDuration = Duration.ofMillis(
         verifiableProperties.getLong(CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
             DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS));
-    _daemonThreadIntervalSeconds = verifiableProperties.getInt(DAEMON_THREAD_INTERVAL_SECONDS, DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS);
-    _nonGoodStateThresholdMs = verifiableProperties.getLongInRange(NON_GOOD_STATE_THRESHOLD_MS, DEFAULT_NON_GOOD_STATE_THRESHOLD_MS,
-        MIN_NON_GOOD_STATE_THRESHOLD_MS, Long.MAX_VALUE);
+    _daemonThreadIntervalSeconds =
+        verifiableProperties.getInt(DAEMON_THREAD_INTERVAL_SECONDS, DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS);
+    _nonGoodStateThresholdMs =
+        verifiableProperties.getLongInRange(NON_GOOD_STATE_THRESHOLD_MS, DEFAULT_NON_GOOD_STATE_THRESHOLD_MS,
+            MIN_NON_GOOD_STATE_THRESHOLD_MS, Long.MAX_VALUE);
+    _processingDelayLogThresholdMs =
+        verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MS, DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -90,12 +103,14 @@ public class KafkaBasedConnectorConfig {
     _defaultKeySerde = defaultKeySerde;
     _defaultValueSerde = defaultValueSerde;
     _commitIntervalMillis = commitIntervalMillis;
+    _pollTimeoutMillis = commitIntervalMillis / 2;
     _retryCount = retryCount;
     _retrySleepDuration = retrySleepDuration;
     _pausePartitionOnError = pausePartitionOnError;
     _pauseErrorPartitionDuration = pauseErrorPartitionDuration;
     _daemonThreadIntervalSeconds = DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS;
     _nonGoodStateThresholdMs = DEFAULT_NON_GOOD_STATE_THRESHOLD_MS;
+    _processingDelayLogThresholdMs = DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
   }
 
   public String getDefaultKeySerde() {
@@ -108,6 +123,10 @@ public class KafkaBasedConnectorConfig {
 
   public long getCommitIntervalMillis() {
     return _commitIntervalMillis;
+  }
+
+  public long getPollTimeoutMillis() {
+    return _pollTimeoutMillis;
   }
 
   public int getRetryCount() {
@@ -145,5 +164,9 @@ public class KafkaBasedConnectorConfig {
 
   public long getNonGoodStateThresholdMs() {
     return _nonGoodStateThresholdMs;
+  }
+
+  public long getProcessingDelayLogThresholdMs() {
+    return _processingDelayLogThresholdMs;
   }
 }

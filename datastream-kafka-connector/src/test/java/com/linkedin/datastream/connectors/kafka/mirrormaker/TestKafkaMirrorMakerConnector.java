@@ -61,6 +61,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS, "5000");
     config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.TRUE.toString());
     config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MS, "1000");
