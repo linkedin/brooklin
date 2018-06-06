@@ -46,7 +46,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -65,9 +65,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   private static final long COMMIT_RETRY_TIMEOUT_MS = 5000;
   private static final long COMMIT_RETRY_INTERVAL_MS = 1000;
 
-  protected static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
-  protected static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
-  protected final long _processingDelayLogThresholdMs;
+  public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
+  public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
+
   protected long _lastCommittedTime = System.currentTimeMillis();
   protected int _eventsProcessedCount = 0;
   protected static final Duration LOG_EVENTS_PROCESSED_PROGRESS_DURATION = Duration.ofMinutes(1);
@@ -87,13 +87,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   // config
   protected DatastreamTask _datastreamTask;
   protected final long _offsetCommitInterval;
+  protected final long _pollTimeoutMs;
   protected final Duration _retrySleepDuration;
   protected final int _maxRetryCount;
   protected final boolean _pausePartitionOnError;
   protected final Duration _pauseErrorPartitionDuration;
+  protected final long _processingDelayLogThresholdMs;
   protected final Optional<Map<Integer, Long>> _startOffsets;
-  protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
-  protected static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
 
   // state
   protected volatile Thread _thread;
@@ -128,9 +128,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _taskName = task.getDatastreamTaskName();
 
     _consumerProps = config.getConsumerProps();
-    VerifiableProperties properties = new VerifiableProperties(_consumerProps);
-    _processingDelayLogThresholdMs = properties.containsKey(PROCESSING_DELAY_LOG_THRESHOLD_MS) ? properties.getLong(
-        PROCESSING_DELAY_LOG_THRESHOLD_MS) : DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
+    if (_datastream.getMetadata().containsKey(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY)) {
+      String strategy = _datastream.getMetadata().get(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY);
+      _logger.info("Datastream contains consumer config override for {} with value {}",
+          ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
+      _consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
+    }
+
+    _processingDelayLogThresholdMs = config.getProcessingDelayLogThresholdMs();
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
@@ -138,6 +143,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
     _offsetCommitInterval = config.getCommitIntervalMillis();
+    _pollTimeoutMs = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
   }
@@ -146,8 +152,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return StringUtils.isBlank(connectorName) ? simpleClassName : connectorName + "." + simpleClassName;
   }
 
-  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key, Logger errorLogger) {
-    KafkaBasedConnectorTaskMetrics consumerMetrics = new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
+  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
+      Logger errorLogger) {
+    KafkaBasedConnectorTaskMetrics consumerMetrics =
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -269,7 +277,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         // handle startup notification if this is the 1st poll call
         if (startingUp) {
-          pollInterval = getPollIntervalMs();
+          pollInterval = _pollTimeoutMs;
           startingUp = false;
           _startedLatch.countDown();
         }
@@ -422,13 +430,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (!_shouldDie) {
       Thread.sleep(_retrySleepDuration.toMillis());
     }
-  }
-
-  /**
-   * @return the poll timeout (in milliseconds) to use in the Kafka consumer poll().
-   */
-  protected long getPollIntervalMs() {
-    return _offsetCommitInterval / 2; // leave time for processing, assume 50-50
   }
 
   /**
