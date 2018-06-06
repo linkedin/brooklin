@@ -27,10 +27,12 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
+import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
+import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -87,6 +89,67 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testAutoOffsetResetConfigOverride() throws Exception {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create 2 datastreams to consume from topics ending in "Pizza", each with different offset reset strategy
+    Datastream datastreamLatest =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastreamLatest.getMetadata().put(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY,
+        AbstractKafkaBasedConnectorTask.CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST);
+    datastreamLatest.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "groupIdForDatastreamLatest");
+
+    Datastream datastreamEarliest =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastreamEarliest.getMetadata().put(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY,
+        AbstractKafkaBasedConnectorTask.CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
+    datastreamEarliest.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "groupIdForDatastreamEarliest");
+
+    // produce some events to YummyPizza topic
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
+
+    // create datastream tasks for the datastreams
+    DatastreamTaskImpl taskLatest = new DatastreamTaskImpl(Collections.singletonList(datastreamLatest));
+    MockDatastreamEventProducer datastreamProducerLatest = new MockDatastreamEventProducer();
+    taskLatest.setEventProducer(datastreamProducerLatest);
+
+    DatastreamTaskImpl taskEarliest = new DatastreamTaskImpl(Collections.singletonList(datastreamEarliest));
+    MockDatastreamEventProducer datastreamProducerEarliest = new MockDatastreamEventProducer();
+    taskEarliest.setEventProducer(datastreamProducerEarliest);
+
+    // create connector tasks for the datastream tasks and run them
+    KafkaMirrorMakerConnectorTask connectorTaskLatest =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(taskLatest);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTaskLatest);
+
+    KafkaMirrorMakerConnectorTask connectorTaskEarliest =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(taskEarliest);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTaskEarliest);
+
+    // verify that the datastream configured for earliest got the events, while the one configured for latest got 0
+    Assert.assertTrue(PollUtils.poll(
+        () -> datastreamProducerEarliest.getEvents().size() == 5 && datastreamProducerLatest.getEvents().size() == 0,
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS), "Datastream configured with offset reset latest should have gotten "
+        + "0 events, and datastream configured with earliest should have gotten 5 events");
+
+    // produce more events to YummyPizza topic
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
+
+    Assert.assertTrue(PollUtils.poll(
+        () -> datastreamProducerEarliest.getEvents().size() == 10 && datastreamProducerLatest.getEvents().size() == 5,
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS), "Datastream configured with offset reset latest should have gotten "
+        + "5 events, and datastream configured with earliest should have gotten 10 events");
+
+    connectorTaskLatest.stop();
+    Assert.assertTrue(connectorTaskLatest.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+    connectorTaskEarliest.stop();
+    Assert.assertTrue(connectorTaskEarliest.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
   }
 
