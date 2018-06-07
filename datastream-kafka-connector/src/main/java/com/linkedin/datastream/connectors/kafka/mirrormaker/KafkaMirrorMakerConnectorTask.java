@@ -1,8 +1,12 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -10,6 +14,8 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,17 +23,22 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
+import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
+import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+
 
 /**
  * KafkaMirrorMakerConnectorTask consumes from Kafka using regular expression pattern subscription. This means that the
@@ -37,6 +48,10 @@ import com.linkedin.datastream.server.DatastreamTask;
  * This task is responsible for specifying the destination for every DatastreamProducerRecord it sends downstream. As
  * such, the Datastream destination connection string should be a format String, where "%s" should be replaced by the
  * specific topic to send to.
+ *
+ * If flushless mode is enabled, the task will not invoke flush on the producer unless shutdown is requested. In
+ * flushless mode, task keeps track of the safe checkpoints for each source partition and only commits offsets that were
+ * acknowledged in the producer callback. Flow control can only be used in flushless mode.
  */
 public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTask {
 
@@ -48,15 +63,43 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
 
+  // constants for flushless mode and flow control
+  protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
+  protected static final String CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD = "minInFlightMessagesThreshold";
+  protected static final String CONFIG_FLOW_CONTROL_ENABLED = "flowControlEnabled";
+  protected static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
+  protected static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName) {
-    // both this and Flushless mirror maker task will use the same metrics prefix
-    // this is to ensure that metrics don't change because of the "enableFlushless" config change
+  // variables for flushless mode and flow control
+  private final boolean _isFlushlessModeEnabled;
+  private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
+  private boolean _flowControlEnabled = false;
+  private long _maxInFlightMessagesThreshold;
+  private long _minInFlightMessagesThreshold;
+  private int _flowControlTriggerCount = 0;
+
+  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
+      boolean isFlushlessModeEnabled) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
+
+    _isFlushlessModeEnabled = isFlushlessModeEnabled;
+
+    if (_isFlushlessModeEnabled) {
+      _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
+      _flowControlEnabled = config.getConnectorProps().getBoolean(CONFIG_FLOW_CONTROL_ENABLED, false);
+      _maxInFlightMessagesThreshold =
+          config.getConnectorProps().getLong(CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD);
+      _minInFlightMessagesThreshold =
+          config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
+      LOG.info("Flushless mode is enabled for task: {}, with flowControlEnabled={}, minInFlightMessagesThreshold={}, "
+              + "maxInFlightMessagesThreshold={}", task, _flowControlEnabled, _minInFlightMessagesThreshold,
+          _maxInFlightMessagesThreshold);
+    }
   }
 
   @Override
@@ -105,6 +148,81 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return builder.build();
   }
 
+  @Override
+  protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord) throws Exception {
+    if (_isFlushlessModeEnabled) {
+      KafkaMirrorMakerCheckpoint sourceCheckpoint =
+          new KafkaMirrorMakerCheckpoint(datastreamProducerRecord.getCheckpoint());
+      String topic = sourceCheckpoint.getTopic();
+      int partition = sourceCheckpoint.getPartition();
+      _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset());
+      if (_flowControlEnabled) {
+        TopicPartition tp = new TopicPartition(topic, partition);
+        long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
+        if (inFlightMessageCount > _maxInFlightMessagesThreshold) {
+          // add the partition to the pause list
+          LOG.warn(
+              "In-flight message count of {} for topic partition {} exceeded maxInFlightMessagesThreshold of {}. Will pause partition.",
+              inFlightMessageCount, tp, _maxInFlightMessagesThreshold);
+          _autoPausedSourcePartitions.put(tp, new PausedSourcePartitionMetadata(
+              () -> _flushlessProducer.getInFlightCount(topic, partition) <= _minInFlightMessagesThreshold,
+              PausedSourcePartitionMetadata.Reason.EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD));
+          _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+          _flowControlTriggerCount++;
+        }
+      }
+    } else {
+      super.sendDatastreamProducerRecord(datastreamProducerRecord);
+    }
+  }
+
+  @Override
+  protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean hardCommit) {
+    if (_isFlushlessModeEnabled) {
+      boolean isTimeToCommit = System.currentTimeMillis() - _lastCommittedTime > _offsetCommitInterval;
+      if (hardCommit) { // hard commit (flush and commit checkpoints)
+        LOG.info("Calling flush on the producer.");
+        _datastreamTask.getEventProducer().flush();
+        commitWithRetries(consumer, Optional.empty());
+        // verify that the producer is caught up with the consumer, since flush was called
+        for (TopicPartition tp : consumer.assignment()) {
+          _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition()).ifPresent(ackCheckpoint -> {
+            long committedCheckpoint =
+                Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L);
+            // check that ackCheckpoint+1 should equal the committed checkpoint in Kafka. The reason that committed offset
+            // is 1 larger than ackCheckpoint is because Kafka always commits the next offset to consume
+            if (!Objects.equals(ackCheckpoint + 1, committedCheckpoint)) {
+              LOG.error("Ack checkpoint+1 should match committed checkpoint after flushing and checkpointing. "
+                  + "Ack checkpoint+1: {}, consumer position: {}", ackCheckpoint + 1, committedCheckpoint);
+            }
+          });
+
+          // verify that the in-flight count is 0 after flush
+          long inFlightCount = _flushlessProducer.getInFlightCount(tp.topic(), tp.partition());
+          if (inFlightCount > 0) {
+            LOG.error("Flushless producer inflight count for topic {} partition {} should be 0 after flush, but was {}",
+                tp.topic(), tp.partition(), inFlightCount);
+          }
+        }
+        // clear the flushless producer state after flushing all messages and checkpointing
+        _flushlessProducer.clear();
+        _lastCommittedTime = System.currentTimeMillis();
+      } else if (isTimeToCommit) { // soft commit (no flush, just commit checkpoints)
+        LOG.info("Trying to commit offsets.");
+        Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+        for (TopicPartition tp : consumer.assignment()) {
+          // add 1 to the last acked checkpoint to set to the offset of the next message to consume
+          _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
+              .ifPresent(o -> offsets.put(tp, new OffsetAndMetadata(o + 1)));
+        }
+        commitWithRetries(consumer, Optional.of(offsets));
+        _lastCommittedTime = System.currentTimeMillis();
+      }
+    } else {
+      super.maybeCommitOffsets(consumer, hardCommit);
+    }
+  }
+
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
     return AbstractKafkaBasedConnectorTask.getMetricInfos(
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
@@ -119,5 +237,22 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
     LOG.info(String.format("Setting group ID: %s for task: %s", groupId, task.getId()));
     return groupId;
+  }
+
+  @VisibleForTesting
+  long getInFlightMessagesCount(String source, int partition) {
+    return _isFlushlessModeEnabled ? _flushlessProducer.getInFlightCount(source, partition) : 0;
+  }
+
+  @VisibleForTesting
+  int getFlowControlTriggerCount() {
+    return _flowControlTriggerCount;
+  }
+
+  @Override
+  public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
+    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
+        _consumerAssignment,
+        _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
   }
 }

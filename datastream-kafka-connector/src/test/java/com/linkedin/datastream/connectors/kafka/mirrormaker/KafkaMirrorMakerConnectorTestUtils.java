@@ -93,25 +93,25 @@ final class KafkaMirrorMakerConnectorTestUtils {
       Properties consumerConfig, Duration pauseErrorPartitionDuration) {
     return new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
-            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "");
+            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false);
   }
 
-  static FlushlessKafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
+  static KafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       boolean flowControlEnabled, long autoResumeThreshold, long autoPauseThreshold,
       Duration pauseErrorPartitionDuration) {
     Properties connectorProps = new Properties();
-    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_FLOW_CONTROL_ENABLED,
+    connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_FLOW_CONTROL_ENABLED,
         String.valueOf(flowControlEnabled));
-    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD,
+    connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD,
         String.valueOf(autoResumeThreshold));
-    connectorProps.put(FlushlessKafkaMirrorMakerConnectorTask.CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD,
+    connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD,
         String.valueOf(autoPauseThreshold));
     VerifiableProperties verifiableProperties = new VerifiableProperties(connectorProps);
 
     KafkaBasedConnectorConfig config =
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
-    return new FlushlessKafkaMirrorMakerConnectorTask(config, task, "");
+    return new KafkaMirrorMakerConnectorTask(config, task, "", true);
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)

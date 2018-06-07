@@ -41,8 +41,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
-    return _isFlushlessModeEnabled ? new FlushlessKafkaMirrorMakerConnectorTask(_config, task, _connectorName)
-        : new KafkaMirrorMakerConnectorTask(_config, task, _connectorName);
+    return new KafkaMirrorMakerConnectorTask(_config, task, _connectorName, _isFlushlessModeEnabled);
   }
 
   @Override
