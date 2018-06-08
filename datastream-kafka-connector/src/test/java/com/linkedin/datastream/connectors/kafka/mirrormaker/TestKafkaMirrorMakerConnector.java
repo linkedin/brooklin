@@ -195,32 +195,6 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testFlushlessModeEnabled() throws Exception {
-    Properties overrides = new Properties();
-    overrides.put(KafkaMirrorMakerConnector.IS_FLUSHLESS_MODE_ENABLED, Boolean.TRUE.toString());
-    KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(overrides)));
-    Datastream ds = KafkaMirrorMakerConnectorTestUtils.createDatastream("testFlushlessModeEnabled", _broker, "Pizza",
-        new StringMap());
-
-    // assert that flushless task is created
-    Assert.assertTrue(connector.createKafkaBasedConnectorTask(
-        new DatastreamTaskImpl(Collections.singletonList(ds))) instanceof FlushlessKafkaMirrorMakerConnectorTask);
-  }
-
-  @Test
-  public void testFlushlessModeDisabled() throws Exception {
-    KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
-    Datastream ds = KafkaMirrorMakerConnectorTestUtils.createDatastream("testFlushlessModeEnabled", _broker, "Pizza",
-        new StringMap());
-
-    // assert that flushless task is not created
-    Assert.assertTrue(connector.createKafkaBasedConnectorTask(
-        new DatastreamTaskImpl(Collections.singletonList(ds))) instanceof KafkaMirrorMakerConnectorTask);
-  }
-
-  @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "testValidateDatastreamUpdatePausedPartitions";
     Map<String, Set<String>> pausedPartitions = new HashMap<>();
