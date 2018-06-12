@@ -29,7 +29,9 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
+import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
@@ -92,6 +94,44 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+
+  @Test
+  public void testFlushAndCommitDuringGracefulStop() throws Exception {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create a producer that will take a few seconds to flush
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer(null, null, Duration.ofSeconds(2));
+    task.setEventProducer(datastreamProducer);
+
+    // create a task that checkpoints very infrequently (10 minutes for purposes of this test)
+    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 600000, 5,
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "", false);
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce events to the topic
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 2, _kafkaCluster);
+
+    // verify the events were read
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // stop the task
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+
+    // verify that flush was called on the producer
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
   }
 
   @Test
