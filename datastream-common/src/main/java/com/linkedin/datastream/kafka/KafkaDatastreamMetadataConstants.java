@@ -13,5 +13,5 @@ public class KafkaDatastreamMetadataConstants {
   public static final String CONSUMER_OFFSET_RESET_STRATEGY = "system.auto.offset.reset";
 
   // Key to get target zk node address
-  public static final String TARGET_ZK = "target.zk";
+  public static final String DESTINATION_ZK_ADDRESS = "system.destination.zkAddress";
 }
