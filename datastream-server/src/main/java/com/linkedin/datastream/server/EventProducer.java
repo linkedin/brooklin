@@ -78,6 +78,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(5).toMillis();
+  private static final Duration LONG_FLUSH_WARN_THRESHOLD = Duration.ofMinutes(5);
 
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
@@ -313,6 +314,10 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, FLUSH_LATENCY_MS_STRING, flushLatencyMs);
     _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(), FLUSH_LATENCY_MS_STRING,
         flushLatencyMs);
+
+    if (flushLatencyMs > LONG_FLUSH_WARN_THRESHOLD.toMillis()) {
+      _logger.warn("Flush took longer than {} minutes", LONG_FLUSH_WARN_THRESHOLD.toMinutes());
+    }
   }
 
   /**

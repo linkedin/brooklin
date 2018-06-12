@@ -41,7 +41,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   protected final String _connectorName;
   private final Logger _logger;
 

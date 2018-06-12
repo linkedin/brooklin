@@ -95,9 +95,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final long _processingDelayLogThresholdMs;
   protected final Optional<Map<Integer, Long>> _startOffsets;
 
-  // state
-  protected volatile Thread _thread;
-
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
@@ -228,10 +225,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
     int sendAttempts = 0;
+    DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
     while (true) {
-      sendAttempts++;
-      DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
       try {
+        sendAttempts++;
         sendDatastreamProducerRecord(datastreamProducerRecord);
         int numBytes = record.serializedKeySize() + record.serializedValueSize();
         _consumerMetrics.updateBytesProcessedRate(numBytes);
@@ -259,7 +256,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Starting the Kafka-based connector task for {}", _datastreamTask);
     boolean startingUp = true;
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
-    _thread = Thread.currentThread();
 
     _eventsProcessedCountLoggedTime = Instant.now();
 
@@ -314,7 +310,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _consumer.wakeup();
     }
     _consumerMetrics.deregisterMetrics();
-    _thread.interrupt();
   }
 
   public boolean awaitStart(long timeout, TimeUnit unit) throws InterruptedException {
