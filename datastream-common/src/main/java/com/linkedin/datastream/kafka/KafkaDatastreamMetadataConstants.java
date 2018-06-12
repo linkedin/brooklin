@@ -11,4 +11,7 @@ public class KafkaDatastreamMetadataConstants {
   // The auto.offset.reset Kafka consumer config, used whenever no consumer group offsets are found
   // should be one of: "earliest", "latest", or "none"
   public static final String CONSUMER_OFFSET_RESET_STRATEGY = "system.auto.offset.reset";
+
+  // Key to get target zk node address
+  public static final String DESTINATION_ZK_ADDRESS = "system.destination.zkAddress";
 }
