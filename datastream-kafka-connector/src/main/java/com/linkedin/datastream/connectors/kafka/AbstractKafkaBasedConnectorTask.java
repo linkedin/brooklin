@@ -302,7 +302,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       throw new DatastreamRuntimeException(e);
     } finally {
       _stoppedLatch.countDown();
-      _consumer.close();
+      if (null != _consumer) {
+        _consumer.close();
+      }
       _logger.info("{} stopped", _taskName);
     }
   }
