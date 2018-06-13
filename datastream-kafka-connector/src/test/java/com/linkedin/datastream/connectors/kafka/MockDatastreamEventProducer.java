@@ -26,22 +26,25 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private ExecutorService _executorService = Executors.newFixedThreadPool(1);
   private Duration _callbackThrottleDuration;
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
+  private Duration _flushDuration;
 
   public MockDatastreamEventProducer() {
-    this(null, null);
+    this(null, null, null);
   }
 
   public MockDatastreamEventProducer(Predicate<DatastreamProducerRecord> sendFailCondition) {
-    this(null, sendFailCondition);
+    this(null, sendFailCondition, null);
   }
 
   public MockDatastreamEventProducer(Duration callbackThrottleDuration) {
-    this(callbackThrottleDuration, null);
+    this(callbackThrottleDuration, null, null);
   }
 
-  public MockDatastreamEventProducer(Duration callbackThrottleDuration, Predicate<DatastreamProducerRecord> sendFailCondition) {
+  public MockDatastreamEventProducer(Duration callbackThrottleDuration,
+      Predicate<DatastreamProducerRecord> sendFailCondition, Duration flushDuration) {
     _callbackThrottleDuration = callbackThrottleDuration;
     _sendFailCondition = sendFailCondition;
+    _flushDuration = flushDuration;
   }
 
   @Override
@@ -79,6 +82,14 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   @Override
   public void flush() {
+    if (_flushDuration != null && !_flushDuration.isZero()) {
+      try {
+        Thread.sleep(_flushDuration.toMillis());
+      } catch (InterruptedException e) {
+        LOG.info("Flush interrupted");
+        return;
+      }
+    }
     _numFlushes++;
   }
 

@@ -79,7 +79,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Datastream _datastream;
 
   // lifecycle
-  protected volatile boolean _shouldDie = false;
+  protected volatile boolean _shutdown = false;
   protected volatile long _lastPolledTimeMs = System.currentTimeMillis();
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
@@ -94,9 +94,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMs;
   protected final Optional<Map<Integer, Long>> _startOffsets;
-
-  // state
-  protected volatile Thread _thread;
 
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
@@ -228,10 +225,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
     int sendAttempts = 0;
+    DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
     while (true) {
-      sendAttempts++;
-      DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
       try {
+        sendAttempts++;
         sendDatastreamProducerRecord(datastreamProducerRecord);
         int numBytes = record.serializedKeySize() + record.serializedValueSize();
         _consumerMetrics.updateBytesProcessedRate(numBytes);
@@ -239,7 +236,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       } catch (Exception e) {
         _logger.error("Error sending Message. task: {} ; error: {};", _taskName, e.toString());
         _logger.error("Stack Trace: {}", Arrays.toString(e.getStackTrace()));
-        if (_shouldDie || sendAttempts >= _maxRetryCount) {
+        if (_shutdown || sendAttempts >= _maxRetryCount) {
           _logger.error("Send messages failed with exception: {}", e);
           throw e;
         }
@@ -259,7 +256,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Starting the Kafka-based connector task for {}", _datastreamTask);
     boolean startingUp = true;
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
-    _thread = Thread.currentThread();
 
     _eventsProcessedCountLoggedTime = Instant.now();
 
@@ -268,7 +264,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       consumerSubscribe();
 
       ConsumerRecords<?, ?> records;
-      while (!_shouldDie) {
+      while (!_shutdown) {
         // perform any pre-computations before poll()
         preConsumerPollHook();
 
@@ -290,9 +286,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       } // end while loop
 
       // shutdown
+      _logger.info("Flushing and committing offsets before task {} exits.", _taskName);
       maybeCommitOffsets(_consumer, true);
     } catch (WakeupException e) {
-      if (!_shouldDie) {
+      if (_shutdown) {
+        _logger.info("Got WakeupException, shutting down task {}.", _taskName);
+        maybeCommitOffsets(_consumer, true);
+      } else {
         _logger.error("Got WakeupException while not in shutdown mode.", e);
         throw e;
       }
@@ -311,12 +311,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   public void stop() {
     _logger.info("{} stopping", _taskName);
-    _shouldDie = true;
+    _shutdown = true;
     if (_consumer != null) {
       _consumer.wakeup();
     }
     _consumerMetrics.deregisterMetrics();
-    _thread.interrupt();
   }
 
   public boolean awaitStart(long timeout, TimeUnit unit) throws InterruptedException {
@@ -389,14 +388,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime) {
     // send the batch out the other end
     // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
-    //                  in case the _shouldDie signal is set (similar to kafka wakeup)
+    //                  in case the _shutdown signal is set (similar to kafka wakeup)
     translateAndSendBatch(records, readTime);
 
     if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMs) {
       _consumerMetrics.updateProcessingAboveThreshold(1);
     }
 
-    if (!_shouldDie) {
+    if (!_shutdown) {
       // potentially commit our offsets (if its been long enough and all sends were successful)
       maybeCommitOffsets(_consumer, false);
     }
@@ -416,7 +415,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   protected void handleNoOffsetForPartitionException(NoOffsetForPartitionException e) {
     _logger.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
-    if (!_shouldDie) {
+    if (!_shutdown) {
       seekToStartPosition(_consumer, e.partitions());
     }
   }
@@ -429,7 +428,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void handlePollRecordsException(Exception e) throws InterruptedException {
     _logger.warn("Poll threw an exception. Sleeping for {} seconds and retrying. Exception: {}",
         _retrySleepDuration.getSeconds(), e);
-    if (!_shouldDie) {
+    if (!_shutdown) {
       Thread.sleep(_retrySleepDuration.toMillis());
     }
   }
@@ -457,6 +456,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       _lastCommittedTime = System.currentTimeMillis();
+      _logger.info("Successfully committed offsets");
     }
   }
 
@@ -548,7 +548,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
-    if (!_shouldDie && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
+    if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
       } catch (Exception e) {

@@ -41,7 +41,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   protected final String _connectorName;
   private final Logger _logger;
 
@@ -146,24 +146,40 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * @param task Datastream task which needs to checked and restarted if it is not running.
    */
   protected void restartIfNotRunning(DatastreamTask task) {
-    try {
-      if (!isTaskRunning(task)) {
-        _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
-            task);
-        AbstractKafkaBasedConnectorTask kafkaTask = _runningTasks.get(task);
-        kafkaTask.stop();
-        boolean stopped = kafkaTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        if (!stopped) {
-          _logger.error("Kafka connector task for datastream task {} did not stop within {} seconds.", task,
-              CANCEL_TASK_TIMEOUT.getSeconds());
-          return;
-        }
-        _runningTasks.remove(task);
+    if (!isTaskRunning(task)) {
+      _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it", task);
+      boolean stopped = stopTask(task);
+      if (stopped) {
         createKafkaConnectorTask(task);
+      } else {
+        _logger.error("Datastream task {} could not be stopped.");
       }
-    } catch (InterruptedException e) {
-      _logger.warn("Caught exception while trying to restart the datastream task {}", task, e);
     }
+  }
+
+  /**
+   * Stop the datastream task and wait for it to stop. If it has not stopped within a timeout, interrupt the thread.
+   * @param datastreamTask
+   * @return
+   */
+  private boolean stopTask(DatastreamTask datastreamTask) {
+    try {
+      AbstractKafkaBasedConnectorTask kafkaTask = _runningTasks.get(datastreamTask);
+      kafkaTask.stop();
+      boolean stopped = kafkaTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+      if (!stopped) {
+        _logger.warn("Task {} took longer than {} minutes to stop. Interrupting the thread.", datastreamTask,
+            CANCEL_TASK_TIMEOUT.toMinutes());
+        _taskThreads.get(datastreamTask).interrupt();
+      }
+      _runningTasks.remove(datastreamTask);
+      _taskThreads.remove(datastreamTask);
+      return true;
+    } catch (InterruptedException e) {
+      _logger.warn("Caught exception while trying to stop the datastream task {}", datastreamTask, e);
+    }
+
+    return false;
   }
 
   /**
@@ -182,11 +198,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public void stop() {
     _daemonThreadExecutorService.shutdown();
     // Try to stop the the tasks
-    _runningTasks.values().forEach(AbstractKafkaBasedConnectorTask::stop);
-    //TODO - should wait?
+    _runningTasks.keySet().forEach(datastreamTask -> stopTask(datastreamTask));
     _runningTasks.clear();
     _taskThreads.clear();
-    _logger.info("stopped.");
+    _logger.info("Connector stopped.");
   }
 
   @Override

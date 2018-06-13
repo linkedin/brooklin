@@ -78,6 +78,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(5).toMillis();
+  private static final long LONG_FLUSH_WARN_THRESHOLD_MS = Duration.ofMinutes(5).toMillis();
 
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
@@ -304,15 +305,21 @@ public class EventProducer implements DatastreamEventProducer {
   @Override
   public void flush() {
     Instant beforeFlush = Instant.now();
-    _transportProvider.flush();
-    _checkpointProvider.flush();
-    _lastFlushTime = Instant.now();
+    try {
+      _transportProvider.flush();
+      _checkpointProvider.flush();
+      _lastFlushTime = Instant.now();
+    } finally {
+      // Report flush latency metrics
+      long flushLatencyMs = Duration.between(beforeFlush, _lastFlushTime).toMillis();
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, FLUSH_LATENCY_MS_STRING, flushLatencyMs);
+      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(), FLUSH_LATENCY_MS_STRING,
+          flushLatencyMs);
 
-    // Report flush latency metrics
-    long flushLatencyMs = Duration.between(beforeFlush, _lastFlushTime).toMillis();
-    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, FLUSH_LATENCY_MS_STRING, flushLatencyMs);
-    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(), FLUSH_LATENCY_MS_STRING,
-        flushLatencyMs);
+      if (flushLatencyMs > LONG_FLUSH_WARN_THRESHOLD_MS) {
+        _logger.warn("Flush took {} ms", flushLatencyMs);
+      }
+    }
   }
 
   /**
