@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
+import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.*;
 
 public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
@@ -175,6 +177,25 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
+
+    long consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
+        new TopicPartition(topic, 0)).orElse(0L);
+    long lastRecordTime = datastreamProducer.getEvents().get(datastreamProducer.getEvents().size() - 1)
+        .getEventsSourceTimestamp();
+    Assert.assertTrue(consumerPosition <= lastRecordTime,
+        String.format(
+            "Position response is newer than the events we have read so far. Expected consumer position of %s to be before time %s.",
+            consumerPosition, lastRecordTime));
+
+    long postProductionTime = System.currentTimeMillis();
+    connectorTask.updateLatestBrokerOffsetsByRpc(connectorTask._consumer, connectorTask._consumerAssignment,
+        postProductionTime).run();
+
+    consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
+        new TopicPartition(topic, 0)).orElse(0L);
+    Assert.assertTrue(consumerPosition >= postProductionTime,
+        String.format("Position response is stale. Expected consumer position of %s to be after time %s.",
+            consumerPosition, postProductionTime));
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

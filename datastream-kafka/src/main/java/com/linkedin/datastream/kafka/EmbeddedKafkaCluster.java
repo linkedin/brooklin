@@ -13,7 +13,7 @@ import com.linkedin.datastream.common.NetworkUtils;
 import java.util.concurrent.TimeUnit;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
-import kafka.utils.Time;
+import org.apache.kafka.common.utils.Time;
 
 
 /**
