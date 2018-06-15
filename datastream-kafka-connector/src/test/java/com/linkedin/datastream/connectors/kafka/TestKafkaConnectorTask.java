@@ -78,6 +78,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testKafkaGroupId() throws Exception {
+    KafkaConnector.KafkaGroupIdConstructor groupIdConstructor = new KafkaConnector.KafkaGroupIdConstructor(false);
     String topic = "MyTopicForGrpId";
     Datastream datastream1 = getDatastream(_broker, topic);
     Datastream datastream2 = getDatastream(_broker, topic);
@@ -91,21 +92,21 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         datastream1.getSource().getConnectionString() + "-to-" + datastream1.getDestination().getConnectionString();
 
     // Testing with default group id
-    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), defaultGrpId);
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG), defaultGrpId);
 
     // Test with setting explicit group id in one datastream
     datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
-    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), "MyGroupId");
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG), "MyGroupId");
 
     // Test with explicitly setting group id in both datastream
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
-    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG), "MyGroupId");
+    Assert.assertEquals(KafkaConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG), "MyGroupId");
 
     // now set different group ids in 2 datastreams and make sure validation fails
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
     boolean exceptionSeen = false;
     try {
-      KafkaConnectorTask.getKafkaGroupId(task, consumerMetrics, LOG);
+      KafkaConnectorTask.getKafkaGroupId(task,  groupIdConstructor, consumerMetrics, LOG);
     } catch (DatastreamRuntimeException e) {
       exceptionSeen = true;
     }
@@ -137,7 +138,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
 
     LOG.info("Sending third set of events");
 
@@ -167,7 +168,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -246,7 +247,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -276,10 +277,12 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     return datastream;
   }
 
-  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
+  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task, boolean isGroupIdHashingEnabled)
+      throws InterruptedException {
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "");
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
+        new KafkaConnector.KafkaGroupIdConstructor(isGroupIdHashingEnabled));
 
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);

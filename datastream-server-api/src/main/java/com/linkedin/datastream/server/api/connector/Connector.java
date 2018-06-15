@@ -103,4 +103,16 @@ public interface Connector extends MetricsAware {
     return String.format("%s_%s", datastreamName, currentTime);
   }
 
+  /**
+   * Hook that can be used to do any final connector related initializations on datastream, after coordinator is done
+   * with its set of initilizations.
+   * @param stream
+   * @param allDatastreams
+   * @param deduper
+   */
+  default void postCoordinatorDatastreamInitilizationHook(Datastream stream, List<Datastream> allDatastreams,
+      DatastreamDeduper deduper) throws DatastreamValidationException {
+
+  }
+
 }

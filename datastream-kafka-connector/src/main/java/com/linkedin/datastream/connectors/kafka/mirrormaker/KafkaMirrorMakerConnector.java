@@ -1,5 +1,6 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -14,11 +15,12 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
+import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-
+import com.linkedin.datastream.server.DatastreamTask;
 
 /**
  * KafkaMirrorMakerConnector is similar to KafkaConnector but it has the ability to consume from multiple topics in a
@@ -29,19 +31,38 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
 
   protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
-  private final boolean _isFlushlessModeEnabled;
 
+  private final boolean _isFlushlessModeEnabled;
   protected static final String MM_TOPIC_PLACEHOLDER = "*";
+
+  private final KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor _groupIdConstructor;
+
+  public static class KafkaMirrorMakerGroupIdConstructor implements GroupIdConstructor {
+    private boolean _isGroupIdHashingEnabled;
+
+    public KafkaMirrorMakerGroupIdConstructor(boolean isGroupIdHashingEnabled) {
+      _isGroupIdHashingEnabled = isGroupIdHashingEnabled;
+    }
+
+    @Override
+    public String constructGroupId(Datastream datastream) {
+      String groupId = datastream.getName();
+      return _isGroupIdHashingEnabled ? AbstractKafkaConnector.hashGroupId(groupId) : groupId;
+    }
+  }
 
   public KafkaMirrorMakerConnector(String connectorName, Properties config) {
     super(connectorName, config, LOG);
     _isFlushlessModeEnabled =
         Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
+
+    _groupIdConstructor = new KafkaMirrorMakerGroupIdConstructor(_isGroupIdHashingEnabled);
   }
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
-    return new KafkaMirrorMakerConnectorTask(_config, task, _connectorName, _isFlushlessModeEnabled);
+    return new KafkaMirrorMakerConnectorTask(_config, task, _connectorName, _isFlushlessModeEnabled,
+        _groupIdConstructor);
   }
 
   @Override
@@ -89,4 +110,9 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     return Collections.unmodifiableList(KafkaMirrorMakerConnectorTask.getMetricInfos(_connectorName));
   }
 
+  @Override
+  public void postCoordinatorDatastreamInitilizationHook(Datastream datastream, List<Datastream> allDatastreams,
+      DatastreamDeduper deduper) throws DatastreamValidationException {
+    populateDatastreamGroupIdInMetadata(datastream, allDatastreams, deduper, _groupIdConstructor, LOG);
+  }
 }

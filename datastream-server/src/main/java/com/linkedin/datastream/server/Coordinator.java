@@ -1159,6 +1159,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       connector.initializeDatastream(datastream, allDatastreams);
       initializeDatastreamDestination(connector, datastream, deduper, allDatastreams);
+      connector.postCoordinatorDatastreamInitilizationHook(datastream, allDatastreams, deduper);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "initializeDatastream", NUM_ERRORS, 1);
       throw e;

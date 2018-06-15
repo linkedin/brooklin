@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.xml.bind.DatatypeConverter;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -26,12 +28,14 @@ import org.slf4j.Logger;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
+import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -41,6 +45,8 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
+  public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
+
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   protected final String _connectorName;
   private final Logger _logger;
@@ -49,6 +55,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   protected final KafkaBasedConnectorConfig _config;
   private ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
+
+  protected final boolean _isGroupIdHashingEnabled;
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
@@ -72,6 +80,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public AbstractKafkaConnector(String connectorName, Properties config, Logger logger) {
     _connectorName = connectorName;
     _logger = logger;
+
+    _isGroupIdHashingEnabled =
+        Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()));
 
     _config = new KafkaBasedConnectorConfig(config);
   }
@@ -346,6 +357,54 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         return true;
       default:
         return false;
+    }
+  }
+
+  /**
+   * This method populates group ID for a datastream. The order of precedence for group ID is:
+   * 1. If group ID is specified already in metadata, use it as it is.
+   * 2. If group ID is specified in other duplicate datastream, use it.
+   * 3. If group ID isn't found yet, then construct it using given GroupIdConstructor.
+   * @param datastream
+   * @param allDatastreams
+   * @param deduper
+   * @param groupIdConstructor
+   * @throws DatastreamValidationException
+   */
+  public static void populateDatastreamGroupIdInMetadata(Datastream datastream, List<Datastream> allDatastreams,
+      DatastreamDeduper deduper, GroupIdConstructor groupIdConstructor, Logger logger)
+      throws DatastreamValidationException {
+    Optional<Datastream> existingDatastream;
+    existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
+
+    String groupId;
+
+    // if group ID is specified in metadata, use it directly
+    if (datastream.getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID)) {
+      groupId = datastream.getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
+      logger.info("Datastream {} has group ID specified in metadata. Will use that ID: {}", datastream.getName(), groupId);
+    } else if (existingDatastream.isPresent()
+        && existingDatastream.get().getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID)) {
+      // if existing datastream has group ID in it already, copy it over.
+      groupId = existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
+      logger.info("Found existing datastream {} for datastream {} with group ID. Copying its group id: {}",
+          existingDatastream.get().getName(), datastream.getName(), groupId);
+    } else {
+      // else create and and keep it in metadata.
+      groupId = groupIdConstructor.constructGroupId(datastream);
+      logger.info("Constructed group ID for datastream {}. Group id: {}", datastream.getName(), groupId);
+    }
+    datastream.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, groupId);
+  }
+
+  public static String hashGroupId(String groupId) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("MD5");
+      byte[] hashedBytes = digest.digest(groupId.getBytes("UTF-8"));
+      return DatatypeConverter.printHexBinary(hashedBytes).toLowerCase();
+    } catch (Exception e) {
+      throw new DatastreamRuntimeException(
+          String.format("Can't hash group ID.Group ID: %s. Exception: %s", groupId, e));
     }
   }
 }
