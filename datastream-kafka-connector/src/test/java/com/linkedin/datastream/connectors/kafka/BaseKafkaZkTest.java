@@ -60,7 +60,9 @@ public abstract class BaseKafkaZkTest {
 
   protected static void createTopic(ZkUtils zkUtils, String topic) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties(), null);
+      Properties properties = new Properties();
+      properties.put("message.timestamp.type", "LogAppendTime");
+      AdminUtils.createTopic(zkUtils, topic, 1, 1, properties, null);
     }
   }
 
