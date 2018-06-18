@@ -298,7 +298,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           // Build and update the broker offset position data
           PhysicalSourcePosition offsetPosition = new PhysicalSourcePosition();
           offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-          offsetPosition.setSourceQueriedTime(readTime.toEpochMilli());
+          offsetPosition.setSourceQueriedTimeMs(readTime.toEpochMilli());
           offsetPosition.setSourcePosition(Long.toString(brokerPosition));
           _offsetPositions.update(topicPartition.toString(), offsetPosition);
         }
@@ -325,7 +325,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     // See getPositionResponse() for details.
     PhysicalSourcePosition offsetPosition = new PhysicalSourcePosition();
     offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-    offsetPosition.setConsumerProcessedTime(readTime.toEpochMilli());
+    offsetPosition.setConsumerProcessedTimeMs(readTime.toEpochMilli());
     offsetPosition.setConsumerPosition(offset);
     _offsetPositions.update(physicalSource, offsetPosition);
 
@@ -334,16 +334,16 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         && record.timestamp() >= 0) {
       // If the event timestamp is available, let's use that.
       position.setPositionType(PhysicalSourcePosition.EVENT_TIME_POSTIION_TYPE);
-      position.setSourceQueriedTime(readTime.toEpochMilli());
+      position.setSourceQueriedTimeMs(readTime.toEpochMilli());
       position.setSourcePosition(Long.toString(readTime.toEpochMilli()));
-      position.setConsumerProcessedTime(readTime.toEpochMilli());
+      position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
       position.setConsumerPosition(Long.toString(record.timestamp()));
     } else {
       // If the event timestamp isn't available, we'll use Kafka offset data instead.
       position.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-      position.setSourceQueriedTime(_offsetPositions.get(physicalSource).getSourceQueriedTime());
+      position.setSourceQueriedTimeMs(_offsetPositions.get(physicalSource).getSourceQueriedTimeMs());
       position.setSourcePosition(_offsetPositions.get(physicalSource).getSourcePosition());
-      position.setConsumerProcessedTime(readTime.toEpochMilli());
+      position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
       position.setConsumerPosition(offset);
     }
     _positions.update(physicalSource, position);
@@ -455,18 +455,18 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       Consumer<?, ?> consumer = createKafkaConsumer(_consumerProps);
       while (!_shutdown) {
         Future<?> future = null;
+        Instant currentTime = Instant.now();
+
+        // We want to update only those partitions which are assigned to us and haven't been updated in over 1 minute.
+        Set<TopicPartition> partitionsNeedingUpdate = _consumerAssignment.stream()
+            .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
+                .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
+                .map(Instant::ofEpochMilli)
+                .orElse(Instant.EPOCH)
+                .isBefore(currentTime.minus(1, ChronoUnit.MINUTES)))
+            .collect(Collectors.toSet());
+
         try {
-          Instant currentTime = Instant.now();
-
-          // We want to update only those partitions which are assigned to us and haven't been updated in over 1 minute.
-          Set<TopicPartition> partitionsNeedingUpdate = _consumerAssignment.stream()
-              .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
-                  .map(PhysicalSourcePosition::getSourceQueriedTime)
-                  .map(Instant::ofEpochMilli)
-                  .orElse(Instant.EPOCH)
-                  .isBefore(currentTime.minus(1, ChronoUnit.MINUTES)))
-              .collect(Collectors.toSet());
-
           // Update the offsets, or timeout in 1 minute.
           future = _latestBrokerOffsetsFetcher.submit(updateLatestBrokerOffsetsByRpc(consumer, partitionsNeedingUpdate,
               currentTime.toEpochMilli()));
@@ -478,6 +478,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           if (future != null) {
             future.cancel(true);
           }
+          _logger.warn("Failed to update broker end offsets via RPC.", e);
         }
       }
       if (consumer != null) {
@@ -502,7 +503,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return () -> consumer.endOffsets(partitions).forEach((tp, offset) -> {
       PhysicalSourcePosition offsetPosition = new PhysicalSourcePosition();
       offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-      offsetPosition.setSourceQueriedTime(currentTime);
+      offsetPosition.setSourceQueriedTimeMs(currentTime);
       offsetPosition.setSourcePosition(String.valueOf(offset));
       _offsetPositions.update(tp.toString(), offsetPosition);
     });
@@ -1027,10 +1028,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetPositions.getPhysicalSourceToPosition().forEach((tp, offsetPosition) -> {
       long consumerPosition = Long.parseLong(offsetPosition.getConsumerPosition()); // Our consumer's offset
       long sourcePosition = Long.parseLong(offsetPosition.getSourcePosition()); // The broker's last offset
-      long consumerProcessedTime = offsetPosition.getConsumerProcessedTime(); // The last time we processed an event
-      long sourceQueriedTime = offsetPosition.getSourceQueriedTime(); // The last time we fetched the broker's last offset data
+      long consumerProcessedTimeMs = offsetPosition.getConsumerProcessedTimeMs(); // The last time we processed an event
+      long sourceQueriedTimeMs = offsetPosition.getSourceQueriedTimeMs(); // The last time we fetched the broker's last offset data
 
-      if (sourceQueriedTime > consumerProcessedTime) {
+      if (sourceQueriedTimeMs > consumerProcessedTimeMs) {
         if (sourcePosition == consumerPosition) {
           // We are caught-up -- our consumer position matches the broker position.
           PhysicalSourcePosition position = _positions.get(tp);
@@ -1044,12 +1045,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
           // If we are using event time positions, then we should update our event time position.
           if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSTIION_TYPE)) {
-            position.setConsumerPosition(Long.toString(sourceQueriedTime));
+            position.setConsumerPosition(Long.toString(sourceQueriedTimeMs));
           }
           // If we aren't using event times (we are using offsets), then we shouldn't modify the value.
 
           // We update our last processed time to the last time we fetched the broker's position data.
-          position.setConsumerProcessedTime(sourceQueriedTime);
+          position.setConsumerProcessedTimeMs(sourceQueriedTimeMs);
         }
       }
     });

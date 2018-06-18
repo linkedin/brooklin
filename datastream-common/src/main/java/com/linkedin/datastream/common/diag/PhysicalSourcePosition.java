@@ -54,12 +54,12 @@ public class PhysicalSourcePosition {
    * The time that the position of the latest/newest available message was queried from the physical source as
    * milliseconds from the Unix epoch.
    */
-  private long _sourceQueriedTime;
+  private long _sourceQueriedTimeMs;
 
   /**
    * The time that the consumer processed data from this physical source as milliseconds from the Unix epoch.
    */
-  private long _consumerProcessedTime;
+  private long _consumerProcessedTimeMs;
 
   /**
    * The position type, which describes what the position data represents.
@@ -87,34 +87,34 @@ public class PhysicalSourcePosition {
    * milliseconds from the Unix epoch.
    * @return the time that the position of the latest/newest available message was queried from the physical source
    */
-  public long getSourceQueriedTime() {
-    return _sourceQueriedTime;
+  public long getSourceQueriedTimeMs() {
+    return _sourceQueriedTimeMs;
   }
 
   /**
    * Sets the time that the position of the latest/newest available message was queried from the physical source as
    * milliseconds from the Unix epoch.
-   * @param sourceQueriedTime the time that the position of the latest/newest available message was queried from the
+   * @param sourceQueriedTimeMs the time that the position of the latest/newest available message was queried from the
    *                          physical source
    */
-  public void setSourceQueriedTime(long sourceQueriedTime) {
-    _sourceQueriedTime = sourceQueriedTime;
+  public void setSourceQueriedTimeMs(long sourceQueriedTimeMs) {
+    _sourceQueriedTimeMs = sourceQueriedTimeMs;
   }
 
   /**
    * Returns the time that the consumer processed data from this physical source as milliseconds from the Unix epoch.
    * @return the time that the consumer processed data from this physical source
    */
-  public long getConsumerProcessedTime() {
-    return _consumerProcessedTime;
+  public long getConsumerProcessedTimeMs() {
+    return _consumerProcessedTimeMs;
   }
 
   /**
    * Sets the time that the consumer processed data from this physical source as milliseconds from the Unix epoch.
-   * @param consumerProcessedTime the time that the consumer processed data from this physical source
+   * @param consumerProcessedTimeMs the time that the consumer processed data from this physical source
    */
-  public void setConsumerProcessedTime(long consumerProcessedTime) {
-    _consumerProcessedTime = consumerProcessedTime;
+  public void setConsumerProcessedTimeMs(long consumerProcessedTimeMs) {
+    _consumerProcessedTimeMs = consumerProcessedTimeMs;
   }
 
   /**
@@ -201,17 +201,17 @@ public class PhysicalSourcePosition {
 
     // Use the freshest data for source position in the merge.
     Stream.of(newPosition, existingPosition)
-        .max(Comparator.comparingLong(PhysicalSourcePosition::getSourceQueriedTime))
+        .max(Comparator.comparingLong(PhysicalSourcePosition::getSourceQueriedTimeMs))
         .ifPresent(position -> {
-          result.setSourceQueriedTime(position.getSourceQueriedTime());
+          result.setSourceQueriedTimeMs(position.getSourceQueriedTimeMs());
           result.setSourcePosition(position.getSourcePosition());
         });
 
     // Use the freshest data for consumer position in the merge.
     Stream.of(newPosition, existingPosition)
-        .max(Comparator.comparingLong(PhysicalSourcePosition::getConsumerProcessedTime))
+        .max(Comparator.comparingLong(PhysicalSourcePosition::getConsumerProcessedTimeMs))
         .ifPresent(position -> {
-          result.setConsumerProcessedTime(position.getConsumerProcessedTime());
+          result.setConsumerProcessedTimeMs(position.getConsumerProcessedTimeMs());
           result.setConsumerPosition(position.getConsumerPosition());
         });
 
@@ -228,8 +228,8 @@ public class PhysicalSourcePosition {
       return null;
     }
     PhysicalSourcePosition position = new PhysicalSourcePosition();
-    position.setSourceQueriedTime(toCopy.getSourceQueriedTime());
-    position.setConsumerProcessedTime(toCopy.getConsumerProcessedTime());
+    position.setSourceQueriedTimeMs(toCopy.getSourceQueriedTimeMs());
+    position.setConsumerProcessedTimeMs(toCopy.getConsumerProcessedTimeMs());
     position.setPositionType(toCopy.getPositionType());
     position.setSourcePosition(toCopy.getSourcePosition());
     position.setConsumerPosition(toCopy.getConsumerPosition());
@@ -242,8 +242,8 @@ public class PhysicalSourcePosition {
    */
   @Override
   public String toString() {
-    return "PhysicalSourcePosition{" + "_sourceQueriedTime=" + _sourceQueriedTime + ", _consumerProcessedTime="
-        + _consumerProcessedTime + ", _positionType='" + _positionType + '\'' + ", _sourcePosition='" + _sourcePosition
+    return "PhysicalSourcePosition{" + "_sourceQueriedTimeMs=" + _sourceQueriedTimeMs + ", _consumerProcessedTimeMs="
+        + _consumerProcessedTimeMs + ", _positionType='" + _positionType + '\'' + ", _sourcePosition='" + _sourcePosition
         + '\'' + ", _consumerPosition='" + _consumerPosition + '\'' + '}';
   }
 }
