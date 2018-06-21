@@ -59,7 +59,8 @@ public class TestAbstractKafkaConnector {
     private int _createTaskCalled = 0;
 
     public TestKafkaConnector(boolean restartThrows, Properties props) {
-      super("test", props, LOG);
+      super("test", props, new KafkaGroupIdConstructor(
+          Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()))), LOG);
       _restartThrows = restartThrows;
     }
 

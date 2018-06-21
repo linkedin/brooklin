@@ -33,39 +33,9 @@ public class KafkaConnector extends AbstractKafkaConnector {
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
-  private final KafkaGroupIdConstructor _groupIdConstructor;
-
-  public static class KafkaGroupIdConstructor implements GroupIdConstructor {
-
-    private boolean _isGroupIdHashingEnabled;
-
-    // TODO: Add cluster name to group ID after checking with Thomas/Justin
-    // TODO: Blocker: would like to see if cluster name can be derived in some other way
-    // TODO: rather making group ID dependent on it and calculations convoluted.
-
-    public KafkaGroupIdConstructor(boolean isGroupIdHashingEnabled) {
-      _isGroupIdHashingEnabled = isGroupIdHashingEnabled;
-    }
-
-    @Override
-    public String constructGroupId(Datastream datastream) {
-      return constructGroupId(KafkaConnectionString.valueOf(datastream.getSource().getConnectionString()),
-          datastream.getDestination().getConnectionString());
-    }
-
-    public String constructGroupId(DatastreamTask task) {
-      return constructGroupId(KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString()),
-          task.getDatastreamDestination().getConnectionString());
-    }
-
-    private String constructGroupId(KafkaConnectionString srcConnString, String dstConnString) {
-      String groupId = srcConnString + "-to-" + dstConnString;
-      return _isGroupIdHashingEnabled ? AbstractKafkaConnector.hashGroupId(groupId) : groupId;
-    }
-  }
-
   public KafkaConnector(String connectorName, Properties config) {
-    super(connectorName, config, LOG);
+    super(connectorName, config, new KafkaGroupIdConstructor(
+        Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()))), LOG);
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =
@@ -73,8 +43,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
             .map(KafkaConnectionString::parseBrokers)
             .orElse(Collections.emptyList());
     _whiteListedBrokers = new HashSet<>(brokers);
-
-    _groupIdConstructor = new KafkaGroupIdConstructor(_isGroupIdHashingEnabled);
   }
 
   @Override
@@ -174,6 +142,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
   @Override
   public void postCoordinatorDatastreamInitilizationHook(Datastream datastream, List<Datastream> allDatastreams,
       DatastreamDeduper deduper) throws DatastreamValidationException {
-    populateDatastreamGroupIdInMetadata(datastream, allDatastreams, deduper, _groupIdConstructor, LOG);
+    _groupIdConstructor.populateDatastreamGroupIdInMetadata(datastream, allDatastreams, deduper, Optional.of(LOG));
   }
 }

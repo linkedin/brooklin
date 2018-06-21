@@ -513,7 +513,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testMirrorMakerGroupId() throws Exception {
-    GroupIdConstructor groupIdConstructor = new KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor(false);
+    GroupIdConstructor groupIdConstructor = new KafkaMirrorMakerGroupIdConstructor(false);
     Datastream datastream1 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "topic");
     Datastream datastream2 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "topic");
 

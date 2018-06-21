@@ -78,7 +78,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testKafkaGroupId() throws Exception {
-    KafkaConnector.KafkaGroupIdConstructor groupIdConstructor = new KafkaConnector.KafkaGroupIdConstructor(false);
+    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(false);
     String topic = "MyTopicForGrpId";
     Datastream datastream1 = getDatastream(_broker, topic);
     Datastream datastream2 = getDatastream(_broker, topic);
@@ -282,7 +282,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
             Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        new KafkaConnector.KafkaGroupIdConstructor(isGroupIdHashingEnabled));
+        new KafkaGroupIdConstructor(isGroupIdHashingEnabled));
 
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);

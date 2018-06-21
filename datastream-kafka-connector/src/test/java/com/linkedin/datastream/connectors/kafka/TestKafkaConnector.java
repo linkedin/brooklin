@@ -120,7 +120,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
   private void executeTestGroupIdAssignment(boolean isGroupIdHashingEnabled) throws Exception {
 
-    KafkaConnector.KafkaGroupIdConstructor groupIdConstructor = new KafkaConnector.KafkaGroupIdConstructor(isGroupIdHashingEnabled);
+    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(isGroupIdHashingEnabled);
 
     String topicName1 = "topic1";
     String topicName2 = "topic2";

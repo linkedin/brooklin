@@ -557,8 +557,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastream1.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream1);
     Assert.assertEquals(datastream1.getMetadata().get(DatastreamMetadataConstants.GROUP_ID),
-        new KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor(groupIdHashingEnabled).constructGroupId(
-            datastream1));
+        new KafkaMirrorMakerGroupIdConstructor(groupIdHashingEnabled).constructGroupId(datastream1));
 
     // create datastream with group ID specified in metadata, expect that group ID being used as it is.
     StringMap metadata2 = new StringMap();

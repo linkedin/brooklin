@@ -94,7 +94,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
             Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false,
-        new KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled));
+        new KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled));
   }
 
   static KafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
@@ -112,7 +112,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
     return new KafkaMirrorMakerConnectorTask(config, task, "", true,
-        new KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor(false));
+        new KafkaMirrorMakerGroupIdConstructor(false));
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)

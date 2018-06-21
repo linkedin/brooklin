@@ -82,10 +82,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
 
-  private KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor _groupIdConstructor;
+  private GroupIdConstructor _groupIdConstructor;
 
   protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
-      boolean isFlushlessModeEnabled, KafkaMirrorMakerConnector.KafkaMirrorMakerGroupIdConstructor groupIdConstructor) {
+      boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
@@ -235,13 +235,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @VisibleForTesting
   public static String getMirrorMakerGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
       CommonConnectorMetrics consumerMetrics, Logger logger) {
-    String groupId = getTaskMetadataGroupId(task, consumerMetrics, logger);
-    if (null == groupId) {
-      groupId = groupIdConstructor.constructGroupId(task.getDatastreams().get(0));
-      LOG.info(String.format("Constructed group ID: %s for task: %s", groupId, task.getId()));
+    try {
+      return groupIdConstructor.getTaskGroupId(task, Optional.of(logger));
+    } catch (Exception e) {
+      consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
+      throw e;
     }
-    LOG.info(String.format("Setting group ID: %s for task: %s", groupId, task.getId()));
-    return groupId;
   }
 
   @VisibleForTesting

@@ -35,7 +35,6 @@ import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
-import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -58,6 +57,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   protected final boolean _isGroupIdHashingEnabled;
 
+  protected final GroupIdConstructor _groupIdConstructor;
+
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
   }
@@ -77,7 +78,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         }
       });
 
-  public AbstractKafkaConnector(String connectorName, Properties config, Logger logger) {
+  public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
+      Logger logger) {
     _connectorName = connectorName;
     _logger = logger;
 
@@ -85,6 +87,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()));
 
     _config = new KafkaBasedConnectorConfig(config);
+
+    _groupIdConstructor = groupIdConstructor;
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -361,42 +365,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * This method populates group ID for a datastream. The order of precedence for group ID is:
-   * 1. If group ID is specified already in metadata, use it as it is.
-   * 2. If group ID is specified in other duplicate datastream, use it.
-   * 3. If group ID isn't found yet, then construct it using given GroupIdConstructor.
-   * @param datastream
-   * @param allDatastreams
-   * @param deduper
-   * @param groupIdConstructor
-   * @throws DatastreamValidationException
+   * Hashes given group ID using MD5.
+   * @param groupId - Group ID to hash
+   * @return Hashed group ID string
    */
-  public static void populateDatastreamGroupIdInMetadata(Datastream datastream, List<Datastream> allDatastreams,
-      DatastreamDeduper deduper, GroupIdConstructor groupIdConstructor, Logger logger)
-      throws DatastreamValidationException {
-    Optional<Datastream> existingDatastream;
-    existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
-
-    String groupId;
-
-    // if group ID is specified in metadata, use it directly
-    if (datastream.getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID)) {
-      groupId = datastream.getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
-      logger.info("Datastream {} has group ID specified in metadata. Will use that ID: {}", datastream.getName(), groupId);
-    } else if (existingDatastream.isPresent()
-        && existingDatastream.get().getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID)) {
-      // if existing datastream has group ID in it already, copy it over.
-      groupId = existingDatastream.get().getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
-      logger.info("Found existing datastream {} for datastream {} with group ID. Copying its group id: {}",
-          existingDatastream.get().getName(), datastream.getName(), groupId);
-    } else {
-      // else create and and keep it in metadata.
-      groupId = groupIdConstructor.constructGroupId(datastream);
-      logger.info("Constructed group ID for datastream {}. Group id: {}", datastream.getName(), groupId);
-    }
-    datastream.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, groupId);
-  }
-
   public static String hashGroupId(String groupId) {
     try {
       MessageDigest digest = MessageDigest.getInstance("MD5");
