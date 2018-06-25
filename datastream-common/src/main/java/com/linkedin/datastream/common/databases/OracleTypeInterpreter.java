@@ -3,7 +3,6 @@ package com.linkedin.datastream.common.databases;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
@@ -93,29 +92,29 @@ public class OracleTypeInterpreter implements SqlTypeInterpreter {
       return sqlObject.toString();
     }
 
-    if (sqlObject instanceof BigDecimal) {
-      BigDecimal bd = ((BigDecimal) sqlObject);
+    if (sqlObject instanceof Number) {
+      Number number = ((Number) sqlObject);
 
       Schema primitiveSchema = getChildSchema(avroSchema, colName, ACCEPTABLE_PRIMITIVES);
 
       if (primitiveSchema.getType().equals(Schema.Type.STRING)) {
-        return bd.toString();
+        return number.toString();
       }
 
       if (primitiveSchema.getType().equals(Schema.Type.FLOAT)) {
-        return bd.floatValue();
+        return number.floatValue();
       }
 
       if (primitiveSchema.getType().equals(Schema.Type.INT)) {
-        return bd.intValue();
+        return number.intValue();
       }
 
       if (primitiveSchema.getType().equals(Schema.Type.LONG)) {
-        return bd.longValue();
+        return number.longValue();
       }
 
       if (primitiveSchema.getType().equals(Schema.Type.DOUBLE)) {
-        return bd.doubleValue();
+        return number.doubleValue();
       }
     }
 
