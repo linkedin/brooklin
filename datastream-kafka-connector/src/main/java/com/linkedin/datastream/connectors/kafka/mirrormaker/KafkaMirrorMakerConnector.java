@@ -18,7 +18,6 @@ import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.DatastreamTask;
 
@@ -35,9 +34,10 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private final boolean _isFlushlessModeEnabled;
   protected static final String MM_TOPIC_PLACEHOLDER = "*";
 
-  public KafkaMirrorMakerConnector(String connectorName, Properties config) {
+  public KafkaMirrorMakerConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaMirrorMakerGroupIdConstructor(
-        Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()))), LOG);
+            Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
+        clusterName, LOG);
     _isFlushlessModeEnabled =
         Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
   }
@@ -95,8 +95,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   }
 
   @Override
-  public void postCoordinatorDatastreamInitilizationHook(Datastream datastream, List<Datastream> allDatastreams,
-      DatastreamDeduper deduper) throws DatastreamValidationException {
-    _groupIdConstructor.populateDatastreamGroupIdInMetadata(datastream, allDatastreams, deduper, Optional.of(LOG));
+  public void postDatastreamInitialize(Datastream datastream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    _groupIdConstructor.populateDatastreamGroupIdInMetadata(datastream, allDatastreams, Optional.of(LOG));
   }
 }

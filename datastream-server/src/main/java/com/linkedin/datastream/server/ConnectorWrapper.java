@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -171,27 +170,26 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Hook that can be used to do any final connector related initializations on datastream, after coordinator is done
-   * with its set of initilizations.
+   * Hook that can be used to do any final connector related initializations on datastream, after
+   * datastream initialization is done at connector, transport, and coordinator level.
    * @param stream
    * @param allDatastreams
-   * @param deduper
    * @throws DatastreamValidationException
    */
-  public void postCoordinatorDatastreamInitilizationHook(Datastream stream, List<Datastream> allDatastreams, DatastreamDeduper deduper)
+  public void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-    logApiStart("PostCoordinatorDatastreamInitilizationHook");
+    logApiStart("postDatastreamInitialize");
 
     try {
-      _connector.postCoordinatorDatastreamInitilizationHook(stream, allDatastreams, deduper);
+      _connector.postDatastreamInitialize(stream, allDatastreams);
     } catch (DatastreamValidationException ex) {
       throw ex;
     } catch (Exception ex) {
-      logErrorAndException("initializeDatastream", ex);
+      logErrorAndException("postDatastreamInitialize", ex);
       throw ex;
     }
 
-    logApiEnd("PostCoordinatorDatastreamInitilizationHook");
+    logApiEnd("postDatastreamInitialize");
   }
 
 

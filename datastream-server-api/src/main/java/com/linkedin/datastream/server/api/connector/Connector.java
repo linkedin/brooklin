@@ -108,10 +108,9 @@ public interface Connector extends MetricsAware {
    * with its set of initilizations.
    * @param stream
    * @param allDatastreams
-   * @param deduper
    */
-  default void postCoordinatorDatastreamInitilizationHook(Datastream stream, List<Datastream> allDatastreams,
-      DatastreamDeduper deduper) throws DatastreamValidationException {
+  default void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
 
   }
 

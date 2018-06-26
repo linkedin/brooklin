@@ -1,9 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
-import com.linkedin.datastream.server.Coordinator;
-import com.linkedin.datastream.server.SourceBasedDeduper;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.Map;
@@ -19,7 +15,12 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.server.Coordinator;
+import com.linkedin.datastream.server.SourceBasedDeduper;
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
 @Test
@@ -60,7 +61,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     Map<Integer, Long> offsets = Collections.singletonMap(0, 100L);
     KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null));
+        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(offsets));
     connector.initializeDatastream(ds, Collections.emptyList());
   }
@@ -70,7 +71,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     String topicName = "testInitializeDatastreamWithNonexistTopic";
     Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic", topicName);
     KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null));
+        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
@@ -81,7 +82,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
     Datastream ds = createDatastream("testPopulatingDefaultSerde", topicName);
     KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null));
+        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertTrue(ds.getDestination().hasKeySerDe());
     Assert.assertEquals(ds.getDestination().getKeySerDe(), "keySerde");
@@ -96,7 +97,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null));
+        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertEquals(ds.getSource().getPartitions().intValue(), 1);
   }
@@ -108,24 +109,29 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     Properties override = new Properties();
     override.put(KafkaConnector.CONFIG_WHITE_LISTED_CLUSTERS, "randomBroker:2546");
-    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(override));
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(override), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
   @Test
   public void testGroupIdAssignment() throws Exception {
     executeTestGroupIdAssignment(false);
+  }
+
+  @Test
+  public void testGroupIdAssignmentWithHashing() throws Exception {
     executeTestGroupIdAssignment(true);
   }
 
   private void executeTestGroupIdAssignment(boolean isGroupIdHashingEnabled) throws Exception {
 
-    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(isGroupIdHashingEnabled);
+    String clusterName = "testGroupIdAssignment";
+    KafkaGroupIdConstructor groupIdConstructor =
+        new KafkaGroupIdConstructor(isGroupIdHashingEnabled, "testGroupIdAssignment");
 
     String topicName1 = "topic1";
     String topicName2 = "topic2";
     String topicName3 = "topic3";
-
 
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName1, 0, 100);
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName2, 0, 100);
@@ -133,10 +139,10 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
     Properties properties = getDefaultConfig(null);
     properties.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(isGroupIdHashingEnabled));
-    KafkaConnector connector = new KafkaConnector("MirrorMakerConnector", properties);
+    KafkaConnector connector = new KafkaConnector("MirrorMakerConnector", properties, clusterName);
 
-    Coordinator coordinator =
-        TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), "testGroupIdAssignment");
+    Coordinator coordinator = TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(),
+        clusterName);
     coordinator.addConnector("Kafka", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
@@ -149,12 +155,14 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     Datastream datastream1 = createDatastream("datastream1", topicName1);
     datastream1.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream1);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream1);
 
     // create datastream without any group ID override, but same topic as datastream1
     // - datastream1's group ID should get copied
     Datastream datastream2 = createDatastream("datastream2", topicName1);
     datastream2.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream2);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream2);
 
     // create datastream with group ID override and same source as datasteram 1 & 2
     // - group ID override should take precedence
@@ -162,6 +170,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     datastream3.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "datastream3");
     datastream3.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream3);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream3);
 
     // create a datastream with different source than datastream1/2/3 and overridden group ID
     // - overridden group ID should be used.
@@ -169,17 +178,20 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     datastream4.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "randomId");
     datastream4.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream4);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream4);
 
     // create a datastream with same source as datastream4 - it should use same overridden group ID from datastream4
     Datastream datastream5 = createDatastream("datastream5", topicName2);
     datastream5.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "randomId");
     datastream5.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream5);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream5);
 
     // create datastream with a different source than any of the above datastreams - group ID should be constructed
-    Datastream datastream6 = createDatastream("datastream5", topicName3);
+    Datastream datastream6 = createDatastream("datastream6", topicName3);
     datastream6.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream6);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream6);
 
     Assert.assertEquals(datastream1.getMetadata().get(DatastreamMetadataConstants.GROUP_ID),
         groupIdConstructor.constructGroupId(datastream1));

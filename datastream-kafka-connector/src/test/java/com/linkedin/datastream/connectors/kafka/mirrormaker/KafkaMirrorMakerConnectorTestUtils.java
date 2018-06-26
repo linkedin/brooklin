@@ -86,15 +86,16 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       Properties consumerConfig) {
-    return createKafkaMirrorMakerConnectorTask(task, consumerConfig, Duration.ofMillis(0), false);
+    return createKafkaMirrorMakerConnectorTask(task, consumerConfig, Duration.ofMillis(0), false, "testCluster");
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
-      Properties consumerConfig, Duration pauseErrorPartitionDuration, boolean isGroupIdHashingEnabled) {
+      Properties consumerConfig, Duration pauseErrorPartitionDuration, boolean isGroupIdHashingEnabled,
+      String clusterName) {
     return new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
             Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false,
-        new KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled));
+        new KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled, clusterName));
   }
 
   static KafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
@@ -112,7 +113,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
     return new KafkaMirrorMakerConnectorTask(config, task, "", true,
-        new KafkaMirrorMakerGroupIdConstructor(false));
+        new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)

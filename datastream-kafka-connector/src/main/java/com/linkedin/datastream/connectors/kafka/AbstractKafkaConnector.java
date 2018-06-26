@@ -2,7 +2,6 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.net.URI;
 import java.nio.charset.Charset;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
@@ -16,7 +15,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.xml.bind.DatatypeConverter;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -28,7 +26,6 @@ import org.slf4j.Logger;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
@@ -56,8 +53,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
 
   protected final boolean _isGroupIdHashingEnabled;
-
   protected final GroupIdConstructor _groupIdConstructor;
+  protected final String _clusterName;
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
@@ -79,9 +76,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       });
 
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
-      Logger logger) {
+      String clusterName, Logger logger) {
     _connectorName = connectorName;
     _logger = logger;
+    _clusterName = clusterName;
 
     _isGroupIdHashingEnabled =
         Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()));
@@ -364,19 +362,4 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     }
   }
 
-  /**
-   * Hashes given group ID using MD5.
-   * @param groupId - Group ID to hash
-   * @return Hashed group ID string
-   */
-  public static String hashGroupId(String groupId) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("MD5");
-      byte[] hashedBytes = digest.digest(groupId.getBytes("UTF-8"));
-      return DatatypeConverter.printHexBinary(hashedBytes).toLowerCase();
-    } catch (Exception e) {
-      throw new DatastreamRuntimeException(
-          String.format("Can't hash group ID.Group ID: %s. Exception: %s", groupId, e));
-    }
-  }
 }

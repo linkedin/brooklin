@@ -78,7 +78,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testKafkaGroupId() throws Exception {
-    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(false);
+    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(false, "testCluster");
     String topic = "MyTopicForGrpId";
     Datastream datastream1 = getDatastream(_broker, topic);
     Datastream datastream2 = getDatastream(_broker, topic);
@@ -138,7 +138,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
 
     LOG.info("Sending third set of events");
 
@@ -168,7 +168,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -247,7 +247,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -277,12 +277,12 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     return datastream;
   }
 
-  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task, boolean isGroupIdHashingEnabled)
-      throws InterruptedException {
+  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task, boolean isGroupIdHashingEnabled,
+      String clusterName) throws InterruptedException {
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
             Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        new KafkaGroupIdConstructor(isGroupIdHashingEnabled));
+        new KafkaGroupIdConstructor(isGroupIdHashingEnabled, clusterName));
 
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);

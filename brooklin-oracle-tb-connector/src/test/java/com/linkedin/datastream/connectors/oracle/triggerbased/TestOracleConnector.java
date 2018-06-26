@@ -61,7 +61,7 @@ public class TestOracleConnector {
 
     // creating the Oracle Connector
     Connector connector =
-        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, props);
+        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, props, "testCluster");
 
     // creating the Datastream
     Datastream datastream = OracleConnectorTestUtils.createDatastream("oracle:/dbName/viewName", id, "connString");
@@ -75,7 +75,7 @@ public class TestOracleConnector {
 
     Properties prop = OracleConnectorTestUtils.getDefaultProps();
     Connector connector =
-        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, prop);
+        new OracleConnectorFactory().createConnector(OracleConnectorTestUtils.DEFAULT_CONNECTOR_NAME, prop, "testCluster");
 
     // creating the Datastream
     Datastream datastream = OracleConnectorTestUtils.createDatastream();

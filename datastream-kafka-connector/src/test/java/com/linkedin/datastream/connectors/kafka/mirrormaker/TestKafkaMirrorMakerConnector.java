@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +27,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
@@ -44,7 +44,7 @@ import com.linkedin.datastream.server.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
-
+import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.*;
 
@@ -78,7 +78,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Datastream ds =
         KafkaMirrorMakerConnectorTestUtils.createDatastream("testInitializeDatastream", _broker, sourceRegex, metadata);
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("testInitializeDatastream", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("testInitializeDatastream", getDefaultConfig(Optional.empty()), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
 
     sourceRegex = "SpecificTopic";
@@ -108,7 +108,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createDatastream("testInitializeDatastreamWithDestinationReuse", _broker,
             sourceRegex, metadata);
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("testInitializeDatastreamWithDestinationReuse",
-        getDefaultConfig(Optional.empty()));
+        getDefaultConfig(Optional.empty()), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
@@ -121,7 +121,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createDatastream("testInitializeDatastreamWithBYOT", _broker, sourceRegex,
             metadata);
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("testInitializeDatastreamWithBYOT", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("testInitializeDatastreamWithBYOT", getDefaultConfig(Optional.empty()),
+            "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
@@ -134,14 +135,15 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createDatastream("testInitializeDatastreamWithBadSource", _broker,
             sourceRegex, metadata);
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("testInitializeDatastreamWithBadSource", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("testInitializeDatastreamWithBadSource", getDefaultConfig(Optional.empty()),
+            "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
   @Test
   public void testPopulateDatastreamDestination() throws Exception {
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
     Coordinator coordinator =
         TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), "testPopulateDatastreamDestination");
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
@@ -174,9 +176,9 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Map<String, Set<String>> expectedPartitions = new HashMap<>();
 
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
-    Coordinator coordinator =
-        TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), "testValidateDatastreamUpdatePausedPartitions");
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
+    Coordinator coordinator = TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(),
+        "testValidateDatastreamUpdatePausedPartitions");
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
@@ -238,15 +240,14 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     createTopic(_zkUtils, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     task.setEventProducer(datastreamProducer);
 
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
     connector.start(null);
 
     // notify connector of new task
@@ -333,7 +334,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Properties override = new Properties();
     override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)), "testCluster");
     connector.start(null);
 
     // notify connector of new task
@@ -386,7 +387,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Properties override = new Properties();
     override.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.METADATA_MAX_AGE_CONFIG, "100");
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.of(override)), "testCluster");
     connector.start(null);
 
     // notify connector of new task
@@ -423,7 +424,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   @Test
   public void testProcessDatastreamStatesRequestInvalid() {
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
 
     connector.start(null);
 
@@ -437,7 +438,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   @Test
   public void testReduceDatastreamStates() {
     KafkaMirrorMakerConnector connector =
-        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()));
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
 
     String datastreamName = "testProcessDatastreamStates";
 
@@ -532,15 +533,20 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   @Test
   public void testGroupIdAssignment() throws Exception {
     executeGroupIdAssignment(false);
+  }
+
+  @Test
+  public void testGroupIdAssignmentWithHashing() throws Exception {
     executeGroupIdAssignment(true);
   }
 
   private void executeGroupIdAssignment(boolean groupIdHashingEnabled) throws Exception {
+    String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(groupIdHashingEnabled));
-    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config);
+    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Coordinator coordinator =
-        TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), "testGroupIdAssignment");
+        TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), clusterName);
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
@@ -556,8 +562,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "\\w+Event", metadata1);
     datastream1.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream1);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream1);
     Assert.assertEquals(datastream1.getMetadata().get(DatastreamMetadataConstants.GROUP_ID),
-        new KafkaMirrorMakerGroupIdConstructor(groupIdHashingEnabled).constructGroupId(datastream1));
+        new KafkaMirrorMakerGroupIdConstructor(groupIdHashingEnabled, "testGroupIdAssignment").constructGroupId(
+            datastream1));
 
     // create datastream with group ID specified in metadata, expect that group ID being used as it is.
     StringMap metadata2 = new StringMap();
@@ -567,6 +575,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "\\w+Event", metadata2);
     datastream2.setTransportProviderName(transportProviderName);
     coordinator.initializeDatastream(datastream2);
+    DatastreamTestUtils.storeDatastreams(_zkClient, clusterName, datastream2);
     Assert.assertEquals(datastream2.getMetadata().get(DatastreamMetadataConstants.GROUP_ID), "randomId");
 
     coordinator.stop();

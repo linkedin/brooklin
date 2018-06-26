@@ -159,7 +159,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConfigPauseAndResumePartitions() throws Exception {
     // Need connector just for update validation. Doesn't matter properties or datastream name
-    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("foo", new Properties());
+    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("foo", new Properties(), "testCluster");
 
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
@@ -346,7 +346,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
-            Duration.ofSeconds(20), false);
+            Duration.ofSeconds(20), false, "testCluster");
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce 5 events
@@ -419,7 +419,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
-            Duration.ofSeconds(5), false);
+            Duration.ofSeconds(5), false, "testCluster");
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce 5 events
@@ -513,7 +513,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testMirrorMakerGroupId() throws Exception {
-    GroupIdConstructor groupIdConstructor = new KafkaMirrorMakerGroupIdConstructor(false);
+    GroupIdConstructor groupIdConstructor = new KafkaMirrorMakerGroupIdConstructor(false, "testCluster");
     Datastream datastream1 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "topic");
     Datastream datastream2 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "topic");
 

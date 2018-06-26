@@ -8,7 +8,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class FileConnectorFactory implements ConnectorFactory<FileConnector> {
   @Override
-  public FileConnector createConnector(String connectorName, Properties config) {
+  public FileConnector createConnector(String connectorName, Properties config, String clusterName) {
     try {
       return new FileConnector(config);
     } catch (DatastreamException e) {

@@ -8,7 +8,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 public class MysqlSnapshotConnectorFactory implements ConnectorFactory<MysqlSnapshotConnector> {
 
   @Override
-  public MysqlSnapshotConnector createConnector(String connectorName, Properties config) {
+  public MysqlSnapshotConnector createConnector(String connectorName, Properties config, String clusterName) {
     return new MysqlSnapshotConnector(config);
   }
 }

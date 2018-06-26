@@ -22,7 +22,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.DatastreamTask;
 
@@ -33,9 +32,10 @@ public class KafkaConnector extends AbstractKafkaConnector {
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
-  public KafkaConnector(String connectorName, Properties config) {
+  public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(
-        Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()))), LOG);
+            Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
+        clusterName, LOG);
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =
@@ -140,8 +140,8 @@ public class KafkaConnector extends AbstractKafkaConnector {
   }
 
   @Override
-  public void postCoordinatorDatastreamInitilizationHook(Datastream datastream, List<Datastream> allDatastreams,
-      DatastreamDeduper deduper) throws DatastreamValidationException {
-    _groupIdConstructor.populateDatastreamGroupIdInMetadata(datastream, allDatastreams, deduper, Optional.of(LOG));
+  public void postDatastreamInitialize(Datastream datastream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    _groupIdConstructor.populateDatastreamGroupIdInMetadata(datastream, allDatastreams, Optional.of(LOG));
   }
 }
