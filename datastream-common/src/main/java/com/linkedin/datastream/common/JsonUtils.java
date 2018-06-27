@@ -54,11 +54,23 @@ public final class JsonUtils {
    * @return deserialized Java object
    */
   public static <T> T fromJson(String json, Class<T> clazz) {
+    return fromJson(json, clazz, MAPPER);
+  }
+
+  /**
+   * Deserialize a JSON string into an object with the specified type, using the specified ObjectMapper
+   * @param json JSON string
+   * @param clazz class of the target object
+   * @param mapper the ObjectMapper to use
+   * @param <T> type of the target object
+   * @return deserialized Java object
+   */
+  public static <T> T fromJson(String json, Class<T> clazz, ObjectMapper mapper) {
     Validate.notNull(json, "null JSON string");
     Validate.notNull(clazz, "null class object");
     T object = null;
     try {
-      object = MAPPER.readValue(json, clazz);
+      object = mapper.readValue(json, clazz);
     } catch (IOException e) {
       String errorMessage = "Failed to parse json: " + json;
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
