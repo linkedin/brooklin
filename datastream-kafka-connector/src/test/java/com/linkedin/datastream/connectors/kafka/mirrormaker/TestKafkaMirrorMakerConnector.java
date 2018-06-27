@@ -13,6 +13,7 @@ import java.util.Set;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
+import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -303,8 +304,13 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     // notify connector of paused partition update
     connector.onAssignmentChange(Collections.singletonList(task));
 
-    if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
-        .contains("\"manualPausedPartitions\":{\"SaltyPizza\":[\"0\"]}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+    // verify manually paused partition from diagnostics
+    if (!PollUtils.poll(() -> {
+      Map<String, Set<String>> manuallyPaused =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getManualPausedPartitions();
+      return manuallyPaused.containsKey(saltyTopic) && manuallyPaused.get(saltyTopic).contains("0");
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("manualPausedPartitions was not properly retrieved from process() after pause");
     }
 
@@ -316,8 +322,12 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     // notify connector of resumed partition update
     connector.onAssignmentChange(Collections.singletonList(task));
 
-    if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
-        .contains("\"manualPausedPartitions\":{}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> {
+      Map<String, Set<String>> manuallyPaused =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getManualPausedPartitions();
+      return manuallyPaused.isEmpty();
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("manualPausedPartitions was not properly retrieved from process() after resume");
     }
 
@@ -325,16 +335,25 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastreamProducer.updateSendFailCondition((record) -> true);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
 
-    if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
-        .contains("\"autoPausedPartitions\":{\"YummyPizza-0\":{\"reason\":\"SEND_ERROR\",\"description\":\"Failed to "
-            + "produce messages from this partition\"}}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> {
+      Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getAutoPausedPartitions();
+      TopicPartition expected = new TopicPartition(yummyTopic, 0);
+      return autoPausedPartitions.containsKey(expected)
+          && autoPausedPartitions.get(expected).getReason() == PausedSourcePartitionMetadata.Reason.SEND_ERROR;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("autoPausedPartitions was not properly retrieved from process() after auto-pause");
     }
 
     // update the send fail condition to allow the message to successfully flow through message is retried
     datastreamProducer.updateSendFailCondition((record) -> false);
-    if (!PollUtils.poll(() -> connector.process(DATASTREAM_STATE_QUERY + datastream.getName())
-        .contains("\"autoPausedPartitions\":{}"), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> {
+      Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getAutoPausedPartitions();
+      return autoPausedPartitions.isEmpty();
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("autoPausedPartitions was not properly retrieved from process() after auto-resume");
     }
 
@@ -470,6 +489,9 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
 
+    String instance1 = "instance1";
+    String instance2 = "instance2";
+
     // build instance 1 results
     Set<TopicPartition> assignedPartitions1 = new HashSet<>();
     assignedPartitions1.add(new TopicPartition(yummyTopic, 0));
@@ -528,29 +550,39 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
             assignedPartitions2, inflightMsgCounts2);
 
     Map<String, String> responseMap = new HashMap<>();
-    responseMap.put("instance1", KafkaDatastreamStatesResponse.toJson(process1Response));
-    responseMap.put("instance2", KafkaDatastreamStatesResponse.toJson(process2Response));
+    responseMap.put(instance1, KafkaDatastreamStatesResponse.toJson(process1Response));
+    responseMap.put(instance2, KafkaDatastreamStatesResponse.toJson(process2Response));
 
-    String result = connector.reduce("/datastream_state?datastream=name", responseMap);
+    String resultJson = connector.reduce(DATASTREAM_STATE_QUERY, responseMap);
+    Map<String, String> reducedResults = JsonUtils.fromJson(resultJson, new TypeReference<HashMap<String, String>>() {
+    });
+    Assert.assertTrue(reducedResults.keySet().size() == 2, "Should have received states from 2 instances");
 
-    Assert.assertTrue(result.contains("\"instance1\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","
-        + "\\\"assignedTopicPartitions\\\":[\\\"YummyPizza-4\\\",\\\"SaltyPizza-5\\\",\\\"YummyPizza-0\\\","
-        + "\\\"SaltyPizza-2\\\",\\\"YummyPizza-11\\\",\\\"YummyPizza-10\\\",\\\"SaltyPizza-77\\\","
-        + "\\\"YummyPizza-23\\\"],\\\"autoPausedPartitions\\\":{\\\"YummyPizza-0\\\":{\\\"reason\\\":\\\"SEND_ERROR"
-        + "\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"},\\\"YummyPizza-10\\\":{"
-        + "\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition"
-        + "\\\"}},\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"11\\\",\\\"23\\\",\\\"4\\\"],\\\"SaltyPizza"
-        + "\\\":[\\\"77\\\",\\\"2\\\",\\\"5\\\"]},\\\"inFlightMessageCounts\\\":{\\\"YummyPizza-4\\\":6}}\""),
-        "instance1 results were not as expected");
-    Assert.assertTrue(result.contains("\"instance2\":\"{\\\"datastream\\\":\\\"testProcessDatastreamStates\\\","
-            + "\\\"assignedTopicPartitions\\\":[\\\"YummyPizza-19\\\",\\\"SaltyPizza-19\\\",\\\"SaltyPizza-6\\\","
-            + "\\\"SaltyPizza-1\\\",\\\"SaltyPizza-17\\\",\\\"SaltyPizza-9\\\",\\\"SaltyPizza-25\\\"],"
-            + "\\\"autoPausedPartitions\\\":{\\\"SaltyPizza-6\\\":{\\\"reason\\\":\\\"SEND_ERROR\\\",\\\"description"
-            + "\\\":\\\"Failed to produce messages from this partition\\\"},\\\"SaltyPizza-17\\\":{\\\"reason\\\":"
-            + "\\\"SEND_ERROR\\\",\\\"description\\\":\\\"Failed to produce messages from this partition\\\"}},"
-            + "\\\"manualPausedPartitions\\\":{\\\"YummyPizza\\\":[\\\"19\\\"],\\\"SaltyPizza\\\":[\\\"1\\\",\\\"9"
-            + "\\\",\\\"25\\\"]},\\\"inFlightMessageCounts\\\":{\\\"SaltyPizza-9\\\":20}}\""),
-        "instance2 results were not as expected");
+    // Validate instance1 states response
+    KafkaDatastreamStatesResponse response1 = KafkaDatastreamStatesResponse.fromJson(responseMap.get(instance1));
+    Assert.assertEquals(response1.getAssignedTopicPartitions(), assignedPartitions1,
+        "Assigned partitions mismatch for instance1");
+    Assert.assertEquals(response1.getInFlightMessageCounts(), inflightMsgCounts1,
+        "In-flight message counts mismatch for instance1");
+    Assert.assertEquals(response1.getManualPausedPartitions(), manualPausedPartitions1,
+        "Manually paused partitions mismatch for instance1");
+    Assert.assertEquals(response1.getAutoPausedPartitions(), autoPausedPartitions1,
+        "Auto-paused partitions mismatch for instance1");
+    Assert.assertEquals(response1.getDatastream(), datastreamName,
+        "Datastream name mismatch for instance1");
+
+    // Validate instance2 states response
+    KafkaDatastreamStatesResponse response2 = KafkaDatastreamStatesResponse.fromJson(responseMap.get(instance2));
+    Assert.assertEquals(response2.getAssignedTopicPartitions(), assignedPartitions2,
+        "Assigned partitions mismatch for instance2");
+    Assert.assertEquals(response2.getInFlightMessageCounts(), inflightMsgCounts2,
+        "In-flight message counts mismatch for instance2");
+    Assert.assertEquals(response2.getManualPausedPartitions(), manualPausedPartitions2,
+        "Manually paused partitions mismatch for instance2");
+    Assert.assertEquals(response2.getAutoPausedPartitions(), autoPausedPartitions2,
+        "Auto-paused partitions mismatch for instance2");
+    Assert.assertEquals(response2.getDatastream(), datastreamName,
+        "Datastream name mismatch for instance");
 
     connector.stop();
   }
