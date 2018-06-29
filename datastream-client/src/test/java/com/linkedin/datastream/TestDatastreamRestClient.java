@@ -324,7 +324,8 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     ResponseFuture<IdResponse<String>> timeoutResponse = mock(ResponseFuture.class);
     ResponseFuture<IdResponse<String>> goodResponse = mock(ResponseFuture.class);
     when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, timeoutResponse, goodResponse);
-    when(timeoutResponse.getResponse()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    Exception nestedException = new RemoteInvocationException(new RemoteInvocationException(new TimeoutException()));
+    when(timeoutResponse.getResponse()).thenThrow(nestedException);
     when(goodResponse.getResponse()).thenReturn(mock(Response.class));
 
     Properties restClientConfig = new Properties();
@@ -342,7 +343,8 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     ResponseFuture<Datastream> timeoutResponse = mock(ResponseFuture.class);
     ResponseFuture<Datastream> goodResponse = mock(ResponseFuture.class);
     when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, timeoutResponse, goodResponse);
-    when(timeoutResponse.getResponseEntity()).thenThrow(new RemoteInvocationException(new TimeoutException()));
+    Exception nestedException = new RemoteInvocationException(new RemoteInvocationException(new TimeoutException()));
+    when(timeoutResponse.getResponseEntity()).thenThrow(nestedException);
     when(goodResponse.getResponseEntity()).thenReturn(datastream);
 
     Properties restClientConfig = new Properties();

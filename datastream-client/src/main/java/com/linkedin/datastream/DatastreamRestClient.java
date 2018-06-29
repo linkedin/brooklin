@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -129,7 +130,8 @@ public class DatastreamRestClient {
       try {
         return doGetDatastream(datastreamName);
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        // instanceof works for null as well
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: getDatastream. May retry...", e);
           return null;
         }
@@ -203,7 +205,7 @@ public class DatastreamRestClient {
       try {
         return datastreamResponseFuture.getResponse().getEntity().getElements();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: getAllDatastreams. May retry...", e);
           return null;
         }
@@ -256,7 +258,7 @@ public class DatastreamRestClient {
       try {
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: createDatastream. May retry...", e);
           return null;
         }
@@ -306,7 +308,7 @@ public class DatastreamRestClient {
       try {
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: updateDatastream. May retry...", e);
           return null;
         }
@@ -332,7 +334,7 @@ public class DatastreamRestClient {
       try {
         return response.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: deleteDatastream. May retry...", e);
           return null;
         }
@@ -359,7 +361,7 @@ public class DatastreamRestClient {
         doGetDatastream(datastreamName);
         return Boolean.TRUE;
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: datastreamExists. May retry...", e);
           return null;
         }
@@ -403,7 +405,7 @@ public class DatastreamRestClient {
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: pause. May retry...", e);
           return null;
         }
@@ -446,7 +448,7 @@ public class DatastreamRestClient {
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: pause. May retry...", e);
           return null;
         }
@@ -477,7 +479,7 @@ public class DatastreamRestClient {
         FindRequest<Datastream> request = _builders.findByFindGroup().datastreamNameParam(datastreamName).build();
         return _restClient.sendRequest(request).getResponse().getEntity().getElements();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: findGroup. May retry...", e);
           return null;
         }
@@ -506,7 +508,7 @@ public class DatastreamRestClient {
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: pauseSourcePartitions. May retry...", e);
           return null;
         }
@@ -543,7 +545,7 @@ public class DatastreamRestClient {
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
-        if (e.getCause() instanceof TimeoutException) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
           LOG.warn("Timeout: pauseSourcePartitions. May retry...", e);
           return null;
         }
