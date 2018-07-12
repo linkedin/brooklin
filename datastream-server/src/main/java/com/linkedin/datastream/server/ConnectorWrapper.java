@@ -169,4 +169,28 @@ public class ConnectorWrapper {
     return destinationName;
   }
 
+  /**
+   * Hook that can be used to do any final connector related initializations on datastream, after
+   * datastream initialization is done at connector, transport, and coordinator level.
+   * @param stream Datastream being initialized
+   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
+   *                       initialized.
+   * @throws DatastreamValidationException
+   */
+  public void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    logApiStart("postDatastreamInitialize");
+
+    try {
+      _connector.postDatastreamInitialize(stream, allDatastreams);
+    } catch (DatastreamValidationException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      logErrorAndException("postDatastreamInitialize", ex);
+      throw ex;
+    }
+
+    logApiEnd("postDatastreamInitialize");
+  }
+
 }
