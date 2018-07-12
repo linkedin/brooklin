@@ -106,8 +106,12 @@ public interface Connector extends MetricsAware {
   /**
    * Hook that can be used to do any final connector related initializations on datastream, after coordinator is done
    * with its set of initializations.
-   * @param stream
-   * @param allDatastreams
+   *
+   * NOTE: This method is called by the rest li service before the datastream is written to the zookeeper, So please make
+   *   sure this call doesn't block for more then few seconds otherwise the rest call will timeout.
+   * @param stream Datastream being initialized
+   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
+   *                       initialized.
    */
   default void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
