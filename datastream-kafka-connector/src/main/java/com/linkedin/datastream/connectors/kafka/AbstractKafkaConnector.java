@@ -52,7 +52,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   protected final KafkaBasedConnectorConfig _config;
   private ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
 
-  protected final boolean _isGroupIdHashingEnabled;
   protected final GroupIdConstructor _groupIdConstructor;
   protected final String _clusterName;
 
@@ -80,12 +79,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _connectorName = connectorName;
     _logger = logger;
     _clusterName = clusterName;
-
-    _isGroupIdHashingEnabled =
-        Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString()));
-
     _config = new KafkaBasedConnectorConfig(config);
-
     _groupIdConstructor = groupIdConstructor;
   }
 
