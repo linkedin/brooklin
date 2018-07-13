@@ -731,7 +731,31 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
 
+
+    // verify that none of the events were sent because of send error
+    Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");
+
     connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+
+    // now verify that only the offsets that were successful were checkpointed on shutdown, by recreating consumer for
+    // the same datastream with same consumer group above
+    task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer2 = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer2);
+
+    KafkaMirrorMakerConnectorTask connectorTask2 =
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 50, 100,
+            Duration.ofDays(1));
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask2);
+
+    // verify that the 4 records can be read
+    if (!PollUtils.poll(() -> datastreamProducer2.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask2.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
   }

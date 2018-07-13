@@ -172,8 +172,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       kafkaTask.stop();
       boolean stopped = kafkaTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (!stopped) {
-        _logger.warn("Task {} took longer than {} minutes to stop. Interrupting the thread.", datastreamTask,
-            CANCEL_TASK_TIMEOUT.toMinutes());
+        _logger.warn("Task {} took longer than {} ms to stop. Interrupting the thread.", datastreamTask,
+            CANCEL_TASK_TIMEOUT.toMillis());
         _taskThreads.get(datastreamTask).interrupt();
       }
       _runningTasks.remove(datastreamTask);

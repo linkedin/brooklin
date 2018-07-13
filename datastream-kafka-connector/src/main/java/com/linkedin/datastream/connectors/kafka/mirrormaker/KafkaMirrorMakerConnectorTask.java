@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -176,6 +175,18 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  private void commitSafeOffsets(Consumer<?, ?> consumer) {
+    LOG.info("Trying to commit safe offsets.");
+    Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+    for (TopicPartition tp : consumer.assignment()) {
+      // add 1 to the last acked checkpoint to set to the offset of the next message to consume
+      _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
+          .ifPresent(o -> offsets.put(tp, new OffsetAndMetadata(o + 1)));
+    }
+    commitWithRetries(consumer, Optional.of(offsets));
+    _lastCommittedTime = System.currentTimeMillis();
+  }
+
   @Override
   protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean hardCommit) {
     if (_isFlushlessModeEnabled) {
@@ -183,40 +194,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         _datastreamTask.getEventProducer().flush();
-        commitWithRetries(consumer, Optional.empty());
-        // verify that the producer is caught up with the consumer, since flush was called
-        for (TopicPartition tp : consumer.assignment()) {
-          _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition()).ifPresent(ackCheckpoint -> {
-            long committedCheckpoint =
-                Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L);
-            // check that ackCheckpoint+1 should equal the committed checkpoint in Kafka. The reason that committed offset
-            // is 1 larger than ackCheckpoint is because Kafka always commits the next offset to consume
-            if (!Objects.equals(ackCheckpoint + 1, committedCheckpoint)) {
-              LOG.error("Ack checkpoint+1 should match committed checkpoint after flushing and checkpointing. "
-                  + "Ack checkpoint+1: {}, consumer position: {}", ackCheckpoint + 1, committedCheckpoint);
-            }
-          });
+        commitSafeOffsets(consumer);
 
-          // verify that the in-flight count is 0 after flush
-          long inFlightCount = _flushlessProducer.getInFlightCount(tp.topic(), tp.partition());
-          if (inFlightCount > 0) {
-            LOG.error("Flushless producer inflight count for topic {} partition {} should be 0 after flush, but was {}",
-                tp.topic(), tp.partition(), inFlightCount);
-          }
-        }
         // clear the flushless producer state after flushing all messages and checkpointing
         _flushlessProducer.clear();
-        _lastCommittedTime = System.currentTimeMillis();
       } else if (isTimeToCommit) { // soft commit (no flush, just commit checkpoints)
-        LOG.info("Trying to commit offsets.");
-        Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
-        for (TopicPartition tp : consumer.assignment()) {
-          // add 1 to the last acked checkpoint to set to the offset of the next message to consume
-          _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
-              .ifPresent(o -> offsets.put(tp, new OffsetAndMetadata(o + 1)));
-        }
-        commitWithRetries(consumer, Optional.of(offsets));
-        _lastCommittedTime = System.currentTimeMillis();
+        commitSafeOffsets(consumer);
       }
     } else {
       super.maybeCommitOffsets(consumer, hardCommit);
