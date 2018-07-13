@@ -7,7 +7,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class DummyBootstrapConnectorFactory implements ConnectorFactory<DummyBootstrapConnector> {
   @Override
-  public DummyBootstrapConnector createConnector(String connectorName, Properties config) {
+  public DummyBootstrapConnector createConnector(String connectorName, Properties config, String clusterName) {
     try {
       return new DummyBootstrapConnector(config);
     } catch (Exception e) {

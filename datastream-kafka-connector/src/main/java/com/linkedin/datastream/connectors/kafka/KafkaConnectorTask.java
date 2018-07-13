@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.StringJoiner;
 
@@ -35,9 +36,13 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
       KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
-  public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName) {
+  GroupIdConstructor _groupIdConstructor;
+
+  public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
+      GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
+    _groupIdConstructor = groupIdConstructor;
   }
 
   @VisibleForTesting
@@ -74,7 +79,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   @Override
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
 
-    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_datastreamTask, _consumerMetrics, LOG),
+    return createConsumer(_consumerFactory, consumerProps, getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG),
         _srcConnString);
   }
 
@@ -115,16 +120,13 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   @VisibleForTesting
-  public static String getKafkaGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics, Logger logger) {
-    String groupId = getTaskMetadataGroupId(task, consumerMetrics, logger);
-    if (null == groupId) {
-      KafkaConnectionString srcConnString =
-          KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
-      String dstConnString = task.getDatastreamDestination().getConnectionString();
-      groupId = srcConnString + "-to-" + dstConnString;
-      LOG.info(String.format("Constructed group ID: %s for task: %s", groupId, task.getId()));
+  public static String getKafkaGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
+      CommonConnectorMetrics consumerMetrics, Logger logger) {
+    try {
+      return groupIdConstructor.getTaskGroupId(task, Optional.of(logger));
+    } catch (Exception e) {
+      consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
+      throw e;
     }
-    LOG.info(String.format("Setting group ID: %s for task: %s", groupId, task.getId()));
-    return groupId;
   }
 }

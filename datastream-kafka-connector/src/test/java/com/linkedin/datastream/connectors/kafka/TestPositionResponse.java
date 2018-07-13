@@ -126,7 +126,7 @@ public class TestPositionResponse {
 
     _consumer = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "");
+            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -157,7 +157,7 @@ public class TestPositionResponse {
 
     _consumer = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "");
+            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -196,7 +196,7 @@ public class TestPositionResponse {
 
     _consumer = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "");
+            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -245,7 +245,7 @@ public class TestPositionResponse {
 
     _consumer = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "");
+            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -295,7 +295,7 @@ public class TestPositionResponse {
 
     _consumer = new KafkaConnectorTask(
         new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "");
+            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();

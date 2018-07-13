@@ -181,7 +181,7 @@ public class DatastreamServer {
     _coordinator.addTransportProvider(transportProviderName, admin);
   }
 
-  private void initializeConnector(String connectorName, Properties connectorProperties) {
+  private void initializeConnector(String connectorName, Properties connectorProperties, String clusterName) {
     LOG.info("Starting to load connector: " + connectorName);
 
     VerifiableProperties connectorProps = new VerifiableProperties(connectorProperties);
@@ -199,7 +199,8 @@ public class DatastreamServer {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
 
-    Connector connectorInstance = connectorFactoryInstance.createConnector(connectorName, connectorProperties);
+    Connector connectorInstance =
+        connectorFactoryInstance.createConnector(connectorName, connectorProperties, clusterName);
 
     // Read the bootstrap connector type for the connector if there is one
     String bootstrapConnector = connectorProperties.getProperty(CONFIG_CONNECTOR_BOOTSTRAP_TYPE, "");
@@ -286,7 +287,8 @@ public class DatastreamServer {
     _bootstrapConnectors = new HashMap<>();
     for (String connectorStr : connectorTypes) {
       initializeConnector(connectorStr,
-          verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr));
+          verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr),
+          coordinatorConfig.getCluster());
     }
 
     LOG.info("Loading Transport providers {}", transportProviderNames);

@@ -7,7 +7,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
 public class OracleConnectorFactory implements ConnectorFactory<OracleConnector> {
-  public OracleConnector createConnector(String connectorName, Properties config) {
+  public OracleConnector createConnector(String connectorName, Properties config, String clusterName) {
     try {
       return new OracleConnector(config);
     } catch (DatastreamException e) {
