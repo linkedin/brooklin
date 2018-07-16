@@ -38,11 +38,14 @@ import com.linkedin.restli.client.Response;
 import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 import com.linkedin.restli.client.RestLiResponseException;
+import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.common.IdResponse;
 
+import static com.linkedin.datastream.DatastreamRestClient.DATASTREAM_UUID;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
 
 
 
@@ -334,6 +337,55 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
     restClient.createDatastream(datastream);
   }
+
+  /**
+   * Test client handling of DatastreamAlreadyExists exception after a timeout of the previous request.
+   * @throws Exception
+   */
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testCreateDatastreamExistsAfterTimeout() throws Exception {
+    Datastream datastream = generateDatastream(20);
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<IdResponse<String>> timeoutResponse = mock(ResponseFuture.class);
+    ResponseFuture<IdResponse<String>> alreadyExistsResponse = mock(ResponseFuture.class);
+    ResponseFuture<Datastream> getDatastreamResponse = mock(ResponseFuture.class);
+    Exception nestedTimeoutException = new RemoteInvocationException(new RemoteInvocationException(new TimeoutException()));
+    RestLiResponseException alreadyExistsException = mock(RestLiResponseException.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, alreadyExistsResponse, getDatastreamResponse);
+    when(timeoutResponse.getResponse()).thenThrow(nestedTimeoutException);
+    when(alreadyExistsResponse.getResponse()).thenThrow(alreadyExistsException);
+    when(alreadyExistsException.getStatus()).thenReturn(HttpStatus.S_409_CONFLICT.getCode());
+    when(getDatastreamResponse.getResponseEntity()).thenReturn(datastream);
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "10000");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    restClient.createDatastream(datastream);
+  }
+
+  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
+  @SuppressWarnings("unchecked")
+  public void testCreateDatastreamExists() throws Exception {
+    Datastream datastream = generateDatastream(20);
+    RestClient httpRestClient = mock(RestClient.class);
+    ResponseFuture<IdResponse<String>> alreadyExistsResponse = mock(ResponseFuture.class);
+    ResponseFuture<Datastream> getDatastreamResponse = mock(ResponseFuture.class);
+    RestLiResponseException alreadyExistsException = mock(RestLiResponseException.class);
+    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(alreadyExistsResponse, getDatastreamResponse);
+    when(alreadyExistsResponse.getResponse()).thenThrow(alreadyExistsException);
+    when(alreadyExistsException.getStatus()).thenReturn(HttpStatus.S_409_CONFLICT.getCode());
+    Datastream duplicateDatastream = datastream.copy();
+    duplicateDatastream.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "OTHER_OWNER");
+    duplicateDatastream.getMetadata().remove(DATASTREAM_UUID);
+    when(getDatastreamResponse.getResponseEntity()).thenReturn(duplicateDatastream);
+    Properties restClientConfig = new Properties();
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
+    restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "200");
+    DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
+    restClient.createDatastream(datastream);
+  }
+
 
   @Test
   @SuppressWarnings("unchecked")
