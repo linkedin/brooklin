@@ -276,8 +276,7 @@ public class DatastreamRestClient {
                 && Math.abs(System.currentTimeMillis() - Long.parseLong(
                 existingDatastream.getMetadata().get(DatastreamMetadataConstants.CREATION_MS))) < getRetryTimeoutMs()) {
               // return a non-null value to successfully exit poll loopTestServerComponentHealthRestClient
-              //return existingDatastream;
-              return null;
+              return existingDatastream;
             }
 
             String msg = String.format("Datastream %s already exists", datastream.getName());
