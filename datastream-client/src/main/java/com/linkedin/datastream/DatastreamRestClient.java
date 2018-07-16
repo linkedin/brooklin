@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
@@ -25,8 +26,8 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedExeption;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
-import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.ActionRequest;
+import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.DeleteRequest;
 import com.linkedin.restli.client.FindRequest;
@@ -266,6 +267,19 @@ public class DatastreamRestClient {
         if (e instanceof RestLiResponseException) {
           int errorCode = ((RestLiResponseException) e).getStatus();
           if (errorCode == HttpStatus.S_409_CONFLICT.getCode()) {
+            // Timeout on previous request can make it appear as though datastream existed.
+            // Check if the datastream was created by the same user within the last request timeout boundary.
+            Datastream existingDatastream = getDatastream(datastream.getName());
+            if (existingDatastream.getMetadata().get(DatastreamMetadataConstants.OWNER_KEY)
+                .equals(datastream.getMetadata().get(DatastreamMetadataConstants.OWNER_KEY))
+                && existingDatastream.getMetadata().containsKey(DatastreamMetadataConstants.CREATION_MS)
+                && Math.abs(System.currentTimeMillis() - Long.parseLong(
+                existingDatastream.getMetadata().get(DatastreamMetadataConstants.CREATION_MS))) < getRetryTimeoutMs()) {
+              // return a non-null value to successfully exit poll loopTestServerComponentHealthRestClient
+              //return existingDatastream;
+              return null;
+            }
+
             String msg = String.format("Datastream %s already exists", datastream.getName());
             LOG.warn(msg, e);
             throw new DatastreamAlreadyExistsException(msg);
