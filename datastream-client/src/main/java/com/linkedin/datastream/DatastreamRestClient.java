@@ -4,7 +4,9 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -13,6 +15,8 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -25,8 +29,8 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedExeption;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
-import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.ActionRequest;
+import com.linkedin.restli.client.BatchUpdateRequest;
 import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.DeleteRequest;
 import com.linkedin.restli.client.FindRequest;
@@ -50,6 +54,8 @@ import com.linkedin.restli.common.UpdateStatus;
  */
 public class DatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);
+  @VisibleForTesting
+  protected static final String DATASTREAM_UUID = "datastreamUUID";
 
   // To support retries on the request timeouts
   public static final String CONFIG_RETRY_PERIOD_MS = "retryPeriodMs";
@@ -253,6 +259,11 @@ public class DatastreamRestClient {
    */
   public void createDatastream(Datastream datastream) {
     PollUtils.poll(() -> {
+      if (!datastream.hasMetadata()) {
+        datastream.setMetadata(new StringMap());
+      }
+      String creationUid = UUID.randomUUID().toString();
+      datastream.getMetadata().put(DATASTREAM_UUID, creationUid);
       CreateIdRequest<String, Datastream> request = _builders.create().input(datastream).build();
       ResponseFuture<IdResponse<String>> datastreamResponseFuture = _restClient.sendRequest(request);
       try {
@@ -266,6 +277,14 @@ public class DatastreamRestClient {
         if (e instanceof RestLiResponseException) {
           int errorCode = ((RestLiResponseException) e).getStatus();
           if (errorCode == HttpStatus.S_409_CONFLICT.getCode()) {
+            // Timeout on previous request can make it appear as though datastream already existed.
+            // Check if the datastream was in fact created by this request.
+            Datastream existingDatastream = getDatastream(datastream.getName());
+            Optional<String> existingUid = Optional.ofNullable(existingDatastream.getMetadata().get(DATASTREAM_UUID));
+            if (existingUid.isPresent() && existingUid.get().equals(creationUid)) {
+              return existingDatastream;
+            }
+
             String msg = String.format("Datastream %s already exists", datastream.getName());
             LOG.warn(msg, e);
             throw new DatastreamAlreadyExistsException(msg);
