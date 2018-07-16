@@ -45,6 +45,8 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
+  public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
+
   protected final String _connectorName;
   private final Logger _logger;
 
@@ -52,6 +54,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   protected final KafkaBasedConnectorConfig _config;
   private ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
+
+  protected final GroupIdConstructor _groupIdConstructor;
+  protected final String _clusterName;
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
@@ -73,11 +78,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         }
       });
 
-  public AbstractKafkaConnector(String connectorName, Properties config, Logger logger) {
+  public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
+      String clusterName, Logger logger) {
     _connectorName = connectorName;
     _logger = logger;
-
+    _clusterName = clusterName;
     _config = new KafkaBasedConnectorConfig(config);
+    _groupIdConstructor = groupIdConstructor;
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);

@@ -11,8 +11,8 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 public class KafkaMirrorMakerConnectorFactory implements ConnectorFactory<KafkaMirrorMakerConnector> {
 
   @Override
-  public KafkaMirrorMakerConnector createConnector(String connectorName, Properties config) {
-    return new KafkaMirrorMakerConnector(connectorName, config);
+  public KafkaMirrorMakerConnector createConnector(String connectorName, Properties config, String clusterName) {
+    return new KafkaMirrorMakerConnector(connectorName, config, clusterName);
   }
 
 }

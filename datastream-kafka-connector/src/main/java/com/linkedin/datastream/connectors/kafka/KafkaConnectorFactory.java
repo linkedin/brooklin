@@ -7,7 +7,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class KafkaConnectorFactory implements ConnectorFactory<KafkaConnector> {
   @Override
-  public KafkaConnector createConnector(String connectorName, Properties config) {
-    return new KafkaConnector(connectorName, config);
+  public KafkaConnector createConnector(String connectorName, Properties config, String clusterName) {
+    return new KafkaConnector(connectorName, config, clusterName);
   }
 }

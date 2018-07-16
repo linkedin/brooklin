@@ -15,7 +15,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFactory.NoOpConnector> {
   @Override
-  public NoOpConnector createConnector(String connectorName, Properties config) {
+  public NoOpConnector createConnector(String connectorName, Properties config, String clusterName) {
     return new NoOpConnector();
   }
 

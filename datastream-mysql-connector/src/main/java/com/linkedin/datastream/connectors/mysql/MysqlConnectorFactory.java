@@ -9,7 +9,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 public class MysqlConnectorFactory implements ConnectorFactory<MysqlConnector> {
   @Override
-  public MysqlConnector createConnector(String connectorName, Properties config) {
+  public MysqlConnector createConnector(String connectorName, Properties config, String clusterName) {
     try {
       return new MysqlConnector(config);
     } catch (DatastreamException e) {

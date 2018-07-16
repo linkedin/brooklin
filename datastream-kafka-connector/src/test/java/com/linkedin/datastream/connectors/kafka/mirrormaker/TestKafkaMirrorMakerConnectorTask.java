@@ -29,10 +29,12 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
+import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
+import com.linkedin.datastream.connectors.kafka.KafkaGroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -113,8 +115,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // create a task that checkpoints very infrequently (10 minutes for purposes of this test)
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 600000, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "", false);
-        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "", false,
+        new KafkaGroupIdConstructor(false, "testCluster"));
+    KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce events to the topic
@@ -198,7 +201,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConfigPauseAndResumePartitions() throws Exception {
     // Need connector just for update validation. Doesn't matter properties or datastream name
-    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("foo", new Properties());
+    KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("foo", new Properties(), "testCluster");
 
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
@@ -385,7 +388,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
-            Duration.ofSeconds(20));
+            Duration.ofSeconds(20), false, "testCluster");
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce 5 events
@@ -457,7 +460,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Properties consumerProps = new Properties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps, Duration.ofSeconds(5));
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
+            Duration.ofSeconds(5), false, "testCluster");
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce 5 events
@@ -551,6 +555,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testMirrorMakerGroupId() throws Exception {
+    GroupIdConstructor groupIdConstructor = new KafkaMirrorMakerGroupIdConstructor(false, "testCluster");
     Datastream datastream1 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream1", _broker, "topic");
     Datastream datastream2 = KafkaMirrorMakerConnectorTestUtils.createDatastream("datastream2", _broker, "topic");
 
@@ -564,21 +569,27 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String defaultGrpId = datastream1.getName();
 
     // Testing with default group id
-    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), defaultGrpId);
+    Assert.assertEquals(
+        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        defaultGrpId);
 
     // Test with setting explicit group id in one datastream
     datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
-    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), "MyGroupId");
+    Assert.assertEquals(
+        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        "MyGroupId");
 
     // Test with explicitly setting group id in both datastream
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
-    Assert.assertEquals(KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG), "MyGroupId");
+    Assert.assertEquals(
+        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        "MyGroupId");
 
     // now set different group ids in 2 datastreams and make sure validation fails
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
     boolean exceptionSeen = false;
     try {
-      KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, consumerMetrics, LOG);
+      KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG);
     } catch (DatastreamRuntimeException e) {
       exceptionSeen = true;
     }

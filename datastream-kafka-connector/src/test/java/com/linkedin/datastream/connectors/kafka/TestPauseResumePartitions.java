@@ -188,14 +188,15 @@ public class TestPauseResumePartitions {
    */
   @Test
   public void testConnectorSupportsPauseResumePartitionsUpdate() {
-    KafkaConnector kafkaConnector = new KafkaConnector("test", TestKafkaConnector.getDefaultConfig(null));
+    KafkaConnector kafkaConnector =
+        new KafkaConnector("test", TestKafkaConnector.getDefaultConfig(null), "testCluster");
 
     Assert.assertTrue(kafkaConnector.isDatastreamUpdateTypeSupported(new Datastream(),
         DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS),
         "KafkaConnector should support PAUSE_RESUME_PARTITIONS update type.");
 
     KafkaMirrorMakerConnector mmConnector = new KafkaMirrorMakerConnector("MirrorMakerConnector",
-        TestKafkaMirrorMakerConnector.getDefaultConfig(Optional.empty()));
+        TestKafkaMirrorMakerConnector.getDefaultConfig(Optional.empty()), "testCluster");
 
     Assert.assertTrue(mmConnector.isDatastreamUpdateTypeSupported(new Datastream(),
         DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS),

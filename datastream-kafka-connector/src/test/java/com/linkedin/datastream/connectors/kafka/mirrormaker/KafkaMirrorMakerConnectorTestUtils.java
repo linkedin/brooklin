@@ -86,22 +86,23 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       Properties consumerConfig) {
-    return createKafkaMirrorMakerConnectorTask(task, consumerConfig, Duration.ofMillis(0));
+    return createKafkaMirrorMakerConnectorTask(task, consumerConfig, Duration.ofMillis(0), false, "testCluster");
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
-      Properties consumerConfig, Duration pauseErrorPartitionDuration) {
+      Properties consumerConfig, Duration pauseErrorPartitionDuration, boolean isGroupIdHashingEnabled,
+      String clusterName) {
     return new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, consumerConfig, "", "", 1000, 5,
-            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false);
+            Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false,
+        new KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled, clusterName));
   }
 
   static KafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       boolean flowControlEnabled, long autoResumeThreshold, long autoPauseThreshold,
       Duration pauseErrorPartitionDuration) {
     Properties connectorProps = new Properties();
-    connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_FLOW_CONTROL_ENABLED,
-        String.valueOf(flowControlEnabled));
+    connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_FLOW_CONTROL_ENABLED, String.valueOf(flowControlEnabled));
     connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD,
         String.valueOf(autoResumeThreshold));
     connectorProps.put(KafkaMirrorMakerConnectorTask.CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD,
@@ -111,7 +112,8 @@ final class KafkaMirrorMakerConnectorTestUtils {
     KafkaBasedConnectorConfig config =
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
-    return new KafkaMirrorMakerConnectorTask(config, task, "", true);
+    return new KafkaMirrorMakerConnectorTask(config, task, "", true,
+        new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
