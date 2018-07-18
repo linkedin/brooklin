@@ -1111,7 +1111,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     ConnectorWrapper connector = connectorInfo.getConnector();
     DatastreamDeduper deduper = connectorInfo.getDatastreamDeduper();
 
-    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams()
+    // LISAMZA-8516: Changing a non-flusdh cache version to flush version to avoid erorrs in deduping datastreams
+    // which should be deduped, but fail to due to being created back to back and ZK client not syncing with master
+    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams(true)
         .stream()
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
