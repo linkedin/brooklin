@@ -258,11 +258,12 @@ public class DatastreamRestClient {
    *   while sending the request or receiving the response.
    */
   public void createDatastream(Datastream datastream) {
+    String creationUid = UUID.randomUUID().toString();
+
     PollUtils.poll(() -> {
       if (!datastream.hasMetadata()) {
         datastream.setMetadata(new StringMap());
       }
-      String creationUid = UUID.randomUUID().toString();
       datastream.getMetadata().put(DATASTREAM_UUID, creationUid);
       CreateIdRequest<String, Datastream> request = _builders.create().input(datastream).build();
       ResponseFuture<IdResponse<String>> datastreamResponseFuture = _restClient.sendRequest(request);
@@ -285,7 +286,8 @@ public class DatastreamRestClient {
               return existingDatastream;
             }
 
-            String msg = String.format("Datastream %s already exists", datastream.getName());
+            String msg = String.format("Datastream %s exists with the same name. Requested datastream %s",
+                existingDatastream.toString(), datastream.toString());
             LOG.warn(msg, e);
             throw new DatastreamAlreadyExistsException(msg);
           } else if (errorCode == HttpStatus.S_403_FORBIDDEN.getCode()) {

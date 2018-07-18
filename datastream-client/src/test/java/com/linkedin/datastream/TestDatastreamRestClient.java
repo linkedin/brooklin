@@ -352,11 +352,27 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     ResponseFuture<Datastream> getDatastreamResponse = mock(ResponseFuture.class);
     Exception nestedTimeoutException = new RemoteInvocationException(new RemoteInvocationException(new TimeoutException()));
     RestLiResponseException alreadyExistsException = mock(RestLiResponseException.class);
-    when(httpRestClient.sendRequest(any(Request.class))).thenReturn(timeoutResponse, alreadyExistsResponse, getDatastreamResponse);
+    Datastream[] createdDatastream = new Datastream[1];
+    Integer[] callCount = new Integer[3];
+    callCount[0] = -1;
     when(timeoutResponse.getResponse()).thenThrow(nestedTimeoutException);
     when(alreadyExistsResponse.getResponse()).thenThrow(alreadyExistsException);
     when(alreadyExistsException.getStatus()).thenReturn(HttpStatus.S_409_CONFLICT.getCode());
-    when(getDatastreamResponse.getResponseEntity()).thenReturn(datastream);
+    when(getDatastreamResponse.getResponseEntity()).thenAnswer((invocationOnMock) -> createdDatastream[0]);
+    when(httpRestClient.sendRequest(any(Request.class))).thenAnswer((invocation) -> {
+      callCount[0]++;
+      // Cache the datastream to send out when the getDatastream request is done.
+      if (callCount[0] == 0) {
+        // Make a deep copy of the create datastream request to return on the get.
+        createdDatastream[0] = (Datastream) ((CreateIdRequest) invocation.getArguments()[0]).getInputRecord().copy();
+        return timeoutResponse;
+      } else if (callCount[0] == 1) {
+        return alreadyExistsResponse;
+      } else if (callCount[0] == 2) {
+        return getDatastreamResponse;
+      }
+      throw new DatastreamRuntimeException("Unexpected number of requests to DMS");
+    });
     Properties restClientConfig = new Properties();
     restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_PERIOD_MS, "10");
     restClientConfig.put(DatastreamRestClient.CONFIG_RETRY_TIMEOUT_MS, "10000");
