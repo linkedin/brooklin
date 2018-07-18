@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -33,6 +34,7 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedExeption;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.r2.RemoteInvocationException;
+import com.linkedin.restli.client.CreateIdRequest;
 import com.linkedin.restli.client.Request;
 import com.linkedin.restli.client.Response;
 import com.linkedin.restli.client.ResponseFuture;
@@ -340,11 +342,28 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
 
   /**
    * Test client handling of DatastreamAlreadyExists exception after a timeout of the previous request.
+   * This version tests the case where a DatastreamAlreadyExists exception is thrown because the previous create request
+   * went through on server, but client had timed out and retried again.
    * @throws Exception
    */
   @Test
-  @SuppressWarnings("unchecked")
   public void testCreateDatastreamExistsAfterTimeout() throws Exception {
+    testCreateDatastreamExistsAfterTimeoutHelper(true);
+  }
+
+  /**
+   * Test client handling of DatastreamAlreadyExists exception after a timeout of the previous request.
+   * This version tests the case where a DatastreamAlreadyExists exception is thrown because a different datastream
+   * exists of the same name, but create request had previously timed out for some reason like network issues.
+   * @throws Exception
+   */
+  @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
+  public void testCreateDatastreamExistsDifferentAfterTimeout() throws Exception {
+    testCreateDatastreamExistsAfterTimeoutHelper(false);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void testCreateDatastreamExistsAfterTimeoutHelper(boolean sameDatastream) throws Exception {
     Datastream datastream = generateDatastream(20);
     RestClient httpRestClient = mock(RestClient.class);
     ResponseFuture<IdResponse<String>> timeoutResponse = mock(ResponseFuture.class);
@@ -361,10 +380,17 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     when(getDatastreamResponse.getResponseEntity()).thenAnswer((invocationOnMock) -> createdDatastream[0]);
     when(httpRestClient.sendRequest(any(Request.class))).thenAnswer((invocation) -> {
       callCount[0]++;
-      // Cache the datastream to send out when the getDatastream request is done.
       if (callCount[0] == 0) {
         // Make a deep copy of the create datastream request to return on the get.
-        createdDatastream[0] = (Datastream) ((CreateIdRequest) invocation.getArguments()[0]).getInputRecord().copy();
+        CreateIdRequest<String, Datastream> createIdRequest = (CreateIdRequest<String, Datastream>) invocation.getArguments()[0];
+        Datastream datastreamArg = (Datastream) createIdRequest.getInputRecord();
+        createdDatastream[0] = datastreamArg.copy();
+
+        // If exception needs to be thrown for a different existing datastream, change the UUID for the datastream to
+        // indicate that
+        if (!sameDatastream) {
+          createdDatastream[0].getMetadata().put(DATASTREAM_UUID, UUID.randomUUID().toString());
+        }
         return timeoutResponse;
       } else if (callCount[0] == 1) {
         return alreadyExistsResponse;
