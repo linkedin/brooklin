@@ -372,7 +372,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     Exception nestedTimeoutException = new RemoteInvocationException(new RemoteInvocationException(new TimeoutException()));
     RestLiResponseException alreadyExistsException = mock(RestLiResponseException.class);
     Datastream[] createdDatastream = new Datastream[1];
-    Integer[] callCount = new Integer[3];
+    Integer[] callCount = new Integer[1];
     callCount[0] = -1;
     when(timeoutResponse.getResponse()).thenThrow(nestedTimeoutException);
     when(alreadyExistsResponse.getResponse()).thenThrow(alreadyExistsException);
