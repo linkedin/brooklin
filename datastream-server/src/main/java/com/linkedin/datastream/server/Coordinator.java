@@ -1111,7 +1111,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     ConnectorWrapper connector = connectorInfo.getConnector();
     DatastreamDeduper deduper = connectorInfo.getDatastreamDeduper();
 
-    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams()
+    List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams(true)
         .stream()
         .filter(d -> d.getConnectorName().equals(connectorName))
         .collect(Collectors.toList());
