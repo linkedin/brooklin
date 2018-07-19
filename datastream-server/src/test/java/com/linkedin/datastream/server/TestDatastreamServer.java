@@ -1,7 +1,5 @@
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.connectors.BrokenConnector;
-import com.linkedin.datastream.server.api.security.Authorizer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,7 +14,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import kafka.admin.RackAwareMode;
 import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -26,6 +23,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import kafka.admin.AdminUtils;
+import kafka.admin.RackAwareMode;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.DatastreamRestClient;
@@ -33,16 +31,18 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.connectors.BrokenConnector;
+import com.linkedin.datastream.connectors.BrokenConnectorFactory;
 import com.linkedin.datastream.connectors.DummyBootstrapConnector;
 import com.linkedin.datastream.connectors.DummyBootstrapConnectorFactory;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
-import com.linkedin.datastream.connectors.BrokenConnectorFactory;
 import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
@@ -560,11 +560,11 @@ public class TestDatastreamServer {
     List<String> eventsReceived = new ArrayList<>();
     KafkaTestUtils.readTopic(kafkaDestination.getTopicName(), partition,
         _datastreamCluster.getKafkaCluster().getBrokers(), (key, value) -> {
+          numberOfMessages[0]++;
           String eventValue = new String(value);
-          LOG.info("Read {}th or {} events, Event {} from datastream {}", numberOfMessages[0], totalEvents, eventValue,
+          LOG.info("Read {}th of {} events, Event {} from datastream {}", numberOfMessages[0], totalEvents, eventValue,
               datastream);
           eventsReceived.add(eventValue);
-          numberOfMessages[0]++;
           return numberOfMessages[0] < totalEvents;
         });
 
