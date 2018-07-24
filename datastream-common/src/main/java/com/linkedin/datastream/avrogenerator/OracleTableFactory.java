@@ -48,8 +48,8 @@ public class OracleTableFactory {
       String colName = metadata.getColName();
 
       FieldType childFieldType =
-          buildFieldType(metadata.getColumnSchemaName(), metadata.getColumnFieldTypeName(), metadata.getPrecision(),
-              metadata.getScale());
+          buildFieldType(metadata.getColumnSchemaName(), metadata.getColumnFieldTypeName(), metadata.getNullable(),
+              metadata.getPrecision(), metadata.getScale());
 
       childColumns.add(new OracleColumn(colName, childFieldType, childColumns.size()));
     }
@@ -79,11 +79,11 @@ public class OracleTableFactory {
    * @param precision precision of Numeric Types
    * @param scale scale of Numeric Types
    */
-  private FieldType buildFieldType(String schemaName, String fieldTypeName, int precision, int scale)
+  private FieldType buildFieldType(String schemaName, String fieldTypeName, String nullable, int precision, int scale)
       throws SQLException {
 
     if (_databaseSource.isPrimitive(fieldTypeName)) {
-      return buildOraclePrimitive(fieldTypeName, precision, scale);
+      return buildOraclePrimitive(fieldTypeName, nullable, precision, scale);
     }
 
     if (_databaseSource.isCollection(schemaName, fieldTypeName)) {
@@ -102,11 +102,12 @@ public class OracleTableFactory {
    * Build an OraclePrimitiveType FieldType. These include types such as (VARCHAR2, CHAR, etc)
    *
    * @param fieldTypeName name of the FieldType, (CHAR, VARCHAR)
+   * @param nullable the nullable of the FieldType (Y, N)
    * @param precision the precision of the NUMERIC (to help determine LONG vs INT)
    * @param scale the scale of the numeric (to help determine DOUBLE vs FLOAT)
    */
-  private FieldType buildOraclePrimitive(String fieldTypeName, int precision, int scale) {
-    return new OraclePrimitiveType(fieldTypeName, scale, precision);
+  private FieldType buildOraclePrimitive(String fieldTypeName, String nullable, int precision, int scale) {
+    return new OraclePrimitiveType(fieldTypeName, nullable, scale, precision);
   }
 
   /**
@@ -124,6 +125,7 @@ public class OracleTableFactory {
 
     FieldType elementFieldType = buildFieldType(metadata.getElementSchemaName(),
         metadata.getElementFieldTypeName(),
+        null,
         metadata.getElementPrecision(),
         metadata.getElementScale());
 
@@ -149,6 +151,7 @@ public class OracleTableFactory {
     for (OracleDatabaseClient.StructMetadata metadata : metadataList) {
       FieldType childFieldType = buildFieldType(metadata.getSchemaName(),
           metadata.getFieldTypeName(),
+          null,
           metadata.getPrecision(),
           metadata.getScale());
 

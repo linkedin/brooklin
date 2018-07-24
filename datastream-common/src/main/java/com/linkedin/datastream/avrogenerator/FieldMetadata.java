@@ -18,15 +18,17 @@ public class FieldMetadata {
   private static final String META_VALUE_DELIMITER = "=";
 
   private final String _dbFieldName;
+  private final String _nullable;
   private int _dbFieldPosition;
   private Types _dbFieldType;
 
   private final Optional<Integer> _numberPrecision;
   private final Optional<Integer> _numberScale;
 
-  public FieldMetadata(@NotNull String dbFieldName, int dbFieldPosition, @NotNull Types dbFieldType,
+  public FieldMetadata(@NotNull String dbFieldName, String nullable, int dbFieldPosition, @NotNull Types dbFieldType,
       Optional<Integer> numberPrecision, Optional<Integer> numberScale) {
     _dbFieldName = dbFieldName;
+    _nullable = nullable;
     _dbFieldPosition = dbFieldPosition;
     _dbFieldType = dbFieldType;
     _numberPrecision = numberPrecision;
@@ -75,17 +77,22 @@ public class FieldMetadata {
         String.format("Missing metadata %s from meta string %s", OracleColumn.COL_POSITION, meta)));
     Types fieldType = Types.fromString(Preconditions.checkNotNull(metas.get(FieldType.FIELD_TYPE_NAME),
         String.format("Missing metadata %s from meta string %s", FieldType.FIELD_TYPE_NAME, meta)));
+    String nullable = Optional.ofNullable(metas.get(FieldType.NULLABLE)).orElse("");
 
     Optional<Integer> numberPrecision =
         Optional.ofNullable(metas.get(FieldType.PRECISION)).map(s -> Integer.valueOf(s));
     Optional<Integer> numberScale =
         Optional.ofNullable(metas.get(FieldType.SCALE)).map(s -> Integer.valueOf(s));
 
-    return new FieldMetadata(fieldName, fieldPosition, fieldType, numberPrecision, numberScale);
+    return new FieldMetadata(fieldName, nullable, fieldPosition, fieldType, numberPrecision, numberScale);
   }
 
   public String getDbFieldName() {
     return _dbFieldName;
+  }
+
+  public String getNullable() {
+    return _nullable;
   }
 
   public int getDbFieldPosition() {

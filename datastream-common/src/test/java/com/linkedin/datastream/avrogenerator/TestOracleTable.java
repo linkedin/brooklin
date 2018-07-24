@@ -13,7 +13,7 @@ public class TestOracleTable {
 
   @Test
   public void testConstructorBasic() {
-    OraclePrimitiveType primitive = new OraclePrimitiveType("VARCHAR2", 0, 0);
+    OraclePrimitiveType primitive = new OraclePrimitiveType("VARCHAR2", DatabaseSource.TableMetadata.NULLABLE, 0, 0);
     OracleColumn col1 = new OracleColumn("colName1", primitive, 1);
     OracleColumn col2 = new OracleColumn("colName2", primitive, 2);
 
@@ -29,7 +29,7 @@ public class TestOracleTable {
 
   @Test
   public void testToAvro() throws Exception {
-    OraclePrimitiveType primitive = new OraclePrimitiveType("VARCHAR2", 0, 0);
+    OraclePrimitiveType primitive = new OraclePrimitiveType("VARCHAR2", DatabaseSource.TableMetadata.NULLABLE, 0, 0);
     OracleColumn col1 = new OracleColumn("colName1", primitive, 1);
     OracleColumn col2 = new OracleColumn("colName2", primitive, 2);
 

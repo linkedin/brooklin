@@ -30,6 +30,8 @@ public interface FieldType {
   /* The key for the field type name stored in metadata */
   static final String FIELD_TYPE_NAME = "dbFieldType";
 
+  static final String NULLABLE = "nullable";
+
   /* The key for the precision of Number fields */
   static final String PRECISION = "numberPrecision";
 
