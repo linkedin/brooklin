@@ -11,6 +11,7 @@ public class OraclePrimitiveType implements FieldType {
   private Types _type;
   private final int _scale;
   private final int _precision;
+  private final String _nullable;
 
   private final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();
   static {
@@ -21,9 +22,10 @@ public class OraclePrimitiveType implements FieldType {
     NUMBER_CLASSIFICATION.add(Types.NUMBER.toString());
   }
 
-  public OraclePrimitiveType(String fieldTypeName, int scale, int precision) {
+  public OraclePrimitiveType(String fieldTypeName, String nullable, int scale, int precision) {
     _scale = scale;
     _precision = precision;
+    _nullable = nullable;
 
     if (fieldTypeName.equals(Types.NUMBER.toString())) {
       _type = getNumberClassification(scale, precision);
@@ -85,6 +87,7 @@ public class OraclePrimitiveType implements FieldType {
   public String getMetadata() {
     StringBuilder meta = new StringBuilder();
     meta.append(String.format("%s=%s;", FIELD_TYPE_NAME, getFieldTypeName()));
+    meta.append(String.format("%s=%s;", NULLABLE, _nullable));
 
     if (NUMBER_CLASSIFICATION.contains(getFieldTypeName())) {
       meta.append(String.format("%s=%s;", SCALE, getScale()));

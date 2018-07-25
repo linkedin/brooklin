@@ -216,8 +216,16 @@ public class OracleDatabaseClient extends DatabaseSource {
       int colCount = rsmd.getColumnCount();
 
       for (int i = 1; i <= colCount; i++) {
+        String nullable = "";
+        int nullableMetadata = rsmd.isNullable(i);
+        if (nullableMetadata == ResultSetMetaData.columnNullable) {
+          nullable = "Y";
+        } else if (nullableMetadata == ResultSetMetaData.columnNoNulls) {
+          nullable = "N";
+        }
         tableMetadataList.add(new TableMetadata(rsmd.getColumnTypeName(i),
             rsmd.getColumnName(i),
+            nullable,
             rsmd.getPrecision(i),
             rsmd.getScale(i)));
       }

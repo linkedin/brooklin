@@ -175,13 +175,19 @@ public abstract class DatabaseSource {
   }
 
   public static class TableMetadata {
+
+    public static final String NULLABLE = "Y";
+    public static final String NOT_NULLABLE = "N";
+
     private String _columnSchemaName;
     private String _columnFieldTypeName;
     private String _colName;
     private int _precision;
     private int _scale;
+    private String _nullable;
 
-    public TableMetadata(@NotNull String colTypeName, @NotNull String colName, int precision, int scale) {
+    public TableMetadata(@NotNull String colTypeName, @NotNull String colName, @NotNull String nullable, int precision,
+        int scale) {
       String[] columnTypeParts = colTypeName.split("\\.");
 
       if (columnTypeParts.length == 1) {
@@ -192,6 +198,7 @@ public abstract class DatabaseSource {
         _columnFieldTypeName = columnTypeParts[1];
       }
 
+      _nullable = nullable;
       _precision = precision;
       _scale = scale;
       _colName = colName;
@@ -207,6 +214,10 @@ public abstract class DatabaseSource {
 
     public String getColName() {
       return _colName;
+    }
+
+    public String getNullable() {
+      return _nullable;
     }
 
     public int getPrecision() {

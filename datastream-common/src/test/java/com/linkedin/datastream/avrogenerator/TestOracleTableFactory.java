@@ -11,7 +11,8 @@ public class TestOracleTableFactory {
   @Test
   public void testE2EBuildFieldTypeFactory() throws Exception {
     OracleDatabaseClient client = Mockito.mock(OracleDatabaseClient.class);
-    DatabaseSource.TableMetadata meta = new DatabaseSource.TableMetadata("CHAR", "name", 0, 0);
+    DatabaseSource.TableMetadata meta =
+        new DatabaseSource.TableMetadata("CHAR", "name", DatabaseSource.TableMetadata.NULLABLE, 0, 0);
 
     Mockito.when(client.getTableMetadata("schema", "view")).thenReturn(Collections.singletonList(meta));
     Mockito.when(client.isPrimitive("CHAR")).thenReturn(true);
@@ -24,7 +25,8 @@ public class TestOracleTableFactory {
   @Test
   public void testAbsentPrimaryKey() throws Exception {
     OracleDatabaseClient client = Mockito.mock(OracleDatabaseClient.class);
-    DatabaseSource.TableMetadata meta = new DatabaseSource.TableMetadata("CHAR", "name", 0, 0);
+    DatabaseSource.TableMetadata meta =
+        new DatabaseSource.TableMetadata("CHAR", "name", DatabaseSource.TableMetadata.NULLABLE, 0, 0);
 
     Mockito.when(client.getTableMetadata("schema", "view")).thenReturn(Collections.singletonList(meta));
     Mockito.when(client.isPrimitive("CHAR")).thenReturn(true);
