@@ -369,8 +369,9 @@ public class ZkAdapter {
       return;
     }
 
-    LOG.info("Deleting the zk path", path);
-    _zkclient.delete(path);
+    LOG.info("Deleting the zk path {} ", path);
+    // Pipeline could have created more nodes under datastream node. Delete all associated state with deleteRecursive
+    _zkclient.deleteRecursive(path);
   }
 
   /**
