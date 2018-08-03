@@ -119,7 +119,7 @@ public class OracleTypeInterpreter implements SqlTypeInterpreter {
     }
 
     if (sqlObject instanceof SQLXML) {
-      return sqlObject.toString();
+      return ((SQLXML) sqlObject).getString();
     }
 
     if (sqlObject instanceof byte[]) {
