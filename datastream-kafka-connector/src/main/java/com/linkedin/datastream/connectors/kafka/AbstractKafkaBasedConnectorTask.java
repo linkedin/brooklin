@@ -105,6 +105,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMs;
   protected final Optional<Map<Integer, Long>> _startOffsets;
+  protected final boolean _enableLatestBrokerOffsetsFetcher;
 
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
@@ -149,8 +150,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * Executor for a service which periodically queries Kafka via RPC for the latest available Kafka offsets.
    * @see #startLatestBrokerOffsetsFetcher()
    */
-  private final ExecutorService _latestBrokerOffsetsFetcher = Executors.newFixedThreadPool(2,
-      runnable -> new Thread(runnable, "latestBrokerOffsetsFetcher"));
+  private ExecutorService _latestBrokerOffsetsFetcher;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String metricsPrefix) {
@@ -183,6 +183,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _pollTimeoutMs = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
+    _enableLatestBrokerOffsetsFetcher = config.enableLatestBrokerOffsetsFetcher();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
   }
 
@@ -389,7 +390,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _consumer = createKafkaConsumer(_consumerProps);
       consumerSubscribe();
 
-      startLatestBrokerOffsetsFetcher();
+      if (_enableLatestBrokerOffsetsFetcher) {
+        startLatestBrokerOffsetsFetcher();
+      }
 
       ConsumerRecords<?, ?> records;
       while (!_shutdown) {
@@ -450,6 +453,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * for Brooklin to know for sure what the latest broker offsets are in this case is to make the RPC.
    */
   private void startLatestBrokerOffsetsFetcher() {
+    _logger.info("Starting latest broker offsets fetcher for task {}", _taskName);
+    _latestBrokerOffsetsFetcher = Executors.newFixedThreadPool(2,
+        runnable -> new Thread(runnable, "latestBrokerOffsetsFetcher"));
     _latestBrokerOffsetsFetcher.submit(() -> {
       // We need to create a new consumer as we can't safely operate a Consumer from more than one thread.
       Consumer<?, ?> consumer = createKafkaConsumer(_consumerProps);
@@ -512,8 +518,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   public void stop() {
     _logger.info("{} stopping", _taskName);
     _shutdown = true;
-    _latestBrokerOffsetsFetcher.shutdown();
+    if (_latestBrokerOffsetsFetcher != null) {
+      _latestBrokerOffsetsFetcher.shutdown();
+      _latestBrokerOffsetsFetcher = null;
+    }
     if (_consumer != null) {
+      _logger.info("Waking up the consumer for task {}", _taskName);
       _consumer.wakeup();
     }
     _consumerMetrics.deregisterMetrics();
@@ -648,6 +658,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _producer.flush();
       try {
         commitWithRetries(consumer, Optional.empty());
+        _lastCommittedTime = System.currentTimeMillis();
       } catch (DatastreamRuntimeException e) {
         if (force) { // if forced commit then throw exception
           _logger.error("Forced commit failed after retrying, so exiting.", e);
@@ -656,8 +667,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _logger.warn("Commit failed after several retries.", e);
         }
       }
-      _lastCommittedTime = System.currentTimeMillis();
-      _logger.info("Successfully committed offsets");
     }
   }
 
@@ -670,7 +679,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         } else {
           consumer.commitSync();
         }
+        _logger.info("Commit succeeded.");
       } catch (KafkaException e) {
+        if (_shutdown) {
+          _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting. Exception={}", e);
+          return true;
+        }
         _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
         return false;
       }
@@ -682,8 +696,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       String msg = "Commit failed after several retries, Giving up.";
       _logger.error(msg);
       throw new DatastreamRuntimeException(msg);
-    } else {
-      _logger.info("Commit succeeded.");
     }
   }
 
