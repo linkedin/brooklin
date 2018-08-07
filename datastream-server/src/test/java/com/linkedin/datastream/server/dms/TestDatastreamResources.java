@@ -9,6 +9,7 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -32,11 +33,11 @@ import com.linkedin.datastream.server.TestDatastreamServer;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.BatchUpdateRequest;
+import com.linkedin.restli.server.BatchUpdateResult;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
-import com.linkedin.restli.server.UpdateResponse;
 
 
 /**
@@ -426,22 +427,14 @@ public class TestDatastreamResources {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     Datastream originalDatastream1 = generateDatastream(1);
-    Datastream originalDatastream2 = generateDatastream(2);
+
     checkBadRequest(() -> resource.update("none", originalDatastream1), HttpStatus.S_400_BAD_REQUEST);
     checkBadRequest(() -> resource.update(originalDatastream1.getName(), originalDatastream1),
         HttpStatus.S_404_NOT_FOUND);
 
     Datastream datastream1 = createAndWaitUntilInitialized(resource, originalDatastream1);
-    Datastream datastream2 = createAndWaitUntilInitialized(resource, originalDatastream2);
 
-    datastream1.getMetadata().put("key", "value");
-    UpdateResponse response = resource.update(datastream1.getName(), datastream1);
-    Assert.assertEquals(response.getStatus(), HttpStatus.S_200_OK);
-    Assert.assertTrue(PollUtils.poll(() -> {
-      Datastream updatedDatastream1 = resource.get(datastream1.getName());
-      return updatedDatastream1.getMetadata().get("key").equals("value");
-    }, 100, 10000));
-
+    // Cant update destination / status / connector / transport provider
     Datastream modifyDestination = generateDatastream(1);
     modifyDestination.getDestination().setConnectionString("updated");
     checkBadRequest(() -> resource.update(modifyDestination.getName(), modifyDestination),
@@ -451,7 +444,40 @@ public class TestDatastreamResources {
     modifyStatus.setStatus(DatastreamStatus.PAUSED);
     checkBadRequest(() -> resource.update(modifyStatus.getName(), modifyStatus), HttpStatus.S_400_BAD_REQUEST);
 
-    datastream1.getMetadata().put("key", "value2");
+    Datastream modifyConnector = generateDatastream(1);
+    modifyStatus.setConnectorName("Random");
+    checkBadRequest(() -> resource.update(modifyConnector.getName(), modifyConnector), HttpStatus.S_400_BAD_REQUEST);
+
+    Datastream modifyTransport = generateDatastream(1);
+    modifyStatus.setTransportProviderName("Random");
+    checkBadRequest(() -> resource.update(modifyTransport.getName(), modifyTransport), HttpStatus.S_400_BAD_REQUEST);
+
+    // Create another datastream that gets deduped to datastream1.
+    Datastream originalDatastream2 = generateDatastream(2);
+    final Datastream datastream2 = createAndWaitUntilInitialized(resource, originalDatastream2);
+
+    // Update metadata for all streams in the group. It is up to the connector to validate if metadata updates are
+    // allowed. Dummy connector allows it
+    datastream1.getMetadata().put("key", "value1");
+    datastream2.getMetadata().put("key", "value2");
+
+    BatchUpdateRequest<String, Datastream> batchRequest = new BatchUpdateRequest<>(
+        Stream.of(datastream1, datastream2).collect(Collectors.toMap(Datastream::getName, ds -> ds)));
+    try {
+      BatchUpdateResult<String, Datastream> response = resource.batchUpdate(batchRequest);
+      Assert.assertTrue(response.getResults().values().stream().allMatch(res -> res.getStatus().equals(HttpStatus.S_200_OK)));
+    } catch (RestLiServiceException e) {
+      Assert.fail("Valid batch update request failed");
+    }
+
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Datastream updatedDatastream1 = resource.get(datastream1.getName());
+      Datastream updatedDatastream2 = resource.get(datastream2.getName());
+      return updatedDatastream1.getMetadata().get("key").equals("value1")
+          && updatedDatastream2.getMetadata().get("key").equals("value2");
+    }, 100, 10000));
+
+    datastream1.getMetadata().put("key", "value11");
     datastream2.getDestination().setConnectionString("updated");
     BatchUpdateRequest<String, Datastream> request = new BatchUpdateRequest<>(
         Stream.of(datastream1, datastream2).collect(Collectors.toMap(Datastream::getName, ds -> ds)));
@@ -467,17 +493,7 @@ public class TestDatastreamResources {
     Datastream updatedDatastream = resource.get(datastream1.getName());
     // we might get false positive result because of the zk delay
     // if we get flaky result here that means something is wrong
-    Assert.assertEquals(updatedDatastream.getMetadata().get("key"), "value");
-
-    datastream2 = resource.get(datastream2.getName());
-    request = new BatchUpdateRequest<>(
-        Stream.of(datastream1, datastream2).collect(Collectors.toMap(Datastream::getName, ds -> ds)));
-    resource.batchUpdate(request);
-
-    Assert.assertTrue(PollUtils.poll(() -> {
-      Datastream updatedDatastream1 = resource.get(datastream1.getName());
-      return updatedDatastream1.getMetadata().get("key").equals("value2");
-    }, 100, 10000));
+    Assert.assertEquals(updatedDatastream.getMetadata().get("key"), "value1");
   }
 
   @Test

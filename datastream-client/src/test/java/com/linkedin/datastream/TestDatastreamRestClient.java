@@ -258,10 +258,20 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     Assert.assertFalse(restClient.datastreamExists("No Such Datastream"));
   }
 
+  private void deleteAllDatastreams(DatastreamRestClient restClient) throws Exception {
+    restClient.getAllDatastreams().stream().forEach(ds -> restClient.deleteDatastream(ds.getName()));
+    long retryMillis = Duration.ofMillis(100).toMillis();
+    long timeoutMillis = Duration.ofSeconds(30).toMillis();
+
+    Assert.assertTrue(PollUtils.poll(() -> restClient.getAllDatastreams(0, 1).size() == 0, retryMillis, timeoutMillis),
+        "Failed to delete all datastreams from cluster");
+  }
+
   @Test
   public void testDatastreamUpdate() throws Exception {
-    Datastream datastream = generateDatastream(1200);
     DatastreamRestClient restClient = createRestClient();
+    deleteAllDatastreams(restClient);
+    Datastream datastream = generateDatastream(1200);
     restClient.createDatastream(datastream);
 
     try {

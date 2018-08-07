@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -56,7 +57,9 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.BatchUpdateRequest;
 import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.UpdateResponse;
@@ -660,7 +663,6 @@ public class TestCoordinator {
 
     String connectorType1 = "connectorType1";
     String connectorType2 = "connectorType2";
-    String connectorType3 = "connectorType3";
 
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType1);
     TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
@@ -672,35 +674,40 @@ public class TestCoordinator {
         new SourceBasedDeduper(), null);
     coordinator.start();
 
-    Datastream ds1 = DatastreamTestUtils.createDatastream(connectorType1, "name1", "source1");
-    Datastream ds2 = DatastreamTestUtils.createDatastream(connectorType2, "name2", "source2");
-    Datastream ds3 = DatastreamTestUtils.createDatastream(connectorType3, "name3", "source3");
-    Datastream ds4 = DatastreamTestUtils.createDatastream(connectorType2, "name4", "source4");
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    List<Datastream> datastreams = new ArrayList<>();
+
+    datastreams.add(DatastreamTestUtils.createDatastream(connectorType1, "name1", "source1"));
+    datastreams.add(DatastreamTestUtils.createDatastream(connectorType1, "name2", "source2"));
+    datastreams.add(DatastreamTestUtils.createDatastream(connectorType2, "name3", "source3"));
+    datastreams.add(DatastreamTestUtils.createDatastream(connectorType2, "name4", "source4"));
+
+    datastreams.forEach(ds -> resource.create(ds));
+    Assert.assertTrue(PollUtils.poll(() -> resource.getAll(new PagingContext(0, 4)).size() >= 4,
+        100, 10000));
 
     try {
-      coordinator.validateDatastreamsUpdate(Arrays.asList(ds1, ds2));
+      BatchUpdateRequest<String, Datastream> batchRequest = new BatchUpdateRequest<>(
+          datastreams.stream().collect(Collectors.toMap(Datastream::getName, ds -> ds)));
+      resource.batchUpdate(batchRequest);
       Assert.fail("Should fail validation when there are multiple connector types");
-    } catch (DatastreamValidationException e) {
-      // do nothing
-    }
-
-    try {
-      coordinator.validateDatastreamsUpdate(Collections.singletonList(ds3));
-      Assert.fail("Should fail validation when connector type is invalid");
-    } catch (DatastreamValidationException e) {
-      // do nothing
+    } catch (RestLiServiceException e) {
+      LOG.info("Caught exception as expected on update of multiple connector types in one batch");
     }
 
     connector1._allowDatastreamUpdate = false;
 
     try {
-      coordinator.validateDatastreamsUpdate(Collections.singletonList(ds1));
+      coordinator.validateDatastreamsUpdate(Arrays.asList(datastreams.get(0), datastreams.get(1)));
       Assert.fail("Should fail validation when update is not allowed");
     } catch (DatastreamValidationException e) {
-      // do nothing
+      LOG.info("Caught exception as expected on update of connector type that doesn't support update");
     }
 
-    coordinator.validateDatastreamsUpdate(Arrays.asList(ds2, ds4));
+    coordinator.validateDatastreamsUpdate(Arrays.asList(datastreams.get(2), datastreams.get(3)));
   }
 
   @Test
@@ -1956,7 +1963,10 @@ public class TestCoordinator {
     Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader1", false));
     Assert.assertNotNull(reader.getDatastream("testCachedDatastreamReader2", false));
 
-    // Update stream1 to test cache invalidation
+    Assert.assertTrue(PollUtils.poll(() -> setup._resource.getAll(new PagingContext(0, 2)).size() == 2,
+        100, 10000), "Timed out waiting for ZkClients to sync up on datastream created");
+
+    // Update stream2 to test cache invalidation
     streams[1].getMetadata().put("owner", "foo222");
     setup._resource.update("testCachedDatastreamReader2", streams[1]);
 

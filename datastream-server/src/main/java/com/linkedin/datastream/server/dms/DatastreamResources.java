@@ -24,8 +24,10 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
@@ -35,6 +37,7 @@ import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.Coordinator;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.ErrorLogger;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -43,6 +46,11 @@ import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.BatchUpdateRequest;
 import com.linkedin.restli.server.BatchUpdateResult;
+import com.linkedin.restli.server.CreateResponse;
+import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.PathKeys;
+import com.linkedin.restli.server.ResourceLevel;
+import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.Context;
@@ -51,11 +59,6 @@ import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PathKeysParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
-import com.linkedin.restli.server.CreateResponse;
-import com.linkedin.restli.server.PagingContext;
-import com.linkedin.restli.server.PathKeys;
-import com.linkedin.restli.server.ResourceLevel;
-import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
@@ -108,9 +111,11 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   /*
    * Update multiple datastreams. Throw exception if any of the updates is not valid:
    * 1. datastream doesn't exist
-   * 2. status or destination is not present or gets modified
-   * 3. more than one connector type in the batch update
-   * 4. connector type doesn't support datastream updates or fails to validate the update
+   * 2. datastream connector, transport provider, destination or status is not present or gets modified
+   * 3. all datastreams don't form part of same datastream group
+   * 4. list of updated datastreams don't share the same destination and source
+   * 5. list of updated datastreams don't form the same datastream group as existing datastreams
+   * 6. connector type doesn't support datastream updates or fails to validate the update
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
     LOG.info("Update datastream call with request: ", datastreamMap);
@@ -119,6 +124,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       LOG.warn("Update datastream call with empty input.");
       return;
     }
+
+    // 1. All updates datastreams should exist
     datastreamMap.forEach((key, datastream) -> {
       if (!key.equals(datastream.getName())) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -133,9 +140,35 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
             "Datastream to update does not exist: " + key);
       }
 
-      // We support update datastreams for various use cases. But we don't support modifying the
-      // destination or status (use pause/resume to update status). Writing into a different destination
-      // should essentially be for a new datastream.
+      // 2. We support update datastreams for various use cases. But we don't support modifying the
+      // connector, transport provider, destination or status (use pause/resume to update status).
+      // Writing into a different destination should essentially be for a new datastream.
+      if (!oldDatastream.hasConnectorName() || !datastream.hasConnectorName()) {
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because connector is not present. Are they valid? old: %s, new: %s", key,
+                oldDatastream, datastream));
+      }
+      if (!datastream.getConnectorName().equals(oldDatastream.getConnectorName())) {
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s. Can't update connector in update request. old: %s new: %s", key,
+                oldDatastream, datastream));
+      }
+
+      if (!oldDatastream.hasTransportProviderName() || !datastream.hasTransportProviderName()) {
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s because transport provider is not present. Are they valid? old: %s, new: %s", key,
+                oldDatastream, datastream));
+      }
+      if (!datastream.getTransportProviderName().equals(oldDatastream.getTransportProviderName())) {
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to update %s. Can't update transport provider in update request. old: %s new: %s", key,
+                oldDatastream, datastream));
+      }
+
       if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
@@ -163,6 +196,48 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
     });
 
+    List<Datastream> datastreamsToUpdate = datastreamMap.values().stream().collect(Collectors.toList());
+
+    // 3. datastreams should all form part of same datastream group
+    try {
+      new DatastreamGroup(datastreamsToUpdate);
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Datastreams being updated do not form the same datastream group", datastreamsToUpdate));
+    }
+
+    // 4. check that the list of updated datastreams share the same destination and source
+    DatastreamSource source = datastreamsToUpdate.get(0).getSource();
+    if (!datastreamsToUpdate.stream().allMatch(ds -> source.equals(ds.getSource()))) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Sources must be consistent ", datastreamsToUpdate));
+    }
+    DatastreamDestination destination = datastreamsToUpdate.get(0).getDestination();
+    if (!datastreamsToUpdate.stream().allMatch(ds -> destination.equals(ds.getDestination()))) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Destinations must be consistent ", datastreamsToUpdate));
+    }
+
+    // 5. check that the updated datastreams form the same datastream group as existing datastreams. Can't update
+    // a group partially
+    Set<String> updatedStreams = datastreamMap.keySet();
+    Datastream updatedStream = datastreamsToUpdate.get(0);
+    Set<String> existingStreams = _store.getAllDatastreams().map(ds -> _store.getDatastream(ds)).filter(ds ->
+        ds.hasConnectorName() && ds.getConnectorName().equals(updatedStream.getConnectorName())
+               && ds.hasDestination() && updatedStream.getDestination().equals(ds.getDestination())
+               && ds.hasStatus() && ds.getStatus() != DatastreamStatus.DELETING).map(Datastream::getName)
+        .collect(Collectors.toSet());
+    if (!updatedStreams.equals(existingStreams)) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Updating datastream group is different from existing one. Updated: %s Existing: %s",
+              updatedStreams, existingStreams));
+    }
+
+    // 6. connector type doesn't support datastream updates or fails to validate the update
     try {
       _coordinator.validateDatastreamsUpdate(new ArrayList<>(datastreamMap.values()));
     } catch (DatastreamValidationException e) {

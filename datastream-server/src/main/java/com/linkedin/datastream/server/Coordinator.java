@@ -1042,13 +1042,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // TODO: validate that the datastream updates won't break the current task assignment (e.g. new datastream group
     // is created which requires a new datastream task)
     try {
-      List<String> connectorTypes =
-          datastreams.stream().map(Datastream::getConnectorName).distinct().collect(Collectors.toList());
-      if (connectorTypes.size() != 1) {
-        throw new DatastreamValidationException(
-            "Expecting exactly one type of connectors for datastreams update: " + connectorTypes);
-      }
-      String connectorName = connectorTypes.get(0);
+      // DatastreamResources checks ensure we dont have more than one connector type in the updated datastream list
+      String connectorName = datastreams.get(0).getConnectorName();
       ConnectorInfo connectorInfo = _connectors.get(connectorName);
       if (connectorInfo == null) {
         throw new DatastreamValidationException("Invalid connector: " + connectorName);
