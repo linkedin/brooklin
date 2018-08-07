@@ -125,7 +125,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       return;
     }
 
-    // 1. All updates datastreams should exist
+    // 1. All updated datastreams should exist
     datastreamMap.forEach((key, datastream) -> {
       if (!key.equals(datastream.getName())) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -140,59 +140,45 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
             "Datastream to update does not exist: " + key);
       }
 
-      // 2. We support update datastreams for various use cases. But we don't support modifying the
+      // 2. We support updating datastreams for various use cases. But we don't support modifying the
       // connector, transport provider, destination or status (use pause/resume to update status).
       // Writing into a different destination should essentially be for a new datastream.
-      if (!oldDatastream.hasConnectorName() || !datastream.hasConnectorName()) {
+      try {
+        if (!oldDatastream.hasConnectorName() || !datastream.hasConnectorName()) {
+          throw new DatastreamValidationException(String.format("Failed to update %s because connector is not present."
+                  + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
+        }
+        if (!datastream.getConnectorName().equals(oldDatastream.getConnectorName())) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update connector in update request."
+                  + " old: %s, new: %s", key, oldDatastream, datastream));
+        }
+        if (!oldDatastream.hasTransportProviderName() || !datastream.hasTransportProviderName()) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
+              + " update request. old: %s, new: %s", key, oldDatastream, datastream));
+        }
+        if (!datastream.getTransportProviderName().equals(oldDatastream.getTransportProviderName())) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
+                  + " update request. old: %s new: %s", key, oldDatastream, datastream));
+        }
+        if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
+          throw new DatastreamValidationException(String.format("Failed to update %s because destination is not set. "
+                  + "Are they initialized? old: %s, new: %s", key, oldDatastream, datastream));
+        }
+        if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
+          throw new DatastreamValidationException(String.format("Failed to update %s because destination is immutable."
+                  + " old: %s new: %s", key, oldDatastream, datastream));
+        }
+        if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
+          throw new DatastreamValidationException(String.format("Failed to update %s because status is not present."
+                  + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
+        }
+        if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update status in update request."
+                  + " old: %s new: %s", key, oldDatastream, datastream));
+        }
+      } catch (DatastreamValidationException e) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because connector is not present. Are they valid? old: %s, new: %s", key,
-                oldDatastream, datastream));
-      }
-      if (!datastream.getConnectorName().equals(oldDatastream.getConnectorName())) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s. Can't update connector in update request. old: %s new: %s", key,
-                oldDatastream, datastream));
-      }
-
-      if (!oldDatastream.hasTransportProviderName() || !datastream.hasTransportProviderName()) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because transport provider is not present. Are they valid? old: %s, new: %s", key,
-                oldDatastream, datastream));
-      }
-      if (!datastream.getTransportProviderName().equals(oldDatastream.getTransportProviderName())) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s. Can't update transport provider in update request. old: %s new: %s", key,
-                oldDatastream, datastream));
-      }
-
-      if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because destination is not set. Are they initialized? old: %s, new: %s",
-                key, oldDatastream, datastream));
-      }
-      if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because destination is immutable. old: %s new: %s", key, oldDatastream,
-                datastream));
-      }
-
-      if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s because status is not present. Are they valid? old: %s, new: %s", key,
-                oldDatastream, datastream));
-      }
-      if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
-        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to update %s. Can't update status in update request. old: %s new: %s", key,
-                oldDatastream, datastream));
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e.getMessage());
       }
     });
 
