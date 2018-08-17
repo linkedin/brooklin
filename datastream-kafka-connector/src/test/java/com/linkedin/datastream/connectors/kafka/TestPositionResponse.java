@@ -172,7 +172,8 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null), _state.getAllTopicPartitions(), currentTime).run();
+    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+        _state.getAllTopicPartitions(), currentTime).run();
     DatastreamPositionResponse response = _consumer.getPositionResponse();
 
     Assert.assertEquals((long) getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -223,7 +224,8 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null), _state.getAllTopicPartitions(), currentTime).run();
+    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+        _state.getAllTopicPartitions(), currentTime).run();
     response = _consumer.getPositionResponse();
 
     Assert.assertEquals(getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -272,7 +274,8 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null), _state.getAllTopicPartitions(), currentTime).run();
+    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+        _state.getAllTopicPartitions(), currentTime).run();
     response = _consumer.getPositionResponse();
 
     Assert.assertEquals(getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -323,7 +326,8 @@ public class TestPositionResponse {
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     long currentTime = System.currentTimeMillis();
-    _consumer.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null), _state.getAllTopicPartitions(), currentTime).run();
+    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+        _state.getAllTopicPartitions(), currentTime).run();
     response = _consumer.getPositionResponse();
 
     _state.allowNextPoll();

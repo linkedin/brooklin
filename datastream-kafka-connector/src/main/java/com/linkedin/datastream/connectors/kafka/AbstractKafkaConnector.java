@@ -1,5 +1,7 @@
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
+import com.linkedin.datastream.common.diag.PhysicalSources;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -46,6 +48,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
+  private static final String TOPIC_KEY = "topic";
 
   protected final String _connectorName;
   private final Logger _logger;
@@ -315,11 +318,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private String processDatastreamStateRequest(URI request) {
     _logger.info("process Datastream state request: {}", request);
-    Optional<String> datastreamName = URLEncodedUtils.parse(request.getQuery(), Charset.defaultCharset())
-        .stream()
-        .filter(pair -> DATASTREAM_KEY.equalsIgnoreCase(pair.getName()))
-        .map(NameValuePair::getValue)
-        .findFirst();
+    Optional<String> datastreamName = extractQueryParam(request, DATASTREAM_KEY);
     return datastreamName.map(streamName -> _runningTasks.values()
         .stream()
         .filter(task -> task.hasDatastream(streamName))
@@ -336,18 +335,30 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * @see AbstractKafkaBasedConnectorTask#getPositionResponse() for how the response is compiled
    */
   private String processDatastreamPositionRequest(URI request) {
-    _logger.info("Processing datastream position request: {}", request);
-    Optional<String> datastreamName = URLEncodedUtils.parse(request.getQuery(), Charset.defaultCharset())
-        .stream()
-        .filter(pair -> DATASTREAM_KEY.equalsIgnoreCase(pair.getName()))
-        .map(NameValuePair::getValue)
-        .findFirst();
+    _logger.debug("Processing datastream position request: {}", request);
     DatastreamPositionResponse response = _runningTasks.values()
         .stream()
         .map(AbstractKafkaBasedConnectorTask::getPositionResponse)
         .reduce(DatastreamPositionResponse::merge)
         .orElse(new DatastreamPositionResponse());
-    datastreamName.ifPresent(name -> response.retainAll(Collections.singleton(name)));
+    _logger.debug("Unfiltered datastream position response: {}", response);
+
+    // Filter datastreams if specified -- may be needed if output is too large
+    extractQueryParam(request, DATASTREAM_KEY).ifPresent(name -> response.retainAll(Collections.singleton(name)));
+
+    // Filter topic if specified -- may be needed if output is too large
+    extractQueryParam(request, TOPIC_KEY).ifPresent(topic -> {
+      for (PhysicalSources sources : response.getDatastreamToPhysicalSources().values()) {
+        Map<String, PhysicalSourcePosition> positions = sources.getPhysicalSourceToPosition();
+        for (String position : positions.keySet()) {
+          if (!position.matches("^" + topic + "-\\d+$")) {
+            positions.remove(position);
+          }
+        }
+      }
+    });
+    _logger.debug("Filtered datastream position response: {}", response);
+
     return DatastreamPositionResponse.toJson(response);
   }
 
@@ -394,12 +405,16 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     responses.forEach((instance, json) -> {
       try {
         DatastreamPositionResponse response = DatastreamPositionResponse.fromJson(json);
+        _logger.debug("Datastream position response from instance {} is {}", instance, response);
         responseList.add(response);
       } catch (Exception e) {
         _logger.error("Invalid datastream position response {} from instance {}.", json, instance, e);
       }
     });
-    DatastreamPositionResponse result = responseList.stream().reduce(DatastreamPositionResponse::merge).orElse(new DatastreamPositionResponse());
+    DatastreamPositionResponse result = responseList.stream()
+        .reduce(DatastreamPositionResponse::merge)
+        .orElse(new DatastreamPositionResponse());
+    _logger.debug("Final reduced datastream position response {}", result);
     return DatastreamPositionResponse.toJson(result);
   }
 
@@ -418,5 +433,24 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       default:
         return false;
     }
+  }
+
+  /**
+   * Extracts the value of a query param (e.g. ?key1=value1&key2=value2...) given a provided request and param key.
+   * @param request the request potentially containing query params
+   * @param key the param key (i.e. key1 in the example above)
+   * @return the value of the param if it exists (i.e. value1 in the example above)
+   */
+  private Optional<String> extractQueryParam(URI request, String key) {
+    if (request == null || request.getQuery() == null) {
+      return Optional.empty();
+    }
+    final List<NameValuePair> pairs = URLEncodedUtils.parse(request.getQuery(), Charset.defaultCharset());
+    return Optional.ofNullable(pairs)
+        .orElse(Collections.emptyList())
+        .stream()
+        .filter(pair -> pair.getName().equalsIgnoreCase(key))
+        .map(NameValuePair::getValue)
+        .findFirst();
   }
 }
