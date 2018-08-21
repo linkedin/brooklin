@@ -28,6 +28,14 @@ public class DatastreamPositionResponse {
   }
 
   /**
+   * Constructor which accepts an existing Map of datastreams to PhysicalSources
+   * @param datastreamToPhysicalSources the existing Map of datastreams to PhysicalSources
+   */
+  public DatastreamPositionResponse(Map<String, PhysicalSources> datastreamToPhysicalSources) {
+    _datastreamToPhysicalSources.putAll(datastreamToPhysicalSources);
+  }
+
+  /**
    * Updates a datastream's physical source's existing position using the freshest data available between the existing
    * position data and the new position data.
    *
