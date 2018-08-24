@@ -32,9 +32,9 @@ import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.KafkaGroupIdConstructor;
+import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerNoLargeMessageFactory;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -114,7 +114,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // create a task that checkpoints very infrequently (10 minutes for purposes of this test)
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 600000, 5,
+        new KafkaBasedConnectorConfig(new LiKafkaConsumerNoLargeMessageFactory(), null, new Properties(), "", "", 600000, 5,
             Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "", false,
         new KafkaGroupIdConstructor(false, "testCluster"));
     KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
