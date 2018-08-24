@@ -87,8 +87,13 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_CHECKPOINT_COMMITS, 1);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, CHECKPOINT_COMMIT_LATENCY_MS,
           System.currentTimeMillis() - startTime);
-      // Clear the checkpoints to commit.
-      _checkpointsToCommit.get(task).clear();
+
+      Map<Integer, String> committedCheckpoints = _checkpointsToCommit.get(task);
+      // This check is necessary since task may have been unassigned/removed by a concurrent call to unassignDatastreamTask().
+      if (committedCheckpoints != null) {
+        // Clear the checkpoints to commit.
+        committedCheckpoints.clear();
+      }
       _lastCommitTime.put(task, Instant.now());
     }
   }
