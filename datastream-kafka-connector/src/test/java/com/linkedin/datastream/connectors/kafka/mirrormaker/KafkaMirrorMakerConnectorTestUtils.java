@@ -19,10 +19,11 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
-import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerNoLargeMessageFactory;
+import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.connectors.kafka.NoOpAuditor;
+import com.linkedin.datastream.connectors.kafka.NoOpSegmentDeserializer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-
 
 final class KafkaMirrorMakerConnectorTestUtils {
 
@@ -81,7 +82,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task) {
-    return createKafkaMirrorMakerConnectorTask(task, new Properties());
+    return createKafkaMirrorMakerConnectorTask(task, getKafkaConsumerProperties());
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
@@ -93,7 +94,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
       Properties consumerConfig, Duration pauseErrorPartitionDuration, boolean isGroupIdHashingEnabled,
       String clusterName) {
     return new KafkaMirrorMakerConnectorTask(
-        new KafkaBasedConnectorConfig(new LiKafkaConsumerNoLargeMessageFactory(), null, consumerConfig, "", "", 1000, 5,
+        new KafkaBasedConnectorConfig(new LiKafkaConsumerFactory(), null, consumerConfig, "", "", 1000, 5,
             Duration.ofSeconds(0), true, pauseErrorPartitionDuration), task, "", false,
         new KafkaMirrorMakerGroupIdConstructor(isGroupIdHashingEnabled, clusterName));
   }
@@ -110,7 +111,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     VerifiableProperties verifiableProperties = new VerifiableProperties(connectorProps);
 
     KafkaBasedConnectorConfig config =
-        new KafkaBasedConnectorConfig(new LiKafkaConsumerNoLargeMessageFactory(), verifiableProperties, new Properties(), "", "",
+        new KafkaBasedConnectorConfig(new LiKafkaConsumerFactory(), verifiableProperties, new Properties(), "", "",
             1000, 0, Duration.ofSeconds(0), true, pauseErrorPartitionDuration);
     return new KafkaMirrorMakerConnectorTask(config, task, "", true,
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -125,6 +126,13 @@ final class KafkaMirrorMakerConnectorTestUtils {
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
     }
+  }
+
+  static Properties getKafkaConsumerProperties() {
+    Properties props = new Properties();
+    props.put("segment.deserializer.class", NoOpSegmentDeserializer.class.getCanonicalName());
+    props.put("auditor.class", NoOpAuditor.class.getCanonicalName());
+    return props;
   }
 
 }
