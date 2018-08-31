@@ -215,6 +215,7 @@ project(':datastream-kafka-connector') {
     compile "commons-validator:commons-validator:1.5.1"
 
     testCompile project(':datastream-kafka')
+    testCompile project(':datastream-kafka-factory-impl')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }

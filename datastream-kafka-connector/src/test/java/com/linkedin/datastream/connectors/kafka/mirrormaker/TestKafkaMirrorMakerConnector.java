@@ -31,7 +31,7 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
+import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
@@ -62,7 +62,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
     config.put(KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS, "5000");
-    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
+    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS,
+        LiKafkaConsumerFactory.class.getName());
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.TRUE.toString());
     config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MS, "1000");
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
