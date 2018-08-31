@@ -128,6 +128,12 @@ final class KafkaMirrorMakerConnectorTestUtils {
     }
   }
 
+  /**
+   * Returns properties that will be used to configure kafka consumer in BMM.
+   * Right now it returns No Op Segment Deserializer and No Op Auditor, as BMM doesn't need to assemble/deassemble
+   * any message, it just needs to do byte-byte copying.
+   * @return Properties to be used by kafka consumer in BMM.
+   */
   static Properties getKafkaConsumerProperties() {
     Properties props = new Properties();
     props.put("segment.deserializer.class", NoOpSegmentDeserializer.class.getCanonicalName());
