@@ -101,7 +101,7 @@ class FileProcessor implements Runnable {
           builder.setSourceCheckpoint(lineNo.toString());
           _producer.send(builder.build(), (metadata, exception) -> {
             if (exception == null) {
-              LOG.info(String.format("Sending event:{%s} succeeded, metadata:{%s}", text, metadata));
+              LOG.info("Sending event:{} succeeded, metadata:{}", text, metadata);
             } else {
               LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
             }

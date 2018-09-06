@@ -877,7 +877,7 @@ public class TestCoordinator {
 
     List<String> sortedList = new ArrayList<>(instances);
     Collections.sort(sortedList);
-    LOG.info(String.format("Live instances %s", sortedList));
+    LOG.info("Live instances {}", sortedList);
 
     Assert.assertEquals(instances.size(), concurrencyLevel, String.format("Live instances %s", sortedList));
     zkClient.close();

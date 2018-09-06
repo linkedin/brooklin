@@ -344,7 +344,7 @@ public class ZkAdapter {
       List<String> deadTasks = allTasks.stream().filter(tasksToDelete::contains).collect(Collectors.toList());
 
       if (deadTasks.size() > 0) {
-        LOG.info(String.format("Cleaning up deprecated connector tasks: %s for connector: %s", deadTasks, connector));
+        LOG.info("Cleaning up deprecated connector tasks: {} for connector: {}", deadTasks, connector);
         for (String task : deadTasks) {
           deleteConnectorTask(connector, task);
         }
@@ -848,7 +848,7 @@ public class ZkAdapter {
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.ensureReadData(lockPath);
       if (owner.equals(_instanceName)) {
-        LOG.info(String.format("%s already owns the lock on %s", _instanceName, task));
+        LOG.info("{} already owns the lock on {}", _instanceName, task);
         return;
       }
 
@@ -857,7 +857,7 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.createEphemeral(lockPath, _instanceName);
-      LOG.info(String.format("%s successfully acquired the lock on %s", _instanceName, task));
+      LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
     } else {
       String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
           timeout.toMillis(), owner);
@@ -868,18 +868,18 @@ public class ZkAdapter {
   public void releaseTask(DatastreamTaskImpl task) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     if (!_zkclient.exists(lockPath)) {
-      LOG.info(String.format("There is no lock on %s", task));
+      LOG.info("There is no lock on {}", task);
       return;
     }
 
     String owner = _zkclient.ensureReadData(lockPath);
     if (!owner.equals(_instanceName)) {
-      LOG.warn(String.format("%s does not have the lock on %s", _instanceName, task));
+      LOG.warn("{} does not have the lock on {}", _instanceName, task);
       return;
     }
 
     _zkclient.delete(lockPath);
-    LOG.info(String.format("%s successfully released the lock on %s", _instanceName, task));
+    LOG.info("{} successfully released the lock on {}", _instanceName, task);
   }
 
   /**
@@ -957,8 +957,8 @@ public class ZkAdapter {
     // due to datastream add or delete.
     @Override
     public void handleDataChange(String dataPath, Object data) throws Exception {
-      LOG.info(String.format("ZkBackedDMSDatastreamList::Received Data change notification on the path %s, data %s.",
-          dataPath, data.toString()));
+      LOG.info("ZkBackedDMSDatastreamList::Received Data change notification on the path {}, data {}.",
+          dataPath, data.toString());
       if (_listener != null) {
         _listener.onDatastreamAddOrDrop();
       }
@@ -1084,8 +1084,7 @@ public class ZkAdapter {
     // updated, but the list of tasks may remain the same
     @Override
     public void handleDataChange(String dataPath, Object data) throws Exception {
-      LOG.info(String.format("ZkBackedTaskListProvider::Received Data change notification on the path %s, data %s.",
-          dataPath, data));
+      LOG.info("ZkBackedTaskListProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
       if (_listener != null && data != null && !data.toString().isEmpty()) {
         // only care about the data change when there is an update in the data node
         _listener.onDatastreamUpdate();

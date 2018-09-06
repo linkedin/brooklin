@@ -142,7 +142,7 @@ public class OracleConnector implements Connector {
    * Shutdown each {@link OracleTaskHandler} as well as stop the daemon thread
    */
   public void stop() {
-    LOG.info(String.format("attempting to shutdown %s connector ...", CONNECTOR_TYPE));
+    LOG.info("attempting to shutdown {} connector ...", CONNECTOR_TYPE);
     _namedTaskHandlers.values().forEach(OracleTaskHandler::stop);
 
     if (!ThreadUtils.shutdownExecutor(_executorService, SHUTDOWN_TIMEOUT, LOG)) {
@@ -156,7 +156,7 @@ public class OracleConnector implements Connector {
     _daemonThreadExecutorService = null;
     _namedTaskHandlers.clear();
 
-    LOG.info(String.format("%s connector has successfully stopped", CONNECTOR_TYPE));
+    LOG.info("{} connector has successfully stopped", CONNECTOR_TYPE);
   }
 
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
@@ -170,9 +170,9 @@ public class OracleConnector implements Connector {
 
     tasks.forEach(task -> {
 
-      LOG.info(String.format("Handling task: %s with source: %s",
+      LOG.info("Handling task: {} with source: {}",
           task.getDatastreamTaskName(),
-          task.getDatastreamSource().getConnectionString()));
+          task.getDatastreamSource().getConnectionString());
 
       // pardon this task from the remove list
       tasksToStop.remove(task);
@@ -190,7 +190,7 @@ public class OracleConnector implements Connector {
           taskHandler.start();
 
         } catch (DatastreamException e) {
-          LOG.error(String.format("Failed to create Task Handler for Task: %s", task.getDatastreamTaskName()));
+          LOG.error("Failed to create Task Handler for Task: {}", task.getDatastreamTaskName());
         }
       }
     });

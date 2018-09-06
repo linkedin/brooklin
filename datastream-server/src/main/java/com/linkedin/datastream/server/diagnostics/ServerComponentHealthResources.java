@@ -67,7 +67,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
       @QueryParam("scope") String componentScope,  // Espresso, EspressoBootstrap and etc.
       @QueryParam("content") @Optional String componentInputs) {
 
-    LOG.info("Restli getAllStatus request with name: %s, type: %s and content: %s.", componentType, componentScope,
+    LOG.info("Restli getAllStatus request with name: {}, type: {} and content: {}.", componentType, componentScope,
         componentInputs);
     DiagnosticsAware component = getComponent(componentType, componentScope);
     if (component != null) {
@@ -88,7 +88,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
       @QueryParam("scope") String componentScope,
       @QueryParam("content") @Optional String componentInputs) {
 
-    LOG.info("Restli getStatus request with name: %s, type: %s and content: %s.", componentType, componentScope,
+    LOG.info("Restli getStatus request with name: {}, type: {} and content: {}.", componentType, componentScope,
         componentInputs);
 
     ServerComponentHealth serverComponentHealth = new ServerComponentHealth();

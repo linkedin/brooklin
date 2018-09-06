@@ -387,7 +387,7 @@ public class DatastreamRestClient {
           return null;
         }
         if (isNotFoundHttpStatus(e)) {
-          LOG.debug(String.format("Datastream %s is not found", datastreamName));
+          LOG.debug("Datastream {} is not found", datastreamName);
         } else {
           String errorMessage = String.format("Get Datastream %s failed with error.", datastreamName);
           ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);

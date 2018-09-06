@@ -93,8 +93,7 @@ public class TestEventProducingConnector implements Connector {
 
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
-    LOG.info(String.format("onAssignmentChange called with tasks %s, existing assignment %s", tasks,
-        _tasksAssigned.keySet()));
+    LOG.info("onAssignmentChange called with tasks {}, existing assignment {}", tasks, _tasksAssigned.keySet());
     for (DatastreamTask task : tasks) {
       if (_tasksAssigned.containsKey(task)) {
         continue;
@@ -109,7 +108,7 @@ public class TestEventProducingConnector implements Connector {
         _tasksAssigned.entrySet().stream().filter(x -> !tasks.contains(x.getKey())).collect(Collectors.toList());
 
     tasksToRemove.forEach((x) -> {
-      LOG.info(String.format("Task %s is reassigned from the current instance, cancelling the producer", x.getKey()));
+      LOG.info("Task {} is reassigned from the current instance, cancelling the producer", x.getKey());
       x.getValue().cancel(true);
       while (!x.getValue().isDone()) {
         Thread.yield();
@@ -117,7 +116,7 @@ public class TestEventProducingConnector implements Connector {
 
       _tasksAssigned.remove(x.getKey());
 
-      LOG.info(String.format("Producer corresponding to the task %s has been stopped", x.getKey()));
+      LOG.info("Producer corresponding to the task {} has been stopped", x.getKey());
     });
   }
 
@@ -196,7 +195,7 @@ public class TestEventProducingConnector implements Connector {
   @Override
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-    LOG.info(String.format("initialize called for datastream %s with datastreams %s", stream, allDatastreams));
+    LOG.info("initialize called for datastream {} with datastreams {}", stream, allDatastreams);
   }
 
   @Override

@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -14,7 +15,7 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
 public class InMemoryTransportProvider implements TransportProvider {
-  private static final Logger LOG = Logger.getLogger(InMemoryTransportProvider.class);
+  private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProvider.class);
 
   public HashMap<String, Integer> getTopics() {
     return _topics;
@@ -42,7 +43,7 @@ public class InMemoryTransportProvider implements TransportProvider {
       _recordsReceived.put(connectionString, new ArrayList<>());
     }
 
-    LOG.info(String.format("Adding record with %d events to topic %s", record.getEvents().size(), topicName));
+    LOG.info("Adding record with {} events to topic {}", record.getEvents().size(), topicName);
 
     _recordsReceived.get(connectionString).add(record);
   }

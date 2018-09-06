@@ -61,11 +61,11 @@ public class CachedDatastreamReader {
         Set<String> datastreamsRemoved = new HashSet<>(_datastreams.keySet());
         datastreamsRemoved.removeAll(_datastreamNames);
         if (!datastreamsRemoved.isEmpty()) {
-          LOG.info(String.format("Removing the deleted datastreams {%s} from cache", datastreamsRemoved));
+          LOG.info("Removing the deleted datastreams {} from cache", datastreamsRemoved);
           _datastreams.keySet().removeAll(datastreamsRemoved);
         }
 
-        LOG.debug("New datastream list in the cache: %s", _datastreamNames);
+        LOG.debug("New datastream list in the cache: {}", _datastreamNames);
       }
     });
   }

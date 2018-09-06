@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.connectors.mysql.MysqlSource;
@@ -21,7 +22,7 @@ import com.linkedin.datastream.connectors.mysql.MysqlSource;
 // Not thread-safe
 public class MysqlQueryUtils {
   public static final String MODULE = MysqlQueryUtils.class.getName();
-  public static final Logger LOG = Logger.getLogger(MODULE);
+  public static final Logger LOG = LoggerFactory.getLogger(MODULE);
 
   // This query returns the "latest" binlog file only
   // mysql> show master status;
@@ -156,7 +157,7 @@ public class MysqlQueryUtils {
 
     String file = rs.getString(SN_SHOW_BINARY_LOGS_STMT_FILENAME_POSITION);
     String[] tok = file.split("\\.");
-    LOG.info(" The earliest binlog file available on master is : " + file);
+    LOG.info("The earliest binlog file available on master is : {}", file);
     int logId = new Integer(tok[tok.length - 1]);
     int offset = BINLOG_START_POS;
     return binlogPosition(logId, offset);
@@ -225,7 +226,7 @@ public class MysqlQueryUtils {
 
     String file = rs.getString(SN_STATUS_STMT_FILENAME_POSITION);
     String[] tok = file.split("\\.");
-    LOG.info(" The latest binlog file available on master is : " + file);
+    LOG.info("The latest binlog file available on master is : {}", file);
     int logId = new Integer(tok[tok.length - 1]);
     int offset = rs.getInt(SN_STATUS_STMT_FILEOFFSET_POSITION);
     return new BinlogPosition(file, binlogPosition(logId, offset));
@@ -352,7 +353,7 @@ public class MysqlQueryUtils {
       try {
         _conn.close();
       } catch (SQLException e) {
-        LOG.warn("failed to close mysql connection to " + _source.getHostName() + ":" + _source.getPort(), e);
+        LOG.warn("failed to close mysql connection to {}:{} ", _source.getHostName(), _source.getPort(), e);
         // ignore it and create a new connection
       }
       _conn = null;
@@ -369,11 +370,11 @@ public class MysqlQueryUtils {
     Statement stmt = null;
     ResultSet rs = null;
     try {
-      LOG.info("SQL about to execute in getColumnList: " + sql);
+      LOG.info("SQL about to execute in getColumnList: {}", sql);
       long timestampStart = System.currentTimeMillis();
       stmt = getConnection().createStatement();
       rs = stmt.executeQuery(sql);
-      LOG.info("Time taken to execute the query: " + (System.currentTimeMillis() - timestampStart) + "ms");
+      LOG.info("Time taken to execute the query: {} ms", System.currentTimeMillis() - timestampStart);
       List<ColumnInfo> result = new ArrayList<ColumnInfo>();
       while (rs.next()) {
         /*
@@ -415,11 +416,11 @@ public class MysqlQueryUtils {
     Statement stmt = null;
     ResultSet rs = null;
     try {
-      LOG.info("SQL about to execute in getKeyColumns: " + sql);
+      LOG.info("SQL about to execute in getKeyColumns: {}", sql);
       long timestampStart = System.currentTimeMillis();
       stmt = getConnection().createStatement();
       rs = stmt.executeQuery(sql);
-      LOG.info("Time taken to execute the query: " + (System.currentTimeMillis() - timestampStart) + "ms");
+      LOG.info("Time taken to execute the query: {} ms", System.currentTimeMillis() - timestampStart);
       List<String> result = new ArrayList<String>();
       while (rs.next()) {
         result.add(rs.getString(1));

@@ -213,7 +213,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
     }
 
     String[] tableNameParts = currFullDBTableName.split("[.]");
-    LOG.debug("File Number: %s, Position: %d, SCN = %d", _currFileName, (int) binlogEventHeader.getPosition(), _scn);
+    LOG.debug("File Number: {}, Position: {}, SCN = {}", _currFileName, (int) binlogEventHeader.getPosition(), _scn);
 
     List<ColumnInfo> columnMetadata = _tableInfoProvider.getColumnList(tableNameParts[0], tableNameParts[1]);
 
@@ -286,7 +286,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       QueryEvent qe = (QueryEvent) event;
       String sql = qe.getSql().toString();
       if ("ROLLBACK".equalsIgnoreCase(sql)) {
-        LOG.debug("ROLLBACK sql: %s", sql);
+        LOG.debug("ROLLBACK sql: {}", sql);
         return true;
       }
     }
@@ -322,7 +322,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
 
       _producer.send(builder.build(), (metadata, exception) -> {
         if (exception == null) {
-          LOG.debug(String.format("Sending event succeeded, metadata:{%s}", metadata));
+          LOG.debug("Sending event succeeded, metadata: {}", metadata);
         } else {
           // TODO we need to handle this by closing the producer and moving to the old checkpoint.
           LOG.error(String.format("Sending event failed, metadata:{%s}", metadata), exception);
@@ -338,7 +338,7 @@ public class MysqlBinlogEventListener implements BinlogEventListener {
       QueryEvent qe = (QueryEvent) event;
       String sql = qe.getSql().toString();
       if ("COMMIT".equalsIgnoreCase(sql)) {
-        LOG.debug("COMMIT sql: %s", sql);
+        LOG.debug("COMMIT sql: {}", sql);
         return true;
       }
     } else if (event instanceof XidEvent) {

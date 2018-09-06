@@ -60,7 +60,7 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   public KafkaTransportProvider(Properties props, String metricsNamesPrefix) {
-    LOG.info(String.format("Creating kafka transport provider with properties: %s", props));
+    LOG.info("Creating kafka transport provider with properties: {}", props);
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
@@ -122,7 +122,7 @@ public class KafkaTransportProvider implements TransportProvider {
       Validate.isTrue(record.getPartition().isPresent() || record.getPartitionKey().isPresent(),
           "Either partition or partitionKey needs to be set");
 
-      LOG.debug("Sending Datastream event record: %s", record);
+      LOG.debug("Sending Datastream event record: {}", record);
 
       for (Object event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
@@ -158,7 +158,7 @@ public class KafkaTransportProvider implements TransportProvider {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
-    LOG.debug("Done sending Datastream event record: %s", record);
+    LOG.debug("Done sending Datastream event record: {}", record);
   }
 
   @Override

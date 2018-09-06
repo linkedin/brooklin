@@ -6,12 +6,13 @@ import java.io.IOException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class RandomGenericRecordGenerator {
   public final static String MODULE = RandomGenericRecordGenerator.class.getName();
-  public final static Logger LOG = Logger.getLogger(MODULE);
+  public final static Logger LOG = LoggerFactory.getLogger(MODULE);
   Schema schema;
 
   /*

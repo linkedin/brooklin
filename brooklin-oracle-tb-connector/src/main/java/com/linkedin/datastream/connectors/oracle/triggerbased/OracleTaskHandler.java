@@ -132,7 +132,7 @@ public class OracleTaskHandler implements Runnable {
     try {
       _oracleConsumer.initializeConnection();
     } catch (DatastreamException e) {
-      LOG.error(String.format("Failed to create OracleConsumer for source: %s", _source.getConnectionString()));
+      LOG.error("Failed to create OracleConsumer for source: {}", _source.getConnectionString());
       throw e;
     }
   }
@@ -148,7 +148,7 @@ public class OracleTaskHandler implements Runnable {
    * restarting a thread
    */
   public void start() throws DatastreamException {
-    LOG.info(String.format("Starting OracleTaskHandler: %s", _handlerName));
+    LOG.info("Starting OracleTaskHandler: {}", _handlerName);
 
     try {
       _lastScn = getSafeCheckpoint();
@@ -165,7 +165,7 @@ public class OracleTaskHandler implements Runnable {
       return;
     }
 
-    LOG.warn(String.format("Detected that OracleTaskHandler %s is not running! Restarting...", _handlerName));
+    LOG.warn("Detected that OracleTaskHandler {} is not running! Restarting...", _handlerName);
 
     try {
       start();
@@ -177,7 +177,7 @@ public class OracleTaskHandler implements Runnable {
 
   @Override
   public void run() {
-    LOG.info("Start to run OracleTaskHandler, HandlerName: " + _handlerName);
+    LOG.info("Start to run OracleTaskHandler, HandlerName: {}", _handlerName);
     Instant lastStartTime = Instant.now();
 
     try {
@@ -206,10 +206,10 @@ public class OracleTaskHandler implements Runnable {
         lastStartTime = startTime;
 
         if (timeSinceLastPoll.compareTo(DEFAULT_SESSION_TIMEOUT) > 0) {
-          LOG.warn(format("OracleTaskHandler: %s, Time since last Oracle Poll is %d ms (> session timeout %d ms)",
+          LOG.warn("OracleTaskHandler: {}, Time since last Oracle Poll is {} ms (> session timeout {} ms)",
               _handlerName,
               timeSinceLastPoll.toMillis(),
-              DEFAULT_SESSION_TIMEOUT.toMillis()));
+              DEFAULT_SESSION_TIMEOUT.toMillis());
         }
 
         List<OracleChangeEvent> changeEvents;
@@ -230,17 +230,15 @@ public class OracleTaskHandler implements Runnable {
 
         // record issue if pollTime was too large
         if (pollTime.compareTo(DEFAULT_POLL_TIMEOUT) > 0) {
-          LOG.warn(format("OracleTaskHandler: %s took %d to ms to query Oracle Database (> %d ms poll timeout)",
+          LOG.warn("OracleTaskHandler: {} took {} to ms to query Oracle Database (> {} ms poll timeout)",
               _handlerName,
               pollTime.toMillis(),
-              DEFAULT_POLL_TIMEOUT.toMillis()));
+              DEFAULT_POLL_TIMEOUT.toMillis());
         }
 
         // skip to the next iteration if the there was 0 ChangeEvents
         if (changeEvents.size() == 0) {
-          LOG.debug(format("OracleTaskHandler: %s found 0 OracleChangeEvents using _lastScn: %d",
-              _handlerName,
-              _lastScn));
+          LOG.debug("OracleTaskHandler: {} found 0 OracleChangeEvents using lastScn: {}", _handlerName, _lastScn);
           continue;
         }
 
@@ -253,9 +251,8 @@ public class OracleTaskHandler implements Runnable {
         _eventsProcessedCountLog += changeEvents.size();
 
         Duration processingTime = Duration.between(processingStartTime, Instant.now());
-        LOG.debug(format("OracleTaskHandler: %s processing %d took %d(ms)", _handlerName,
-            changeEvents.size(),
-            processingTime.toMillis()));
+        LOG.debug("OracleTaskHandler: {} processing {} took {}(ms)", _handlerName, changeEvents.size(),
+            processingTime.toMillis());
 
         // If we got here, then we have successfully processed all the events
         // returned by the Poll. Now we have to update the {@code _lastScn}
@@ -299,8 +296,7 @@ public class OracleTaskHandler implements Runnable {
         String checkpoint = checkpointMap.get(PARTITION_NUM);
         _lastScn = Long.parseLong(checkpoint);
 
-        LOG.info(format("OracleTaskHandler: %s reset the lastScn to: %d", _handlerName,
-            _lastScn));
+        LOG.info("OracleTaskHandler: {} reset the lastScn to: {}", _handlerName, _lastScn);
 
         _messageHandler.resetErrorState();
       }
@@ -353,7 +349,7 @@ public class OracleTaskHandler implements Runnable {
     // a brand new datastreamTask and we want to start processing from
     // the latest SCN
     if (checkpointMap == null || checkpointMap.size() == 0) {
-      LOG.info(format("OracleTaskHandler: %s, did not find Checkpoint, finding the latest SCN", _handlerName));
+      LOG.info("OracleTaskHandler: {}, did not find Checkpoint, finding the latest SCN", _handlerName);
       long scn;
 
       try {
@@ -370,7 +366,7 @@ public class OracleTaskHandler implements Runnable {
     // we hard code the key to be 0
     String checkpoint = checkpointMap.get(PARTITION_NUM);
     long scn = Long.parseLong(checkpoint);
-    LOG.info(format("OracleTaskHandler: %s Found Checkpoint, _lastScn: %d", _handlerName, scn));
+    LOG.info("OracleTaskHandler: {} Found Checkpoint, lastScn: {}", _handlerName, scn);
 
     return scn;
   }
@@ -390,9 +386,7 @@ public class OracleTaskHandler implements Runnable {
     long oldScn = _lastScn;
     _lastScn = events.get(events.size() - 1).getScn();
 
-    LOG.debug(format("OracleTaskHandler: %s updated its _lastScn from old: %d to new: %d", _handlerName,
-        oldScn,
-        _lastScn));
+    LOG.debug("OracleTaskHandler: {} updated its lastScn from old: {} to new: {}", _handlerName, oldScn, _lastScn);
   }
 
   /**
