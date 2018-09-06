@@ -343,7 +343,7 @@ public class DatastreamServer {
       LOG.info("Starting CsvReporter in " + _csvMetricsDir);
       File csvDir = new File(_csvMetricsDir);
       if (!csvDir.exists()) {
-        LOG.info(String.format("csvMetricsDir %s doesn't exist, creating it.", _csvMetricsDir));
+        LOG.info("csvMetricsDir {} doesn't exist, creating it.", _csvMetricsDir);
         csvDir.mkdirs();
       }
 

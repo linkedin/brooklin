@@ -97,7 +97,7 @@ public class OracleConsumer {
       _dataSource = dataSourceFactory.createOracleDataSource(_uri, _queryTimeout);
       resetConnection();
     } catch (Exception e) {
-      LOG.error(String.format("Failed to create an Oracle Data Source for OracleConsumer: %s", getName()));
+      LOG.error("Failed to create an Oracle Data Source for OracleConsumer: {}", getName());
       throw new DatastreamException(e);
     }
 
@@ -114,7 +114,7 @@ public class OracleConsumer {
     try {
       _conn.close();
       _conn = null;
-      LOG.info(String.format("Closing OracleConsumer: %s", getName()));
+      LOG.info("Closing OracleConsumer: {}", getName());
     } catch (SQLException e) {
       LOG.warn(String.format("OracleConsumer: %s Failed to close connection", getName()), e);
     }
@@ -178,7 +178,7 @@ public class OracleConsumer {
 
       return changeEvents;
     } catch (SQLException e) {
-      LOG.error(String.format("Query failed: %s", _changeCaptureQuery));
+      LOG.error("Query failed: {}", _changeCaptureQuery);
       throw e;
     } finally {
       _conn.commit();
@@ -208,9 +208,7 @@ public class OracleConsumer {
       }
 
       if (scn == 0) {
-        throw new SQLException(String.format("Failed to get starting SCN for %s using sqlQuery: %s",
-            getName(),
-            sql));
+        throw new SQLException(String.format("Failed to get starting SCN for %s using sqlQuery: %s", getName(), sql));
       }
 
       LOG.info("latest SCN is: {}", scn);

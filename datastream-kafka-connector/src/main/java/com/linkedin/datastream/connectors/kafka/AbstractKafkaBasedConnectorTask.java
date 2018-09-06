@@ -838,7 +838,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         throw new DatastreamRuntimeException(errMsg);
       }
       // if group ID is present in metadata, add it to properties even if present already.
-      logger.info("Found overridden group ID for Kafka datastream task: {} . Overridden group id: {} Datastreams: %s",
+      logger.info("Found overridden group ID for Kafka datastream task: {}. Overridden group id: {} Datastreams: {}",
           task.getId(), groupIds.toArray()[0], task.getDatastreams());
       return (String) groupIds.toArray()[0];
     }

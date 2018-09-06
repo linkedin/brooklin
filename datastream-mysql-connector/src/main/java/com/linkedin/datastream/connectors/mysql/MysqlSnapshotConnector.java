@@ -87,7 +87,7 @@ public class MysqlSnapshotConnector implements Connector {
 
   @Override
   public void onAssignmentChange(List<DatastreamTask> tasks) {
-    LOG.info(String.format("Mysql snapshot connector is assigned tasks %s", tasks));
+    LOG.info("Mysql snapshot connector is assigned tasks {}", tasks);
     List<DatastreamTask> tasksAdded =
         tasks.stream().filter(x -> !_taskHandlers.containsKey(x)).collect(Collectors.toList());
     List<DatastreamTask> tasksRemoved =

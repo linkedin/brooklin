@@ -149,7 +149,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       // Create only if it doesn't exist.
       if (!AdminUtils.topicExists(_zkUtils, topicName)) {
         int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-        LOG.info("Creating topic with name {} partitions={} with properties %s", topicName, numberOfPartitions,
+        LOG.info("Creating topic with name {} partitions={} with properties {}", topicName, numberOfPartitions,
                 topicConfig);
 
         // Add default retention if no topic-level retention is specified

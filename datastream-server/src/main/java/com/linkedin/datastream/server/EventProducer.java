@@ -127,7 +127,7 @@ public class EventProducer implements DatastreamEventProducer {
     _enablePerTopicMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_METRICS, Boolean.TRUE.toString()));
 
-    _logger.info(String.format("Created event producer with customCheckpointing=%s", customCheckpointing));
+    _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     // provision some metrics to force them to create

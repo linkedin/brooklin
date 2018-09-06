@@ -128,9 +128,8 @@ public class MysqlConnector implements Connector {
       throw new DatastreamRuntimeException(msg, e);
     }
 
-    LOG.info(
-        String.format("Creating mysql replicator for DB: %s table: %s and binlogFolder: %s", source.getDatabaseName(),
-            source.getTableName(), binlogFolder));
+    LOG.info("Creating mysql replicator for DB: {} table: {} and binlogFolder: {}", source.getDatabaseName(),
+            source.getTableName(), binlogFolder);
     MysqlSourceBinlogRowEventFilter rowEventFilter =
         new MysqlSourceBinlogRowEventFilter(task.getDatastreamTaskName(), source.getDatabaseName(),
             source.isAllTables(), source.getTableName(), _dynamicMetricsManager);
@@ -144,7 +143,7 @@ public class MysqlConnector implements Connector {
   private MysqlReplicatorImpl createReplicatorForMysqlServer(DatastreamTask task) {
     MysqlSource source = parseMysqlSource(task);
 
-    LOG.info("Creating mysql replicator for DB: %s table: %s and mysql server: %s:%s", source.getDatabaseName(),
+    LOG.info("Creating mysql replicator for DB: {} table: {} and mysql server: {}:{}", source.getDatabaseName(),
         source.getTableName(), source.getHostName(), source.getPort());
 
     MysqlSourceBinlogRowEventFilter rowEventFilter =
@@ -212,12 +211,11 @@ public class MysqlConnector implements Connector {
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     if (Optional.ofNullable(tasks).isPresent()) {
-      LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks.toString()));
+      LOG.info("onAssignmentChange called with datastream tasks {} ", tasks);
       for (DatastreamTask task : tasks) {
         MysqlReplicator replicator = _mysqlProducers.get(task);
         if (replicator == null) {
-          LOG.info(String.format("New task {%s} assigned to the current instance, Creating mysql producer for ",
-              task.toString()));
+          LOG.info("New task {} assigned to the current instance, Creating mysql producer.", task);
           replicator = createReplicator(task);
         }
 
@@ -243,7 +241,7 @@ public class MysqlConnector implements Connector {
         _mysqlProducers.keySet().stream().filter(tasks::contains).collect(Collectors.toList());
 
     if (!reassignedTasks.isEmpty()) {
-      LOG.info("Tasks {%s} are reassigned from the current instance, Stopping the replicators", reassignedTasks);
+      LOG.info("Tasks {} are reassigned from the current instance, Stopping the replicators", reassignedTasks);
       for (DatastreamTask reassignedTask : reassignedTasks) {
         MysqlReplicator replicator = _mysqlProducers.get(reassignedTask);
         try {

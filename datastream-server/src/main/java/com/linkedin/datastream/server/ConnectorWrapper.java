@@ -60,15 +60,15 @@ public class ConnectorWrapper {
   }
 
   private void logApiStart(String method) {
-    _log.info(String.format("START: Connector::%s. Connector: %s, Instance: %s", method, _connectorType, _instanceName));
+    _log.info("START: Connector::{}. Connector: {}, Instance: {}", method, _connectorType, _instanceName);
     _startTime = System.currentTimeMillis();
     _lastError = null;
   }
 
   private void logApiEnd(String method) {
     _endTime = System.currentTimeMillis();
-    _log.info(String.format("END: Connector::%s. Connector: %s, Instance: %s, Duration: %d milliseconds", method,
-        _connectorType, _instanceName, _endTime - _startTime));
+    _log.info("END: Connector::{}. Connector: {}, Instance: {}, Duration: {} milliseconds", method,
+        _connectorType, _instanceName, _endTime - _startTime);
   }
 
   public void start(CheckpointProvider checkpointProvider) {

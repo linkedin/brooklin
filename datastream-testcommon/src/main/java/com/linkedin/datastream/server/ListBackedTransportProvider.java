@@ -45,7 +45,7 @@ public class ListBackedTransportProvider implements TransportProvider {
 
   @Override
   public synchronized void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
-    LOG.info(String.format("send called on destination %s with %d events", destination, record.getEvents().size()));
+    LOG.info("send called on destination {} with {} events", destination, record.getEvents().size());
     _allEvents.add(record.getEvents());
     _allRecords.add(record);
   }

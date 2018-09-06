@@ -44,7 +44,7 @@ public class ServerComponentHealthRestClient {
     if (response != null && !response.isEmpty()) {
       return response.get(0);
     } else {
-      LOG.error("ServerComponentHealth getStatus {%s} {%s} failed with empty response.", type, scope);
+      LOG.error("ServerComponentHealth getStatus {} {} failed with empty response.", type, scope);
       return null;
     }
   }
@@ -54,7 +54,7 @@ public class ServerComponentHealthRestClient {
       FindRequest<ServerComponentHealth> request = _builders.findByStatus().typeParam(type).scopeParam(scope).contentParam(content).build();
       return _restClient.sendRequest(request).getResponse().getEntity().getElements();
     } catch (RemoteInvocationException e) {
-      LOG.error("Get serverComponentHealthStatus {%s} {%s} failed with error.", type, scope);
+      LOG.error("Get serverComponentHealthStatus {} {} failed with error.", type, scope);
       return null;
     }
   }
@@ -76,7 +76,7 @@ public class ServerComponentHealthRestClient {
     if (response != null && !response.isEmpty()) {
       return response.get(0);
     } else {
-      LOG.error("ServerComponentHealth getAllStatus {%s} {%s} failed with empty response.", type, scope);
+      LOG.error("ServerComponentHealth getAllStatus {} {} failed with empty response.", type, scope);
       return null;
     }
   }
@@ -86,7 +86,7 @@ public class ServerComponentHealthRestClient {
       FindRequest<ServerComponentHealth> request = _builders.findByAllStatus().typeParam(type).scopeParam(scope).contentParam(content).build();
       return _restClient.sendRequest(request).getResponse().getEntity().getElements();
     } catch (RemoteInvocationException e) {
-      LOG.error("Get serverComponentHealthAllStatus {%s} {%s} failed with error.", type, scope);
+      LOG.error("Get serverComponentHealthAllStatus {} {} failed with error.", type, scope);
       return null;
     }
   }

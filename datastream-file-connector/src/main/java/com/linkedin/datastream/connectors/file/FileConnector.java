@@ -87,7 +87,7 @@ public class FileConnector implements Connector {
 
   @Override
   public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
-    LOG.info(String.format("onAssignmentChange called with datastream tasks %s ", tasks));
+    LOG.info("onAssignmentChange called with datastream tasks {}", tasks);
     Set<DatastreamTask> unassigned = new HashSet<>(_fileProcessors.keySet());
     unassigned.removeAll(tasks);
 

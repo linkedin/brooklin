@@ -4,7 +4,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -19,7 +20,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
 
   }
 
-  private static final Logger LOG = Logger.getLogger(InMemoryTransportProviderAdminFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProviderAdminFactory.class);
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
 
   private static InMemoryTransportProvider _transportProvider = new InMemoryTransportProvider();
@@ -37,8 +38,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
     String topicName = datastream.getDestination().getConnectionString();
     int numberOfPartitions = datastream.getDestination().getPartitions();
     if (_transportProvider.getTopics().containsKey(topicName)) {
-      String msg = String.format("Topic %s already exists", topicName);
-      LOG.warn(msg);
+      LOG.warn("Topic {} already exists", topicName);
     }
     _transportProvider.addTopic(topicName, numberOfPartitions);
   }

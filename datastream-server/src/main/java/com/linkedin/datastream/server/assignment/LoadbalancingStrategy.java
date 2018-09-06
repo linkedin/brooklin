@@ -54,8 +54,8 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
-    LOG.info(String.format("Assign called with datastreams: %s, instances: %s, currentAssignment: %s", datastreams,
-        instances, currentAssignment));
+    LOG.info("Assign called with datastreams: {}, instances: {}, currentAssignment: {}", datastreams,
+        instances, currentAssignment);
     // if there are no live instances, return empty assignment
     if (instances.size() == 0) {
       return new HashMap<>();
@@ -76,9 +76,9 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
       assignment.get(instanceName).add(datastreamTasks.get(i));
     }
 
-    LOG.info(String.format("Datastream Groups: %s, instances: %s, currentAssignment: %s, NewAssignment: %s",
+    LOG.info("Datastream Groups: {}, instances: {}, currentAssignment: {}, NewAssignment: {}",
         datastreams.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList()), instances,
-        currentAssignment, assignment));
+        currentAssignment, assignment);
 
     return assignment;
   }

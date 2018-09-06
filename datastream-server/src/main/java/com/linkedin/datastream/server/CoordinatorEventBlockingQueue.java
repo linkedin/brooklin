@@ -25,7 +25,7 @@ public class CoordinatorEventBlockingQueue {
   * @param event CoordinatorEvent event to add to the queue
   */
   public synchronized void put(CoordinatorEvent event) {
-    LOG.info(String.format("Queuing event %s to event queue", event.getType()));
+    LOG.info("Queuing event {} to event queue", event.getType());
     if (!_eventMap.containsKey(event.getType())) {
       // only insert if there isn't an event present in the queue with the same name
       boolean result = _eventQueue.offer(event);

@@ -738,8 +738,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           // Set the datastream status as ready for use (both producing and consumption)
           ds.setStatus(DatastreamStatus.READY);
           if (!_adapter.updateDatastream(ds)) {
-            _log.warn(String.format("Failed to update datastream: %s after initializing, "
-                + "This datastream will not be scheduled for producing events ", ds.getName()));
+            _log.warn("Failed to update datastream: {} after initializing. This datastream will not be scheduled for "
+                + "producing events ", ds.getName());
             shouldRetry = true;
           }
         } catch (Exception e) {
@@ -1010,8 +1010,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
 
-    _log.info(String.format("Add new connector of type %s, strategy %s with custom checkpointing %s to coordinator",
-        connectorName, strategy.getClass().getTypeName(), customCheckpointing));
+    _log.info("Add new connector of type {}, strategy {} with custom checkpointing {} to coordinator",
+        connectorName, strategy.getClass().getTypeName(), customCheckpointing);
 
     if (_connectors.containsKey(connectorName)) {
       String err = "A connector of type " + connectorName + " already exists.";

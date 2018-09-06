@@ -94,11 +94,11 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   @Test
   public void testCreateTwoDatastreams() throws Exception {
     Datastream datastream = generateDatastream(6);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
-    LOG.info("Created Datastream : " + createdDatastream);
+    LOG.info("Created Datastream : {}", createdDatastream);
 
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
@@ -107,10 +107,10 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     Assert.assertEquals(createdDatastream, datastream);
 
     datastream = generateDatastream(7);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
     restClient.createDatastream(datastream);
     createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
-    LOG.info("Created Datastream : " + createdDatastream);
+    LOG.info("Created Datastream : {}", createdDatastream);
 
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
@@ -125,13 +125,13 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     _datastreamCluster.startupServer(1);
 
     Datastream datastream = generateDatastream(5);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
 
     int followerDmsPort = _datastreamCluster.getDatastreamPorts().get(1);
     DatastreamRestClient restClient = DatastreamRestClientFactory.getClient("http://localhost:" + followerDmsPort);
     restClient.createDatastream(datastream);
     Datastream createdDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), WAIT_TIMEOUT_MS);
-    LOG.info("Created Datastream : " + createdDatastream);
+    LOG.info("Created Datastream : {}", createdDatastream);
     datastream.setDestination(new DatastreamDestination());
     // server might have already set the destination so we need to unset it for comparison
     clearDatastreamDestination(Collections.singletonList(createdDatastream));
@@ -142,7 +142,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
   public void testCreateDatastreamThatAlreadyExists() throws Exception {
     Datastream datastream = generateDatastream(1);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(datastream);
     restClient.createDatastream(datastream);
@@ -151,11 +151,11 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   @Test
   public void testWaitTillDatastreamIsInitializedReturnsInitializedDatastream() throws Exception {
     Datastream datastream = generateDatastream(11);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(datastream);
     Datastream initializedDatastream = restClient.waitTillDatastreamIsInitialized(datastream.getName(), 60000);
-    LOG.info("Initialized Datastream : " + initializedDatastream);
+    LOG.info("Initialized Datastream : {}", initializedDatastream);
     Assert.assertNotEquals(initializedDatastream.getDestination().getConnectionString(), "");
     Assert.assertEquals(initializedDatastream.getDestination().getPartitions().intValue(), 1);
   }
@@ -181,10 +181,10 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   }
 
   @Test
-  public void testGetAllDatastreams() throws Exception {
+  public void testGetAllDatastreams() {
     List<Datastream> datastreams =
         IntStream.range(100, 110).mapToObj(TestDatastreamRestClient::generateDatastream).collect(Collectors.toList());
-    LOG.info("Datastreams : " + datastreams);
+    LOG.info("Datastreams : {}", datastreams);
     DatastreamRestClient restClient = createRestClient();
 
     int initialSize = restClient.getAllDatastreams().size();
@@ -201,7 +201,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     Assert.assertTrue(result.isPresent());
 
     List<Datastream> createdDatastreams = result.get();
-    LOG.info("Created Datastreams : " + createdDatastreams);
+    LOG.info("Created Datastreams : {}", createdDatastreams);
 
     clearDatastreamDestination(datastreams);
     clearDatastreamDestination(createdDatastreams);
@@ -213,7 +213,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     int skip = 2;
     int count = 5;
     List<Datastream> paginatedCreatedDatastreams = restClient.getAllDatastreams(2, 5);
-    LOG.info("Paginated Datastreams : " + paginatedCreatedDatastreams);
+    LOG.info("Paginated Datastreams : {}", paginatedCreatedDatastreams);
 
     Assert.assertEquals(paginatedCreatedDatastreams.size(), count);
 
@@ -227,7 +227,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   @Test(expectedExceptions = DatastreamNotFoundException.class)
   public void testDeleteDatastream() throws Exception {
     Datastream datastream = generateDatastream(2);
-    LOG.info("Datastream : " + datastream);
+    LOG.info("Datastream : {}", datastream);
     DatastreamRestClient restClient = createRestClient();
     restClient.createDatastream(datastream);
     restClient.waitTillDatastreamIsInitialized(datastream.getName(), Duration.ofMinutes(2).toMillis());
