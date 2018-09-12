@@ -2,6 +2,7 @@ package com.linkedin.datastream.common.diag;
 
 import com.linkedin.datastream.common.JsonUtils;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,24 +32,8 @@ public class DatastreamPositionResponse {
    * Constructor which accepts an existing Map of datastreams to PhysicalSources
    * @param datastreamToPhysicalSources the existing Map of datastreams to PhysicalSources
    */
-  public DatastreamPositionResponse(Map<String, PhysicalSources> datastreamToPhysicalSources) {
+  public DatastreamPositionResponse(final Map<String, PhysicalSources> datastreamToPhysicalSources) {
     _datastreamToPhysicalSources.putAll(datastreamToPhysicalSources);
-  }
-
-  /**
-   * Updates a datastream's physical source's existing position using the freshest data available between the existing
-   * position data and the new position data.
-   *
-   * @param datastream the datastream to update the physical source for
-   * @param physicalSource the physical source to update the position for
-   * @param position the new position data
-   *
-   * @see PhysicalSources#update(String, PhysicalSourcePosition)
-   */
-  public void update(String datastream, String physicalSource, PhysicalSourcePosition position) {
-    _datastreamToPhysicalSources
-        .computeIfAbsent(datastream, s -> new PhysicalSources())
-        .update(physicalSource, position);
   }
 
   /**
@@ -57,7 +42,7 @@ public class DatastreamPositionResponse {
    * collection.
    * @param datastreams the list of datastreams to keep
    */
-  public void retainAll(Collection<String> datastreams) {
+  public void retainAll(final Collection<String> datastreams) {
     _datastreamToPhysicalSources.keySet().retainAll(datastreams);
   }
 
@@ -67,17 +52,21 @@ public class DatastreamPositionResponse {
    * @param first the first DatastreamPositionResponse object
    * @param second the second DatastreamPositionResponse object
    * @return a merged DatastreamPositionResponse object
-   * @see PhysicalSourcePosition#merge(PhysicalSourcePosition, PhysicalSourcePosition) for information on how the
+   * @see PhysicalSources#merge(PhysicalSources, PhysicalSources) for information on how the
    *      position data is merged
    */
-  public static DatastreamPositionResponse merge(DatastreamPositionResponse first, DatastreamPositionResponse second) {
-    DatastreamPositionResponse result = new DatastreamPositionResponse();
-    first.getDatastreamToPhysicalSources().forEach((datastream, sources) ->
-        sources.getPhysicalSourceToPosition().forEach((source, position) ->
-            result.update(datastream, source, position)));
-    second.getDatastreamToPhysicalSources().forEach((datastream, sources) ->
-        sources.getPhysicalSourceToPosition().forEach((source, position) ->
-            result.update(datastream, source, position)));
+  public static DatastreamPositionResponse merge(final DatastreamPositionResponse first,
+      final DatastreamPositionResponse second) {
+    final DatastreamPositionResponse result = new DatastreamPositionResponse();
+    result.setDatastreamToPhysicalSources(first._datastreamToPhysicalSources);
+    if (second != null) {
+      second._datastreamToPhysicalSources.forEach((datastream, secondSources) -> {
+        final PhysicalSources firstSources = first.getDatastreamToPhysicalSources()
+            .getOrDefault(datastream, new PhysicalSources());
+        final PhysicalSources mergedSources = PhysicalSources.merge(firstSources, secondSources);
+        result._datastreamToPhysicalSources.put(datastream, mergedSources);
+      });
+    }
     return result;
   }
 
@@ -89,7 +78,7 @@ public class DatastreamPositionResponse {
    * @return an immutable copy of the current datastream to physical sources map
    */
   public Map<String, PhysicalSources> getDatastreamToPhysicalSources() {
-    return _datastreamToPhysicalSources;
+    return Collections.unmodifiableMap(_datastreamToPhysicalSources);
   }
 
   /**
@@ -100,7 +89,7 @@ public class DatastreamPositionResponse {
    *
    * @param datastreamToPhysicalSources a map to set the current datastream to physical sources map to
    */
-  public void setDatastreamToPhysicalSources(Map<String, PhysicalSources> datastreamToPhysicalSources) {
+  public void setDatastreamToPhysicalSources(final Map<String, PhysicalSources> datastreamToPhysicalSources) {
     _datastreamToPhysicalSources.clear();
     if (datastreamToPhysicalSources != null) {
       _datastreamToPhysicalSources.putAll(datastreamToPhysicalSources);
@@ -112,7 +101,7 @@ public class DatastreamPositionResponse {
    * @param response the DatastreamPositionResponse object
    * @return a serialized DatastreamPositionResponse object in JSON format
    */
-  public static String toJson(DatastreamPositionResponse response) {
+  public static String toJson(final DatastreamPositionResponse response) {
     return JsonUtils.toJson(response);
   }
 
@@ -121,7 +110,7 @@ public class DatastreamPositionResponse {
    * @param json the serialized DatastreamPositionResponse object in JSON format
    * @return a DatastreamPositionResponse object
    */
-  public static DatastreamPositionResponse fromJson(String json) {
+  public static DatastreamPositionResponse fromJson(final String json) {
     return JsonUtils.fromJson(json, DatastreamPositionResponse.class);
   }
 

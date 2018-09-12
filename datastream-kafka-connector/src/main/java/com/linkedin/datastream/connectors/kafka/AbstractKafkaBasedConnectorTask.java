@@ -118,6 +118,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected final KafkaPositionTracker _kafkaPositionTracker;
+  private volatile boolean _positionsInitialized;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String metricsPrefix) {
@@ -594,18 +595,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerAssignment.clear();
     _consumerAssignment.addAll(partitions);
 
-    // Get the lists of partitions needing position initialization
-    List<TopicPartition> partitionsNeedingInit = partitions.stream()
-        .filter(tp -> _kafkaPositionTracker.getPositions().get(tp.toString()) == null)
-        .collect(Collectors.toList());
-    // If there are any, initialize them
-    if (!partitionsNeedingInit.isEmpty()) {
-      Instant readTime = Instant.now();
-      Map<TopicPartition, Long> consumerOffsets = partitionsNeedingInit.stream()
-          .collect(Collectors.toMap(Function.identity(), _consumer::position));
-      Map<TopicPartition, Long> brokerOffsets = _consumer.endOffsets(partitionsNeedingInit);
-      _kafkaPositionTracker.updateInitialPositions(readTime, consumerOffsets, brokerOffsets);
-    }
+    _positionsInitialized = false;
 
     _logger.info("Current assignment is {}", _consumerAssignment);
 
@@ -640,6 +630,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       } else {
         throw new IllegalStateException("Found null update type in task updates set.");
       }
+    }
+
+    // check if there are positions that need initializing
+    if (!_positionsInitialized) {
+      _positionsInitialized = _kafkaPositionTracker.initializePositions(_consumer);
     }
   }
 

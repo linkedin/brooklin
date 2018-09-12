@@ -1,8 +1,12 @@
 package com.linkedin.datastream.common.diag;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 
 /**
@@ -23,39 +27,31 @@ public class PhysicalSources {
   }
 
   /**
-   * Updates a physical source's existing position using the freshest data available between the existing position data
-   * and the new position data.
-   *
-   * @param physicalSource the physical source to update
-   * @param position the new position data
-   *
-   * @see PhysicalSourcePosition#merge(PhysicalSourcePosition, PhysicalSourcePosition)
-   */
-  public void update(String physicalSource, PhysicalSourcePosition position) {
-    PhysicalSourcePosition existingPosition = _physicalSourceToPosition.get(physicalSource);
-    PhysicalSourcePosition mergedPosition = PhysicalSourcePosition.merge(existingPosition, position);
-    if (mergedPosition != null) {
-      _physicalSourceToPosition.put(physicalSource, mergedPosition);
-    }
-  }
-
-  /**
    * Retains only the physical sources in the specified collection (removes all others). In other words, removes from
    * the mappings of physical source -> position, all entries where the physical source is not contained in the
    * specified collection.
    * @param physicalSources the list of physical sources to keep
    */
-  public void retainAll(Collection<String> physicalSources) {
+  public void retainAll(final Collection<String> physicalSources) {
     _physicalSourceToPosition.keySet().retainAll(physicalSources);
   }
 
   /**
    * Gets the physical source's existing position.
    * @param physicalSource the physical source name
-   * @return the physical source's position data, or null if it doesn't exist
+   * @return the physical source's current position data
    */
-  public PhysicalSourcePosition get(String physicalSource) {
+  public PhysicalSourcePosition get(final String physicalSource) {
     return _physicalSourceToPosition.get(physicalSource);
+  }
+
+  /**
+   * Sets the physical source's existing position.
+   * @param physicalSource the physical source name
+   * @param physicalSourcePosition the physical source's current position data
+   */
+  public void set(final String physicalSource, final PhysicalSourcePosition physicalSourcePosition) {
+    _physicalSourceToPosition.put(physicalSource, physicalSourcePosition);
   }
 
   /**
@@ -66,7 +62,7 @@ public class PhysicalSources {
    * @return an immutable copy of the current physical source to position map
    */
   public Map<String, PhysicalSourcePosition> getPhysicalSourceToPosition() {
-    return _physicalSourceToPosition;
+    return Collections.unmodifiableMap(_physicalSourceToPosition);
   }
 
   /**
@@ -77,11 +73,34 @@ public class PhysicalSources {
    *
    * @param physicalSourceToPosition a map to set the physical sources to position map to
    */
-  public void setPhysicalSourceToPosition(Map<String, PhysicalSourcePosition> physicalSourceToPosition) {
+  public void setPhysicalSourceToPosition(final Map<String, PhysicalSourcePosition> physicalSourceToPosition) {
     _physicalSourceToPosition.clear();
     if (physicalSourceToPosition != null) {
       _physicalSourceToPosition.putAll(physicalSourceToPosition);
     }
+  }
+
+  /**
+   * Merges two PhysicalSources objects together using the freshest data available between the position data
+   * in the PhysicalSourcePosition for each physical source.
+   * @param first the first PhysicalSources object
+   * @param second the second PhysicalSources object
+   * @return a merged PhysicalSources object
+   */
+  public static PhysicalSources merge(final PhysicalSources first, final PhysicalSources second) {
+    final PhysicalSources newSources = new PhysicalSources();
+    newSources.setPhysicalSourceToPosition(first._physicalSourceToPosition);
+    if (second != null) {
+      second._physicalSourceToPosition.forEach((source, secondPosition) -> {
+        final PhysicalSourcePosition firstPosition = Optional.ofNullable(first.get(source))
+            .orElseGet(PhysicalSourcePosition::new);
+        final PhysicalSourcePosition newestPosition = Stream.of(firstPosition, secondPosition)
+            .max(Comparator.comparingLong(p -> Long.max(p.getConsumerProcessedTimeMs(), p.getSourceQueriedTimeMs())))
+            .get();
+        newSources._physicalSourceToPosition.put(source, newestPosition);
+      });
+    }
+    return newSources;
   }
 
   /**

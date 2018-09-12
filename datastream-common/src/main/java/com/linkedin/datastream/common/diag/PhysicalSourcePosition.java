@@ -1,9 +1,5 @@
 package com.linkedin.datastream.common.diag;
 
-import java.util.Comparator;
-import java.util.Optional;
-import java.util.stream.Stream;
-
 
 /**
  * A datastream's consumer reads messages sequentially from a physical source. For diagnostic and analytic information,
@@ -97,7 +93,7 @@ public class PhysicalSourcePosition {
    * @param sourceQueriedTimeMs the time that the position of the latest/newest available message was queried from the
    *                          physical source
    */
-  public void setSourceQueriedTimeMs(long sourceQueriedTimeMs) {
+  public void setSourceQueriedTimeMs(final long sourceQueriedTimeMs) {
     _sourceQueriedTimeMs = sourceQueriedTimeMs;
   }
 
@@ -113,7 +109,7 @@ public class PhysicalSourcePosition {
    * Sets the time that the consumer processed data from this physical source as milliseconds from the Unix epoch.
    * @param consumerProcessedTimeMs the time that the consumer processed data from this physical source
    */
-  public void setConsumerProcessedTimeMs(long consumerProcessedTimeMs) {
+  public void setConsumerProcessedTimeMs(final long consumerProcessedTimeMs) {
     _consumerProcessedTimeMs = consumerProcessedTimeMs;
   }
 
@@ -129,7 +125,7 @@ public class PhysicalSourcePosition {
    * Sets the position type, which describes what the position data represents.
    * @param positionType the position type
    */
-  public void setPositionType(String positionType) {
+  public void setPositionType(final String positionType) {
     _positionType = positionType;
   }
 
@@ -145,7 +141,7 @@ public class PhysicalSourcePosition {
    * Sets the position of the latest/newest available message on the physical source.
    * @param sourcePosition the position of the latest/newest available message on the physical source
    */
-  public void setSourcePosition(String sourcePosition) {
+  public void setSourcePosition(final String sourcePosition) {
     _sourcePosition = sourcePosition;
   }
 
@@ -161,62 +157,10 @@ public class PhysicalSourcePosition {
    * Sets the position of the datastream's consumer's last processed message.
    * @param consumerPosition the position of the datastream's consumer's last processed message
    */
-  public void setConsumerPosition(String consumerPosition) {
+  public void setConsumerPosition(final String consumerPosition) {
     _consumerPosition = consumerPosition;
   }
 
-  /**
-   * Merges two PhysicalSourcePosition objects into a single object with the freshest position data available from both.
-   * If two positions do not have the same position type, then they cannot be merged. Instead, a copy of the new
-   * position data will be returned.
-   *
-   * @param existingPosition the existing position data
-   * @param newPosition the new position data
-   * @return a merged PhysicalSourcePosition, or null if both provided positions are null
-   */
-  public static PhysicalSourcePosition merge(PhysicalSourcePosition existingPosition, PhysicalSourcePosition newPosition) {
-    // If there is no existing position, use the new position.
-    if (existingPosition == null) {
-      return copy(newPosition);
-    }
-
-    // If there is no new position, use the existing position.
-    if (newPosition == null) {
-      return copy(existingPosition);
-    }
-
-    // We can only merge positions if they contain the same position type.
-    boolean positionTypesMatch = Optional.ofNullable(existingPosition.getPositionType())
-        .filter(positionType -> positionType.equals(newPosition.getPositionType()))
-        .isPresent();
-
-    if (!positionTypesMatch) {
-      // If they don't match, then just use the new position.
-      return copy(newPosition);
-    }
-
-    // If they do match, then let's merge the data.
-    PhysicalSourcePosition result = new PhysicalSourcePosition();
-    result.setPositionType(existingPosition.getPositionType());
-
-    // Use the freshest data for source position in the merge.
-    Stream.of(newPosition, existingPosition)
-        .max(Comparator.comparingLong(PhysicalSourcePosition::getSourceQueriedTimeMs))
-        .ifPresent(position -> {
-          result.setSourceQueriedTimeMs(position.getSourceQueriedTimeMs());
-          result.setSourcePosition(position.getSourcePosition());
-        });
-
-    // Use the freshest data for consumer position in the merge.
-    Stream.of(newPosition, existingPosition)
-        .max(Comparator.comparingLong(PhysicalSourcePosition::getConsumerProcessedTimeMs))
-        .ifPresent(position -> {
-          result.setConsumerProcessedTimeMs(position.getConsumerProcessedTimeMs());
-          result.setConsumerPosition(position.getConsumerPosition());
-        });
-
-    return result;
-  }
 
   /**
    * Returns a copy of the provided PhysicalSourcePosition object.

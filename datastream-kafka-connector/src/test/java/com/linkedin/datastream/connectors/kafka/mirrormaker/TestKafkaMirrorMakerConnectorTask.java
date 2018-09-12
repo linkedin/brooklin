@@ -198,7 +198,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  @Test(enabled = false)
+  @Test
   public void testConfigPauseAndResumePartitions() throws Exception {
     // Need connector just for update validation. Doesn't matter properties or datastream name
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("foo", new Properties(), "testCluster");
