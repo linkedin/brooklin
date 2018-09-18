@@ -1,6 +1,7 @@
 package com.linkedin.datastream;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -132,7 +133,8 @@ public class DatastreamRestClient {
    *    If there are any other network/ system level errors while sending the request or receiving the response.
    */
   public Datastream getDatastream(String datastreamName) {
-    return PollUtils.poll(() -> {
+    Instant startTime = Instant.now();
+    Datastream datastream = PollUtils.poll(() -> {
       try {
         return doGetDatastream(datastreamName);
       } catch (RemoteInvocationException e) {
@@ -151,6 +153,8 @@ public class DatastreamRestClient {
         }
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("getDatastream for datastream {} took {} ms", Duration.between(startTime, Instant.now()).toMillis());
+    return datastream;
   }
 
   /**
@@ -206,7 +210,8 @@ public class DatastreamRestClient {
   }
 
   private List<Datastream> getAllDatastreams(GetAllRequest<Datastream> request) {
-    return PollUtils.poll(() -> {
+    Instant startTime = Instant.now();
+    List<Datastream> datastreams = PollUtils.poll(() -> {
       ResponseFuture<CollectionResponse<Datastream>> datastreamResponseFuture = _restClient.sendRequest(request);
       try {
         return datastreamResponseFuture.getResponse().getEntity().getElements();
@@ -220,6 +225,8 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("getAllDatastreams took {} ms", Duration.between(startTime, Instant.now()).toMillis());
+    return datastreams;
   }
 
   /**
@@ -258,6 +265,7 @@ public class DatastreamRestClient {
    *   while sending the request or receiving the response.
    */
   public void createDatastream(Datastream datastream) {
+    Instant startTime = Instant.now();
     String creationUid = UUID.randomUUID().toString();
 
     PollUtils.poll(() -> {
@@ -302,6 +310,8 @@ public class DatastreamRestClient {
         return null; // unreachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("createDatastream for datastream {} took {} ms", datastream,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -320,7 +330,8 @@ public class DatastreamRestClient {
    * @param datastreams list of datastreams to be updated
    */
   public void updateDatastream(List<Datastream> datastreams) {
-    // we wont' support partial success. so ignore the result
+    Instant startTime = Instant.now();
+    // we won't support partial success. so ignore the result
     PollUtils.poll(() -> {
       BatchUpdateRequest<String, Datastream> request = _builders.batchUpdate()
           .inputs(datastreams.stream().collect(Collectors.toMap(Datastream::getName, ds -> ds)))
@@ -337,6 +348,9 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+
+    LOG.info("updateDatastreams for datastreams {} took {} ms", datastreams,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -349,6 +363,7 @@ public class DatastreamRestClient {
    *   When the datastream is not found or any other error happens on the server.
    */
   public void deleteDatastream(String datastreamName) {
+    Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       DeleteRequest<Datastream> request = _builders.delete().id(datastreamName).build();
       ResponseFuture<EmptyRecord> response = _restClient.sendRequest(request);
@@ -369,6 +384,9 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+
+    LOG.info("deleteDatastream for datastream {} took {} ms", datastreamName,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -420,6 +438,7 @@ public class DatastreamRestClient {
    * an error response from the server.
    */
   public void pause(String datastreamName, boolean force) {
+    Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       try {
         ActionRequest<Void> request = _builders.actionPause().id(datastreamName).forceParam(force).build();
@@ -440,6 +459,8 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("pause for datastream {} took {} ms", datastreamName,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -463,6 +484,7 @@ public class DatastreamRestClient {
    * an error response from the server.
    */
   public void resume(String datastreamName, boolean force) throws RemoteInvocationException {
+    Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       try {
         ActionRequest<Void> request = _builders.actionResume().id(datastreamName).forceParam(force).build();
@@ -483,6 +505,8 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("resume for datastream {} took {} ms", datastreamName,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -522,6 +546,7 @@ public class DatastreamRestClient {
    */
   public void pauseSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {
+    Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       try {
         ActionRequest<Void> request =
@@ -545,6 +570,8 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("pauseSourcePartitions for datastream {}, sourcePartitions {} took {} ms", datastreamName, sourcePartitions,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 
   /**
@@ -559,6 +586,7 @@ public class DatastreamRestClient {
    */
   public void resumeSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {
+    Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       try {
         ActionRequest<Void> request =
@@ -582,5 +610,7 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    LOG.info("resumeSourcePartitions for datastream {}, sourcePartitions {} took {} ms", datastreamName, sourcePartitions,
+        Duration.between(startTime, Instant.now()).toMillis());
   }
 }

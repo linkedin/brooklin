@@ -543,7 +543,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info("Get datastream called for datastream {}", name);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
-      return _store.getDatastream(name);
+      Instant startTime = Instant.now();
+      Datastream stream = _store.getDatastream(name);
+      LOG.info("Get datastream call took {} ms", Duration.between(startTime, Instant.now()).toMillis());
+      return stream;
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
@@ -559,10 +562,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     try {
       LOG.info("Get all datastreams called with paging context {}", pagingContext);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
+      Instant startTime = Instant.now();
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
           .map(_store::getDatastream)
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
+      LOG.info("Get all datastreams call took {} ms", Duration.between(startTime, Instant.now()).toMillis());
       LOG.debug("Result collected for getAll {}", ret);
       return ret;
     } catch (Exception e) {
