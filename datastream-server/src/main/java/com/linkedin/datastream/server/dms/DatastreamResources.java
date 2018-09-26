@@ -211,11 +211,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // a group partially
     Set<String> updatedStreams = datastreamMap.keySet();
     Datastream updatedStream = datastreamsToUpdate.get(0);
-    Set<String> existingStreams = _store.getAllDatastreams().map(ds -> _store.getDatastream(ds)).filter(ds ->
-        ds.hasConnectorName() && ds.getConnectorName().equals(updatedStream.getConnectorName())
-               && ds.hasDestination() && updatedStream.getDestination().equals(ds.getDestination())
-               && ds.hasStatus() && ds.getStatus() != DatastreamStatus.DELETING).map(Datastream::getName)
-        .collect(Collectors.toSet());
+    Set<String> existingStreams =
+        getGroupedDatastreams(updatedStream).stream().map(Datastream::getName).collect(Collectors.toSet());
     if (!updatedStreams.equals(existingStreams)) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
