@@ -31,7 +31,8 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  * does not have one defined.
  * b) For each datastream the number of tasks might be greater than the number of instances, but only as many as
  *    dsTaskLimitPerInstance. The default is 1.
- * c) The differences on the number of tasks assigned between any two instances should be less than or equal to one.
+ * c) The differences on the number of tasks assigned between any two instances should be less than or equal to
+ *    the imbalance threshold, otherwise, it will trigger an rebalance
  * d) Try to preserve previous tasks assignment, in order to minimize the number of task movements.
  * e) The tasks for a datastream might not be balanced across the instances; however, the tasks across all datastreams
  *    will be balanced such that condition (c) above is held.
@@ -49,8 +50,17 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
   private final Optional<Integer> _maxTasks;
 
-  public StickyMulticastStrategy(Optional<Integer> maxTasks) {
+  private final Integer _imbalanceThreshold;
+
+  private static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
+
+  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
     _maxTasks = maxTasks;
+    _imbalanceThreshold = imbalanceThreshold.orElse(DEFAULT_IMBALANCE_THRESHOLD);
+
+    if (_imbalanceThreshold < 1) {
+      throw new IllegalArgumentException("Imbalance threshold must be larger or equal than 1");
+    }
   }
 
   @Override
@@ -66,7 +76,6 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       return Collections.emptyMap();
     }
 
-    Map<String, Set<DatastreamTask>> oldAssignment = new HashMap<>();
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
     Map<String, Set<DatastreamTask>> currentAssignmentCopy = new HashMap<>(currentAssignment.size());
@@ -74,10 +83,6 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     for (String instance : instances) {
       newAssignment.put(instance, new HashSet<>());
-      oldAssignment.put(instance, new HashSet<>());
-      if (currentAssignment.containsKey(instance)) {
-        currentAssignment.get(instance).forEach(t -> oldAssignment.get(instance).add(t));
-      }
     }
 
     // Data structure to keep track of the pending tasks to create
@@ -129,27 +134,31 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       }
     }
 
-    // Target number of tasks per instances.
-    int tasksTotal = newAssignment.values().stream().mapToInt(Set::size).sum();
-    int minTasksPerInstance = tasksTotal / instances.size();
 
-    // STEP3: Do some rebalance to increase the task count in instances below the minTasksPerInstance.
-    while (newAssignment.get(instancesBySize.get(0)).size() < minTasksPerInstance) {
-      String smallInstance = instancesBySize.get(0);
-      String largeInstance = instancesBySize.get(instancesBySize.size() - 1);
+    //STEP 3: Trigger rebalance if the number of different tasks more than the configured threshold
+    if (newAssignment.get(instancesBySize.get(instancesBySize.size() - 1)).size()
+        - newAssignment.get(instancesBySize.get(0)).size() > _imbalanceThreshold) {
+      int tasksTotal = newAssignment.values().stream().mapToInt(Set::size).sum();
+      int minTasksPerInstance = tasksTotal / instances.size();
 
-      // Look for tasks that can be move from the large instance to the small instance
-      for (DatastreamTask task : new ArrayList<>(newAssignment.get(largeInstance))) {
-        newAssignment.get(largeInstance).remove(task);
-        newAssignment.get(smallInstance).add(new DatastreamTaskImpl(task.getDatastreams()));
-        if (newAssignment.get(smallInstance).size() >= minTasksPerInstance
-            || newAssignment.get(largeInstance).size() <= minTasksPerInstance + 1) {
-          break;
+      // some rebalance to increase the task count in instances below the minTasksPerInstance
+      while (newAssignment.get(instancesBySize.get(0)).size() < minTasksPerInstance) {
+        String smallInstance = instancesBySize.get(0);
+        String largeInstance = instancesBySize.get(instancesBySize.size() - 1);
+
+        // Look for tasks that can be move from the large instance to the small instance
+        for (DatastreamTask task : new ArrayList<>(newAssignment.get(largeInstance))) {
+          newAssignment.get(largeInstance).remove(task);
+          newAssignment.get(smallInstance).add(new DatastreamTaskImpl(task.getDatastreams()));
+          if (newAssignment.get(smallInstance).size() >= minTasksPerInstance
+              || newAssignment.get(largeInstance).size() <= minTasksPerInstance + 1) {
+            break;
+          }
         }
-      }
 
-      // sort the instance to preserve the invariance
-      instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+        // sort the instance to preserve the invariance
+        instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+      }
     }
 
     // STEP4: Format the result with the right data structure.
