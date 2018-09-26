@@ -454,6 +454,7 @@ public class TestDatastreamResources {
 
     // Create another datastream that gets deduped to datastream1.
     Datastream originalDatastream2 = generateDatastream(2);
+    originalDatastream2.getDestination().setConnectionString("a different destination");
     final Datastream datastream2 = createAndWaitUntilInitialized(resource, originalDatastream2);
 
     // Update metadata for all streams in the group. It is up to the connector to validate if metadata updates are
