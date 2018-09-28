@@ -7,7 +7,7 @@ ext {
     kafkaVersion = "0.10.2.0"
     LIKafkaVersion = "0.0.4"
     jacksonVersion = "1.8.5"
-    avroVersion = "1.4.0"
+    avroVersion = "1.7.7"
     pegasusVersion = "20.0.4"
     zkclientVersion = "0.5"
     zookeeperVersion = "3.4.6"

@@ -2,7 +2,6 @@ package com.linkedin.datastream.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -11,6 +10,7 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.commons.lang.Validate;
@@ -62,7 +62,7 @@ public class AvroMessageEncoderUtil {
 
     try {
       out.write(md5Bytes);
-      BinaryEncoder encoder = new BinaryEncoder(out);
+      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
       DatumWriter<org.apache.avro.generic.IndexedRecord> writer;
       if (record instanceof SpecificRecord) {
         writer = new SpecificDatumWriter<IndexedRecord>(record.getSchema());

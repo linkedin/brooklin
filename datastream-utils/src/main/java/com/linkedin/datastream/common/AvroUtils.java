@@ -13,6 +13,7 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.Encoder;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.io.JsonDecoder;
 import org.apache.avro.io.JsonEncoder;
 import org.apache.avro.specific.SpecificDatumReader;
@@ -35,7 +36,7 @@ public class AvroUtils {
     DatumWriter<T> msgDatumWriter = new SpecificDatumWriter<>(clazz);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
 
-    Encoder encoder = new BinaryEncoder(os);
+    Encoder encoder = EncoderFactory.get().binaryEncoder(os, null);
     msgDatumWriter.write(record, encoder);
     encoder.flush();
     return os.toByteArray();
@@ -50,7 +51,7 @@ public class AvroUtils {
    */
   public static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    BinaryEncoder encoder = new BinaryEncoder(outputStream);
+    BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(outputStream, null);
     return encodeAvroIndexedRecord(schema, record, outputStream, encoder);
   }
 
@@ -63,7 +64,7 @@ public class AvroUtils {
    */
   public static byte[] encodeAvroIndexedRecordAsJson(Schema schema, IndexedRecord record) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    JsonEncoder encoder = new JsonEncoder(schema, outputStream);
+    JsonEncoder encoder = EncoderFactory.get().jsonEncoder(schema, outputStream);
     return encodeAvroIndexedRecord(schema, record, outputStream, encoder);
   }
 
@@ -162,7 +163,7 @@ public class AvroUtils {
    * @throws IOException
    */
   public static <T> T decodeJsonAsAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
-    JsonDecoder jsonDecoder = new JsonDecoder(schema, new String(bytes));
+    JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(schema, new String(bytes));
     GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
     return reader.read(reuse, jsonDecoder);
   }
