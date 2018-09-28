@@ -14,8 +14,8 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 
 import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.Encoder;
+import org.apache.avro.io.EncoderFactory;
 
 
 /**
@@ -178,7 +178,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
   protected ByteBuffer getNextEvent() throws UnknownTypeException, IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    Encoder e = new BinaryEncoder(out);
+    Encoder e = EncoderFactory.get().binaryEncoder(out, null);
     GenericDatumWriter<GenericRecord> w = new GenericDatumWriter<>(_schema);
     GenericRecord nextRecord = getNextGenericRecord();
     w.write(nextRecord, e);
