@@ -1,14 +1,18 @@
 package com.linkedin.datastream.server;
 
 
+import com.google.common.collect.ImmutableList;
+import com.linkedin.datastream.server.assignment.StickyMulticastStrategy;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -530,6 +534,126 @@ public class TestCoordinator {
     instance1.stop();
     zkClient.close();
   }
+
+  /**
+   * testCoordinationWithStickyMulticastStrategy is a smoke test to verify correct rebalance behavior upon datastream
+   * being paused and instance being add
+   * <ul>
+   *     <li>create 3 instances and 4 datastreams, verified all of them get assigned properly</li>
+   *     <li>pause a data stream, verified it doesn't get rebalanced</li>
+   *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
+   *     <li>add a instance, verify the new instance get proper assignment</li>
+   * </ul>
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testCoordinationWithStickyMulticastStrategy() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConnectorType = "testConnectorType";
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    //Question why the multicaststartegy is within one cooridnator rather than shared between list of coordinators
+    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
+    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance2.start();
+
+    Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
+    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance3.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    List<TestHookConnector> connectors = new ArrayList<>();
+    connectors.add(connector1);
+    connectors.add(connector2);
+    connectors.add(connector3);
+    List<String> datastreamNames = ImmutableList.of("datastream1", "datastream2", "datastream3", "datastream4");
+
+    for (String name : datastreamNames) {
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, name);
+    }
+    waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    //Verify the assignment, each datastream should be assigned to four tasks
+    Map<String, List<Connector>> assignment1 = collectDatastreamAssignment(connectors);
+    assignment1.values().stream().forEach(set -> Assert.assertEquals(set.size(), 4));
+
+    //Pause datanstream 3
+    Datastream ds3 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream3");
+    ds3.setStatus(DatastreamStatus.PAUSED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds3);
+
+    waitTillAssignmentIsComplete(12, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    //Verify the assignment for datastream1, datastream2, datastream4 are still the same, but not the case for ds3
+    Map<String, List<Connector>> assignment2 = collectDatastreamAssignment(connectors);
+    Assert.assertEquals(assignment1.get("datastream1"), assignment2.get("datastream1"));
+    Assert.assertEquals(assignment1.get("datastream2"), assignment2.get("datastream2"));
+    Assert.assertEquals(assignment1.get("datastream4"), assignment2.get("datastream4"));
+    Assert.assertFalse(assignment2.containsKey("datastream3"));
+
+    //resume the data stream
+    ds3 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream3");
+    ds3.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds3);
+    waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connector1, connector2, connector3);
+
+    //verify the assignment is still sticky, same as previous assignemnt
+    Map<String, List<Connector>> assignment3 = collectDatastreamAssignment(connectors);
+    Assert.assertEquals(assignment1.get("datastream1"), assignment3.get("datastream1"));
+    Assert.assertEquals(assignment1.get("datastream2"), assignment3.get("datastream2"));
+    Assert.assertEquals(assignment1.get("datastream4"), assignment3.get("datastream4"));
+    Assert.assertEquals(assignment3.get("datastream3").size(), 4);
+    waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    //Stop the instance 1, force a leader change
+    instance1.stop();
+    deleteLiveInstanceNode(zkClient, testCluster, instance1);
+
+    connectors.remove(0);
+    waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    //now add another instance, make sure it's getting rebalanced
+    Coordinator instance4 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector4 = new TestHookConnector("connector4", testConnectorType);
+    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance4.start();
+
+    connectors.add(connector4);
+    //verify connector4 get at least 5 task assignment
+    waitTillAssignmentIsComplete(5, WAIT_TIMEOUT_MS, connector4);
+
+    instance2.stop();
+    instance3.stop();
+    instance4.stop();
+
+    zkClient.close();
+  }
+
+  private Map<String, List<Connector>> collectDatastreamAssignment(List<TestHookConnector> connectors) {
+    Map<String, List<Connector>> datastreamMap = new HashMap<>();
+    for (TestHookConnector testHookConnector : connectors) {
+      testHookConnector.getTasks().stream().forEach(task -> {
+        String datastream = task.getDatastreams().get(0).getName();
+        if (!datastreamMap.containsKey(datastream)) {
+          datastreamMap.put(datastream, new ArrayList<>());
+        }
+        datastreamMap.get(datastream).add(testHookConnector);
+      });
+    }
+    return datastreamMap;
+  }
+
 
   /**
    * Test Datastream create with BYOT where destination is in use by another datastream
@@ -1090,7 +1214,7 @@ public class TestCoordinator {
 
     LOG.info("Verify that the datastrems are assigned across two connectors");
 
-    waitTillAssignmentIsComplete(connector1, connector2, 4, WAIT_TIMEOUT_MS);
+    waitTillAssignmentIsComplete(4, WAIT_TIMEOUT_MS, connector1, connector2);
     //
     // verify assignment, instance1: [datastream0, datastream2], instance2:[datastream1, datastream3]
     //
@@ -2180,16 +2304,17 @@ public class TestCoordinator {
     Assert.assertTrue(result);
   }
 
-  private void waitTillAssignmentIsComplete(TestHookConnector connector1, TestHookConnector connector2, int totalTasks,
-      long timeoutMs) {
-
+  private void waitTillAssignmentIsComplete(int totalTasks, long timeoutMs, TestHookConnector... connectors) {
     final long interval = timeoutMs < 100 ? timeoutMs : 100;
-
     PollUtils.poll(() -> {
-      HashSet<DatastreamTask> tasks1 = new HashSet<>(connector1.getTasks());
-      tasks1.addAll(connector2.getTasks());
-      return tasks1.size() == totalTasks;
+      HashSet<DatastreamTask> tasks = new HashSet<>();
+      for (TestHookConnector connector : connectors) {
+        tasks.addAll(connector.getTasks());
+
+      }
+      return tasks.size() == totalTasks;
     }, interval, timeoutMs);
+
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {

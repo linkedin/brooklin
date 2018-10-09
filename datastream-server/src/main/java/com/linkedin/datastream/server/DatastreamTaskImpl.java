@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.annotate.JsonIgnore;
+import org.jetbrains.annotations.TestOnly;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +75,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
 
+  @TestOnly
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
   }
@@ -107,7 +109,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
         _partitions.add(0);
       }
     }
-
     LOG.info("Created new DatastreamTask " + this);
   }
 
@@ -180,10 +181,15 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * between onAssignmentChange (because of datastream update for example). It's connector's
    * responsibility to re-fetch the datastream list even when it receives the exact same set
    * of datastream tasks.
+   *
+   * TODO: Datastream might be null if derived from zk or json, we need a better abstraction here
    */
   @JsonIgnore
   @Override
   public List<Datastream> getDatastreams() {
+    if (_datastreams == null || _datastreams.size() == 0) {
+      throw new IllegalArgumentException("Fetch datastream from zk stored task is not allowed");
+    }
     return Collections.unmodifiableList(_datastreams);
   }
 
