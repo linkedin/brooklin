@@ -33,4 +33,15 @@ public class TestDatastreamTask {
     String json = JsonUtils.toJson(DatastreamTaskStatus.error("test msg"));
     JsonUtils.fromJson(json, DatastreamTaskStatus.class);
   }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testErrorFromZkJson() throws Exception {
+    Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
+    stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
+    String json = task.toJson();
+    DatastreamTaskImpl task2 = DatastreamTaskImpl.fromJson(json);
+    task2.getDatastreams();
+  }
 }

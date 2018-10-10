@@ -149,7 +149,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         // Look for tasks that can be move from the large instance to the small instance
         for (DatastreamTask task : new ArrayList<>(newAssignment.get(largeInstance))) {
           newAssignment.get(largeInstance).remove(task);
-          newAssignment.get(smallInstance).add(new DatastreamTaskImpl(task.getDatastreams()));
+          newAssignment.get(smallInstance).add(task);
           if (newAssignment.get(smallInstance).size() >= minTasksPerInstance
               || newAssignment.get(largeInstance).size() <= minTasksPerInstance + 1) {
             break;
