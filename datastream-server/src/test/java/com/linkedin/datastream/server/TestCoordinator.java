@@ -2274,17 +2274,25 @@ public class TestCoordinator {
 
     // Ensure both streams have the same destination (are deduped)
     Datastream stream1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream1");
-    Datastream stream2 = datastreams[1];
-    Assert.assertEquals(stream1.getDestination(), stream2.getDestination());
+    Assert.assertEquals(stream1.getDestination(), datastreams[1].getDestination());
+
+    // Actually store stream2
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[1]);
+
+    // Wait until stream2 is fully initialized
+    PollUtils.poll(() -> {
+      datastreams[1] = DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream2");
+      return datastreams[1].getStatus() == DatastreamStatus.READY;
+    }, 1000, WAIT_TIMEOUT_MS);
 
     // Ensure all destination-related metadata are copied into the deduped stream
-    Assert.assertTrue(stream1.getMetadata().entrySet()
+    stream1.getMetadata().entrySet()
         .stream()
         .filter(e -> e.getKey().startsWith(DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX))
-        .allMatch(e -> e.getValue().equals(stream2.getMetadata().get(e.getKey()))));
+        .forEach(e -> Assert.assertEquals(e.getValue(), (datastreams[1].getMetadata().get(e.getKey()))));
 
     // Explicitly check the additional metadata
-    Assert.assertEquals(stream2.getMetadata().get(destMetaKey), destMetaVal);
+    Assert.assertEquals(datastreams[1].getMetadata().get(destMetaKey), destMetaVal);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
