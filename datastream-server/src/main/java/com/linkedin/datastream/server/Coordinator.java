@@ -803,18 +803,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private String createTopic(Datastream datastream) throws TransportException {
     _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
 
-    // Set destination creation time and retention
-    datastream.getMetadata()
-        .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    // For deduped datastreams, all destination-related metadata have been copied by
+    // populateDatastreamDestinationFromExistingDatastream().
+    if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
+      // Set destination creation time and retention
+      datastream.getMetadata()
+          .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
 
-    try {
-      Duration retention = _transportProviderAdmins.get(datastream.getTransportProviderName()).getRetention(datastream);
-      if (retention != null) {
-        datastream.getMetadata()
-            .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+      try {
+        Duration retention = _transportProviderAdmins.get(datastream.getTransportProviderName()).getRetention(datastream);
+        if (retention != null) {
+          datastream.getMetadata()
+              .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+        }
+      } catch (UnsupportedOperationException e) {
+        _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
       }
-    } catch (UnsupportedOperationException e) {
-      _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
     }
 
     return datastream.getDestination().getConnectionString();
