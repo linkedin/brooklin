@@ -82,10 +82,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  // variables for topic management
   // Topic manager can be used to handle topic related tasks that BMM needs to do.
-  // Topic manager is invoked every time there is a new assignment happens and also
-  // before every poll call.
+  // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
+  // and also before every poll call.
   private final TopicManager _topicManager;
 
   // variables for flushless mode and flow control
@@ -213,14 +212,14 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     super.onPartitionsAssigned(partitions);
-    Collection<TopicPartition> topicManagerPartitions = _topicManager.onPartitionsAssigned(partitions);
-    pauseTopicManagerPartitions(topicManagerPartitions);
+    Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
+    pauseTopicManagerPartitions(topicPartitionsToPause);
   }
 
   @Override
-  protected void preConsumerPollHook() {
-    _topicManager.prePollManageTopics();
-    super.preConsumerPollHook();
+  public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+    super.onPartitionsRevoked(partitions);
+    _topicManager.onPartitionsRevoked(partitions);
   }
 
   private void commitSafeOffsets(Consumer<?, ?> consumer) {
@@ -281,7 +280,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _consumer.pause(topicManagerPartitions);
     for (TopicPartition tp : topicManagerPartitions) {
       _autoPausedSourcePartitions.put(tp,
-          new PausedSourcePartitionMetadata(() -> _topicManager.shouldUnPausePartition(tp),
+          new PausedSourcePartitionMetadata(() -> _topicManager.shoudResumePartition(tp),
               PausedSourcePartitionMetadata.Reason.TOPIC_NOT_CREATED));
     }
 

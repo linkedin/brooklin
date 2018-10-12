@@ -24,15 +24,16 @@ public class NoOpTopicManager implements TopicManager {
       KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties properties, CommonConnectorMetrics consumerMetrics) {
   }
 
-  public void prePollManageTopics() {
-  }
-
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {
     return new HashSet<>();
   }
 
-  public boolean shouldUnPausePartition(TopicPartition tp) {
-    // This should not happen, as onPartitionsAssigned doesn't return any partitions to pause.
-    throw new DatastreamRuntimeException("shouldUnPausePartition called in NoOpTopicManager for partition : " + tp);
+  public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+
+  }
+
+  public boolean shoudResumePartition(TopicPartition tp) {
+    // This should not happen, as onPartitionsAssigned doesn't return any partitions to pause in onPartitionsAssigned().
+    throw new DatastreamRuntimeException("shoudResumePartition called in NoOpTopicManager for partition : " + tp);
   }
 }
