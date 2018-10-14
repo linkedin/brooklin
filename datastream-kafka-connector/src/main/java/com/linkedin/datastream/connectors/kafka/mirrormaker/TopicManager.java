@@ -26,5 +26,11 @@ public interface TopicManager {
    * should now be unpaused.
    * @return true if partition should be unpaused, false otherwise.
    */
-  public boolean shoudResumePartition(TopicPartition tp);
+  public boolean shouldResumePartition(TopicPartition tp);
+
+  /**
+   * Method that mirror maker task calls whenever it stops. TopicManager can perform any clean ups it needs to do at this
+   * point.
+   */
+  public void stop();
 }

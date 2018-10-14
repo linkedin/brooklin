@@ -20,7 +20,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.connectors.kafka.NoOpAuditor;
 import com.linkedin.datastream.connectors.kafka.NoOpSegmentDeserializer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -30,7 +30,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
   static final long POLL_PERIOD_MS = Duration.ofMillis(100).toMillis();
   static final long POLL_TIMEOUT_MS = Duration.ofSeconds(25).toMillis();
 
-  static Properties getKafkaProducerProperties(EmbeddedZookeeperKafkaCluster kafkaCluster) {
+  static Properties getKafkaProducerProperties(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaCluster.getBrokers());
     props.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -44,7 +44,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return props;
   }
 
-  static void produceEvents(String topic, int numEvents, EmbeddedZookeeperKafkaCluster kafkaCluster) {
+  static void produceEvents(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster))) {
       for (int i = 0; i < numEvents; i++) {
         producer.send(

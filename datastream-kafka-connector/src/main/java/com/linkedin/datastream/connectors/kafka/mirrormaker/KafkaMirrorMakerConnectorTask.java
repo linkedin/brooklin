@@ -82,7 +82,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  // Topic manager can be used to handle topic related tasks that BMM needs to do.
+  // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
   // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
   // and also before every poll call.
   private final TopicManager _topicManager;
@@ -213,7 +213,19 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     super.onPartitionsAssigned(partitions);
     Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
+    // we need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
+    // The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+    // before that poll call can return any data.
+    // If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
+    // Chances are that the current poll call will return data already for that topic/partition and we will end up
+    // auto creating that topic.
     pauseTopicManagerPartitions(topicPartitionsToPause);
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    _topicManager.stop();
   }
 
   @Override
@@ -270,7 +282,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   /**
-   * This method pauses topics that are returned by topic manager
+   * This method pauses topics that are returned by topic manager.
+   * We need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
+   * The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+   * before that poll call can return any data.
+   * If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
+   * Chances are that the current poll call will return data already for that topic/partition and we will end up
+   * auto creating that topic.
    */
   private void pauseTopicManagerPartitions(Collection<TopicPartition> topicManagerPartitions) {
     if (null == topicManagerPartitions || topicManagerPartitions.isEmpty()) {
@@ -280,11 +298,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _consumer.pause(topicManagerPartitions);
     for (TopicPartition tp : topicManagerPartitions) {
       _autoPausedSourcePartitions.put(tp,
-          new PausedSourcePartitionMetadata(() -> _topicManager.shoudResumePartition(tp),
+          new PausedSourcePartitionMetadata(() -> _topicManager.shouldResumePartition(tp),
               PausedSourcePartitionMetadata.Reason.TOPIC_NOT_CREATED));
     }
-
-    _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
   @Override

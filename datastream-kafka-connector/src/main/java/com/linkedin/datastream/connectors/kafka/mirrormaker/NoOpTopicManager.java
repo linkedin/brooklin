@@ -20,20 +20,24 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public class NoOpTopicManager implements TopicManager {
 
+  static HashSet<TopicPartition> _emptyPartitions = new HashSet<>();
+
   public NoOpTopicManager(DatastreamTask datastreamTask, Datastream datastream, GroupIdConstructor groupIdConstructor,
       KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties properties, CommonConnectorMetrics consumerMetrics) {
   }
 
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    return new HashSet<>();
+    return _emptyPartitions;
   }
 
   public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-
   }
 
-  public boolean shoudResumePartition(TopicPartition tp) {
+  public boolean shouldResumePartition(TopicPartition tp) {
     // This should not happen, as onPartitionsAssigned doesn't return any partitions to pause in onPartitionsAssigned().
     throw new DatastreamRuntimeException("shoudResumePartition called in NoOpTopicManager for partition : " + tp);
+  }
+
+  public void stop() {
   }
 }

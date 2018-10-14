@@ -8,17 +8,17 @@ import java.util.Properties;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
-public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
+public class DatastreamEmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private EmbeddedZookeeper _embeddedZookeeper = null;
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;
   private boolean _isStarted;
 
   /**
-   * Create a EmbeddedZookeeperKafkaCluster with specific base kafka config
+   * Create a DatastreamEmbeddedZookeeperKafkaCluster with specific base kafka config
    * @param kafkaBaseConfig base config of kafka brokers
    * @throws IOException
    */
-  public EmbeddedZookeeperKafkaCluster(Properties kafkaBaseConfig) throws IOException {
+  public DatastreamEmbeddedZookeeperKafkaCluster(Properties kafkaBaseConfig) throws IOException {
     _embeddedZookeeper = new EmbeddedZookeeper();
     List<Integer> kafkaPorts = new ArrayList<>();
     // -1 for any available port
@@ -29,10 +29,10 @@ public class EmbeddedZookeeperKafkaCluster implements KafkaCluster {
   }
 
   /**
-   * Create a EmbeddedZookeeperKafkaCluster with default base kafka config
+   * Create a DatastreamEmbeddedZookeeperKafkaCluster with default base kafka config
    * @throws IOException
    */
-  public EmbeddedZookeeperKafkaCluster() throws IOException {
+  public DatastreamEmbeddedZookeeperKafkaCluster() throws IOException {
     this(new Properties());
   }
 
