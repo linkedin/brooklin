@@ -67,17 +67,17 @@ public class TestZookeeperCheckpointProvider {
     Datastream ds1 = generateDatastream(1);
     ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(ds1));
-    datastreamTask1.setId("dt1");
+    datastreamTask1.getInternalTask().setId("dt1");
 
     Datastream ds2 = generateDatastream(2);
     ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
     DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(ds2));
-    datastreamTask2.setId("dt2");
+    datastreamTask2.getInternalTask().setId("dt2");
 
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
     checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
 
-    adapter.setDatastreamTaskStateForKey(datastreamTask1, ZookeeperCheckpointProvider.CHECKPOINT_KEY_NAME, "");
+    adapter.setDatastreamTaskStateForKey(datastreamTask1.getInternalTask(), ZookeeperCheckpointProvider.CHECKPOINT_KEY_NAME, "");
     checkpointProvider.unassignDatastreamTask(datastreamTask1);
 
     Map<Integer, String> commitedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
@@ -94,10 +94,10 @@ public class TestZookeeperCheckpointProvider {
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(1)));
-    datastreamTask1.setId("dt1");
+    datastreamTask1.getInternalTask().setId("dt1");
 
     DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(2)));
-    datastreamTask2.setId("dt2");
+    datastreamTask2.getInternalTask().setId("dt2");
 
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
     checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");

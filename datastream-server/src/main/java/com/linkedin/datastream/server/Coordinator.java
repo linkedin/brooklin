@@ -411,7 +411,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // all datastream tasks for all connector types
     Map<String, List<DatastreamTask>> currentAssignment = new HashMap<>();
     assignment.forEach(ds -> {
-      DatastreamTask task = getDatastreamTask(ds);
+      DatastreamTask task = getAssignedDatastreamTask(ds);
       if (task != null) {
         String connectorType = task.getConnectorType();
         if (!currentAssignment.containsKey(connectorType)) {
@@ -496,23 +496,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
   }
 
-  private DatastreamTask getDatastreamTask(String taskName) {
+  // Get assigned datastream task for this coordinator
+  private DatastreamTask getAssignedDatastreamTask(String taskName) {
     if (_assignedDatastreamTasks.containsKey(taskName)) {
       return _assignedDatastreamTasks.get(taskName);
     } else {
-      DatastreamTaskImpl task = _adapter.getAssignedDatastreamTask(_adapter.getInstanceName(), taskName);
-
-      if (task != null) {
-        DatastreamGroup dg = _datastreamCache.getDatastreamGroups()
-            .stream()
-            .filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix()))
-            .findFirst()
-            .get();
-
-        task.setDatastreams(dg.getDatastreams());
-      }
-
-      return task;
+      InternalDatastreamTask internalTask = _adapter.getAssignedTask(_adapter.getInstanceName(), taskName);
+      return getDatastreamTaskImpl(internalTask, _datastreamCache.getDatastreamGroups());
     }
   }
 
@@ -870,11 +860,31 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
   }
 
+  private DatastreamTaskImpl getDatastreamTaskImpl(InternalDatastreamTask internalDatastreamTask,
+      List<DatastreamGroup> datastreamGroups) {
+    if (internalDatastreamTask == null || datastreamGroups == null) {
+      return null;
+    }
+
+    Optional<DatastreamGroup> maybeDg = datastreamGroups
+        .stream()
+        .filter(x -> x.getTaskPrefix().equals(internalDatastreamTask.getTaskPrefix()))
+        .findFirst();
+
+    // Datastream may be not be found if deleted, in this case we just drop the task
+    return maybeDg.map(dg -> new DatastreamTaskImpl(internalDatastreamTask, dg.getDatastreams(), _adapter))
+        .orElseGet(() -> {
+          _log.warn("Datastream is not found, dropping previous assigned task: {}", internalDatastreamTask);
+          return null;
+        });
+  }
+
   private void handleLeaderDoAssignment() {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
-    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
-    Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
+
+    Map<String, Set<InternalDatastreamTask>> oldAssignmentFromZk = _adapter.getTaskAssignment();
+    Map<String, List<InternalDatastreamTask>> newAssignmentToZk = new ConcurrentHashMap<>();
 
     try {
       List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
@@ -885,29 +895,43 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       liveInstances = _adapter.getLiveInstances();
 
       // Map between instance to tasks assigned to the instance.
-      previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+      Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new ConcurrentHashMap<>();
+
+      for (String instance : oldAssignmentFromZk.keySet()) {
+        previousAssignmentByInstance.put(instance, oldAssignmentFromZk.get(instance).stream().map(internalDatastreamTask ->
+            getDatastreamTaskImpl(internalDatastreamTask, datastreamGroups)).filter(t -> t != null)
+            .collect(Collectors.toSet()));
+      }
 
       // Map between Instance and the tasks
-      newAssignmentsByInstance = performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
+      Map<String, List<DatastreamTask>> newAssignmentsByInstance =
+          performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
+
+      for (String instance : newAssignmentsByInstance.keySet()) {
+        newAssignmentToZk.put(instance, newAssignmentsByInstance.get(instance).stream()
+            .map(datastreamTask -> ((DatastreamTaskImpl) datastreamTask).getInternalTask())
+            .collect(Collectors.toList()));
+      }
+
 
       // persist the assigned result to zookeeper. This means we will need to compare with the current
       // assignment and do remove and add zNodes accordingly. In the case of zookeeper failure (when
       // it failed to create or delete zNodes), we will do our best to continue the current process
       // and schedule a retry. The retry should be able to diff the remaining zookeeper work
-      _adapter.updateAllAssignments(newAssignmentsByInstance);
+      _adapter.updateAllAssignments(newAssignmentToZk);
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
       succeeded = false;
     }
 
-    _log.info("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
+    _log.info("handleLeaderDoAssignment: new assignment: " + newAssignmentToZk);
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
       List<String> instances = new ArrayList<>(liveInstances);
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanupDeadInstanceAssignments(instances);
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.cleanupOldUnusedTasks(oldAssignmentFromZk, newAssignmentToZk);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
 

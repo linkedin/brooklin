@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -18,11 +19,11 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
-
+import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.InternalDatastreamTask;
 
 public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
@@ -220,12 +221,12 @@ public class TestZkAdapter {
     // Create all the Datastreams to be referenced by the tasks
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "task1", "task2", "task3");
 
-    List<DatastreamTask> tasks = new ArrayList<>();
+    List<InternalDatastreamTask> tasks = new ArrayList<>();
 
     //
     // simulate assigning one task [task1] to the connector
     //
-    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1 = new InternalDatastreamTask();
     task1.setTaskPrefix("task1");
     task1.setConnectorType(connectorType);
     tasks.add(task1);
@@ -242,7 +243,7 @@ public class TestZkAdapter {
     //
     // simulate assigning two tasks [task1, task2] to the same instance
     //
-    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    InternalDatastreamTask task2 = new InternalDatastreamTask();
     task2.setTaskPrefix("task2");
     task2.setConnectorType(connectorType);
     tasks.add(task2);
@@ -261,7 +262,7 @@ public class TestZkAdapter {
     //
     // simuate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
     //
-    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
+    InternalDatastreamTask task3 = new InternalDatastreamTask();
     task3.setTaskPrefix("task3");
     task3.setConnectorType(connectorType);
     tasks.add(task3);
@@ -299,26 +300,26 @@ public class TestZkAdapter {
     // Create all the Datastreams to be referenced by the tasks
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "task1", "task2", "task3");
 
-    List<DatastreamTask> tasks = new ArrayList<>();
+    List<InternalDatastreamTask> tasks = new ArrayList<>();
 
     //
     // simulate assigning:
     //   to instance1: [task1]
     //   to instance2: [task2, task3]
     //
-    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1 = new InternalDatastreamTask();
     task1.setTaskPrefix("task1");
     task1.setConnectorType(connectorType);
 
-    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    InternalDatastreamTask task2 = new InternalDatastreamTask();
     task2.setTaskPrefix("task2");
     task2.setConnectorType(connectorType);
 
-    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
+    InternalDatastreamTask task3 = new InternalDatastreamTask();
     task3.setTaskPrefix("task3");
     task3.setConnectorType(connectorType);
 
-    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
+    Map<String, List<InternalDatastreamTask>> assignmentsByInstance = new HashMap<>();
     assignmentsByInstance.put(adapter1.getInstanceName(), Arrays.asList(task1));
     assignmentsByInstance.put(adapter2.getInstanceName(), Arrays.asList(task2, task3));
 
@@ -358,30 +359,30 @@ public class TestZkAdapter {
     ZkAdapter adapter = createZkAdapter(testCluster);
     adapter.connect();
 
-    List<DatastreamTask> tasks = new ArrayList<>();
+    List<InternalDatastreamTask> tasks = new ArrayList<>();
 
     //
     // simulate assigning one task [task1] to the connector. task1 has 4 partitions
     //
-    DatastreamTaskImpl task1_0 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1_0 = new InternalDatastreamTask();
     task1_0.setTaskPrefix("task1");
     task1_0.setId("0");
     task1_0.setConnectorType(connectorType);
     tasks.add(task1_0);
 
-    DatastreamTaskImpl task1_1 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1_1 = new InternalDatastreamTask();
     task1_1.setId("1");
     task1_1.setTaskPrefix("task1");
     task1_1.setConnectorType(connectorType);
     tasks.add(task1_1);
 
-    DatastreamTaskImpl task1_2 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1_2 = new InternalDatastreamTask();
     task1_2.setTaskPrefix("task1");
     task1_2.setId("2");
     task1_2.setConnectorType(connectorType);
     tasks.add(task1_2);
 
-    DatastreamTaskImpl task1_3 = new DatastreamTaskImpl();
+    InternalDatastreamTask task1_3 = new InternalDatastreamTask();
     task1_3.setTaskPrefix("task1");
     task1_3.setId("3");
     task1_3.setConnectorType(connectorType);
@@ -432,13 +433,14 @@ public class TestZkAdapter {
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
-    task.setId("3");
-    task.setConnectorType(connectorType);
+    task.getInternalTask().setId("3");
+    task.getInternalTask().setConnectorType(connectorType);
     task.setZkAdapter(adapter1);
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(),
+        tasks.stream().map(t -> ((DatastreamTaskImpl) t).getInternalTask()).collect(Collectors.toList()));
 
     // First acquire should succeed
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
@@ -476,13 +478,15 @@ public class TestZkAdapter {
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
-    task.setId("3");
-    task.setConnectorType(connectorType);
+    task.getInternalTask().setId("3");
+    task.getInternalTask().setConnectorType(connectorType);
     task.setZkAdapter(adapter1);
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks.stream().map(t ->
+        ((DatastreamTaskImpl) t).getInternalTask()).collect(
+        Collectors.toList()));
 
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
@@ -514,13 +518,14 @@ public class TestZkAdapter {
     adapter1.connect();
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
-    task.setId("3");
-    task.setConnectorType(connectorType);
+    task.getInternalTask().setId("3");
+    task.getInternalTask().setConnectorType(connectorType);
     task.setZkAdapter(adapter1);
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task);
-    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(),
+        tasks.stream().map(t -> ((DatastreamTaskImpl) t).getInternalTask()).collect(Collectors.toList()));
 
     LOG.info("Acquire from instance1 should succeed");
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
@@ -555,8 +560,8 @@ public class TestZkAdapter {
   }
 
 
-  public static void updateInstanceAssignment(ZkAdapter adapter, String instance, List<DatastreamTask> assignments) {
-    Map<String, List<DatastreamTask>> allAssignments = new HashMap<>();
+  public static void updateInstanceAssignment(ZkAdapter adapter, String instance, List<InternalDatastreamTask> assignments) {
+    Map<String, List<InternalDatastreamTask>> allAssignments = new HashMap<>();
     allAssignments.put(instance, assignments);
     adapter.updateAllAssignments(allAssignments);
   }

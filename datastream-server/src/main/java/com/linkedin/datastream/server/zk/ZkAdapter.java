@@ -1,6 +1,5 @@
 package com.linkedin.datastream.server.zk;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -32,8 +31,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.InternalDatastreamTask;
 
 
 /**
@@ -88,7 +86,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  * <p>The ZK backed data providers cache the data read from the corresponding zookeeper nodes so they can be accessed
  * without reading zookeeper frequently. These providers also set up the watch on these nodes so it can be notified
  * when the data changes. For example {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
- * provide the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
+ * provide the list of InternalDatastreamTask objects that are assigned to this instance. This provider also watches the
  * znode /{cluster}/instances/{instanceName} for children changes, and automatically refresh the cached values.
  *
  * @see com.linkedin.datastream.server.Coordinator
@@ -125,8 +123,8 @@ public class ZkAdapter {
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
-  // Cache all live DatastreamTasks per instance for assignment strategy
-  private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
+  // Cache all live InternalDatastreamTasks per instance for assignment strategy
+  private Map<String, Set<InternalDatastreamTask>> _liveTaskMap = new HashMap<>();
 
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
       int connectionTimeout, ZkAdapterListener listener) {
@@ -209,7 +207,7 @@ public class ZkAdapter {
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
-    loadAllDatastreamTasks();
+    loadAllDatastreamTasksFromZk();
 
     _isLeader = true;
 
@@ -336,7 +334,7 @@ public class ZkAdapter {
         .stream()
         .flatMap(Collection::stream)
         .filter(x -> x.getTaskPrefix().equals(taskPrefix))
-        .map(DatastreamTask::getDatastreamTaskName)
+        .map(InternalDatastreamTask::getDatastreamTaskName)
         .collect(Collectors.toSet());
 
     for (String connector : connectors) {
@@ -432,63 +430,50 @@ public class ZkAdapter {
    * This is very likely to be one time operation, so it should be
    * okay to hit ZK.
    */
-  private void loadAllDatastreamTasks() {
+  private void loadAllDatastreamTasksFromZk() {
     if (_liveTaskMap.size() != 0) {
       return;
     }
 
     List<String> allInstances = getAllInstances();
     for (String instance : allInstances) {
-      Set<DatastreamTask> taskMap = new HashSet<>();
+      Set<InternalDatastreamTask> taskMap = new HashSet<>();
       _liveTaskMap.put(instance, taskMap);
       List<String> assignment = getInstanceAssignment(instance);
       for (String taskName : assignment) {
-        taskMap.add(getAssignedDatastreamTask(instance, taskName));
+        taskMap.add(getAssignedTask(instance, taskName));
       }
     }
   }
 
+
   /**
    * Return a map from all instances to their currently assigned tasks.
-   * NOTE: this might include the tasks assigned to dead instances because
-   * in some strategies (eg. SIMPLE) tasks from dead instances need to
-   * be handed off to another live instance without creating a new task
-   * as the existing task still holds the checkpoints. If this method is
-   * called after task reassignment, the returned map will not include
-   * tasks hanging off of dead instances as nodes of dead instances have
-   * been cleaned up after each task reassignment.
    *
-   * @return a map of all existing DatastreamTasks
+   * @return a map of all existing InternalDatastreamTask
    */
-  public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
+  public Map<String, Set<InternalDatastreamTask>> getTaskAssignment() {
     LOG.info("All live tasks: " + _liveTaskMap);
     return new HashMap<>(_liveTaskMap);
   }
 
   /**
-   * given an instance name and a datastreamtask name assigned to this instance, read
+   * given an instance name and a InternalDatastreamTask name assigned to this instance, read
    * the znode content under /{cluster}/instances/{instance}/{taskname} and return
-   * an instance of DatastreamTask
+   * an instance of InternalDatastreamTask
    *
    * @param instance
    * @param taskName
    * @return null if task node does not exist or inaccessible
    */
-  public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
+  public InternalDatastreamTask getAssignedTask(String instance, String taskName) {
     try {
       String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
-      DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
+      InternalDatastreamTask task = InternalDatastreamTask.fromJson(content);
       // TODO Remove this after the upgrade
       if (Strings.isNullOrEmpty(task.getTaskPrefix())) {
         task.setTaskPrefix(parseTaskPrefix(task.getDatastreamTaskName()));
       }
-
-      // TODO Remove this after the upgrade
-      if (Strings.isNullOrEmpty(task.getTransportProviderName())) {
-        task.setTransportProviderName(_defaultTransportProviderName);
-      }
-
-      task.setZkAdapter(this);
       return task;
     } catch (ZkNoNodeException e) {
       // This can occur there is another task assignment change in the middle of
@@ -514,7 +499,7 @@ public class ZkAdapter {
    *
    *  If any one failed, RuntimeException will be thrown.
    */
-  private void addTaskNodes(String instance, DatastreamTaskImpl task) {
+  private void addTaskNodes(String instance, InternalDatastreamTask task) {
     LOG.info("Adding Task Node: " + instance + ", task: " + task);
     String name = task.getDatastreamTaskName();
 
@@ -533,14 +518,7 @@ public class ZkAdapter {
     _zkclient.ensurePath(taskStatePath);
 
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
-    String json = "";
-    try {
-      json = task.toJson();
-    } catch (IOException e) {
-      // This should never happen
-      String errorMessage = "Failed to serialize task into JSON.";
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
-    }
+    String json = task.toJson();
 
     // Ensure that the instance and instance/Assignment paths are ready before writing the task
     _zkclient.ensurePath(KeyBuilder.instance(_cluster, instance));
@@ -588,12 +566,12 @@ public class ZkAdapter {
    *
    * @param assignmentsByInstance
    */
-  public void updateAllAssignments(Map<String, List<DatastreamTask>> assignmentsByInstance) {
+  public void updateAllAssignments(Map<String, List<InternalDatastreamTask>> assignmentsByInstance) {
     // map of task name to DatastreamTask for future reference
-    Map<String, DatastreamTask> assignmentsMap = assignmentsByInstance.values()
+    Map<String, InternalDatastreamTask> assignmentsMap = assignmentsByInstance.values()
         .stream()
         .flatMap(List::stream)
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
+        .collect(Collectors.toMap(InternalDatastreamTask::getDatastreamTaskName, Function.identity()));
 
     // For each instance, find the nodes to add and remove.
     Map<String, Set<String>> nodesToRemove = new HashMap<>();
@@ -608,7 +586,7 @@ public class ZkAdapter {
       if (added.size() > 0) {
         LOG.info("Instance: {}, adding assignments: {}", instance, added);
         for (String name : added) {
-          addTaskNodes(instance, (DatastreamTaskImpl) assignmentsMap.get(name));
+          addTaskNodes(instance, assignmentsMap.get(name));
         }
       }
     }
@@ -638,13 +616,13 @@ public class ZkAdapter {
    * @param nodesToRemove
    * @param nodesToAdd
    */
-  private void diffAssignmentNodes(Map<String, List<DatastreamTask>> assignmentsByInstance,
+  private void diffAssignmentNodes(Map<String, List<InternalDatastreamTask>> assignmentsByInstance,
       Map<String, Set<String>> nodesToRemove, Map<String, Set<String>> nodesToAdd) {
     for (String instance : assignmentsByInstance.keySet()) {
       // list of new assignment, names only
       Set<String> assignmentsNames = assignmentsByInstance.get(instance)
           .stream()
-          .map(DatastreamTask::getDatastreamTaskName)
+          .map(InternalDatastreamTask::getDatastreamTaskName)
           .collect(Collectors.toSet());
 
       // get the old assignment from zookeeper
@@ -746,7 +724,7 @@ public class ZkAdapter {
    * @param key
    * @return
    */
-  public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
+  public String getDatastreamTaskStateForKey(InternalDatastreamTask datastreamTask, String key) {
     String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
         datastreamTask.getDatastreamTaskName(), key);
     return _zkclient.readData(path, true);
@@ -758,7 +736,7 @@ public class ZkAdapter {
    * @param key
    * @param value
    */
-  public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
+  public void setDatastreamTaskStateForKey(InternalDatastreamTask datastreamTask, String key, String value) {
     String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
         datastreamTask.getDatastreamTaskName(), key);
     _zkclient.ensurePath(path);
@@ -801,14 +779,14 @@ public class ZkAdapter {
    * @param previousAssignmentByInstance previous task assignment
    * @param newAssignmentsByInstance new task assignment.
    */
-  public void cleanupOldUnusedTasks(Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
-      Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
+  public void cleanupOldUnusedTasks(Map<String, Set<InternalDatastreamTask>> previousAssignmentByInstance,
+      Map<String, List<InternalDatastreamTask>> newAssignmentsByInstance) {
 
-    Set<DatastreamTask> newTasks =
+    Set<InternalDatastreamTask> newTasks =
         newAssignmentsByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
-    Set<DatastreamTask> oldTasks =
+    Set<InternalDatastreamTask> oldTasks =
         previousAssignmentByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
-    List<DatastreamTask> unusedTasks =
+    List<InternalDatastreamTask> unusedTasks =
         oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toList());
     LOG.warn("Deleting the unused tasks {} found between previous {} and new assignment {}. ", unusedTasks,
         previousAssignmentByInstance, newAssignmentsByInstance);
@@ -817,7 +795,7 @@ public class ZkAdapter {
     unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));
   }
 
-  private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {
+  private void waitForTaskRelease(InternalDatastreamTask task, long timeoutMs, String lockPath) {
     // Latch == 1 means task is busy (still held by the previous owner)
     CountDownLatch busyLatch = new CountDownLatch(1);
 
@@ -842,7 +820,7 @@ public class ZkAdapter {
     }
   }
 
-  public void acquireTask(DatastreamTaskImpl task, Duration timeout) {
+  public void acquireTask(InternalDatastreamTask task, Duration timeout) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
     if (_zkclient.exists(lockPath)) {
@@ -865,7 +843,7 @@ public class ZkAdapter {
     }
   }
 
-  public void releaseTask(DatastreamTaskImpl task) {
+  public void releaseTask(InternalDatastreamTask task) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     if (!_zkclient.exists(lockPath)) {
       LOG.info("There is no lock on {}", task);

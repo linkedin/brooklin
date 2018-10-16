@@ -21,6 +21,7 @@ import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 
@@ -83,7 +84,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       long startTime = System.currentTimeMillis();
       Map<Integer, String> checkpoints = mergeAndGetSafeCheckpoints(task, taskMap);
 
-      _zkAdapter.setDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME, JsonUtils.toJson(checkpoints));
+      _zkAdapter.setDatastreamTaskStateForKey(((DatastreamTaskImpl) task).getInternalTask(), CHECKPOINT_KEY_NAME, JsonUtils.toJson(checkpoints));
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_CHECKPOINT_COMMITS, 1);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, CHECKPOINT_COMMIT_LATENCY_MS,
           System.currentTimeMillis() - startTime);
@@ -132,7 +133,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   }
 
   private Map<Integer, String> getCheckpoint(DatastreamTask task) {
-    String checkpoint = _zkAdapter.getDatastreamTaskStateForKey(task, CHECKPOINT_KEY_NAME);
+    String checkpoint = _zkAdapter.getDatastreamTaskStateForKey(((DatastreamTaskImpl) task).getInternalTask(), CHECKPOINT_KEY_NAME);
     if (StringUtils.isNotBlank(checkpoint)) {
       return JsonUtils.fromJson(checkpoint, _hashMapTypeReference);
     } else {

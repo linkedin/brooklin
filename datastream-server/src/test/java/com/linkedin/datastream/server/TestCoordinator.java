@@ -325,8 +325,6 @@ public class TestCoordinator {
     //    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
     //    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
     //
-    Thread.sleep(1000 * 60);
-
     //
     // clean up
     //
