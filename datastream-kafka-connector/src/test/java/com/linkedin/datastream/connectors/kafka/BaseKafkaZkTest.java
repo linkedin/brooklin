@@ -14,18 +14,18 @@ import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
 /**
- * Base test class for test cases that rely on EmbeddedZookeeperKafkaCluster so that all tests in a given class could
+ * Base test class for test cases that rely on DatastreamEmbeddedZookeeperKafkaCluster so that all tests in a given class could
  * share the same zookeeper-kafka cluster and zk client/utils.
  */
 @Test
 public abstract class BaseKafkaZkTest {
 
-  protected EmbeddedZookeeperKafkaCluster _kafkaCluster;
+  protected DatastreamEmbeddedZookeeperKafkaCluster _kafkaCluster;
   protected ZkClient _zkClient;
   protected ZkUtils _zkUtils;
   protected String _broker;
@@ -37,7 +37,7 @@ public abstract class BaseKafkaZkTest {
     // we will disable auto topic creation for tests
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
     kafkaConfig.setProperty("delete.topic.enable", Boolean.TRUE.toString());
-    _kafkaCluster = new EmbeddedZookeeperKafkaCluster(kafkaConfig);
+    _kafkaCluster = new DatastreamEmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
     _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
     _zkClient = new ZkClient(_kafkaCluster.getZkConnection());

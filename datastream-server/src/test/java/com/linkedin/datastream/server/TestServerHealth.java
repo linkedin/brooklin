@@ -13,7 +13,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.diagnostics.ServerHealth;
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.server.diagnostics.HealthRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
@@ -42,7 +42,7 @@ public class TestServerHealth {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TestDatastreamServer.DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamCluster(new EmbeddedZookeeperKafkaCluster(), connectorProperties,
+        EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
             override);
     return datastreamKafkaCluster;
   }

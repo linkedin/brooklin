@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
@@ -70,8 +73,19 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
   protected static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
 
+  // constants for topic manager
+  public static final String TOPIC_MANAGER_FACTORY = "topicManagerFactory";
+  public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
+      "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
+  public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
+
+  // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
+  // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
+  // and also before every poll call.
+  private final TopicManager _topicManager;
 
   // variables for flushless mode and flow control
   private final boolean _isFlushlessModeEnabled;
@@ -83,7 +97,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   private GroupIdConstructor _groupIdConstructor;
 
-  protected KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
+  public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
@@ -103,6 +117,22 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
               + "maxInFlightMessagesThreshold={}", task, _flowControlEnabled, _minInFlightMessagesThreshold,
           _maxInFlightMessagesThreshold);
     }
+
+    // create topic manager
+    // by default it creates a NoOpTopicManager.
+    VerifiableProperties connectorProperties = config.getConnectorProps();
+    Properties topicManagerProperties = new Properties();
+    String topicManagerFactoryName = DEFAULT_TOPIC_MANAGER_FACTORY;
+    if (null != connectorProperties &&
+        null != connectorProperties.getProperty(TOPIC_MANAGER_FACTORY)) {
+      topicManagerProperties = connectorProperties.getDomainProperties(DOMAIN_TOPIC_MANAGER);
+      topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
+    }
+
+    TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
+    _topicManager =
+        topicManagerFactory.createTopicManager(_datastreamTask, _datastream, _groupIdConstructor, _consumerFactory,
+            topicManagerProperties, _consumerMetrics);
   }
 
   @Override
@@ -179,6 +209,31 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  @Override
+  public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+    super.onPartitionsAssigned(partitions);
+    Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
+    // we need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
+    // The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+    // before that poll call can return any data.
+    // If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
+    // Chances are that the current poll call will return data already for that topic/partition and we will end up
+    // auto creating that topic.
+    pauseTopicManagerPartitions(topicPartitionsToPause);
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    _topicManager.stop();
+  }
+
+  @Override
+  public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+    super.onPartitionsRevoked(partitions);
+    _topicManager.onPartitionsRevoked(partitions);
+  }
+
   private void commitSafeOffsets(Consumer<?, ?> consumer) {
     LOG.info("Trying to commit safe offsets.");
     Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
@@ -226,6 +281,35 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  /**
+   * This method pauses topics that are returned by topic manager.
+   * We need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
+   * The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+   * before that poll call can return any data.
+   * If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
+   * Chances are that the current poll call will return data already for that topic/partition and we will end up
+   * auto creating that topic.
+   */
+  private void pauseTopicManagerPartitions(Collection<TopicPartition> topicManagerPartitions) {
+    if (null == topicManagerPartitions || topicManagerPartitions.isEmpty()) {
+      return;
+    }
+
+    _consumer.pause(topicManagerPartitions);
+    for (TopicPartition tp : topicManagerPartitions) {
+      _autoPausedSourcePartitions.put(tp,
+          new PausedSourcePartitionMetadata(() -> _topicManager.shouldResumePartition(tp),
+              PausedSourcePartitionMetadata.Reason.TOPIC_NOT_CREATED));
+    }
+  }
+
+  @Override
+  public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
+    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
+        _consumerAssignment,
+        _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
+  }
+
   @VisibleForTesting
   long getInFlightMessagesCount(String source, int partition) {
     return _isFlushlessModeEnabled ? _flushlessProducer.getInFlightCount(source, partition) : 0;
@@ -236,10 +320,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return _flowControlTriggerCount;
   }
 
-  @Override
-  public KafkaDatastreamStatesResponse getKafkaDatastreamStatesResponse() {
-    return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
-        _consumerAssignment,
-        _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
+  @VisibleForTesting
+  public TopicManager getTopicManager() {
+    return _topicManager;
   }
 }

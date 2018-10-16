@@ -1,6 +1,6 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.kafka.EmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import java.util.Properties;
 
@@ -32,7 +32,7 @@ public class TestKafkaConnectorUtils {
     return coordinator;
   }
 
-  public static KafkaTransportProviderAdmin getKafkaTransportProviderAdmin(EmbeddedZookeeperKafkaCluster kafkaCluster) {
+  public static KafkaTransportProviderAdmin getKafkaTransportProviderAdmin(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();
     props.put("zookeeper.connect", kafkaCluster.getZkConnection());
     props.put("bootstrap.servers", kafkaCluster.getBrokers());
