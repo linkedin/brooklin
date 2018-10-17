@@ -120,6 +120,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final KafkaPositionTracker _kafkaPositionTracker;
   private volatile boolean _positionsInitialized;
 
+  private volatile int _pollAttempts;
+
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String metricsPrefix) {
     _logger = logger;
@@ -156,6 +158,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _kafkaPositionTracker = new KafkaPositionTracker(_taskName, _enableLatestBrokerOffsetsFetcher,
         () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
         () -> createKafkaConsumer(_consumerProps), _consumerAssignment);
+    _pollAttempts = 0;
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -358,9 +361,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * configured, this method will sleep for some duration and try polling again.
    * @param pollInterval the timeout (in milliseconds) spent waiting in poll() if data is not available in buffer.
    * @return the Kafka consumer records polled
-   * @throws InterruptedException if thread is interrupted during retry sleep
+   * @throws Exception if the poll has failed too many times
    */
-  protected ConsumerRecords<?, ?> pollRecords(long pollInterval) throws InterruptedException {
+  protected ConsumerRecords<?, ?> pollRecords(long pollInterval) throws Exception {
     ConsumerRecords<?, ?> records;
     try {
       long curPollTime = System.currentTimeMillis();
@@ -379,6 +382,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _consumerMetrics.updateEventsProcessedRate(records.count());
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
       }
+      _pollAttempts = 0;
       return records;
     } catch (NoOffsetForPartitionException e) {
       handleNoOffsetForPartitionException(e);
@@ -439,11 +443,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Handle exception during pollRecords(). The base behavior is to sleep for some time.
    * @param e the Exception
-   * @throws InterruptedException
+   * @throws Exception
    */
-  protected void handlePollRecordsException(Exception e) throws InterruptedException {
-    _logger.warn("Poll threw an exception. Sleeping for {} seconds and retrying. Exception: {}",
-        _retrySleepDuration.getSeconds(), e);
+  protected void handlePollRecordsException(Exception e) throws Exception {
+    _pollAttempts++;
+    if (_maxRetryCount > 0 && _pollAttempts > _maxRetryCount) {
+      _logger.warn("Poll fail with exception", e);
+      throw e;
+    } else {
+      _logger.warn("Poll threw an exception. Sleeping for {} seconds and repoll from consumer, poll attempt: {}",
+          _retrySleepDuration.getSeconds(), _pollAttempts, e);
+    }
     if (!_shutdown) {
       Thread.sleep(_retrySleepDuration.toMillis());
     }

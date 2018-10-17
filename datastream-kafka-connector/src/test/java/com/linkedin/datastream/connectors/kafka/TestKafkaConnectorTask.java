@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka;
 
 
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -10,6 +11,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -26,6 +28,8 @@ import kafka.utils.ZkUtils;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -280,6 +284,40 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+
+  @Test
+  @SuppressWarnings("rawtypes")
+  public void testFlakyConsumer() throws Exception {
+    String topic = "Pizza2";
+    createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    Datastream datastream = getDatastream(_broker, topic);
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setZkAdapter(Mockito.mock(ZkAdapter.class));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
+        new KafkaGroupIdConstructor(false, "testCluster"));
+
+    KafkaConnectorTask spiedConnectorTask = Mockito.spy(connectorTask);
+    KafkaConsumer mockKafkaConsumer = Mockito.mock(KafkaConsumer.class);
+    doReturn(mockKafkaConsumer).when(spiedConnectorTask).createKafkaConsumer(Mockito.any());
+    boolean exceptionThrown = false;
+    try {
+      spiedConnectorTask.run();
+    } catch (DatastreamRuntimeException ex) {
+      exceptionThrown = true;
+    }
+    Assert.assertTrue(exceptionThrown);
+    verify(spiedConnectorTask, Mockito.atLeast(5)).handlePollRecordsException(any());
   }
 
   static Datastream getDatastream(String broker, String topic) {
