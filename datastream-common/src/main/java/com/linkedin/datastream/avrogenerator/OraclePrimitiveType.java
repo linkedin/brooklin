@@ -2,6 +2,8 @@ package com.linkedin.datastream.avrogenerator;
 
 import java.util.HashSet;
 
+import com.google.common.annotations.VisibleForTesting;
+
 
 /**
  * light weight class to act as a wrapper around primitive Oracle Database Types
@@ -12,6 +14,7 @@ public class OraclePrimitiveType implements FieldType {
   private final int _scale;
   private final int _precision;
   private final String _nullable;
+  private final DatabaseSource.TableMetadata _tableMetadata;
 
   private final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();
   static {
@@ -22,10 +25,12 @@ public class OraclePrimitiveType implements FieldType {
     NUMBER_CLASSIFICATION.add(Types.NUMBER.toString());
   }
 
-  public OraclePrimitiveType(String fieldTypeName, String nullable, int scale, int precision) {
+  public OraclePrimitiveType(String fieldTypeName, String nullable, int scale, int precision,
+      DatabaseSource.TableMetadata tableMetadata) {
     _scale = scale;
     _precision = precision;
     _nullable = nullable;
+    _tableMetadata = tableMetadata;
 
     if (fieldTypeName.equals(Types.NUMBER.toString())) {
       _type = getNumberClassification(scale, precision);
@@ -40,9 +45,14 @@ public class OraclePrimitiveType implements FieldType {
     _type = Types.fromString(fieldTypeName);
   }
 
+  @VisibleForTesting
+  protected OraclePrimitiveType(String fieldTypeName, String nullable, int scale, int precision) {
+    this(fieldTypeName, nullable, scale, precision, null);
+  }
+
   @Override
   public String getSchemaName() {
-    return  null;
+    return null;
   }
 
   @Override
@@ -92,6 +102,12 @@ public class OraclePrimitiveType implements FieldType {
     if (NUMBER_CLASSIFICATION.contains(getFieldTypeName())) {
       meta.append(String.format("%s=%s;", SCALE, getScale()));
       meta.append(String.format("%s=%s;", PRECISION, getPrecision()));
+    }
+
+    // Add extra metadata if it exists
+    if (_tableMetadata != null && _tableMetadata.getMetadataMap() != null && !_tableMetadata.getMetadataMap()
+        .isEmpty()) {
+      _tableMetadata.getMetadataMap().forEach((key, value) -> meta.append(String.format("%s=%s;", key, value)));
     }
 
     return meta.toString();
