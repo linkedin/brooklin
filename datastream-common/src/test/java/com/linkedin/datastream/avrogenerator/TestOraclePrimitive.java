@@ -1,7 +1,9 @@
 package com.linkedin.datastream.avrogenerator;
 
+import java.util.HashMap;
 import java.util.Map;
 
+import org.jetbrains.annotations.NotNull;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -72,5 +74,32 @@ public class TestOraclePrimitive {
 
     Assert.assertEquals(types[0], "null");
     Assert.assertEquals(types[1], "long");
+  }
+
+  @Test
+  public void testTableMetadataWithMetadataMap() {
+    DatabaseSource.TableMetadata tableMetadata =
+        new TestTableMetadata("NUMBER", "VALUE", DatabaseSource.TableMetadata.NOT_NULLABLE, 0, 0, "long");
+    OraclePrimitiveType primitive =
+        new OraclePrimitiveType("NUMBER", DatabaseSource.TableMetadata.NOT_NULLABLE, 0, 0, tableMetadata);
+    Assert.assertEquals(primitive.getMetadata(),
+        "dbFieldType=NUMBER;nullable=N;numberScale=0;numberPrecision=0;extraMetaField=long;");
+  }
+
+  public class TestTableMetadata extends DatabaseSource.TableMetadata {
+    public static final String EXTRA_META_FIELD = "extraMetaField";
+    private final Map<String, String> _metaMap;
+
+    public TestTableMetadata(@NotNull String colTypeName, @NotNull String colName, @NotNull String nullable,
+        int precision, int scale, String extraMetaField) {
+      super(colTypeName, colName, nullable, precision, scale);
+      _metaMap = new HashMap<>();
+      _metaMap.put(EXTRA_META_FIELD, extraMetaField);
+    }
+
+    @Override
+    public Map<String, String> getMetadataMap() {
+      return _metaMap;
+    }
   }
 }

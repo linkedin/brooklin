@@ -40,16 +40,16 @@ public class OracleTableFactory {
    */
   public OracleTable buildOracleTable(String schemaName, String tableName, String primaryKey)
       throws SQLException, SchemaGenerationException {
-    List<OracleDatabaseClient.TableMetadata> metadataList = _databaseSource.getTableMetadata(schemaName, tableName);
+    List<DatabaseSource.TableMetadata> metadataList = _databaseSource.getTableMetadata(schemaName, tableName);
 
     List<OracleColumn> childColumns = new ArrayList<>();
 
-    for (OracleDatabaseClient.TableMetadata metadata : metadataList) {
+    for (DatabaseSource.TableMetadata metadata : metadataList) {
       String colName = metadata.getColName();
 
       FieldType childFieldType =
           buildFieldType(metadata.getColumnSchemaName(), metadata.getColumnFieldTypeName(), metadata.getNullable(),
-              metadata.getPrecision(), metadata.getScale());
+              metadata.getPrecision(), metadata.getScale(), metadata);
 
       childColumns.add(new OracleColumn(colName, childFieldType, childColumns.size()));
     }
@@ -79,19 +79,19 @@ public class OracleTableFactory {
    * @param precision precision of Numeric Types
    * @param scale scale of Numeric Types
    */
-  private FieldType buildFieldType(String schemaName, String fieldTypeName, String nullable, int precision, int scale)
-      throws SQLException {
+  private FieldType buildFieldType(String schemaName, String fieldTypeName, String nullable, int precision, int scale,
+      DatabaseSource.TableMetadata tableMetadata) throws SQLException {
 
     if (_databaseSource.isPrimitive(fieldTypeName)) {
-      return buildOraclePrimitive(fieldTypeName, nullable, precision, scale);
+      return buildOraclePrimitive(fieldTypeName, nullable, precision, scale, tableMetadata);
     }
 
     if (_databaseSource.isCollection(schemaName, fieldTypeName)) {
-      return buildOracleCollection(schemaName, fieldTypeName);
+      return buildOracleCollection(schemaName, fieldTypeName, tableMetadata);
     }
 
     if (_databaseSource.isStruct(schemaName, fieldTypeName)) {
-      return buildOracleStruct(schemaName, fieldTypeName);
+      return buildOracleStruct(schemaName, fieldTypeName, tableMetadata);
     }
 
     throw new SQLException(
@@ -106,8 +106,9 @@ public class OracleTableFactory {
    * @param precision the precision of the NUMERIC (to help determine LONG vs INT)
    * @param scale the scale of the numeric (to help determine DOUBLE vs FLOAT)
    */
-  private FieldType buildOraclePrimitive(String fieldTypeName, String nullable, int precision, int scale) {
-    return new OraclePrimitiveType(fieldTypeName, nullable, scale, precision);
+  private FieldType buildOraclePrimitive(String fieldTypeName, String nullable, int precision, int scale,
+      DatabaseSource.TableMetadata tableMetadata) {
+    return new OraclePrimitiveType(fieldTypeName, nullable, scale, precision, tableMetadata);
   }
 
   /**
@@ -120,14 +121,13 @@ public class OracleTableFactory {
    * @return
    * @throws SQLException
    */
-  private FieldType buildOracleCollection(String schemaName, String fieldTypeName) throws SQLException {
+  private FieldType buildOracleCollection(String schemaName, String fieldTypeName,
+      DatabaseSource.TableMetadata tableMetadata) throws SQLException {
     OracleDatabaseClient.CollectionMetadata metadata = _databaseSource.getCollectionMetadata(schemaName, fieldTypeName);
 
-    FieldType elementFieldType = buildFieldType(metadata.getElementSchemaName(),
-        metadata.getElementFieldTypeName(),
-        null,
-        metadata.getElementPrecision(),
-        metadata.getElementScale());
+    FieldType elementFieldType =
+        buildFieldType(metadata.getElementSchemaName(), metadata.getElementFieldTypeName(), null,
+            metadata.getElementPrecision(), metadata.getElementScale(), tableMetadata);
 
     return new OracleCollectionType(schemaName, fieldTypeName, elementFieldType);
   }
@@ -143,17 +143,16 @@ public class OracleTableFactory {
    * @return
    * @throws SQLException
    */
-  private FieldType buildOracleStruct(String schemaName, String fieldTypeName) throws SQLException {
+  private FieldType buildOracleStruct(String schemaName, String fieldTypeName,
+      DatabaseSource.TableMetadata tableMetadata) throws SQLException {
     List<OracleDatabaseClient.StructMetadata> metadataList =
         _databaseSource.getStructMetadata(schemaName, fieldTypeName);
     List<OracleColumn> childColumns = new ArrayList<>();
 
     for (OracleDatabaseClient.StructMetadata metadata : metadataList) {
-      FieldType childFieldType = buildFieldType(metadata.getSchemaName(),
-          metadata.getFieldTypeName(),
-          null,
-          metadata.getPrecision(),
-          metadata.getScale());
+      FieldType childFieldType =
+          buildFieldType(metadata.getSchemaName(), metadata.getFieldTypeName(), null, metadata.getPrecision(),
+              metadata.getScale(), tableMetadata);
 
       childColumns.add(new OracleColumn(metadata.getColName(), childFieldType, childColumns.size()));
     }

@@ -1,7 +1,9 @@
 package com.linkedin.datastream.avrogenerator;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.avro.Schema;
 import org.jetbrains.annotations.NotNull;
@@ -226,6 +228,13 @@ public abstract class DatabaseSource {
 
     public int getScale() {
       return _scale;
+    }
+
+    /**
+     * @return a map of K,V pairs to include in the field metadata, besides the default fields included in this class
+     */
+    public Map<String, String> getMetadataMap() {
+      return Collections.emptyMap();
     }
   }
 }
