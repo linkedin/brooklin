@@ -14,9 +14,9 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public class NoOpTopicManagerFactory implements TopicManagerFactory {
   public TopicManager createTopicManager(DatastreamTask datastreamTask, Datastream datastream,
-      GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties properties,
-      CommonConnectorMetrics consumerMetrics) {
-    return new NoOpTopicManager(datastreamTask, datastream, groupIdConstructor, kafkaConsumerFactory, properties,
-        consumerMetrics);
+      GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
+      Properties consumerProperties, Properties topicManagerProperties, CommonConnectorMetrics consumerMetrics) {
+    return new NoOpTopicManager(datastreamTask, datastream, groupIdConstructor, kafkaConsumerFactory, consumerProperties,
+        topicManagerProperties, consumerMetrics);
   }
 }
