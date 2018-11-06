@@ -23,7 +23,8 @@ public class NoOpTopicManager implements TopicManager {
   static HashSet<TopicPartition> _emptyPartitions = new HashSet<>();
 
   public NoOpTopicManager(DatastreamTask datastreamTask, Datastream datastream, GroupIdConstructor groupIdConstructor,
-      KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties properties, CommonConnectorMetrics consumerMetrics) {
+      KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties consumerProperties, Properties topicManagerProperties,
+      CommonConnectorMetrics consumerMetrics) {
   }
 
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {

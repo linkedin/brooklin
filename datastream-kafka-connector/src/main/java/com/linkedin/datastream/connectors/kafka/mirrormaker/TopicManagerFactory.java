@@ -18,10 +18,12 @@ public interface TopicManagerFactory {
    * @param datastream Datastream that topic manager is going to be created for.
    * @param groupIdConstructor This will be used while creating source/destination consumers
    * @param kafkaConsumerFactory This will be used to create source/destination kafka consumer
-   * @param properties Any additional properties that need to be passed to topic manager
+   * @param consumerProperties properties for Kafka consumer
+   * @param topicManagerProperties Any additional properties that need to be passed to topic manager
    * @param consumerMetrics In case one needs to log consumer metrics.
    * @return An instance of a class that implements TopicManager interface.
    */
   TopicManager createTopicManager(DatastreamTask datastreamTask, Datastream datastream,
-      GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties properties, CommonConnectorMetrics consumerMetrics);
+      GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
+      Properties consumerProperties, Properties topicManagerProperties, CommonConnectorMetrics consumerMetrics);
 }

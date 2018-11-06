@@ -134,7 +134,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
     _topicManager =
         topicManagerFactory.createTopicManager(_datastreamTask, _datastream, _groupIdConstructor, _consumerFactory,
-            topicManagerProperties, _consumerMetrics);
+            _consumerProps, topicManagerProperties, _consumerMetrics);
   }
 
   @Override
