@@ -11,6 +11,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -92,6 +93,53 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // verify the states response returned by diagnostics endpoint contains correct counts
     validateTaskConsumerAssignment(connectorTask,
         Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testIdentityPartitioningEnabled() throws Exception {
+    String yummyTopic = "YummyPizza";
+
+    int partitionCount = 10;
+    createTopic(_zkUtils, yummyTopic, partitionCount);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastream.getMetadata()
+        .put(KafkaMirrorMakerDatastreamMetadata.IDENTITY_PARTITIONING_ENABLED, Boolean.TRUE.toString());
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce an event half of the partitions
+    Set<Integer> expectedPartitionsWithData = new HashSet<>();
+    for (int i = 0; i < partitionCount; i += 2) {
+      KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(yummyTopic, i, 1, _kafkaCluster);
+      expectedPartitionsWithData.add(i);
+    }
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == partitionCount / 2, POLL_PERIOD_MS,
+        POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
+    for (DatastreamProducerRecord record : records) {
+      String destinationTopic = record.getDestination().get();
+      record.getPartition().ifPresent(p -> expectedPartitionsWithData.remove(p));
+    }
+
+    // verify that the records were sent to the right partition
+    Assert.assertTrue(expectedPartitionsWithData.isEmpty(),
+        "Partitions did not receive data: " + StringUtils.join(expectedPartitionsWithData, ","));
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

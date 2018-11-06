@@ -89,6 +89,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   // variables for flushless mode and flow control
   private final boolean _isFlushlessModeEnabled;
+  private final boolean _isIdentityMirroringEnabled;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
   private long _maxInFlightMessagesThreshold;
@@ -104,6 +105,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
+    _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
 
     if (_isFlushlessModeEnabled) {
@@ -178,6 +180,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.setDestination(_datastreamTask.getDatastreamDestination()
         .getConnectionString()
         .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, topic));
+    if (_isIdentityMirroringEnabled) {
+      builder.setPartition(partition);
+    }
     return builder.build();
   }
 
