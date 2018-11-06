@@ -45,15 +45,19 @@ final class KafkaMirrorMakerConnectorTestUtils {
   }
 
   static void produceEvents(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+    produceEventsToPartition(topic, null, numEvents, kafkaCluster);
+  }
+
+  static void produceEventsToPartition(String topic, Integer destinationPartition, int numEvents,
+      DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster))) {
       for (int i = 0; i < numEvents; i++) {
-        producer.send(
-            new ProducerRecord<>(topic, ("key-" + i).getBytes(Charsets.UTF_8), ("value-" + i).getBytes(Charsets.UTF_8)),
-            (metadata, exception) -> {
-              if (exception != null) {
-                throw new RuntimeException("Failed to send message.", exception);
-              }
-            });
+        producer.send(new ProducerRecord<>(topic, destinationPartition, ("key-" + i).getBytes(Charsets.UTF_8),
+            ("value-" + i).getBytes(Charsets.UTF_8)), (metadata, exception) -> {
+          if (exception != null) {
+            throw new RuntimeException("Failed to send message.", exception);
+          }
+        });
       }
       producer.flush();
     }
