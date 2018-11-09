@@ -1834,8 +1834,9 @@ public class TestCoordinator {
     Properties properties = datastreamKafkaCluster.getDatastreamServerProperties().get(0);
     DatastreamResources resource = new DatastreamResources(datastreamKafkaCluster.getPrimaryDatastreamServer());
 
-    Coordinator coordinator = createCoordinator(properties.getProperty(DatastreamServer.CONFIG_ZK_ADDRESS),
-        properties.getProperty(DatastreamServer.CONFIG_CLUSTER_NAME));
+    Coordinator coordinator =
+        createCoordinator(properties.getProperty(DatastreamServerConfigurationConstants.CONFIG_ZK_ADDRESS),
+            properties.getProperty(DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME));
 
     TestHookConnector connector = new TestHookConnector("connector1", DummyConnector.CONNECTOR_TYPE);
 

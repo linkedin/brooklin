@@ -39,9 +39,9 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.*;
 

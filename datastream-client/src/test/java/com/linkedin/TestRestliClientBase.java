@@ -8,7 +8,7 @@ import java.util.Properties;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
-import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.server.DatastreamServerConfigurationConstants;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 
@@ -21,8 +21,8 @@ public class TestRestliClientBase {
 
   public void setupDatastreamCluster(int numServers) throws IOException, DatastreamException {
     Properties connectorProps = new Properties();
-    connectorProps.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getCanonicalName());
-    connectorProps.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
+    connectorProps.put(DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getCanonicalName());
+    connectorProps.put(DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
         BroadcastStrategyFactory.class.getTypeName());
     connectorProps.put("dummyProperty", "dummyValue");
 

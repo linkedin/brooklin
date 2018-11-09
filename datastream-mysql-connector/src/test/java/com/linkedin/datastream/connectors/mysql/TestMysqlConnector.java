@@ -26,7 +26,7 @@ import com.linkedin.datastream.connectors.mysql.MysqlConnector.SourceType;
 import com.linkedin.datastream.connectors.mysql.or.ColumnInfo;
 import com.linkedin.datastream.connectors.mysql.or.InMemoryTableInfoProvider;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
-import com.linkedin.datastream.server.DatastreamServer;
+import com.linkedin.datastream.server.DatastreamServerConfigurationConstants;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.InMemoryTransportProvider;
 import com.linkedin.datastream.server.InMemoryTransportProviderAdmin;
@@ -245,9 +245,9 @@ public class TestMysqlConnector {
 
   private static Properties buildMysqlConnectorProperties() {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
+    props.put(DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY,
         LoadbalancingStrategyFactory.class.getTypeName());
-    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, MysqlConnectorFactory.class.getTypeName());
+    props.put(DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME, MysqlConnectorFactory.class.getTypeName());
     props.put(MysqlConnector.CFG_MYSQL_SOURCE_TYPE, SourceType.MYSQLBINLOG.toString());
     props.put(MysqlConnector.CFG_MYSQL_SERVER_ID, String.valueOf(101));
     return props;

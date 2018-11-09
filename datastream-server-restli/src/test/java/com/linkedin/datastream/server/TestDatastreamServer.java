@@ -39,8 +39,9 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
-import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
+import com.linkedin.datastream.kafka.KafkaTestUtils;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
@@ -49,7 +50,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
 
-import static com.linkedin.datastream.server.DatastreamServer.*;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.*;
 import static org.mockito.Mockito.*;
 
 
@@ -84,8 +85,8 @@ public class TestDatastreamServer {
 
   private static Properties getBootstrapConnectorProperties() {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
-    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
+    props.put(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
+    props.put(CONFIG_FACTORY_CLASS_NAME, DummyBootstrapConnectorFactory.class.getTypeName());
     return props;
   }
 
@@ -102,10 +103,10 @@ public class TestDatastreamServer {
 
   private static Properties getDummyConnectorProperties(boolean bootstrap) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
-    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
+    props.put(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
+    props.put(CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getTypeName());
     if (bootstrap) {
-      props.put(DatastreamServer.CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
+      props.put(CONFIG_CONNECTOR_BOOTSTRAP_TYPE, DUMMY_BOOTSTRAP_CONNECTOR);
     }
     props.put("dummyProperty", "dummyValue");
     return props;
@@ -113,8 +114,8 @@ public class TestDatastreamServer {
 
   private static Properties getBrokenConnectorProperties() {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
-    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, BrokenConnectorFactory.class.getTypeName());
+    props.put(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, BROADCAST_STRATEGY_FACTORY);
+    props.put(CONFIG_FACTORY_CLASS_NAME, BrokenConnectorFactory.class.getTypeName());
     props.put("dummyProperty", "dummyValue");
     return props;
   }
@@ -331,7 +332,7 @@ public class TestDatastreamServer {
 
     // Ensure 1st instance was assigned the task
     String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -408,7 +409,7 @@ public class TestDatastreamServer {
 
     // Ensure both instances were assigned the task
     String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -501,7 +502,7 @@ public class TestDatastreamServer {
 
     // Ensure 1st instance was assigned both tasks
     String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(DatastreamServer.CONFIG_CLUSTER_NAME);
+        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance1 = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);
@@ -618,8 +619,8 @@ public class TestDatastreamServer {
 
   private Properties getTestConnectorProperties(String strategy) {
     Properties props = new Properties();
-    props.put(DatastreamServer.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, strategy);
-    props.put(DatastreamServer.CONFIG_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
+    props.put(CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY, strategy);
+    props.put(CONFIG_FACTORY_CLASS_NAME, FileConnectorFactory.class.getTypeName());
     return props;
   }
 }

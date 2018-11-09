@@ -106,19 +106,19 @@ public class EmbeddedDatastreamCluster {
       Map<String, Properties> connectorProperties, Properties override, KafkaCluster kafkaCluster) {
     String connectorTypes = connectorProperties.keySet().stream().collect(Collectors.joining(","));
     Properties properties = new Properties();
-    properties.put(DatastreamServer.CONFIG_CLUSTER_NAME, "DatastreamCluster");
-    properties.put(DatastreamServer.CONFIG_ZK_ADDRESS, zkConnectionString);
-    properties.put(DatastreamServer.CONFIG_HTTP_PORT, String.valueOf(httpPort));
-    properties.put(DatastreamServer.CONFIG_CONNECTOR_NAMES, connectorTypes);
+    properties.put(DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME, "DatastreamCluster");
+    properties.put(DatastreamServerConfigurationConstants.CONFIG_ZK_ADDRESS, zkConnectionString);
+    properties.put(DatastreamServerConfigurationConstants.CONFIG_HTTP_PORT, String.valueOf(httpPort));
+    properties.put(DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_NAMES, connectorTypes);
     String tpName = "default";
-    String tpPrefix = DatastreamServer.CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName + ".";
-    properties.put(DatastreamServer.CONFIG_TRANSPORT_PROVIDER_NAMES, tpName);
+    String tpPrefix = DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName + ".";
+    properties.put(DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_NAMES, tpName);
     if (_kafkaCluster != null) {
-      properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME, KAFKA_TRANSPORT_FACTORY);
+      properties.put(tpPrefix + DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME, KAFKA_TRANSPORT_FACTORY);
       properties.put(String.format("%s%s", tpPrefix, BOOTSTRAP_SERVERS_CONFIG), kafkaCluster.getBrokers());
       properties.put(String.format("%s%s", tpPrefix, CONFIG_ZK_CONNECT), kafkaCluster.getZkConnection());
     } else {
-      properties.put(tpPrefix + DatastreamServer.CONFIG_FACTORY_CLASS_NAME,
+      properties.put(tpPrefix + DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME,
           InMemoryTransportProviderAdminFactory.class.getTypeName());
     }
 
@@ -134,7 +134,7 @@ public class EmbeddedDatastreamCluster {
     for (String connectorType : connectorProperties.keySet()) {
       Properties props = connectorProperties.get(connectorType);
       for (String propertyEntry : props.stringPropertyNames()) {
-        domainConnectorProperties.put(DatastreamServer.CONFIG_CONNECTOR_PREFIX + connectorType + "." + propertyEntry,
+        domainConnectorProperties.put(DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX + connectorType + "." + propertyEntry,
             props.getProperty(propertyEntry));
       }
     }

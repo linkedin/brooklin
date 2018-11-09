@@ -182,9 +182,9 @@ project(':datastream-kafka') {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
     compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
+    compile project(':datastream-server')
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
-    compile project(':datastream-testcommon')
 
     tasks.create(name: "copyDependantLibs", type: Copy) {
       from (configurations.runtime) {
@@ -215,6 +215,7 @@ project(':datastream-kafka-connector') {
     compile "commons-validator:commons-validator:1.5.1"
 
     testCompile project(':datastream-kafka')
+    testCompile project(':datastream-testcommon');
     testCompile project(':datastream-kafka-factory-impl')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
@@ -226,9 +227,11 @@ project(':datastream-kafka-connector') {
 project(':datastream-testcommon') {
   dependencies {
     compile project(':datastream-server-api')
+    compile project(':datastream-kafka')
     compile project(':datastream-common')
     compile project(':datastream-utils')
     compile project(':datastream-server')
+    compile project(':datastream-server-restli')
     compile project(':datastream-client')
     compile "com.intellij:annotations:$intellijAnnotations"
     compile "commons-cli:commons-cli:$commonsCliVersion"
@@ -297,9 +300,38 @@ project(':datastream-client') {
 }
 
 project(':datastream-server') {
-  // ext.commonProject = project(':datastream-common')
-   ext.apiProject = project(':datastream-common')
-   pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
+
+  dependencies {
+    compile "com.101tec:zkclient:$zkclientVersion"
+    compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
+    compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+
+    compile project(':datastream-server-api')
+    compile project(':datastream-common')
+    compile project(':datastream-utils')
+    compile project(':datastream-client')
+
+    testCompile project(':datastream-kafka')
+    testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    testCompile project(':datastream-client')
+    testCompile project(':datastream-testcommon')
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
+  }
+
+  tasks.create(name: "copyDependantLibs", type: Copy) {
+    from (configurations.runtime) {
+    }
+    into "$buildDir/dependant-libs"
+  }
+
+  jar {
+    dependsOn 'copyDependantLibs'
+  }
+}
+
+project(':datastream-server-restli') {
+  ext.apiProject = project(':datastream-common')
+  pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
 
   dependencies {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
@@ -309,10 +341,7 @@ project(':datastream-server') {
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
 
-    compile project(':datastream-server-api')
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
-    compile project(':datastream-client')
+    compile project(':datastream-server')
 
     testCompile project(':datastream-kafka')
     testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"
