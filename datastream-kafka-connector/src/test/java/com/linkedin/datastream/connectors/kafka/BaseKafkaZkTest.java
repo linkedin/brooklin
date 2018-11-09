@@ -14,8 +14,8 @@ import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 
 /**

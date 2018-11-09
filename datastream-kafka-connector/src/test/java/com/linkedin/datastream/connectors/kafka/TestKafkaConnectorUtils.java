@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.kafka.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import java.util.Properties;
 
@@ -9,6 +8,7 @@ import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.CoordinatorConfig;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 
 public class TestKafkaConnectorUtils {

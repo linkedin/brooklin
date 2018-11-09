@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.kafka;
 
 import java.util.Collections;
 import org.apache.commons.lang.Validate;

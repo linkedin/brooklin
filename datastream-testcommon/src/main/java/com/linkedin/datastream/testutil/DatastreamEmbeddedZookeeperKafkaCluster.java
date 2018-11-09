@@ -1,11 +1,12 @@
-package com.linkedin.datastream.kafka;
+package com.linkedin.datastream.testutil;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.kafka.EmbeddedKafkaCluster;
+import com.linkedin.datastream.kafka.KafkaCluster;
 
 
 public class DatastreamEmbeddedZookeeperKafkaCluster implements KafkaCluster {
