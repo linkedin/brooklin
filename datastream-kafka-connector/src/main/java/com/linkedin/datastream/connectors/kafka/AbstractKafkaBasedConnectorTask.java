@@ -296,11 +296,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _startedLatch.countDown();
         }
 
+        int recordsPolled = 0;
         if (records != null && !records.isEmpty()) {
           Instant readTime = Instant.now();
           processRecords(records, readTime);
-          trackEventsProcessedProgress(records.count());
+          recordsPolled = records.count();
         }
+        trackEventsProcessedProgress(recordsPolled);
+
       } // end while loop
 
       // shutdown
