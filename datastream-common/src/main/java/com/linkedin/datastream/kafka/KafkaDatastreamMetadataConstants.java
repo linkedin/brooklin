@@ -12,6 +12,6 @@ public class KafkaDatastreamMetadataConstants {
   // should be one of: "earliest", "latest", or "none"
   public static final String CONSUMER_OFFSET_RESET_STRATEGY = "system.auto.offset.reset";
 
-  // Key to get target zk node address
-  public static final String DESTINATION_ZK_ADDRESS = "system.destination.zkAddress";
+  // This is used to identify if this BMM datastream have the passthrough enabled
+  public static final String USE_PASSTHROUGH_COMPRESSION = "system.usePassthroughCompression";
 }
