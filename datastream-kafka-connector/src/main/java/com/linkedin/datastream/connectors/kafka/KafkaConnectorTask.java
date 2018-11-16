@@ -98,6 +98,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     String offsetStr = String.valueOf(fromKafka.offset());
     metadata.put("kafka-origin-offset", offsetStr);
 
+    long eventsSourceTimestamp = readTime.toEpochMilli();
     if (fromKafka.timestampType() == TimestampType.CREATE_TIME) {
       // If the kafka header contains the create time. We store the event creation time as event timestamp
       metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
@@ -106,13 +107,14 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
       // which will be used to calculate the SLA.
       metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
       metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(readTime.toEpochMilli()));
+      eventsSourceTimestamp = fromKafka.timestamp();
     }
 
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     //TODO - copy over headers if/when they are ever supported
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
-    builder.setEventsSourceTimestamp(readTime.toEpochMilli());
+    builder.setEventsSourceTimestamp(eventsSourceTimestamp);
     builder.setPartition(partition); //assume source partition count is same as dest
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
