@@ -173,7 +173,7 @@ public class TestPositionResponse {
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
     _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
-        _state.getAllTopicPartitions(), currentTime).run();
+        _state.getAllTopicPartitions(), currentTime);
     DatastreamPositionResponse response = _consumer.getPositionResponse();
 
     Assert.assertEquals((long) getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -225,7 +225,7 @@ public class TestPositionResponse {
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
     _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
-        _state.getAllTopicPartitions(), currentTime).run();
+        _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 
     Assert.assertEquals(getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -275,7 +275,7 @@ public class TestPositionResponse {
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
     _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
-        _state.getAllTopicPartitions(), currentTime).run();
+        _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 
     Assert.assertEquals(getConsumerPositionFromPositionResponse(response, "ChicagoStylePizza",
@@ -327,7 +327,7 @@ public class TestPositionResponse {
 
     long currentTime = System.currentTimeMillis();
     _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
-        _state.getAllTopicPartitions(), currentTime).run();
+        _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 
     _state.allowNextPoll();

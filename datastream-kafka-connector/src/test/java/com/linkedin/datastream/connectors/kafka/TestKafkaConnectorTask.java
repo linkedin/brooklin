@@ -194,7 +194,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
     long postProductionTime = System.currentTimeMillis();
     connectorTask._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(connectorTask._consumer,
-        connectorTask._consumerAssignment, postProductionTime).run();
+        connectorTask._consumerAssignment, postProductionTime);
 
     consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
         new TopicPartition(topic, 0)).orElse(0L);

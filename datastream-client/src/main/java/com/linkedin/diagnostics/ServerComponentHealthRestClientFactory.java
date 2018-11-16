@@ -1,6 +1,7 @@
 package com.linkedin.diagnostics;
 
-import java.util.Collections;
+import com.linkedin.r2.transport.http.client.HttpClientFactory;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -25,7 +26,13 @@ public final class ServerComponentHealthRestClientFactory {
    * @return
    */
   public static ServerComponentHealthRestClient getClient(String dmsUri) {
-    return FACTORY.getClient(dmsUri, Collections.emptyMap());
+    // A ServerComponentHealth response can be very large if Brooklin is responsible for lots of partitions.
+    // These defaults should accommodate almost all use cases.
+    final Map<String, String> properties = new HashMap<>();
+    properties.put(HttpClientFactory.HTTP_MAX_RESPONSE_SIZE, "256000000"); // 256 MB
+    properties.put(HttpClientFactory.HTTP_REQUEST_TIMEOUT, "10000"); // 10 seconds
+
+    return FACTORY.getClient(dmsUri, properties);
   }
 
   /**
