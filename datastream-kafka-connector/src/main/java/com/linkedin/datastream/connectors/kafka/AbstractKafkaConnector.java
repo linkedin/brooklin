@@ -7,6 +7,7 @@ import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -349,7 +350,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     // Filter topic if specified -- may be needed if output is too large
     extractQueryParam(request, TOPIC_KEY).ifPresent(topic -> {
       for (PhysicalSources sources : response.getDatastreamToPhysicalSources().values()) {
-        Map<String, PhysicalSourcePosition> positions = sources.getPhysicalSourceToPosition();
+        Map<String, PhysicalSourcePosition> positions = new HashMap<>(sources.getPhysicalSourceToPosition());
         for (String position : positions.keySet()) {
           if (!position.matches("^" + topic + "-\\d+$")) {
             positions.remove(position);
