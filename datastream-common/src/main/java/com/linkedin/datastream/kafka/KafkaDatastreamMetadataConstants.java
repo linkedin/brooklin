@@ -14,4 +14,7 @@ public class KafkaDatastreamMetadataConstants {
 
   // This is used to identify if this BMM datastream have the passthrough enabled
   public static final String USE_PASSTHROUGH_COMPRESSION = "system.usePassthroughCompression";
+
+  // Enable topic auto creation for this Kafka data stream
+  public static final String ENABLE_TOPIC_AUTO_CREATION = "system.enableTopicAutoCreation";
 }
