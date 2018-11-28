@@ -11,12 +11,13 @@ import com.google.common.annotations.VisibleForTesting;
  */
 public class OraclePrimitiveType implements FieldType {
   private Types _type;
+  private Types _originalDbFieldType;
   private final int _scale;
   private final int _precision;
   private final String _nullable;
   private final DatabaseSource.TableMetadata _tableMetadata;
 
-  private final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();
+  final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();
   static {
     NUMBER_CLASSIFICATION.add(Types.INTEGER.toString());
     NUMBER_CLASSIFICATION.add(Types.LONG.toString());
@@ -33,7 +34,8 @@ public class OraclePrimitiveType implements FieldType {
     _tableMetadata = tableMetadata;
 
     if (fieldTypeName.equals(Types.NUMBER.toString())) {
-      _type = getNumberClassification(scale, precision);
+      _type = getNumberClassification(scale, precision); // convert the NUMBER to a specific Avro type, if possible
+      _originalDbFieldType = Types.NUMBER; // preserve the original dbFieldType meta as NUMBER
       return;
     }
 
@@ -43,6 +45,7 @@ public class OraclePrimitiveType implements FieldType {
     }
 
     _type = Types.fromString(fieldTypeName);
+    _originalDbFieldType = _type;
   }
 
   @VisibleForTesting
@@ -57,7 +60,7 @@ public class OraclePrimitiveType implements FieldType {
 
   @Override
   public String getFieldTypeName() {
-    return _type.toString();
+    return _originalDbFieldType.name();
   }
 
   @Override
@@ -123,7 +126,7 @@ public class OraclePrimitiveType implements FieldType {
    * If precision > 9 and scale <= 0 ===> LONG
    * If precision <= 9 and scale <= 0 ===> INTEGER
    *
-   * If we dont have enough information to accurately clasify a number, we use
+   * If we dont have enough information to accurately classify a number, we use
    * Types.NUMBER which defaults to string in avro
    *
    * If precision == 0 and scale <= 0 ====> NUMBER -> string
