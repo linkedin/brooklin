@@ -171,6 +171,70 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.stop();
   }
 
+
+  public void testPausePartitionUponProducerCallbackException() throws Exception {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+    String saladTopic = "HealthySalad";
+
+    createTopic(_zkUtils, saladTopic);
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
+    connector.start(null);
+
+    // notify connector of new task
+    connector.onAssignmentChange(Collections.singletonList(task));
+
+    // produce an event to each of the 3 topics
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saladTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // simulate send error to auto-pause yummyTopic partition
+    datastreamProducer.updateCallbackExceptionCondition((record) -> true);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+
+    TopicPartition expectedPausePartition = new TopicPartition(yummyTopic, 0);
+
+    if (!PollUtils.poll(() -> {
+      Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getAutoPausedPartitions();
+      return autoPausedPartitions.containsKey(expectedPausePartition)
+          && autoPausedPartitions.get(expectedPausePartition).getReason() == PausedSourcePartitionMetadata.Reason.SEND_ERROR;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("autoPausedPartitions was not properly retrieved from process() after auto-pause");
+    }
+
+    // update the send fail condition to allow the message to successfully flow through message is retried
+    datastreamProducer.updateCallbackExceptionCondition((record) -> false);
+    if (!PollUtils.poll(() -> {
+      Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions =
+          KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
+              .getAutoPausedPartitions();
+      return autoPausedPartitions.isEmpty();
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("autoPausedPartitions was not properly retrieved from process() after auto-resume");
+    }
+
+    connector.stop();
+  }
+
+
   @Test
   public void testValidateDatastreamUpdatePausedPartitions() throws Exception {
     String topic = "testValidateDatastreamUpdatePausedPartitions";

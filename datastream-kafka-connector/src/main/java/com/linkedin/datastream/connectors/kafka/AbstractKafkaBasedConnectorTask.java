@@ -219,18 +219,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         try {
           sendMessage(record, readTime);
         } catch (Exception e) {
-          _consumerMetrics.updateErrorRate(1);
-          // seek to previous checkpoints for this topic partition
-          seekToLastCheckpoint(Collections.singleton(topicPartition));
-          if (_pausePartitionOnError) {
-            // if configured to pause partition on error conditions, add to auto-paused set
-            _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
-                topicPartition);
-            Instant start = Instant.now();
-            _autoPausedSourcePartitions.put(topicPartition,
-                PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration));
-            shouldAddPausePartitionsTask = true;
-          }
+          _logger.warn("Got exception while sending record {}", record, e);
+          handleProducerSendError(topicPartition);
+          shouldAddPausePartitionsTask = true;
           // skip other messages for this partition, but can continue processing other partitions
           break;
         }
@@ -242,6 +233,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
+
+  private void handleProducerSendError(TopicPartition topicPartition) {
+    _consumerMetrics.updateErrorRate(1);
+    // seek to previous checkpoints for this topic partition
+    seekToLastCheckpoint(Collections.singleton(topicPartition));
+    if (_pausePartitionOnError) {
+      // if configured to pause partition on error conditions, add to auto-paused set
+      _logger.warn("adding topic partition {} to auto-pause set", topicPartition);
+      Instant start = Instant.now();
+      _autoPausedSourcePartitions.put(topicPartition,
+          PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration));
+    }
+  }
+
 
   protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
     int sendAttempts = 0;
@@ -268,7 +273,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord) throws Exception {
-    _producer.send(datastreamProducerRecord, null);
+    _producer.send(datastreamProducerRecord, (metadata, exception) -> {
+        if (exception != null) {
+          _logger.error("Send messages failed with exception: {}", exception);
+          TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getPartition());
+          handleProducerSendError(topicPartition);
+          _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+        }
+      });
   }
 
   @Override

@@ -26,6 +26,7 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private ExecutorService _executorService = Executors.newFixedThreadPool(1);
   private Duration _callbackThrottleDuration;
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
+  private Predicate<DatastreamProducerRecord> _callbackExceptionCondition;
   private Duration _flushDuration;
 
   public MockDatastreamEventProducer() {
@@ -76,7 +77,11 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
     LOG.info("sent event {}, total _events {}", event, _events.size());
     DatastreamRecordMetadata md = new DatastreamRecordMetadata(event.getCheckpoint(), "mock topic", 666);
     if (callback != null) {
-      callback.onCompletion(md, null);
+      if (_callbackExceptionCondition != null) {
+        callback.onCompletion(md, new RuntimeException("return fail exception in sendCallback"));
+      } else {
+        callback.onCompletion(md, null);
+      }
     }
   }
 
@@ -103,5 +108,9 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   public void updateSendFailCondition(Predicate<DatastreamProducerRecord> sendFailCondition) {
     _sendFailCondition = sendFailCondition;
+  }
+
+  public void updateCallbackExceptionCondition(Predicate<DatastreamProducerRecord> callbackExceptionCondition) {
+    _callbackExceptionCondition = callbackExceptionCondition;
   }
 }
