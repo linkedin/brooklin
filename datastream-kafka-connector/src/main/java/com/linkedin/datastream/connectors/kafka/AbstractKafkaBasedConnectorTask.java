@@ -44,6 +44,7 @@ import com.google.common.collect.ImmutableMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
@@ -222,8 +223,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _consumerMetrics.updateErrorRate(1);
           // seek to previous checkpoints for this topic partition
           seekToLastCheckpoint(Collections.singleton(topicPartition));
-          if (_pausePartitionOnError) {
-            // if configured to pause partition on error conditions, add to auto-paused set
+          if ((!containsTransientException(e)) && _pausePartitionOnError) {
+            // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
+            // add to auto-paused set
             _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
                 topicPartition);
             Instant start = Instant.now();
@@ -242,6 +244,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
+
+  private boolean containsTransientException(Throwable ex) {
+    while (ex != null && ex instanceof DatastreamRuntimeException) {
+      if (ex instanceof DatastreamTransientException) {
+        return true;
+      }
+      ex = ex.getCause();
+    }
+    return false;
+  }
+
 
   protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
     int sendAttempts = 0;
