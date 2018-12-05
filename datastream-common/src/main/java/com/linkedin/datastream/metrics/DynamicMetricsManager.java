@@ -1,10 +1,14 @@
 package com.linkedin.datastream.metrics;
 
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
+import com.codahale.metrics.MetricFilter;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,8 +21,6 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
-import javax.annotation.Nullable;
-
 
 /**
  * Manages dynamic metrics and supports creating/updating metrics on the fly.
@@ -399,6 +401,20 @@ public class DynamicMetricsManager {
   @SuppressWarnings("unchecked")
   public <T extends Metric> T getMetric(String name) {
     return (T) _metricRegistry.getMetrics().getOrDefault(name, null);
+  }
+
+  /**
+   * This is a helper method that can be used for testing values of multiple counters using regex.
+   * @return Map of counter name and their value
+   */
+  @VisibleForTesting
+  public SortedMap<String, Counter> getCounters(String regex) {
+    return _metricRegistry.getCounters(new MetricFilter() {
+      @Override
+      public boolean matches(String name, Metric metric) {
+        return name.matches(regex);
+      }
+    });
   }
 
   private void validateArguments(String classSimpleName, String metricName) {

@@ -24,7 +24,7 @@ public class NoOpTopicManager implements TopicManager {
 
   public NoOpTopicManager(DatastreamTask datastreamTask, Datastream datastream, GroupIdConstructor groupIdConstructor,
       KafkaConsumerFactory<?, ?> kafkaConsumerFactory, Properties consumerProperties, Properties topicManagerProperties,
-      CommonConnectorMetrics consumerMetrics) {
+      CommonConnectorMetrics consumerMetrics, String metricsPrefix, String metricsKey) {
   }
 
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {
