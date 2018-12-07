@@ -81,7 +81,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
       "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
-  public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
+  public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager" + MetricsAware.KEY_REGEX;
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
