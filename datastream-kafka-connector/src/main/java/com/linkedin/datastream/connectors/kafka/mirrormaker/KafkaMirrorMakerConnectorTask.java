@@ -81,7 +81,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
       "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
-  public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager" + MetricsAware.KEY_REGEX;
+  public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
@@ -288,7 +288,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     // For now, only adding BrooklinCounterInfo. In case more types (for example, BrooklinMeterInfo) is emitted by
     // topic manager, add that type here.
     metrics.add(new BrooklinCounterInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + ".*"));
+        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
+            + ".*"));
     return metrics;
   }
 
