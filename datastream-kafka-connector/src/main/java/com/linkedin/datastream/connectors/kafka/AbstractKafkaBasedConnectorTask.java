@@ -146,7 +146,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (Boolean.TRUE.toString()
         .equals(_datastream.getMetadata().get(KafkaDatastreamMetadataConstants.USE_PASSTHROUGH_COMPRESSION))) {
       _consumerProps.put("enable.shallow.iterator", Boolean.TRUE.toString());
-      _logger.info("Enabled passthrough compression for task: {}", task.getDatastreamTaskName());
+      _logger.info("Enabled passthrough compression for task: {} Datastream: {}", task.getDatastreamTaskName(),
+          _datastreamName);
     }
 
     _processingDelayLogThresholdMs = config.getProcessingDelayLogThresholdMs();
