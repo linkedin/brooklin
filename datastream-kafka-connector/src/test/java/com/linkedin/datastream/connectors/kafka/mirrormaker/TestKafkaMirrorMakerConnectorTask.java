@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -27,12 +28,14 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
+import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.KafkaGroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
@@ -46,6 +49,8 @@ import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.*;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
+import static org.mockito.Mockito.*;
+
 
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
@@ -182,6 +187,40 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
 
     // verify that flush was called on the producer
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
+  }
+
+  @Test
+  public void testRegularCommitWithFlushlessProducer() throws Exception {
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    Datastream datastream =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), new VerifiableProperties(new Properties()),
+            new Properties(), "", "", 200, 5,
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
+        true,
+        new KafkaGroupIdConstructor(false, "test"));
+
+    KafkaMirrorMakerConnectorTask spiedTask = spy(connectorTask);
+    Thread t = new Thread(spiedTask, "connector thread");
+    t.setDaemon(true);
+    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
+    t.start();
+
+    //Sleep ~1 seconds to wait for maybeCommitOffsets being called
+    Thread.sleep(1100);
+    //we expect >=5 commit calls to be made even without any traffic
+    Mockito.verify(spiedTask, atLeast(5)).maybeCommitOffsets(any(), anyBoolean());
+    // producer shouldn't flush before the shutdown
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 0);
+    spiedTask.stop();
+    Assert.assertTrue(spiedTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
   }
 
