@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
@@ -17,8 +18,6 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
-import javax.annotation.Nullable;
-
 
 /**
  * Manages dynamic metrics and supports creating/updating metrics on the fly.

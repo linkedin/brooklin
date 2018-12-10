@@ -21,9 +21,12 @@ public interface TopicManagerFactory {
    * @param consumerProperties properties for Kafka consumer
    * @param topicManagerProperties Any additional properties that need to be passed to topic manager
    * @param consumerMetrics In case one needs to log consumer metrics.
+   * @param metricsPrefix Prefix to use for metrics that topic manager emits.
+   * @param metricsKey Key to use for metrics that topic manager emits
    * @return An instance of a class that implements TopicManager interface.
    */
   TopicManager createTopicManager(DatastreamTask datastreamTask, Datastream datastream,
       GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
-      Properties consumerProperties, Properties topicManagerProperties, CommonConnectorMetrics consumerMetrics);
+      Properties consumerProperties, Properties topicManagerProperties, CommonConnectorMetrics consumerMetrics,
+      String metricsPrefix, String metricsKey);
 }

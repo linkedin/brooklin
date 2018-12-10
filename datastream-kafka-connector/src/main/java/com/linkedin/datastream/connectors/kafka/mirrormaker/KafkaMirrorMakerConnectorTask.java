@@ -1,6 +1,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,6 +37,7 @@ import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
+import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -79,6 +81,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
       "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
+  public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
@@ -135,7 +138,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
     _topicManager =
         topicManagerFactory.createTopicManager(_datastreamTask, _datastream, _groupIdConstructor, _consumerFactory,
-            _consumerProps, topicManagerProperties, _consumerMetrics);
+            _consumerProps, topicManagerProperties, _consumerMetrics,
+            generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX, _datastreamName);
   }
 
   @Override
@@ -274,8 +278,19 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
-    return AbstractKafkaBasedConnectorTask.getMetricInfos(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
+        generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX));
+    // As topic manager is plugged in as part of task creation, one can't know
+    // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
+    // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)
+    // and return here different types of metrics with that prefix.
+    // For now, only adding BrooklinCounterInfo. In case more types (for example, BrooklinMeterInfo) is emitted by
+    // topic manager, add that type here.
+    metrics.add(new BrooklinCounterInfo(
+        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
+            + ".*"));
+    return metrics;
   }
 
   @VisibleForTesting
