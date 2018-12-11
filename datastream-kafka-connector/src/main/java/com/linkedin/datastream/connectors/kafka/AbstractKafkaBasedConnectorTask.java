@@ -321,11 +321,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           processRecords(records, readTime);
           recordsPolled = records.count();
         }
+        maybeCommitOffsets(_consumer, false);
         trackEventsProcessedProgress(recordsPolled);
 
       } // end while loop
 
-      // shutdown
+      // shutdown, do a force commit
       _logger.info("Flushing and committing offsets before task {} exits.", _taskName);
       maybeCommitOffsets(_consumer, true);
     } catch (WakeupException e) {
@@ -436,11 +437,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMs) {
       _consumerMetrics.updateProcessingAboveThreshold(1);
     }
-
-    if (!_shutdown) {
-      // potentially commit our offsets (if its been long enough and all sends were successful)
-      maybeCommitOffsets(_consumer, false);
-    }
   }
 
   /**
@@ -481,13 +477,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
+  abstract protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean force);
+
   /**
    * Flush the producer and commit the offsets if the configured offset commit interval has been reached, or if
    * force is set to true.
    * @param consumer the Kafka consumer
    * @param force whether flush and commit should happen unconditionally
    */
-  protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean force) {
+  protected void maybeCommitOffsetsInternal(Consumer<?, ?> consumer, boolean force) {
     long now = System.currentTimeMillis();
     long timeSinceLastCommit = now - _lastCommittedTime;
     if (force || timeSinceLastCommit > _offsetCommitInterval) {

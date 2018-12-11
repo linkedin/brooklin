@@ -273,7 +273,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         commitSafeOffsets(consumer);
       }
     } else {
-      super.maybeCommitOffsets(consumer, hardCommit);
+      super.maybeCommitOffsetsInternal(consumer, hardCommit);
     }
   }
 

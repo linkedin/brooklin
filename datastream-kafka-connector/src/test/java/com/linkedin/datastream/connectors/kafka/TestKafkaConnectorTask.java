@@ -26,11 +26,6 @@ import org.testng.annotations.Test;
 
 import kafka.utils.ZkUtils;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.verify;
-
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -44,6 +39,8 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.*;
+import static org.mockito.Mockito.*;
+
 
 public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
@@ -160,6 +157,40 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
+  @Test
+  public void testCommittingOffsetRegularly() throws Exception {
+    String topic = "pizza1";
+    createTopic(_zkUtils, topic);
+
+    //start
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    Datastream datastream = getDatastream(_broker, topic);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
+        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 200, 5,
+            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
+        new KafkaGroupIdConstructor(false, "test"));
+
+    KafkaConnectorTask spiedTask = spy(connectorTask);
+    Thread t = new Thread(spiedTask, "connector thread");
+    t.setDaemon(true);
+    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
+    t.start();
+
+    LOG.info("Sending third set of events");
+
+    //Sleep 1 seconds to wait for maybeCommitOffsets being called
+    Thread.sleep(1100);
+    spiedTask.stop();
+    Assert.assertTrue(spiedTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+    //we expect >=5 commit calls to be made even without any traffic
+    Mockito.verify(spiedTask, atLeast(5)).maybeCommitOffsets(any(), anyBoolean());
+
+  }
   @Test
   public void testConsumerBaseCase() throws Exception {
     String topic = "Pizza2";

@@ -63,6 +63,11 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   @Override
+  protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean force) {
+    super.maybeCommitOffsetsInternal(consumer, force);
+  }
+
+  @Override
   protected void consumerSubscribe() {
     KafkaConnectionString srcConnString =
         KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
