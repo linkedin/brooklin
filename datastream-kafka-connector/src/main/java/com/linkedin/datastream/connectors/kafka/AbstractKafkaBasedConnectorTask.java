@@ -593,6 +593,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Seek completed to the offsets.");
   }
 
+  private void updateConsumerAssignment(Collection<TopicPartition> partitions) {
+    _consumerAssignment.clear();
+    _consumerAssignment.addAll(partitions);
+    _consumerMetrics.updateNumPartitions(_consumerAssignment.size());
+    _consumerMetrics.updateNumTopics(_consumerAssignment.stream().map(tp -> tp.topic()).distinct().count());
+    _logger.info("Current assignment is {}", _consumerAssignment);
+  }
+
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
@@ -606,9 +614,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     }
 
-    _consumerAssignment.clear();
-    _consumerAssignment.addAll(_consumer.assignment());
-    _logger.info("Current assignment is {}", _consumerAssignment);
+    updateConsumerAssignment(_consumer.assignment());
 
     // Remove old position data
     _kafkaPositionTracker.retainAll(_consumerAssignment);
@@ -622,12 +628,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics.updateRebalanceRate(1);
     _logger.info("Partition ownership assigned for {}.", partitions);
 
-    _consumerAssignment.clear();
-    _consumerAssignment.addAll(partitions);
-
+    updateConsumerAssignment(partitions);
     _positionsInitialized = false;
-
-    _logger.info("Current assignment is {}", _consumerAssignment);
 
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);

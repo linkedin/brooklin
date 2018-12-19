@@ -7,6 +7,8 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import java.lang.reflect.Method;
+import java.util.Random;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -21,6 +23,7 @@ public class TestKafkaBasedConnectorTaskMetrics {
   private static final String DELIMITED_CONSUMER1_NAME = "." + CONSUMER1_NAME + ".";
   private static final String CONSUMER2_NAME = "CONNECTOR_CONSUMER2";
   private static final String DELIMITED_CONSUMER2_NAME = "." + CONSUMER2_NAME + ".";
+  private static final String DELIMITED_AGGREGATE_NAME = ".aggregate.";
   private static final String CLASS_NAME = TestKafkaBasedConnectorTaskMetrics.class.getName();
 
   private DynamicMetricsManager _metricsManager;
@@ -68,6 +71,71 @@ public class TestKafkaBasedConnectorTaskMetrics {
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 35);
   }
+
+  @Test
+  public void testConnectorPartitionMetrics() {
+    KafkaBasedConnectorTaskMetrics connectorConsumer1 =
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+    KafkaBasedConnectorTaskMetrics connectorConsumer2 =
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
+
+    connectorConsumer1.createPartitionMetrics();
+    connectorConsumer2.createPartitionMetrics();
+
+    Random random = new Random();
+
+    long consumer1NumTopics = random.nextInt(1000);
+    long consumer1NumPartitions = consumer1NumTopics * random.nextInt(1024);
+    long consumer2NumTopics = random.nextInt(1000);
+    long consumer2NumPartitions = consumer2NumTopics * random.nextInt(1024);
+
+    connectorConsumer1.updateNumTopics(consumer1NumTopics);
+    connectorConsumer1.updateNumPartitions(consumer1NumPartitions);
+    connectorConsumer2.updateNumTopics(consumer2NumTopics);
+    connectorConsumer2.updateNumPartitions(consumer2NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + "numTopics")).getValue(), consumer1NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + "numPartitions")).getValue(), consumer1NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
+        + "numTopics")).getValue(), consumer2NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
+        + "numPartitions")).getValue(), consumer2NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE_NAME
+        + "numTopics")).getValue(), consumer1NumTopics + consumer2NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE_NAME
+        + "numPartitions")).getValue(), consumer1NumPartitions + consumer2NumPartitions);
+
+    // add more topics and partitions
+    consumer1NumTopics += random.nextInt(1000);
+    consumer1NumPartitions = consumer1NumTopics * random.nextInt(1024);
+    consumer2NumTopics += random.nextInt(1000);
+    consumer2NumPartitions = consumer2NumTopics * random.nextInt(1024);
+
+    connectorConsumer1.updateNumTopics(consumer1NumTopics);
+    connectorConsumer1.updateNumPartitions(consumer1NumPartitions);
+    connectorConsumer2.updateNumTopics(consumer2NumTopics);
+    connectorConsumer2.updateNumPartitions(consumer2NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + "numTopics")).getValue(), consumer1NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + "numPartitions")).getValue(), consumer1NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
+        + "numTopics")).getValue(), consumer2NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
+        + "numPartitions")).getValue(), consumer2NumPartitions);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE_NAME
+        + "numTopics")).getValue(), consumer1NumTopics + consumer2NumTopics);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE_NAME
+        + "numPartitions")).getValue(), consumer1NumPartitions + consumer2NumPartitions);
+  }
+
 }
 
 

@@ -180,27 +180,34 @@ public class CommonConnectorMetrics {
     // Partition related metrics
     static final String REBALANCE_RATE = "rebalanceRate";
     static final String STUCK_PARTITIONS = "stuckPartitions";
+    static final String NUM_PARTITIONS = "numPartitions";
 
     // Per consumer metrics
     final AtomicLong _numStuckPartitions = new AtomicLong(0);
+    final AtomicLong _numPartitions = new AtomicLong(0);
     final Meter _rebalanceRate;
 
     // Aggregated metrics
     final Meter _aggregatedRebalanceRate;
 
-    // Map from connector class name to its stuck partition counter
+    // Map from connector class name to its stuck and total partition counter
     // This is needed for Gauge metrics which need long-typed suppliers.
     static final Map<String, AtomicLong> AGGREGATED_NUM_STUCK_PARTITIONS = new ConcurrentHashMap<>();
+    static final Map<String, AtomicLong> AGGREGATED_NUM_PARTITIONS = new ConcurrentHashMap<>();
 
     public PartitionMetrics(String className, String key) {
       super(className, key);
       _rebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, REBALANCE_RATE, Meter.class);
       DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, STUCK_PARTITIONS, _numStuckPartitions::get);
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_PARTITIONS, _numPartitions::get);
 
       _aggregatedRebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, Meter.class);
 
       AtomicLong aggStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
       DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, () -> aggStuckPartitions.get());
+
+      AtomicLong aggNumPartitions = AGGREGATED_NUM_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_PARTITIONS, () -> aggNumPartitions.get());
     }
 
     @Override
@@ -215,6 +222,7 @@ public class CommonConnectorMetrics {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, STUCK_PARTITIONS);
       AGGREGATED_NUM_STUCK_PARTITIONS.remove(_className);
+      AGGREGATED_NUM_PARTITIONS.remove(_className);
     }
 
     public void resetStuckPartitions() {
@@ -233,6 +241,14 @@ public class CommonConnectorMetrics {
       }
     }
 
+    public void updateNumPartitions(long val) {
+      long delta = val - _numPartitions.getAndSet(val);
+      AtomicLong aggregatedMetric = AGGREGATED_NUM_PARTITIONS.get(_className);
+      if (aggregatedMetric != null) {
+        aggregatedMetric.getAndAdd(delta);
+      }
+    }
+
     // Must be static as MetricInfos are requested from static context
     static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
       List<BrooklinMetricInfo> metrics = new ArrayList<>();
@@ -241,6 +257,7 @@ public class CommonConnectorMetrics {
       metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
           Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
       metrics.add(new BrooklinGaugeInfo(prefix + STUCK_PARTITIONS));
+      metrics.add(new BrooklinGaugeInfo(prefix + NUM_PARTITIONS));
       return Collections.unmodifiableList(metrics);
     }
   }
@@ -424,6 +441,14 @@ public class CommonConnectorMetrics {
    */
   public void updateStuckPartitions(long val) {
     _partitionMetrics.updateStuckPartitions(val);
+  }
+
+  /**
+   * Update the number of partitions on this consumer and adjust the aggregate accordingly
+   * @param val New value for the metric
+   */
+  public void updateNumPartitions(long val) {
+    _partitionMetrics.updateNumPartitions(val);
   }
 
   /**
