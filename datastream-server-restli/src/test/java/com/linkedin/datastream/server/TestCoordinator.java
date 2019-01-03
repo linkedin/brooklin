@@ -1,6 +1,7 @@
 package com.linkedin.datastream.server;
 
 
+import com.codahale.metrics.Gauge;
 import com.google.common.collect.ImmutableList;
 import com.linkedin.datastream.server.assignment.StickyMulticastStrategy;
 import java.io.IOException;
@@ -1945,12 +1946,16 @@ public class TestCoordinator {
     Assert.assertTrue(PollUtils.poll(() -> counter.get() >= 1, 1000, 30000));
   }
 
+  @Test
   public void testIsLeader() throws Exception {
     String testCluster = "testIsLeader";
-
+    String isLeaderMetricName = "Coordinator.isLeader";
+    
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     instance1.start();
     Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+    Gauge<Integer> isLeader = DynamicMetricsManager.getInstance().getMetric(isLeaderMetricName);
+    Assert.assertEquals(isLeader.getValue().intValue(), 1);
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     instance2.start();

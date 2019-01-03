@@ -187,6 +187,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
   private static final String NUM_HEARTBEATS = "numHeartbeats";
+  private static final String IS_LEADER = "isLeader";
 
   private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
   private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
@@ -222,6 +223,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
+    _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
 
     // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
@@ -1243,6 +1245,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
     _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));
     _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
+    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, IS_LEADER)));
 
     return Collections.unmodifiableList(_metrics);
   }
