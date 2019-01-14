@@ -15,8 +15,6 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public class ConnectorInfo {
 
-  private String _name;
-
   private ConnectorWrapper _connector;
 
   private AssignmentStrategy _assignmentStrategy;
@@ -34,7 +32,6 @@ public class ConnectorInfo {
 
   public ConnectorInfo(String name, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing,
       CheckpointProvider checkpointProvider, DatastreamDeduper deduper, String authorizerName) {
-    _name = name;
     _connector = new ConnectorWrapper(name, connector);
     _assignmentStrategy = strategy;
     _customCheckpointing = customCheckpointing;
