@@ -215,12 +215,14 @@ public class CommonConnectorMetrics {
       super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PARTITIONS);
     }
 
     @Override
     protected void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, STUCK_PARTITIONS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, NUM_PARTITIONS);
       AGGREGATED_NUM_STUCK_PARTITIONS.remove(_className);
       AGGREGATED_NUM_PARTITIONS.remove(_className);
     }

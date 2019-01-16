@@ -1,16 +1,19 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.google.common.base.Strings;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+
 import org.slf4j.Logger;
+
+import com.google.common.base.Strings;
+
+import com.linkedin.datastream.connectors.CommonConnectorMetrics;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
 
 public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
@@ -19,16 +22,28 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of paused partitions that are auto paused because of error
   public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR = "numAutoPausedPartitionsOnError";
   // keeps track of paused partitions that are auto paused because of large number of inflight messages
-  public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES = "numAutoPausedPartitionsOnInFlightMessages";
+  public static final String NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES =
+      "numAutoPausedPartitionsOnInFlightMessages";
+  // keeps track of paused partitions that are auto paused because destination does not exist yet
+  public static final String NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC =
+      "numAutoPausedPartitionsAwaitingDestTopic";
   // keeps track of number of topics that are assigned to the task
   public static final String NUM_TOPICS = "numTopics";
 
   private final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
   private final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
   private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
   private final AtomicLong _numTopics = new AtomicLong(0);
 
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR =
+      new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES =
+      new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC =
+      new ConcurrentHashMap<>();
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger) {
     super(className, metricsKey, errorLogger);
@@ -38,21 +53,45 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         _numAutoPausedPartitionsOnError::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES,
         _numAutoPausedPartitionsOnInFlightMessages::get);
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
+        _numAutoPausedPartitionsAwaitingDestTopic::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, _numTopics::get);
 
+    AtomicLong aggNumConfigPausedPartitions =
+        AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_CONFIG_PAUSED_PARTITIONS,
+        () -> aggNumConfigPausedPartitions.get());
+    AtomicLong aggNumAutoPausedPartitionsOnError =
+        AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR.computeIfAbsent(className, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR,
+        () -> aggNumAutoPausedPartitionsOnError.get());
+    AtomicLong aggNumAutoPausedPartitionsOnInFlightMessages =
+        AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES.computeIfAbsent(className, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES,
+        () -> aggNumAutoPausedPartitionsOnInFlightMessages.get());
+    AtomicLong aggNumAutoPausedPartitionsAwaitingDestTopic =
+        AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC.computeIfAbsent(className, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
+        () -> aggNumAutoPausedPartitionsAwaitingDestTopic.get());
     AtomicLong aggNumTopics = AGGREGATED_NUM_TOPICS.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_TOPICS, () -> aggNumTopics.get());
   }
 
   @Override
   public void deregisterMetrics() {
+    // this is called when a datastream task is closed/shutdown
     super.deregisterMetrics();
+    // update all the aggregates by resetting all of the metrics being de-registered
+    updateNumTopics(0);
+    updateNumAutoPausedPartitionsAwaitingDestTopic(0);
+    updateNumAutoPausedPartitionsOnError(0);
+    updateNumConfigPausedPartitions(0);
+    updateNumAutoPausedPartitionsOnInFlightMessages(0);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
-    DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, NUM_TOPICS);
-    AGGREGATED_NUM_TOPICS.remove(_className);
   }
 
   public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
@@ -62,6 +101,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_CONFIG_PAUSED_PARTITIONS));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
     return Collections.unmodifiableList(metrics);
   }
@@ -71,7 +111,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumConfigPausedPartitions(long val) {
-    _numConfigPausedPartitions.set(val);
+    long delta = val - _numConfigPausedPartitions.getAndSet(val);
+    AtomicLong aggregatedMetric = AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.get(_className);
+    if (aggregatedMetric != null) {
+      aggregatedMetric.getAndAdd(delta);
+    }
   }
 
   /**
@@ -79,7 +123,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnError(long val) {
-    _numAutoPausedPartitionsOnError.set(val);
+    long delta = val - _numAutoPausedPartitionsOnError.getAndSet(val);
+    AtomicLong aggregatedMetric = AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR.get(_className);
+    if (aggregatedMetric != null) {
+      aggregatedMetric.getAndAdd(delta);
+    }
   }
 
   /**
@@ -87,7 +135,23 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnInFlightMessages(long val) {
-    _numAutoPausedPartitionsOnInFlightMessages.set(val);
+    long delta = val - _numAutoPausedPartitionsOnInFlightMessages.getAndSet(val);
+    AtomicLong aggregatedMetric = AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES.get(_className);
+    if (aggregatedMetric != null) {
+      aggregatedMetric.getAndAdd(delta);
+    }
+  }
+
+  /**
+   * Set number of auto paused partitions awaiting destination topic creation
+   * @param val Value to set to
+   */
+  public void updateNumAutoPausedPartitionsAwaitingDestTopic(long val) {
+    long delta = val - _numAutoPausedPartitionsAwaitingDestTopic.getAndSet(val);
+    AtomicLong aggregatedMetric = AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC.get(_className);
+    if (aggregatedMetric != null) {
+      aggregatedMetric.getAndAdd(delta);
+    }
   }
 
   /**

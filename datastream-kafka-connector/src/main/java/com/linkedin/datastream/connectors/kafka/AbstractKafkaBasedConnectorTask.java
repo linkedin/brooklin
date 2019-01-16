@@ -745,18 +745,31 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       // only log the new list if there was a change
       _logger.info("There were new partitions to pause. New partitions pause list is: {}", partitionsToPause);
       _consumer.pause(partitionsToPause);
-
-      // update metric
-      // Get #of auto paused partitions on error first
-      long numAutoPausedPartitionsOnError = _autoPausedSourcePartitions.values()
-          .stream()
-          .filter(metadata -> metadata.getReason().equals(PausedSourcePartitionMetadata.Reason.SEND_ERROR))
-          .count();
-      _consumerMetrics.updateNumAutoPausedPartitionsOnError(numAutoPausedPartitionsOnError);
-      _consumerMetrics.updateNumAutoPausedPartitionsOnInFlightMessages(
-          _autoPausedSourcePartitions.size() - numAutoPausedPartitionsOnError);
-      _consumerMetrics.updateNumConfigPausedPartitions(partitionsToPause.size() - _autoPausedSourcePartitions.size());
     }
+
+    // update paused partition metrics
+    long numAutoPausedPartitionsOnError = 0;
+    long numAutoPausedPartitionsAwaitingDestTopic = 0;
+    long numAutoPausedPartitionsOnInFlightMessages = 0;
+    for (PausedSourcePartitionMetadata metadata : _autoPausedSourcePartitions.values()) {
+      switch (metadata.getReason()) {
+        case SEND_ERROR:
+          numAutoPausedPartitionsOnError++;
+          break;
+        case EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD:
+          numAutoPausedPartitionsOnInFlightMessages++;
+          break;
+        case TOPIC_NOT_CREATED:
+          numAutoPausedPartitionsAwaitingDestTopic++;
+          break;
+        default:
+          break;
+      }
+    }
+    _consumerMetrics.updateNumAutoPausedPartitionsOnError(numAutoPausedPartitionsOnError);
+    _consumerMetrics.updateNumAutoPausedPartitionsOnInFlightMessages(numAutoPausedPartitionsOnInFlightMessages);
+    _consumerMetrics.updateNumAutoPausedPartitionsAwaitingDestTopic(numAutoPausedPartitionsAwaitingDestTopic);
+    _consumerMetrics.updateNumConfigPausedPartitions(partitionsToPause.size() - _autoPausedSourcePartitions.size());
   }
 
   /**
