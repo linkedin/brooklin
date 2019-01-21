@@ -21,6 +21,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
@@ -457,6 +458,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testAutoPauseOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
@@ -475,14 +477,18 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
-            Duration.ofSeconds(20), false, "testCluster");
+            Duration.ofSeconds(5), false, "testCluster");
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce 5 events
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
 
     // validate that the topic partition was added to auto-paused set
-    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(yummyTopic, 0)),
+    String autoPausedOnErrorMetricName =
+        MetricRegistry.name(KafkaMirrorMakerConnectorTask.class.getSimpleName(), datastream.getName(),
+            NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
+    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(yummyTopic, 0))
+            && ((Gauge<Long>) DynamicMetricsManager.getInstance().getMetric(autoPausedOnErrorMetricName)).getValue() == 1,
         POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("Partition did not auto-pause after multiple send failures.");
     }
@@ -499,8 +505,14 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(task);
 
+    String manualPausedMetricName =
+        MetricRegistry.name(KafkaMirrorMakerConnectorTask.class.getSimpleName(), datastream.getName(),
+            NUM_CONFIG_PAUSED_PARTITIONS);
     if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig())
-        && connectorTask.getAutoPausedSourcePartitions().isEmpty(), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+            && ((Gauge<Long>) DynamicMetricsManager.getInstance().getMetric(manualPausedMetricName)).getValue() == 1
+            && connectorTask.getAutoPausedSourcePartitions().isEmpty()
+            && ((Gauge<Long>) DynamicMetricsManager.getInstance().getMetric(autoPausedOnErrorMetricName)).getValue() == 0,
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("Paused partitions were not updated after adding partitions to pause config.");
     }
 
@@ -514,8 +526,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(task);
 
-    if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig()), POLL_PERIOD_MS,
-        POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> pausedPartitions.equals(connectorTask.getPausedPartitionsConfig())
+            && ((Gauge<Long>) DynamicMetricsManager.getInstance().getMetric(manualPausedMetricName)).getValue() == 0,
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("Paused partitions were not updated after removing partitions from pause config.");
     }
 
