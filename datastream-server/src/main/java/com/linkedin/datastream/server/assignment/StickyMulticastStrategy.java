@@ -68,8 +68,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
     int totalAssignedTasks = currentAssignment.values().stream().mapToInt(Set::size).sum();
-    LOG.info("Trying to assign {} datastreams {} to {} instances {} and the current assignment of {} tasks total is: {}",
-        datastreams.size(), datastreams, instances.size(), instances, totalAssignedTasks, currentAssignment);
+    LOG.info("Begin assign {} datastreams to {} instances with {} tasks", datastreams.size(), instances.size(),
+        totalAssignedTasks);
 
     if (instances.isEmpty()) {
       // Nothing to do.
@@ -162,7 +162,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     }
 
     // STEP4: Format the result with the right data structure.
-    LOG.info("New assignment is {}", newAssignment);
+    LOG.info("Assignment completed");
+    LOG.debug("New assignment is {}", newAssignment);
 
     // STEP5: Some Sanity Checks, to detect missing tasks.
     sanityChecks(datastreams, instances, newAssignment);
