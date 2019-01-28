@@ -187,6 +187,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_ERRORS = "numErrors";
   private static final String NUM_RETRIES = "numRetries";
   private static final String NUM_HEARTBEATS = "numHeartbeats";
+  private static final String NUM_ASSIGNMENT_CHANGES = "numAssignmentChanges";
+
   private static final String IS_LEADER = "isLeader";
 
   private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
@@ -474,6 +476,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     } catch (TimeoutException e) {
       // if it's timeout then we will retry
+      _log.warn("Timeout when doing the assignment", e);
       if (isDatastreamUpdate) {
         _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
       } else {
@@ -496,6 +499,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     long endAt = System.currentTimeMillis();
 
     _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_ASSIGNMENT_CHANGES, 1);
   }
 
   private DatastreamTask getDatastreamTask(String taskName) {
@@ -902,7 +906,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       succeeded = false;
     }
 
-    _log.info("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
+    _log.info("handleLeaderDoAssignment: completed ");
+    _log.debug("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
+
 
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
@@ -929,7 +935,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Map<String, Set<DatastreamTask>> previousAssignmentByInstance, List<DatastreamGroup> datastreamGroups) {
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
-    _log.info("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
+    _log.info("handleLeaderDoAssignment: start");
+    _log.debug("handleLeaderDoAssignment: assignment before re-balancing: " + previousAssignmentByInstance);
 
     Set<DatastreamGroup> pausedDatastreamGroups =
         datastreamGroups.stream().filter(DatastreamGroup::isPaused).collect(Collectors.toSet());
@@ -1241,6 +1248,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_REBALANCES)));
+    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_ASSIGNMENT_CHANGES)));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_ERRORS));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
     _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));

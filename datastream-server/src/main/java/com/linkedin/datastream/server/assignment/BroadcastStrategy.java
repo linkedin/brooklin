@@ -41,8 +41,8 @@ public class BroadcastStrategy implements AssignmentStrategy {
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
     int totalAssignedTasks = currentAssignment.values().stream().mapToInt(Set::size).sum();
-    LOG.info("Trying to assign {} datastreams {} to {} instances {} and the current assignment of {} tasks total is: {}",
-        datastreams.size(), datastreams, instances.size(), instances, totalAssignedTasks, currentAssignment);
+    LOG.info("Assigning {} datastreams to {} instances with {} tasks", datastreams.size(), instances.size(),
+        totalAssignedTasks);
 
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
