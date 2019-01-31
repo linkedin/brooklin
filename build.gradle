@@ -119,8 +119,8 @@ project(':datastream-common') {
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    compile "com.intellij:annotations:$intellijAnnotations"
-    compile group: 'com.google.guava', name: 'guava', version: '19.0'
+    compile "com.intellij:annotations:$intellijAnnotationsVersion"
+    compile "com.google.guava:guava:$guavaVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
@@ -212,7 +212,7 @@ project(':datastream-kafka-connector') {
     compile project(':datastream-server-api')
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
-    compile "commons-validator:commons-validator:1.5.1"
+    compile "commons-validator:commons-validator:$commonsValidatorVersion"
 
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-testcommon');
@@ -233,7 +233,7 @@ project(':datastream-testcommon') {
     compile project(':datastream-server')
     compile project(':datastream-server-restli')
     compile project(':datastream-client')
-    compile "com.intellij:annotations:$intellijAnnotations"
+    compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
