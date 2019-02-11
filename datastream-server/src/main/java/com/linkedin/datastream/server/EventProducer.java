@@ -74,6 +74,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "availabilityThresholdAlternateSlaMs";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
+  private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
   private static final String AGGREGATE = "aggregate";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
@@ -134,6 +135,8 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 0);
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
         EVENTS_PRODUCED_OUTSIDE_SLA, 0);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+        DROPPED_SENT_FROM_SERIALIZATION_ERROR, 0);
   }
 
   public int getProducerId() {
@@ -171,6 +174,9 @@ public class EventProducer implements DatastreamEventProducer {
       } catch (Exception e) {
         if (_skipMessageOnSerializationErrors) {
           _logger.info("Skipping the message on serialization error as configured.", e);
+          _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getDatastreams().get(0).getName(),
+              DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
+          _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
           return;
         }
         throw e;
@@ -194,6 +200,21 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
+  // report sla metrics for aggregate, connector and task
+  private void reportSLAMetrics(String topicOrDatastreamName, boolean isWithinSLA,
+      String metricNameForWithinSLA, String metricNameForOutsideSLA) {
+    int withinSLAValue = isWithinSLA ? 1 : 0;
+    int outsideSLAValue = isWithinSLA ? 0 : 1;
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, metricNameForWithinSLA, withinSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+        metricNameForWithinSLA, withinSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, metricNameForWithinSLA, withinSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, metricNameForOutsideSLA, outsideSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
+        metricNameForOutsideSLA, outsideSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, metricNameForOutsideSLA, outsideSLAValue);
+
+  }
   // Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
   // per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
   // to avoid over-counting.
@@ -215,32 +236,25 @@ public class EventProducer implements DatastreamEventProducer {
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
           EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
 
-      if (sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs) {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_SLA, 1);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
-            EVENTS_PRODUCED_WITHIN_SLA, 1);
-      } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, EVENTS_PRODUCED_OUTSIDE_SLA, 1);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 1);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
-            EVENTS_PRODUCED_OUTSIDE_SLA, 1);
-        _logger.debug(
-            "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
-            sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
-            metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
-      }
+      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
+          EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
 
-      if (sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs) {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
-            EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, 1);
-      } else {
-        _dynamicMetricsManager.createOrUpdateCounter(MODULE, metadata.getTopic(), EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA,
-            1);
-        _logger.debug(
-            "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
-            sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
-            metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
+      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+          EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+
+      if (_logger.isDebugEnabled()) {
+        if (sourceToDestinationLatencyMs > _availabilityThresholdSlaMs) {
+          _logger.debug(
+              "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
+              sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
+              metadata.getTopic(), metadata.getPartition(), _availabilityThresholdSlaMs);
+        }
+        if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
+          _logger.debug(
+              "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
+              sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), datastreamName,
+              metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
+        }
       }
 
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
