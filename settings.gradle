@@ -9,7 +9,5 @@ include 'datastream-kafka'
 include 'datastream-kafka-factory-impl'
 include 'datastream-kafka-connector'
 include 'datastream-file-connector'
-include 'datastream-mysql-connector'
 include 'datastream-tools'
-include 'brooklin-oracle-tb-connector'
 
