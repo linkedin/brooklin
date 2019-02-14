@@ -152,31 +152,6 @@ project(':datastream-file-connector') {
   }
 }
 
-project(':datastream-mysql-connector') {
-  dependencies {
-    compile project(':datastream-server-api')
-    compile "org.apache.avro:avro:$avroVersion"
-    compile "com.zendesk:open-replicator:1.4.2"
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
-    testCompile project(':datastream-testcommon')
-  }
-  test {
-    workingDir(project.projectDir.toString() + "/..")
-  }
-}
-
-project(':brooklin-oracle-tb-connector') {
-  dependencies {
-    compile project(':datastream-server-api')
-    compile "org.apache.avro:avro:$avroVersion"
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
-    testCompile project(':datastream-testcommon')
-    test {
-      workingDir(project.projectDir.toString() + "/..")
-    }
-  }
-}
-
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
@@ -263,8 +238,6 @@ project(':datastream-tools') {
     from(project(':datastream-tools').configurations.runtime) { into("libs/") }
     from(project(':datastream-server').jar) { into("libs/") }
     from(project(':datastream-server').configurations.runtime) { into("libs/") }
-    from(project(':datastream-mysql-connector').jar) { into("libs/") }
-    from(project(':datastream-mysql-connector').configurations.runtime) { into("libs/") }
     from(project(':datastream-file-connector').jar) { into("libs/") }
     from(project(':datastream-file-connector').configurations.runtime) { into("libs/") }
     from(project(':datastream-testcommon').jar) { into("libs/") }
