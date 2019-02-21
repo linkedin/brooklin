@@ -346,23 +346,23 @@ public class MockResultSet implements ResultSet {
   }
 
   @Override
-  public void setFetchDirection(int direction) throws SQLException {
-
-  }
-
-  @Override
   public int getFetchDirection() throws SQLException {
     return 0;
   }
 
   @Override
-  public void setFetchSize(int rows) throws SQLException {
+  public void setFetchDirection(int direction) throws SQLException {
 
   }
 
   @Override
   public int getFetchSize() throws SQLException {
     return 0;
+  }
+
+  @Override
+  public void setFetchSize(int rows) throws SQLException {
+
   }
 
   @Override
@@ -1010,14 +1010,12 @@ public class MockResultSet implements ResultSet {
     return false;
   }
 
-
   class MockResultSetMetaData implements ResultSetMetaData {
     DatabaseRow _row;
 
     MockResultSetMetaData(DatabaseRow row) {
       _row = row;
     }
-
 
     @Override
     public int getColumnCount() throws SQLException {
@@ -1061,7 +1059,7 @@ public class MockResultSet implements ResultSet {
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-      return  null;
+      return null;
     }
 
     @Override
@@ -1136,5 +1134,4 @@ public class MockResultSet implements ResultSet {
       return false;
     }
   }
-
 }

@@ -61,47 +61,6 @@ public class KafkaDatastreamStatesResponse {
     _inFlightMessageCounts = inFlightMessageCounts;
   }
 
-  public String getDatastream() {
-    return _datastream;
-  }
-
-  public Map<TopicPartition, PausedSourcePartitionMetadata> getAutoPausedPartitions() {
-    return _autoPausedPartitions;
-  }
-
-  public Map<String, Set<String>> getManualPausedPartitions() {
-    return _manualPausedPartitions;
-  }
-
-  public Map<FlushlessEventProducerHandler.SourcePartition, Long> getInFlightMessageCounts() {
-    return _inFlightMessageCounts;
-  }
-
-  @JsonSerialize(contentUsing = ToStringSerializer.class)
-  public Set<TopicPartition> getAssignedTopicPartitions() {
-    return _assignedTopicPartitions;
-  }
-
-  public void setDatastream(String datastream) {
-    _datastream = datastream;
-  }
-
-  public void setAutoPausedPartitions(Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions) {
-    _autoPausedPartitions = autoPausedPartitions;
-  }
-
-  public void setManualPausedPartitions(Map<String, Set<String>> manualPausedPartitions) {
-    _manualPausedPartitions = manualPausedPartitions;
-  }
-
-  public void setAssignedTopicPartitions(Set<TopicPartition> assignedTopicPartitions) {
-    _assignedTopicPartitions = assignedTopicPartitions;
-  }
-
-  public void setInFlightMessageCounts(Map<FlushlessEventProducerHandler.SourcePartition, Long> inFlightMessageCounts) {
-    _inFlightMessageCounts = inFlightMessageCounts;
-  }
-
   public static String toJson(KafkaDatastreamStatesResponse obj) {
     return JsonUtils.toJson(obj);
   }
@@ -117,11 +76,52 @@ public class KafkaDatastreamStatesResponse {
     return JsonUtils.fromJson(json, KafkaDatastreamStatesResponse.class, mapper);
   }
 
-  private static  TopicPartition topicPartitionFromString(String tp) {
+  private static TopicPartition topicPartitionFromString(String tp) {
     int partitionDelimiterIndex = tp.lastIndexOf("-");
     String source = tp.substring(0, partitionDelimiterIndex);
     String partition = tp.substring(partitionDelimiterIndex + 1, tp.length());
     return new TopicPartition(source, Integer.valueOf(partition));
+  }
+
+  public String getDatastream() {
+    return _datastream;
+  }
+
+  public void setDatastream(String datastream) {
+    _datastream = datastream;
+  }
+
+  public Map<TopicPartition, PausedSourcePartitionMetadata> getAutoPausedPartitions() {
+    return _autoPausedPartitions;
+  }
+
+  public void setAutoPausedPartitions(Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions) {
+    _autoPausedPartitions = autoPausedPartitions;
+  }
+
+  public Map<String, Set<String>> getManualPausedPartitions() {
+    return _manualPausedPartitions;
+  }
+
+  public void setManualPausedPartitions(Map<String, Set<String>> manualPausedPartitions) {
+    _manualPausedPartitions = manualPausedPartitions;
+  }
+
+  public Map<FlushlessEventProducerHandler.SourcePartition, Long> getInFlightMessageCounts() {
+    return _inFlightMessageCounts;
+  }
+
+  public void setInFlightMessageCounts(Map<FlushlessEventProducerHandler.SourcePartition, Long> inFlightMessageCounts) {
+    _inFlightMessageCounts = inFlightMessageCounts;
+  }
+
+  @JsonSerialize(contentUsing = ToStringSerializer.class)
+  public Set<TopicPartition> getAssignedTopicPartitions() {
+    return _assignedTopicPartitions;
+  }
+
+  public void setAssignedTopicPartitions(Set<TopicPartition> assignedTopicPartitions) {
+    _assignedTopicPartitions = assignedTopicPartitions;
   }
 
   private static class SourcePartitionDeserializer extends KeyDeserializer {

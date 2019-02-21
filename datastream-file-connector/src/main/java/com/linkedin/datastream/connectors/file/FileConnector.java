@@ -31,10 +31,10 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  * Uses a single thread per file
  */
 public class FileConnector implements Connector {
-  private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
   public static final String CONNECTOR_NAME = "file";
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
   public static final String CFG_NUM_PARTITIONS = "numPartitions";
+  private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
   private static final Duration SHUTDOWN_TIMEOUT = Duration.ofMillis(5000);
 

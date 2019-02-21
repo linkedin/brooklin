@@ -1,7 +1,9 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.Collection;
+
 import org.apache.kafka.common.TopicPartition;
+
 
 /**
  * The interface can used to implement any topics related management that mirror maker needs to do (for example,

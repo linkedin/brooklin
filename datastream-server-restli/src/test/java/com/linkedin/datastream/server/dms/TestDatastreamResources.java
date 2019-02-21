@@ -466,7 +466,8 @@ public class TestDatastreamResources {
         Stream.of(datastream1, datastream2).collect(Collectors.toMap(Datastream::getName, ds -> ds)));
     try {
       BatchUpdateResult<String, Datastream> response = resource.batchUpdate(batchRequest);
-      Assert.assertTrue(response.getResults().values().stream().allMatch(res -> res.getStatus().equals(HttpStatus.S_200_OK)));
+      Assert.assertTrue(
+          response.getResults().values().stream().allMatch(res -> res.getStatus().equals(HttpStatus.S_200_OK)));
     } catch (RestLiServiceException e) {
       Assert.fail("Valid batch update request failed");
     }
@@ -591,7 +592,7 @@ public class TestDatastreamResources {
     return stream;
   }
 
-  private List<Datastream> createDataStreams(DatastreamResources resource, String preffix, int count) throws Exception {
+  private List<Datastream> createDatastreams(DatastreamResources resource, String preffix, int count) throws Exception {
     return IntStream.range(0, count).mapToObj(n -> createDatastream(resource, preffix, n)).collect(Collectors.toList());
   }
 
@@ -602,7 +603,7 @@ public class TestDatastreamResources {
     Assert.assertEquals(resource.getAll(NO_PAGING).size(), 0);
 
     String datastreamName = "TestDatastream-";
-    List<Datastream> datastreams = createDataStreams(resource, datastreamName, 10);
+    List<Datastream> datastreams = createDatastreams(resource, datastreamName, 10);
 
     // Get All
     Optional<List<Datastream>> result =
@@ -641,7 +642,7 @@ public class TestDatastreamResources {
 
     Assert.assertEquals(resource.getAll(NO_PAGING).size(), 0);
 
-    List<Datastream> datastreams = createDataStreams(resource, "TestDatastream-", 10);
+    List<Datastream> datastreams = createDatastreams(resource, "TestDatastream-", 10);
 
     int skip = 2;
     int limit = 5;

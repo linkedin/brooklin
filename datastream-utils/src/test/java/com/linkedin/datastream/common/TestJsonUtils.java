@@ -2,7 +2,14 @@ package com.linkedin.datastream.common;
 
 import org.testng.annotations.Test;
 
+
 public class TestJsonUtils {
+  @Test
+  public void testDeserializationNewFieldsNoErrors() {
+    String json = "{\"foo\":100,\"bar\":\"hello\"}";
+    JsonUtils.fromJson(json, TestClass.class);
+  }
+
   static class TestClass {
     private int _foo;
     private String _bar;
@@ -28,11 +35,5 @@ public class TestJsonUtils {
     public Long getBaz() {
       return _baz;
     }
-  }
-
-  @Test
-  public void testDeserializationNewFieldsNoErrors() {
-    String json = "{\"foo\":100,\"bar\":\"hello\"}";
-    JsonUtils.fromJson(json, TestClass.class);
   }
 }

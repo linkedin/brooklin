@@ -74,7 +74,7 @@ public class DatastreamGroup {
 
   // Returns true if the task belongs to this group.
   public boolean belongsTo(DatastreamTask task) {
-    return  task.getTaskPrefix().equals(getTaskPrefix());
+    return task.getTaskPrefix().equals(getTaskPrefix());
   }
 
   @Override

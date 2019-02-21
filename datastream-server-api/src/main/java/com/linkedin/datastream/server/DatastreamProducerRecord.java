@@ -19,8 +19,9 @@ public class DatastreamProducerRecord {
   private final Optional<String> _partitionKey;
   private final Optional<String> _destination;
   private final String _checkpoint;
-  private List<BrooklinEnvelope> _events;
   private final long _eventsSourceTimestamp;
+
+  private List<BrooklinEnvelope> _events;
 
   // timestamp of when the record was sent to transport provider
   private Optional<Long> _eventsSendTimestamp = Optional.empty();
@@ -76,12 +77,12 @@ public class DatastreamProducerRecord {
     return _eventsSourceTimestamp;
   }
 
-  public void setEventsSendTimestamp(long timestamp) {
-    _eventsSendTimestamp = Optional.of(timestamp);
-  }
-
   public Optional<Long> getEventsSendTimestamp() {
     return _eventsSendTimestamp;
+  }
+
+  public void setEventsSendTimestamp(long timestamp) {
+    _eventsSendTimestamp = Optional.of(timestamp);
   }
 
   /**

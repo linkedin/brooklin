@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.util.Arrays;
 import java.util.Collections;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

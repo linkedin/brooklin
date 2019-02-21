@@ -415,8 +415,6 @@ public class ZkAdapter {
 
   /**
    * get all datastream tasks assigned to this instance
-   * @param instance
-   * @return
    */
   public List<String> getInstanceAssignment(String instance) {
     String path = KeyBuilder.instanceAssignments(_cluster, instance);
@@ -470,8 +468,6 @@ public class ZkAdapter {
    * the znode content under /{cluster}/instances/{instance}/{taskname} and return
    * an instance of DatastreamTask
    *
-   * @param instance
-   * @param taskName
    * @return null if task node does not exist or inaccessible
    */
   public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
@@ -585,8 +581,6 @@ public class ZkAdapter {
    *
    *  - /<cluster>/instances/<instance>/<task1>,<task2>...
    *  - /<cluster>/connectors/<connectorType>/<task-name1>,<task-name2>...
-   *
-   * @param assignmentsByInstance
    */
   public void updateAllAssignments(Map<String, List<DatastreamTask>> assignmentsByInstance) {
     // map of task name to DatastreamTask for future reference
@@ -634,9 +628,6 @@ public class ZkAdapter {
   /**
    * Compare the current assignment with the new assignment, and update the list of nodes
    * to add and remove per instance.
-   * @param assignmentsByInstance
-   * @param nodesToRemove
-   * @param nodesToAdd
    */
   private void diffAssignmentNodes(Map<String, List<DatastreamTask>> assignmentsByInstance,
       Map<String, Set<String>> nodesToRemove, Map<String, Set<String>> nodesToAdd) {
@@ -715,7 +706,6 @@ public class ZkAdapter {
 
   /**
    * Save the error message in zookeeper under /{cluster}/instances/{instanceName}/errors
-   * @param message
    */
   public void zkSaveInstanceError(String message) {
     String path = KeyBuilder.instanceErrors(_cluster, _instanceName);
@@ -742,9 +732,6 @@ public class ZkAdapter {
 
   /**
    * return the znode content under /{cluster}/connectors/{connectorType}/{datastreamTask}/state
-   * @param datastreamTask
-   * @param key
-   * @return
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
     String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
@@ -754,9 +741,6 @@ public class ZkAdapter {
 
   /**
    * set value for znode content at /{cluster}/connectors/{connectorType}/{datastreamTask}/state
-   * @param datastreamTask
-   * @param key
-   * @param value
    */
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),

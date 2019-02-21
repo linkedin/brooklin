@@ -29,8 +29,9 @@ public class ServerComponentHealthAggregator {
 
   private final ZkClient _zkClient;
   private final String _cluster;
-  private int _restEndPointPort;
   private final String _restEndPointPath;
+
+  private int _restEndPointPort;
 
   public ServerComponentHealthAggregator(ZkClient zkClient, String cluster, int endPointPort, String endPointPath) {
     assert zkClient != null;
@@ -42,14 +43,13 @@ public class ServerComponentHealthAggregator {
     _restEndPointPath = endPointPath;
   }
 
-  public List<ServerComponentHealth> getResponses(String componentType, String componentScope,
-      String componentInputs, DiagnosticsAware component) {
+  public List<ServerComponentHealth> getResponses(String componentType, String componentScope, String componentInputs,
+      DiagnosticsAware component) {
     List<String> hosts = getLiveInstances();
     Map<String, String> responses = new ConcurrentHashMap<>();
     Map<String, String> errorResponses = new ConcurrentHashMap<>();
 
-    hosts.parallelStream().forEach(hostName ->
-    {
+    hosts.parallelStream().forEach(hostName -> {
       // Send requests to all the server live instances
       String dmsUri = getDmsUri(hostName);
       LOG.info("Send restli status request to " + dmsUri);
@@ -60,7 +60,7 @@ public class ServerComponentHealthAggregator {
       try {
         response = restClient.getStatus(componentType, componentScope, componentInputs);
       } catch (Exception e) {
-        errorMessage = "Received REST exception: " + e.toString() +  " from the host: " + dmsUri;
+        errorMessage = "Received REST exception: " + e.toString() + " from the host: " + dmsUri;
         LOG.error("Received REST exception from the host: {}", dmsUri, e);
       } finally {
         // No response received from a host, set error message
@@ -132,5 +132,4 @@ public class ServerComponentHealthAggregator {
       _restEndPointPort = port;
     }
   }
-
 }

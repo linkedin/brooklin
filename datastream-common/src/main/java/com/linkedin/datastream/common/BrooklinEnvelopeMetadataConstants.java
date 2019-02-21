@@ -4,9 +4,7 @@ public class BrooklinEnvelopeMetadataConstants {
 
   public enum OpCode {
     INSERT,
-
     UPDATE,
-
     DELETE,
   }
 

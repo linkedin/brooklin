@@ -2,6 +2,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.util.Comparator;
 import java.util.Objects;
+
 import org.apache.commons.validator.routines.DomainValidator;
 import org.apache.commons.validator.routines.InetAddressValidator;
 

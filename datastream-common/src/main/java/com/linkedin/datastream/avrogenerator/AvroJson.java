@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.avro.Schema;
 import org.codehaus.jackson.JsonFactory;
@@ -35,40 +35,7 @@ public class AvroJson {
   private static final String ARRAY_TYPE = "array";
   private static final String RECORD_TYPE = "record";
 
-
   private final Map<String, Object> _info = new HashMap<>();
-
-  public void setName(String name) {
-    _info.put(NAME_KEY, name);
-  }
-
-  public void setMeta(String meta) {
-    _info.put(META_KEY, meta);
-  }
-
-  public void setDoc(String doc) {
-    _info.put(DOC_KEY, doc);
-  }
-
-  public void setType(Object type) {
-    _info.put(TYPE_KEY, type);
-  }
-
-  public void setArrayItems(Object items) {
-    _info.put(ARRAY_ITEMS_KEY, items);
-  }
-
-  public void setNamespace(String namespace) {
-    _info.put(NAMESPACE_KEY, namespace);
-  }
-
-  public void nullDefault() {
-    _info.put(DEFAULT_KEY, null);
-  }
-
-  public void setFields(List<Map<String, Object>> fields) {
-    _info.put(FIELD_KEY, fields);
-  }
 
   /**
    * A static helper method to build a inner arrayType Avro Json
@@ -107,6 +74,38 @@ public class AvroJson {
     nullableType.add("null");
 
     return nullableType;
+  }
+
+  public void setName(String name) {
+    _info.put(NAME_KEY, name);
+  }
+
+  public void setMeta(String meta) {
+    _info.put(META_KEY, meta);
+  }
+
+  public void setDoc(String doc) {
+    _info.put(DOC_KEY, doc);
+  }
+
+  public void setType(Object type) {
+    _info.put(TYPE_KEY, type);
+  }
+
+  public void setArrayItems(Object items) {
+    _info.put(ARRAY_ITEMS_KEY, items);
+  }
+
+  public void setNamespace(String namespace) {
+    _info.put(NAMESPACE_KEY, namespace);
+  }
+
+  public void nullDefault() {
+    _info.put(DEFAULT_KEY, null);
+  }
+
+  public void setFields(List<Map<String, Object>> fields) {
+    _info.put(FIELD_KEY, fields);
   }
 
   public Map<String, Object> info() {

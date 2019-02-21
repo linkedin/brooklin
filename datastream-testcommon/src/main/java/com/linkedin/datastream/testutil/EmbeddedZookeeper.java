@@ -19,7 +19,8 @@ import com.linkedin.datastream.common.FileUtils;
 
 
 public class EmbeddedZookeeper {
-  private static final Logger LOG =  LoggerFactory.getLogger(EmbeddedZookeeper.class);
+  private static final Logger LOG = LoggerFactory.getLogger(EmbeddedZookeeper.class);
+
   private int _port = -1;
   private int _tickTime = 500;
 
@@ -101,20 +102,20 @@ public class EmbeddedZookeeper {
     return "localhost:" + _port;
   }
 
-  public void setPort(int port) {
-    this._port = port;
-  }
-
-  public void setTickTime(int tickTime) {
-    this._tickTime = tickTime;
-  }
-
   public int getPort() {
     return _port;
   }
 
+  public void setPort(int port) {
+    this._port = port;
+  }
+
   public int getTickTime() {
     return _tickTime;
+  }
+
+  public void setTickTime(int tickTime) {
+    this._tickTime = tickTime;
   }
 
   public boolean isStarted() {

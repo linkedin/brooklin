@@ -2,8 +2,8 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.Collection;
 import java.util.HashSet;
-
 import java.util.Properties;
+
 import org.apache.kafka.common.TopicPartition;
 
 import com.linkedin.datastream.common.Datastream;

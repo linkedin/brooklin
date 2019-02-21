@@ -1,10 +1,10 @@
 package com.linkedin.datastream.common;
 
-import com.linkedin.restli.server.PagingContext;
-
 import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
+
+import com.linkedin.restli.server.PagingContext;
 
 
 /**
@@ -28,7 +28,6 @@ public final class RestliUtils {
    * @param stream stream of elements to be paginated
    * @param pagingContext settings for pagination
    * @param <T> type of elements in the Stream
-   * @return
    */
   public static <T> Stream<T> withPaging(Stream<T> stream, final PagingContext pagingContext) {
     if (pagingContext.hasStart()) {

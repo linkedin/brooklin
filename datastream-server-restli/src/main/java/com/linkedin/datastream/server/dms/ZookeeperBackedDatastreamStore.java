@@ -63,8 +63,6 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
    * The datastream key-set used to make this call is cached, it is possible to get a slightly outdated
    * list of datastreams and not have a stream that was just added. It depends on how long it takes for
    * ZooKeeper to notify the change.
-   *
-   * @return
    */
   @Override
   public Stream<String> getAllDatastreams() {

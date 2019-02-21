@@ -48,22 +48,14 @@ public class BrooklinEnvelope {
     _previousValue = previousValue instanceof Optional ? ((Optional<?>) previousValue).orElse(null) : previousValue;
   }
 
-  public void setKey(@Nullable Object key) {
-    _key = key instanceof Optional ? ((Optional<?>) key).orElse(null) : key;
-  }
-
-  public void setValue(@Nullable Object value) {
-    _value = value instanceof Optional ? ((Optional<?>) value).orElse(null) : value;
-  }
-
-  public void setMetadata(Map<String, String> metadata) {
-    _metadata = metadata;
-  }
-
   @Nullable
   @Deprecated
   public Object getKey() {
     return _key;
+  }
+
+  public void setKey(@Nullable Object key) {
+    _key = key instanceof Optional ? ((Optional<?>) key).orElse(null) : key;
   }
 
   public Optional<Object> key() {
@@ -76,12 +68,20 @@ public class BrooklinEnvelope {
     return _value;
   }
 
+  public void setValue(@Nullable Object value) {
+    _value = value instanceof Optional ? ((Optional<?>) value).orElse(null) : value;
+  }
+
   public Optional<Object> value() {
     return Optional.ofNullable(_value);
   }
 
   public Map<String, String> getMetadata() {
     return _metadata;
+  }
+
+  public void setMetadata(Map<String, String> metadata) {
+    _metadata = metadata;
   }
 
   @Override

@@ -26,24 +26,24 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
-  private static final String MODULE = ZookeeperCheckpointProvider.class.getSimpleName();
   public static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
 
-  private final ZkAdapter _zkAdapter;
-
+  private static final Logger LOG = LoggerFactory.getLogger(ZookeeperCheckpointProvider.class.getName());
+  private static final String MODULE = ZookeeperCheckpointProvider.class.getSimpleName();
   private static final String NUM_CHECKPOINT_COMMITS = "numCheckpointCommits";
   private static final String CHECKPOINT_COMMIT_LATENCY_MS = "checkpointCommitLatencyMs";
+  private static final Duration CHECKPOINT_INTERVAL = Duration.ofMinutes(1);
+
+  private final ZkAdapter _zkAdapter;
   private final DynamicMetricsManager _dynamicMetricsManager;
+
+  // Instruct jackson to convert string keys to integer
+  final TypeReference<ConcurrentHashMap<Integer, String>> _hashMapTypeReference =
+      new TypeReference<ConcurrentHashMap<Integer, String>>() {
+      };
 
   private ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
   private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
-  private static final Duration CHECKPOINT_INTERVAL = Duration.ofMinutes(1);
-
-  // Instruct jackson to convert string keys to integer
-  TypeReference<ConcurrentHashMap<Integer, String>> _hashMapTypeReference =
-      new TypeReference<ConcurrentHashMap<Integer, String>>() {
-      };
 
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;

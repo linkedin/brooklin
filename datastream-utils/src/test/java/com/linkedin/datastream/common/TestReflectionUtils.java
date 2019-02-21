@@ -5,8 +5,9 @@ import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 
-import junit.framework.Assert;
 import org.testng.annotations.Test;
+
+import junit.framework.Assert;
 
 
 public class TestReflectionUtils {
@@ -57,11 +58,6 @@ public class TestReflectionUtils {
     Assert.assertTrue(exception);
   }
 
-  static class TestData {
-    private String _privateField;
-    public String _publicField;
-  }
-
   @Test
   public void testSetField() throws Exception {
     TestData data = new TestData();
@@ -89,12 +85,6 @@ public class TestReflectionUtils {
   private int privateSetArgMethod(Set<Integer> mySet) {
     System.out.println("privateSetArgMethod");
     return 10;
-  }
-
-  class A {
-  }
-
-  class B extends A {
   }
 
   private void privateSubtypeUnhappy(B b) {
@@ -128,5 +118,16 @@ public class TestReflectionUtils {
     }
 
     ReflectionUtils.callMethod(tester, "privateSubtypeHappy", new B());
+  }
+
+  static class TestData {
+    public String _publicField;
+    private String _privateField;
+  }
+
+  class A {
+  }
+
+  class B extends A {
   }
 }

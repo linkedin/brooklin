@@ -1,6 +1,7 @@
 package com.linkedin.datastream.avrogenerator;
 
 import java.sql.SQLException;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

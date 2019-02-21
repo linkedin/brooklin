@@ -47,10 +47,15 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 
-import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.*;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.spy;
 
 
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
@@ -69,8 +74,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -158,8 +162,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     // create a producer that will take a few seconds to flush
@@ -194,17 +197,14 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testRegularCommitWithFlushlessProducer() throws Exception {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
         new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), new VerifiableProperties(new Properties()),
-            new Properties(), "", "", 200, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        true,
+            new Properties(), "", "", 200, 5, Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "", true,
         new KafkaGroupIdConstructor(false, "test"));
 
     KafkaMirrorMakerConnectorTask spiedTask = spy(connectorTask);
@@ -300,8 +300,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -321,7 +320,6 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Make sure there isn't any paused partition
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig().size(), 0);
     validatePausedPartitionsMetrics("KafkaMirrorMakerConnectorTask", datastream.getName(), 0, 0, 0);
-
 
     // Produce an event to each of the 3 topics
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
@@ -391,7 +389,6 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
           "Transferred msgs when not expected. Expected: 4 Tansferred:  " + datastreamProducer.getEvents().size());
     }
 
-
     // Now add * to yummypizza and 0 to spicy pizza, and make sure 0 is neglected for spicypizza and a * is added for yummypizza
     // As * will translate to all partitions, and yummypizza has only 1 partition which is already added, this will be a noop
     pausedPartitions.clear();
@@ -416,7 +413,6 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       Assert.fail("Transferred messages when not expected, after * partitions were added. Expected: 4 Transferred: "
           + datastreamProducer.getEvents().size());
     }
-
 
     // Now update partition assignment
     // Doesn't matter the partition/topic - we just want to ensure paused partitions are updated (to the same value)
@@ -464,8 +460,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     // create event producer that fails on 3rd event (of 5)
@@ -548,8 +543,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     // create event producer that fails on 3rd event (of 5)
@@ -608,8 +602,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     createTopic(_zkUtils, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -632,9 +625,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // verify the task is no longer subscribed to the deleted topic YummyPizza
     boolean partitionRevoked = PollUtils.poll(() -> {
-          Set<TopicPartition> assigned = connectorTask.getKafkaDatastreamStatesResponse().getAssignedTopicPartitions();
-          return assigned.size() == 1 && assigned.contains(new TopicPartition(saltyTopic, 0));
-        }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+      Set<TopicPartition> assigned = connectorTask.getKafkaDatastreamStatesResponse().getAssignedTopicPartitions();
+      return assigned.size() == 1 && assigned.contains(new TopicPartition(saltyTopic, 0));
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     Assert.assertTrue(partitionRevoked, "The deleted topic should have been revoked, but is still assigned");
 
     // produce another event to SaltyPizza
@@ -841,7 +834,6 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
-
 
     // verify that none of the events were sent because of send error
     Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");

@@ -35,5 +35,4 @@ public class BrooklinHistogramInfo extends BrooklinMetricInfo {
   public BrooklinHistogramInfo(String nameOrRegex, Optional<List<String>> histogramAttributes) {
     super(nameOrRegex, histogramAttributes);
   }
-
 }

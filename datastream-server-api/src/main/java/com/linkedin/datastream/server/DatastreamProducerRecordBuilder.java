@@ -49,7 +49,6 @@ public class DatastreamProducerRecordBuilder {
 
   /**
    * Set the sourcecheckpoint for the datastream record.
-   * @param sourceCheckpoint
    */
   public void setSourceCheckpoint(String sourceCheckpoint) {
     _sourceCheckpoint = sourceCheckpoint;

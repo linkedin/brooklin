@@ -1,9 +1,10 @@
 package com.linkedin.datastream.testutil.event.generator;
 
-import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
+
+import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 
 
 /*
@@ -54,13 +55,13 @@ public abstract class SchemaField {
     _maxNumElements = maxNumElements;
   }
 
+  public static long getSeed() {
+    return _seed;
+  }
+
   public static void setSeed(long seed) {
     _seed = seed;
     createRandomValueGenerator();
-  }
-
-  public static long getSeed() {
-    return _seed;
   }
 
   public static boolean isSeedSet() {
@@ -120,5 +121,4 @@ public abstract class SchemaField {
    * return the random generated object. Use this to fetch the object instead of writing to an record.
    */
   public abstract Object generateRandomObject() throws UnknownTypeException;
-
 }

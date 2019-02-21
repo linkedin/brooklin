@@ -58,7 +58,6 @@ public class DatastreamJettyStandaloneLauncher {
     final TransportDispatcher dispatcher = new DelegatingTransportDispatcher(restServer, restServer);
 
     _httpJettyServer = (HttpJettyServer) new HttpServerFactory(FilterChains.empty()).createServer(port, dispatcher);
-
   }
 
   /**

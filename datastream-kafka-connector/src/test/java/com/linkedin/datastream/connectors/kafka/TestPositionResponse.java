@@ -20,13 +20,17 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
-import org.apache.kafka.common.Metric;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
@@ -39,11 +43,10 @@ import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
-import org.testng.Assert;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyCollectionOf;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -54,15 +57,14 @@ import static org.mockito.Mockito.*;
 public class TestPositionResponse {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestPositionResponse.class);
+  private static final long POLL_PERIOD_MS = Duration.ofMillis(250).toMillis();
+  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(250).toMillis();
 
   private KafkaConnectorTask _consumer;
   private MockDatastreamEventProducer _producer;
   private KafkaConsumerState _state;
   private KafkaConsumerFactory<byte[], byte[]> _factory;
   private DatastreamTaskImpl _task;
-
-  private static final long POLL_PERIOD_MS = Duration.ofMillis(250).toMillis();
-  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(250).toMillis();
 
   @BeforeMethod(alwaysRun = true)
   public void beforeMethodSetup() throws Exception {
@@ -167,7 +169,6 @@ public class TestPositionResponse {
 
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
 
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
@@ -365,23 +366,23 @@ public class TestPositionResponse {
    */
   private static class KafkaConsumerState {
     /*
+     * Consumer state
+     */
+    final Map<TopicPartition, Long> _lastPolledOffsets = new HashMap<>();
+    final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> _recordsOnBroker = new HashMap<>();
+
+    /*
      * Lock variables for blocking poll()
      */
     private final Lock _lock = new ReentrantLock();
-    private volatile boolean _signal = false;
     private final Condition _signaled = _lock.newCondition();
+    private volatile boolean _signal = false;
 
     /*
      * Consumer test settings
      */
     private volatile boolean _faulty = false;
     private Set<TopicPartition> _disabledTopicPartitions = new HashSet<>();
-
-    /*
-     * Consumer state
-     */
-    final Map<TopicPartition, Long> _lastPolledOffsets = new HashMap<>();
-    final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> _recordsOnBroker = new HashMap<>();
 
     /**
      * Initializes a Kafka consumer with specified topic partitions.

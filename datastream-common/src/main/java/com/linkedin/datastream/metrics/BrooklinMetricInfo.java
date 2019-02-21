@@ -27,5 +27,4 @@ public abstract class BrooklinMetricInfo {
   public String getNameOrRegex() {
     return _nameOrRegex;
   }
-
 }

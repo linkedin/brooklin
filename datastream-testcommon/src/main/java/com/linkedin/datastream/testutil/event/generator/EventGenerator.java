@@ -13,5 +13,4 @@ public interface EventGenerator {
   void generateUpdatesOnly(int numEvents, long startScn, long endScn);
 
   void generateDeletesOnly(int numEvents, long startScn, long endScn);
-
 }

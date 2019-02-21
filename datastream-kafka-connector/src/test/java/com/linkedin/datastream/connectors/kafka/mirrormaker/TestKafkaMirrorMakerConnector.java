@@ -31,8 +31,8 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
-import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
+import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.connectors.kafka.TestKafkaConnectorUtils;
@@ -47,7 +47,9 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.*;
+import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
+import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
+
 
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
@@ -62,8 +64,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
     config.put(KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS, "5000");
-    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS,
-        LiKafkaConsumerFactory.class.getName());
+    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, LiKafkaConsumerFactory.class.getName());
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.TRUE.toString());
     config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MS, "1000");
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
@@ -344,8 +345,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     createTopic(_zkUtils, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -397,8 +397,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     createTopic(_zkUtils, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
-    Datastream datastream =
-        KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();

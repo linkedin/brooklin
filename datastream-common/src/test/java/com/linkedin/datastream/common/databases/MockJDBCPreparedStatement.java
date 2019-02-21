@@ -418,23 +418,23 @@ public class MockJDBCPreparedStatement implements PreparedStatement {
   }
 
   @Override
-  public void setFetchDirection(int direction) throws SQLException {
-
-  }
-
-  @Override
   public int getFetchDirection() throws SQLException {
     return 0;
   }
 
   @Override
-  public void setFetchSize(int rows) throws SQLException {
+  public void setFetchDirection(int direction) throws SQLException {
 
   }
 
   @Override
   public int getFetchSize() throws SQLException {
     return 0;
+  }
+
+  @Override
+  public void setFetchSize(int rows) throws SQLException {
+
   }
 
   @Override
@@ -518,13 +518,13 @@ public class MockJDBCPreparedStatement implements PreparedStatement {
   }
 
   @Override
-  public void setPoolable(boolean poolable) throws SQLException {
-
+  public boolean isPoolable() throws SQLException {
+    return false;
   }
 
   @Override
-  public boolean isPoolable() throws SQLException {
-    return false;
+  public void setPoolable(boolean poolable) throws SQLException {
+
   }
 
   @Override

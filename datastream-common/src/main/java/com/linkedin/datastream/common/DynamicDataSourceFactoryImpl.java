@@ -85,5 +85,4 @@ public class DynamicDataSourceFactoryImpl implements OracleDataSourceFactory {
 
     return loadedClass;
   }
-
 }

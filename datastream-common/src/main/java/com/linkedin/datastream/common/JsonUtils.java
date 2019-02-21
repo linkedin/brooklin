@@ -18,10 +18,9 @@ import org.slf4j.LoggerFactory;
  * for checking the
  */
 public final class JsonUtils {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
-
   private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class.getName());
 
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   static {
     MAPPER.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -29,21 +28,6 @@ public final class JsonUtils {
     config.addMixInAnnotations(Datastream.class, IgnoreDatastreamSetPausedMixIn.class);
     config.addMixInAnnotations(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
     config.addMixInAnnotations(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
-  }
-
-  private static abstract class IgnoreDatastreamSourceSetPartitionsMixIn {
-    @JsonIgnore
-    public abstract DatastreamSource setPartitions(int value);
-  }
-
-  private static abstract class IgnoreDatastreamDestinationSetPartitionsMixIn {
-    @JsonIgnore
-    public abstract DatastreamDestination setPartitions(int value);
-  }
-
-  private abstract class IgnoreDatastreamSetPausedMixIn {
-    @JsonIgnore
-    public abstract void setPaused(Boolean value);
   }
 
   /**
@@ -116,5 +100,20 @@ public final class JsonUtils {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
     return out.toString();
+  }
+
+  private static abstract class IgnoreDatastreamSourceSetPartitionsMixIn {
+    @JsonIgnore
+    public abstract DatastreamSource setPartitions(int value);
+  }
+
+  private static abstract class IgnoreDatastreamDestinationSetPartitionsMixIn {
+    @JsonIgnore
+    public abstract DatastreamDestination setPartitions(int value);
+  }
+
+  private abstract class IgnoreDatastreamSetPausedMixIn {
+    @JsonIgnore
+    public abstract void setPaused(Boolean value);
   }
 }

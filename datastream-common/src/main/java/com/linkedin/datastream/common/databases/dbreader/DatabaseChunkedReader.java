@@ -26,6 +26,7 @@ import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
+
 /**
  * Generic JDBC Source Reader. Can be used for executing a generic query on the given source using chunking algorithm.
  * The reader acts as an iterator for Database records and returns a GenericRecord representation a row per poll and
@@ -200,7 +201,6 @@ public class DatabaseChunkedReader implements Closeable {
     executeChunkedQuery(_queryStmt);
   }
 
-
   private void releaseResources(String msg) {
     LOG.info(msg);
     LOG.info("Releasing resources");
@@ -241,8 +241,6 @@ public class DatabaseChunkedReader implements Closeable {
    *                   If null, table is read from from the first row ordered by the primary keys.
    *                   For example the table with primary key columns K1 and K2, having a row with K1 = V1 and K2 = V2
    *                   can be read starting at row immediately following this row by specifying the map {k1=V1, K2=V2}
-   * @throws SQLException
-   * @throws SchemaGenerationException
    */
   public void subscribe(List<Integer> partitions, Map<String, Object> checkpoint) throws SQLException, SchemaGenerationException {
     if (_initialized) {
@@ -272,7 +270,6 @@ public class DatabaseChunkedReader implements Closeable {
       _chunkingKeys.put(k, checkpoint.get(k));
     });
   }
-
 
   private DatabaseRow getNextRow() throws SQLException {
     _numRowsInResult++;
@@ -313,7 +310,6 @@ public class DatabaseChunkedReader implements Closeable {
    * back to start after releasing resources.
    * @return Null if end of records or the next row from the DB as served by the query constraints. Record is returned as
    *         a GenericRecord with schema specified per getTableSchema call on the DatabaseSource for the source table.
-   * @throws SQLException
    */
   public DatabaseRow poll() throws SQLException {
     if (!_initialized) {

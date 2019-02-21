@@ -14,9 +14,9 @@ import com.codahale.metrics.MetricRegistry;
 
 @Test
 public class TestDynamicMetricsManager {
-  private DynamicMetricsManager _metricsManager;
-
   private static final String CLASS_NAME = TestDynamicMetricsManager.class.getSimpleName();
+
+  private DynamicMetricsManager _metricsManager;
 
   @BeforeMethod
   public void setup(Method method) {
@@ -158,7 +158,6 @@ public class TestDynamicMetricsManager {
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, someKey, eventRate).isPresent());
   }
 
-
   public void testCreateOrUpdateHistogram() {
     String eventLatency = "eventLatency";
     String processLatency = "processLatency";
@@ -215,5 +214,4 @@ public class TestDynamicMetricsManager {
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, null, eventLatency).isPresent());
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, someKey, eventLatency).isPresent());
   }
-
 }

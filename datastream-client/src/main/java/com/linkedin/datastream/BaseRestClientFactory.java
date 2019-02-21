@@ -102,7 +102,6 @@ public final class BaseRestClientFactory<T> {
    * It is cached and reused for future Rest.li client wrapper creations without custom HTTP parameters.
    * @param uri URI to the HTTP endpoint
    * @param restClient custom R2 RestClient
-   * @return
    */
   public synchronized void registerRestClient(String uri, RestClient restClient) {
     uri = RestliUtils.sanitizeUri(uri);

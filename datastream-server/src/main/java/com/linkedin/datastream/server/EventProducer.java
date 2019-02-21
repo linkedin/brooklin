@@ -38,16 +38,8 @@ import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
  */
 public class EventProducer implements DatastreamEventProducer {
 
-  private final DatastreamTask _datastreamTask;
-
-  private static final String MODULE = EventProducer.class.getSimpleName();
-  private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
-
-  private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
-
   public static final String CFG_SKIP_MSG_SERIALIZATION_ERRORS = "skipMessageOnSerializationErrors";
   public static final String DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS = "false";
-
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
 
@@ -55,21 +47,17 @@ public class EventProducer implements DatastreamEventProducer {
   // a more frequent flush (high traffic connectors), it can perform that on it's own.
   public static final String DEFAULT_FLUSH_INTERVAL_MS = String.valueOf(Duration.ofMinutes(5).toMillis());
 
-  private final int _producerId;
-  private final Logger _logger;
+  static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
+  static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
 
-  private final TransportProvider _transportProvider;
-  private final CheckpointProvider _checkpointProvider;
-
-  private final DynamicMetricsManager _dynamicMetricsManager;
+  private static final String MODULE = EventProducer.class.getSimpleName();
+  private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
+  private static final AtomicInteger PRODUCER_ID_SEED = new AtomicInteger(0);
   private static final String TOTAL_EVENTS_PRODUCED = "totalEventsProduced";
   private static final String EVENTS_PRODUCED_WITHIN_SLA = "eventsProducedWithinSla";
   private static final String EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA = "eventsProducedWithinAlternateSla";
   private static final String EVENT_PRODUCE_RATE = "eventProduceRate";
-  static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
-  static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   private static final String FLUSH_LATENCY_MS_STRING = "flushLatencyMs";
-
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
   private static final String AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "availabilityThresholdAlternateSlaMs";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
@@ -81,13 +69,20 @@ public class EventProducer implements DatastreamEventProducer {
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(5).toMillis();
   private static final long LONG_FLUSH_WARN_THRESHOLD_MS = Duration.ofMinutes(5).toMillis();
 
+  private final DatastreamTask _datastreamTask;
+  private final int _producerId;
+  private final Logger _logger;
+  private final TransportProvider _transportProvider;
+  private final CheckpointProvider _checkpointProvider;
+  private final DynamicMetricsManager _dynamicMetricsManager;
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparision with the main
   private final int _availabilityThresholdAlternateSlaMs;
   private final boolean _skipMessageOnSerializationErrors;
-  private Instant _lastFlushTime = Instant.now();
   private final boolean _enablePerTopicMetrics;
   private final Duration _flushInterval;
+
+  private Instant _lastFlushTime = Instant.now();
 
   /**
    * Construct an EventProducer instance.
@@ -161,7 +156,6 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Send the event onto the underlying transport.
    * @param record DatastreamEvent envelope
-   * @param sendCallback
    */
   @Override
   public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
@@ -201,36 +195,36 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   // report sla metrics for aggregate, connector and task
-  private void reportSLAMetrics(String topicOrDatastreamName, boolean isWithinSLA,
-      String metricNameForWithinSLA, String metricNameForOutsideSLA) {
+  private void reportSLAMetrics(String topicOrDatastreamName, boolean isWithinSLA, String metricNameForWithinSLA,
+      String metricNameForOutsideSLA) {
     int withinSLAValue = isWithinSLA ? 1 : 0;
     int outsideSLAValue = isWithinSLA ? 0 : 1;
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, metricNameForWithinSLA, withinSLAValue);
-    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
-        metricNameForWithinSLA, withinSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), metricNameForWithinSLA,
+        withinSLAValue);
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, metricNameForWithinSLA, withinSLAValue);
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, metricNameForOutsideSLA, outsideSLAValue);
-    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
-        metricNameForOutsideSLA, outsideSLAValue);
-    _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, metricNameForOutsideSLA, outsideSLAValue);
-
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), metricNameForOutsideSLA,
+        outsideSLAValue);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, topicOrDatastreamName, metricNameForOutsideSLA,
+        outsideSLAValue);
   }
+
   // Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
   // per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
   // to avoid over-counting.
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamProducerRecord record) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = _datastreamTask.getDatastreams().get(0).getName();
-    String topicOrDatastreamName =
-        _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
+    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (record.getEventsSourceTimestamp() > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - record.getEventsSourceTimestamp();
       // Using a time sliding window for reporting latency specifically.
       // Otherwise we report very stuck max value for slow source
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName, EVENTS_LATENCY_MS_STRING,
-          LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName,
+          EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
           LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),

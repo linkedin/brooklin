@@ -54,7 +54,6 @@ public class FileUtils {
     return file;
   }
 
-
   /**
    * Delete the folder and all its contents recursively.
    * @param path
@@ -62,7 +61,6 @@ public class FileUtils {
    * @return
    *  True if the file was deleted successfully,
    *  False if not.
-   * @throws FileNotFoundException
    */
   public static boolean deleteFile(File path) throws FileNotFoundException {
     if (!path.exists()) {

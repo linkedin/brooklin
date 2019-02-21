@@ -19,11 +19,11 @@ public class FieldMetadata {
 
   private final String _dbFieldName;
   private final String _nullable;
-  private int _dbFieldPosition;
-  private Types _dbFieldType;
-
   private final Optional<Integer> _numberPrecision;
   private final Optional<Integer> _numberScale;
+
+  private int _dbFieldPosition;
+  private Types _dbFieldType;
 
   public FieldMetadata(@NotNull String dbFieldName, String nullable, int dbFieldPosition, @NotNull Types dbFieldType,
       Optional<Integer> numberPrecision, Optional<Integer> numberScale) {
@@ -110,5 +110,4 @@ public class FieldMetadata {
   public Optional<Integer> getNumberScale() {
     return _numberScale;
   }
-
 }

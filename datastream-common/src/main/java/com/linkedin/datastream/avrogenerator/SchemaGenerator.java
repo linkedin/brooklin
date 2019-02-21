@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 /**
  * This class takes a specific SQL schema (from Oracle, MySQL, etc) and converts it into an
  * Avro Schema.

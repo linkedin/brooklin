@@ -32,5 +32,4 @@ public class RecordSchemaField extends SchemaField {
 
     return subRecord;
   }
-
 }

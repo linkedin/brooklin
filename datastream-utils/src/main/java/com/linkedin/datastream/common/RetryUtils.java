@@ -3,6 +3,7 @@ package com.linkedin.datastream.common;
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,15 +29,14 @@ public class RetryUtils {
 
     private final Supplier<U> _func;
     private U _value;
-
-    public Exception getLastException() {
-      return _lastException;
-    }
-
     private Exception _lastException;
 
     public ExceptionTrackingMethodCaller(Supplier<U> func) {
       _func = func;
+    }
+
+    public Exception getLastException() {
+      return _lastException;
     }
 
     U getValue() {

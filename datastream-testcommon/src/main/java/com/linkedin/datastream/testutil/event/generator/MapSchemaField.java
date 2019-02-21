@@ -35,5 +35,4 @@ public class MapSchemaField extends SchemaField {
     }
     return map;
   }
-
 }

@@ -22,14 +22,15 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+
 
 public class KafkaConnector extends AbstractKafkaConnector {
 
+  public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnector.class);
 
-  public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
   public KafkaConnector(String connectorName, Properties config, String clusterName) {

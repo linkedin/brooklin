@@ -11,7 +11,6 @@ public interface DatastreamDeduperFactory {
   /**
    * Create datastream deduper
    * @param deduperProperties properties for datastream deduper
-   * @return
    */
   DatastreamDeduper createDatastreamDeduper(Properties deduperProperties);
 }

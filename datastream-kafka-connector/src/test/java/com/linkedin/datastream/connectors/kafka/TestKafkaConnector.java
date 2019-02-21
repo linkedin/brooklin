@@ -18,10 +18,10 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.SourceBasedDeduper;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
@@ -64,8 +64,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     Map<Integer, Long> offsets = Collections.singletonMap(0, 100L);
-    KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     ds.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(offsets));
     connector.initializeDatastream(ds, Collections.emptyList());
   }
@@ -74,8 +73,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
   public void testInitializeDatastreamWithNonexistTopic() throws DatastreamValidationException {
     String topicName = "testInitializeDatastreamWithNonexistTopic";
     Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic", topicName);
-    KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
   }
 
@@ -85,8 +83,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 100);
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
     Datastream ds = createDatastream("testPopulatingDefaultSerde", topicName);
-    KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertTrue(ds.getDestination().hasKeySerDe());
     Assert.assertEquals(ds.getDestination().getKeySerDe(), "keySerde");
@@ -100,8 +97,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 10);
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
-    KafkaConnector connector =
-        new KafkaConnector("test", getDefaultConfig(null), "testCluster");
+    KafkaConnector connector = new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
     Assert.assertEquals(ds.getSource().getPartitions().intValue(), 1);
   }

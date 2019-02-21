@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.xml.bind.DatatypeConverter;
+
 import org.slf4j.Logger;
 
 import com.linkedin.datastream.common.Datastream;
@@ -35,9 +36,6 @@ public interface GroupIdConstructor {
    * The method, given task prefix and cluster name, returns group ID with format
    * clusterName + Hash(taskPrefix). This will be used as default later once grandfathering of existing datastreams
    * is done.
-   * @param taskPrefix
-   * @param clusterName
-   * @return
    */
   default String constructGroupId(String taskPrefix, String clusterName) {
     return clusterName + "." + hashGroupId(taskPrefix);
@@ -94,7 +92,6 @@ public interface GroupIdConstructor {
    * this method should be same as constuctGroupId(DatastreamTask task) method.
    * @param task Task for which group ID should be returned
    * @param logger Optional logger - in case logs should be recorded while getting group ID
-   * @return
    */
   default String getTaskGroupId(DatastreamTask task, Optional<Logger> logger) {
     Set<String> groupIds = DatastreamUtils.getMetadataGroupIDs(task.getDatastreams());

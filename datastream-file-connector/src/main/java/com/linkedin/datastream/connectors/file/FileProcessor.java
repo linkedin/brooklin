@@ -28,8 +28,8 @@ class FileProcessor implements Runnable {
 
   private final DatastreamTask _task;
   private final String _fileName;
-  private BufferedReader _fileReader;
   private final DatastreamEventProducer _producer;
+  private BufferedReader _fileReader;
   private boolean _cancelRequested;
   private boolean _isStopped;
 

@@ -36,7 +36,6 @@ public class OracleTableFactory {
    * @param tableName The table name
    * @param primaryKey The primary key that we want to use
    * @return an OracleTable instance which represents the entire table
-   * @throws SQLException
    */
   public OracleTable buildOracleTable(String schemaName, String tableName, String primaryKey)
       throws SQLException, SchemaGenerationException {
@@ -115,11 +114,6 @@ public class OracleTableFactory {
    * Build an OracleCollectionType FieldType. These are ARRAY types. Each OracleCollectionType instance of course
    * is composed of element FieldTypes. These element FieldTypes are recursively built by calling
    * {@code #buildFieldType} using the metadata of the parent OracleCollectionType
-   *
-   * @param schemaName
-   * @param fieldTypeName
-   * @return
-   * @throws SQLException
    */
   private FieldType buildOracleCollection(String schemaName, String fieldTypeName,
       DatabaseSource.TableMetadata tableMetadata) throws SQLException {
@@ -137,11 +131,6 @@ public class OracleTableFactory {
    * database table. Each OracleStructType is composed of {@code OracleColumn} where each {@code OracleColumn}
    * has its own name and FieldType. An OracleStructType is built by recursively calling {@code #buidlFieldType}
    * on each of the child columns.
-   *
-   * @param schemaName
-   * @param fieldTypeName
-   * @return
-   * @throws SQLException
    */
   private FieldType buildOracleStruct(String schemaName, String fieldTypeName,
       DatabaseSource.TableMetadata tableMetadata) throws SQLException {

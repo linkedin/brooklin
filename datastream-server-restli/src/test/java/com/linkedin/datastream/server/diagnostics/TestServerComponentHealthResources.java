@@ -28,8 +28,7 @@ public class TestServerComponentHealthResources {
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
   @BeforeMethod
-  public void setUp(Method method)
-      throws Exception {
+  public void setUp(Method method) throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), method.getName());
     _datastreamKafkaCluster = TestDatastreamServer.initializeTestDatastreamServerWithDummyConnector(null);
     _datastreamKafkaCluster.startup();
@@ -65,9 +64,7 @@ public class TestServerComponentHealthResources {
       Assert.assertEquals(sch.isSucceeded(), Boolean.FALSE);
       Assert.assertEquals(sch.getStatus(), expectedStatus);
     }
-
   }
-
 
   @Test
   public void testGetAlltatus() {
@@ -95,6 +92,5 @@ public class TestServerComponentHealthResources {
       Assert.assertEquals(sch.isSucceeded(), Boolean.FALSE);
       Assert.assertEquals(sch.getStatus(), expectedStatus);
     }
-
   }
 }

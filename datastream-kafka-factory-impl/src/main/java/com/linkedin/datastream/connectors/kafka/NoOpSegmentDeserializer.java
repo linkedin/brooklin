@@ -6,6 +6,7 @@ import org.apache.kafka.common.serialization.Deserializer;
 
 import com.linkedin.kafka.clients.largemessage.LargeMessageSegment;
 
+
 public class NoOpSegmentDeserializer implements Deserializer<LargeMessageSegment> {
   @Override
   public void configure(Map<String, ?> configs, boolean isKey) {

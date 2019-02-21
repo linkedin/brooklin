@@ -28,7 +28,6 @@ public interface AssignmentStrategy {
    * @param datastreams all data streams defined in Datastream Management Service to be assigned
    * @param instances all live instances
    * @param currentAssignment existing assignment
-   * @return
    */
   Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment);

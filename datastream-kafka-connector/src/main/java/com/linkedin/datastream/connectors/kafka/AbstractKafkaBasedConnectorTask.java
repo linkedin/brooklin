@@ -1,6 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -38,14 +37,14 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -461,7 +460,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Handle exception during pollRecords(). The base behavior is to sleep for some time.
    * @param e the Exception
-   * @throws Exception
    */
   protected void handlePollRecordsException(Exception e) throws Exception {
     _pollAttempts++;

@@ -1,9 +1,9 @@
 package com.linkedin.datastream.server;
 
-import java.util.Map;
 import java.util.EnumMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +21,9 @@ public class CoordinatorEventBlockingQueue {
   }
 
   /**
-  * Add a single event to the queue, overwriting events with the same name
-  * @param event CoordinatorEvent event to add to the queue
-  */
+   * Add a single event to the queue, overwriting events with the same name
+   * @param event CoordinatorEvent event to add to the queue
+   */
   public synchronized void put(CoordinatorEvent event) {
     LOG.info("Queuing event {} to event queue", event.getType());
     if (!_eventMap.containsKey(event.getType())) {

@@ -208,7 +208,6 @@ public class VerifiableProperties {
    * Get an optional argument as a double
    * @param name The property name
    * @param defaultVal The default value for the property if not present
-   * @return
    */
   public double getDouble(String name, double defaultVal) {
     if (containsKey(name)) {

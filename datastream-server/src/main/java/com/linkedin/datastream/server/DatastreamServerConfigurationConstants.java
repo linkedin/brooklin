@@ -30,5 +30,4 @@ public final class DatastreamServerConfigurationConstants {
   public static final String DOMAIN_DIAG = CONFIG_PREFIX + "diag";
   public static final String CONFIG_DIAG_PORT = "port";
   public static final String CONFIG_DIAG_PATH = "path";
-
 }

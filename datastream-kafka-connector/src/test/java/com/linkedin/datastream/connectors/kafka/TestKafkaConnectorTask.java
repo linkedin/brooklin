@@ -1,7 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-
-import com.linkedin.datastream.server.zk.ZkAdapter;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -36,10 +34,17 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
-import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.*;
-import static org.mockito.Mockito.*;
+import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.getConsumerPositionFromPositionResponse;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 
 public class TestKafkaConnectorTask extends BaseKafkaZkTest {
@@ -109,7 +114,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
     boolean exceptionSeen = false;
     try {
-      KafkaConnectorTask.getKafkaGroupId(task,  groupIdConstructor, consumerMetrics, LOG);
+      KafkaConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG);
     } catch (DatastreamRuntimeException e) {
       exceptionSeen = true;
     }
@@ -189,8 +194,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
     //we expect >=5 commit calls to be made even without any traffic
     Mockito.verify(spiedTask, atLeast(5)).maybeCommitOffsets(any(), anyBoolean());
-
   }
+
   @Test
   public void testConsumerBaseCase() throws Exception {
     String topic = "Pizza2";
@@ -255,7 +260,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals(actual, expected);
   }
 
-
   @Test
   public void testSslConsumerProperties() {
     Properties overrides = new Properties();
@@ -282,8 +286,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
 
     class State {
-       int messagesProcessed = 0;
-       int pendingErrors = 3;
+      int messagesProcessed = 0;
+      int pendingErrors = 3;
     }
     State state = new State();
 

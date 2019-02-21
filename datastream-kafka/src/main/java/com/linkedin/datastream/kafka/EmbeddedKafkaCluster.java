@@ -6,14 +6,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.kafka.common.utils.Time;
+
+import kafka.server.KafkaConfig;
+import kafka.server.KafkaServer;
 
 import com.linkedin.datastream.common.FileUtils;
 import com.linkedin.datastream.common.NetworkUtils;
-
-import java.util.concurrent.TimeUnit;
-import kafka.server.KafkaConfig;
-import kafka.server.KafkaServer;
-import org.apache.kafka.common.utils.Time;
 
 
 /**
@@ -97,29 +98,6 @@ public class EmbeddedKafkaCluster {
     }
   }
 
-  static class SystemTime implements Time {
-    public long milliseconds() {
-      return System.currentTimeMillis();
-    }
-
-    public long nanoseconds() {
-      return System.nanoTime();
-    }
-
-    public void sleep(long ms) {
-      try {
-        Thread.sleep(ms);
-      } catch (InterruptedException e) {
-        // Ignore
-      }
-    }
-
-    @Override
-    public long hiResClockMs() {
-      return TimeUnit.NANOSECONDS.toMillis(nanoseconds());
-    }
-  }
-
   private KafkaServer startBroker(Properties props) {
     KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new SystemTime(),
         scala.Option.apply(""), scala.collection.JavaConversions.asScalaBuffer(Collections.emptyList()));
@@ -170,5 +148,28 @@ public class EmbeddedKafkaCluster {
     sb.append("_brokers='").append(_brokers).append('\'');
     sb.append('}');
     return sb.toString();
+  }
+
+  static class SystemTime implements Time {
+    public long milliseconds() {
+      return System.currentTimeMillis();
+    }
+
+    public long nanoseconds() {
+      return System.nanoTime();
+    }
+
+    public void sleep(long ms) {
+      try {
+        Thread.sleep(ms);
+      } catch (InterruptedException e) {
+        // Ignore
+      }
+    }
+
+    @Override
+    public long hiResClockMs() {
+      return TimeUnit.NANOSECONDS.toMillis(nanoseconds());
+    }
   }
 }

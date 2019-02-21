@@ -17,10 +17,6 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 public class InMemoryTransportProvider implements TransportProvider {
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProvider.class);
 
-  public HashMap<String, Integer> getTopics() {
-    return _topics;
-  }
-
   private HashMap<String, Integer> _topics = new HashMap<>();
 
   // Map of destination connection string to the list of events.
@@ -28,6 +24,10 @@ public class InMemoryTransportProvider implements TransportProvider {
 
   public static String getTopicName(String destination) {
     return destination;
+  }
+
+  public HashMap<String, Integer> getTopics() {
+    return _topics;
   }
 
   @Override

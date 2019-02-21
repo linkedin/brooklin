@@ -11,9 +11,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
-
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -343,7 +343,7 @@ public class TestStickyMulticastStrategy {
   }
 
   @Test
-  public void testDontRebalanceWhenDeletingDataStream() {
+  public void testDontRebalanceWhenDeletingDatastream() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     int imbalanceThreshold = 2;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
@@ -369,7 +369,7 @@ public class TestStickyMulticastStrategy {
   }
 
   @Test
-  public void testTriggerRebalanceWhenDeletingDataStream() {
+  public void testTriggerRebalanceWhenDeletingDatastream() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     int imbalanceThreshold = 1;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);

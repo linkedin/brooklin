@@ -1,6 +1,5 @@
 package com.linkedin.diagnostics;
 
-import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.BaseRestClientFactory;
 import com.linkedin.datastream.DatastreamRestClientFactory;
+import com.linkedin.r2.transport.http.client.HttpClientFactory;
 import com.linkedin.restli.client.RestClient;
 
 
@@ -23,7 +23,6 @@ public final class ServerComponentHealthRestClientFactory {
   /**
    * Get a ServerComponentHealthRestClient with default HTTP client
    * @param dmsUri URI to DMS endpoint
-   * @return
    */
   public static ServerComponentHealthRestClient getClient(String dmsUri) {
     // A ServerComponentHealth response can be very large if Brooklin is responsible for lots of partitions.
@@ -41,7 +40,6 @@ public final class ServerComponentHealthRestClientFactory {
    * @param dmsUri URI to DMS endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
-   * @return
    */
   public static ServerComponentHealthRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
     return FACTORY.getClient(dmsUri, httpConfig);

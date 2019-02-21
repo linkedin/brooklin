@@ -103,6 +103,5 @@ public class OracleStructType implements FieldType {
 
     return structAvro;
   }
-
 }
 

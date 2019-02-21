@@ -24,7 +24,7 @@ public interface DatastreamEventProducer {
    * If you want to execute an expensive callbacks it is recommended to use your own
    * {@link java.util.concurrent.Executor} in the callback body to parallelize processing.
    *
-   * @param event
+   * @param event event to send
    * @param callback call back that needs to called when the send completes.
    */
   void send(DatastreamProducerRecord event, SendCallback callback);

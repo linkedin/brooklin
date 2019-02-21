@@ -15,20 +15,18 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SlidingTimeWindowReservoir;
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.MetricRegistry;
+
 
 /**
  * Manages dynamic metrics and supports creating/updating metrics on the fly.
  */
 public class DynamicMetricsManager {
-  private static final Logger LOG = LoggerFactory.getLogger(DynamicMetricsManager.class);
-
-  private static DynamicMetricsManager _instance = null;
-  private MetricRegistry _metricRegistry;
   static final String NO_KEY_PLACEHOLDER = "NO_KEY";
-
+  private static final Logger LOG = LoggerFactory.getLogger(DynamicMetricsManager.class);
+  private static DynamicMetricsManager _instance = null;
   // Metrics indexed by simple class name, key (if exists), and metric name
   // Simple class name -> key -> metric name -> Metric object
   //   For example: LiKafkaTransportProvider.topicName.eventsProcessedRate
@@ -41,6 +39,7 @@ public class DynamicMetricsManager {
   // This is created solely for the createOrUpdate APIs, not by registerMetric because the former can be called
   // repeatedly to update the metric whereas the latter is typically only called once per metric during initialization.
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>>> _indexedMetrics;
+  private MetricRegistry _metricRegistry;
 
   private DynamicMetricsManager(MetricRegistry metricRegistry) {
     _metricRegistry = metricRegistry;
@@ -49,8 +48,6 @@ public class DynamicMetricsManager {
 
   /**
    * Instantiate the singleton of DynamicMetricsManager; This is a no-op if it already exists.
-   * @param metricRegistry
-   * @return
    */
   public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry) {
     return createInstance(metricRegistry, null);
@@ -63,11 +60,8 @@ public class DynamicMetricsManager {
    *
    * Note that all tests validating the same metrics must be run sequentially, otherwise race
    * condition will occur.
-   * @param metricRegistry
-   * @param testName name of the unit test
-   * @return
    */
-  public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry, @Nullable  String testName) {
+  public static DynamicMetricsManager createInstance(MetricRegistry metricRegistry, @Nullable String testName) {
     synchronized (DynamicMetricsManager.class) {
       if (_instance == null) {
         _instance = new DynamicMetricsManager(metricRegistry);
@@ -149,7 +143,6 @@ public class DynamicMetricsManager {
    * @param supplier optional supplier for Gauge metric (not used for non-Gauge metrics)
    * @param <T> metric type
    * @param <V> value type for the supplier
-   * @return
    */
   @SuppressWarnings("unchecked")
   private <T extends Metric, V> T doRegisterMetric(String simpleName, String key, String metricName,
@@ -391,9 +384,6 @@ public class DynamicMetricsManager {
   /**
    * Get the metric object by name of the specified type based on return value.
    * Currently only used by test cases.
-   * @param name
-   * @param <T>
-   * @return
    */
   @SuppressWarnings("unchecked")
   public <T extends Metric> T getMetric(String name) {

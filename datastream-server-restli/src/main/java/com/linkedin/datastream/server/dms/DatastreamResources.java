@@ -73,10 +73,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamResources.class);
   private static final String CLASS_NAME = DatastreamResources.class.getSimpleName();
 
-  private final DatastreamStore _store;
-  private final Coordinator _coordinator;
-  private final ErrorLogger _errorLogger;
-
   private static final String UPDATE_CALL = "updateCall";
   private static final String DELETE_CALL = "deleteCall";
   private static final String GET_CALL = "getCall";
@@ -91,6 +87,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final Supplier<Long> DELETE_CALL_LATENCY_MS = () -> _deleteCallLatencyMs.get();
   private static final String CREATE_CALL_LATENCY_MS_STRING = "createCallLatencyMs";
   private static final String DELETE_CALL_LATENCY_MS_STRING = "deleteCallLatencyMs";
+
+  private final DatastreamStore _store;
+  private final Coordinator _coordinator;
+  private final ErrorLogger _errorLogger;
 
   private final DynamicMetricsManager _dynamicMetricsManager;
 
@@ -339,10 +339,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   /**
    * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
-   * @param pathKeys
+   * @param pathKeys Datastream resource key
    * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
    *                         or <"FooTopic","*">
-   * @return
    */
   @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -419,10 +418,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   /**
    * Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
-   * @param pathKeys
+   * @param pathKeys Datastream resource key
    * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
    *                         or <"FooTopic","*">
-   * @return
    */
   @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,

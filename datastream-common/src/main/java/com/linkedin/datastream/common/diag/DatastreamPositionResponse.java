@@ -1,10 +1,11 @@
 package com.linkedin.datastream.common.diag;
 
-import com.linkedin.datastream.common.JsonUtils;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.linkedin.datastream.common.JsonUtils;
 
 
 /**
@@ -97,6 +98,15 @@ public class DatastreamPositionResponse {
   }
 
   /**
+   * A simple String representation of this object suitable for use in debugging or logging.
+   * @return a simple String representation of this object
+   */
+  @Override
+  public String toString() {
+    return "DatastreamPositionResponse{" + "_datastreamToPhysicalSources=" + _datastreamToPhysicalSources + '}';
+  }
+
+  /**
    * Serializes the given DatastreamPositionResponse object into an appropriate JSON representation.
    * @param response the DatastreamPositionResponse object
    * @return a serialized DatastreamPositionResponse object in JSON format
@@ -112,14 +122,5 @@ public class DatastreamPositionResponse {
    */
   public static DatastreamPositionResponse fromJson(final String json) {
     return JsonUtils.fromJson(json, DatastreamPositionResponse.class);
-  }
-
-  /**
-   * A simple String representation of this object suitable for use in debugging or logging.
-   * @return a simple String representation of this object
-   */
-  @Override
-  public String toString() {
-    return "DatastreamPositionResponse{" + "_datastreamToPhysicalSources=" + _datastreamToPhysicalSources + '}';
   }
 }

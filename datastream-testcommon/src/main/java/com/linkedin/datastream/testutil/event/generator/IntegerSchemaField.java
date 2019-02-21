@@ -23,5 +23,4 @@ public class IntegerSchemaField extends SchemaField {
   public Integer generateInteger() {
     return _randGenerator.getNextInt(_minValue, _maxValue);
   }
-
 }

@@ -14,7 +14,7 @@ import org.testng.annotations.Test;
 @Test
 public class TestThreadUtils {
   private void runWorker(CountDownLatch latch, boolean unkillable, ExecutorService executor) {
-    final boolean[] started = { false };
+    final boolean[] started = {false};
     executor.submit(() -> {
       do {
         try {

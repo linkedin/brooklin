@@ -116,5 +116,4 @@ public interface Connector extends MetricsAware {
   default void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
   }
-
 }

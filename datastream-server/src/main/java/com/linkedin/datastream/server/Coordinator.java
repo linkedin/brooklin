@@ -146,32 +146,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      For more details, see: https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Pausing+a+Datastream
    */
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
+  public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
+
   private static final String MODULE = Coordinator.class.getSimpleName();
+  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
+  private static final String NUM_REBALANCES = "numRebalances";
+  private static final String NUM_ERRORS = "numErrors";
+  private static final String NUM_RETRIES = "numRetries";
+  private static final String NUM_HEARTBEATS = "numHeartbeats";
+  private static final String NUM_ASSIGNMENT_CHANGES = "numAssignmentChanges";
+  private static final String IS_LEADER = "isLeader";
+  private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
+
+  // Connector common metrics
+  private static final String NUM_DATASTREAMS = "numDatastreams";
+  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
+
+  private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
 
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
   private final CheckpointProvider _cpProvider;
-
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
-  private Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
-
-  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
-  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
-
-  public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
-
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
   private final ThreadPoolExecutor _assignmentChangeThreadPool;
   private final String _clusterName;
-  private ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
-
-  // make sure the scheduled retries are not duplicated
-  private AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
-
-  // make sure the scheduled retries are not duplicated
-  private AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
-
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
 
@@ -183,28 +184,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
   private final DynamicMetricsManager _dynamicMetricsManager;
-  private static final String NUM_REBALANCES = "numRebalances";
-  private static final String NUM_ERRORS = "numErrors";
-  private static final String NUM_RETRIES = "numRetries";
-  private static final String NUM_HEARTBEATS = "numHeartbeats";
-  private static final String NUM_ASSIGNMENT_CHANGES = "numAssignmentChanges";
-
-  private static final String IS_LEADER = "isLeader";
-
-  private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
-  private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
-
-  // Connector common metrics
-  private static final String NUM_DATASTREAMS = "numDatastreams";
-  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
 
   // One coordinator heartbeat per minute, heartbeat helps detect dead/live-lock
   // where no events can be handled if coordinator locks up. This can happen because
   // handleEvent is synchronized and downstream code can misbehave.
   private final Duration _heartbeatPeriod;
 
-  private Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
-  private Map<String, Authorizer> _authorizers = new HashMap<>();
+  private final Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
+  private final ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
+
+  // make sure the scheduled retries are not duplicated
+  private final AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
+
+  // make sure the scheduled retries are not duplicated
+  private final AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
+
+  private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
+  private final Map<String, Authorizer> _authorizers = new HashMap<>();
 
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -909,7 +905,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("handleLeaderDoAssignment: completed ");
     _log.debug("handleLeaderDoAssignment: new assignment: " + newAssignmentsByInstance);
 
-
     // clean up tasks under dead instances if everything went well
     if (succeeded) {
       List<String> instances = new ArrayList<>(liveInstances);
@@ -1004,7 +999,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return pausedTasks;
   }
 
-    /**
+  /**
    * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
    * connector per connector type.
    *
@@ -1077,7 +1072,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Checks if given datastream update type is supported by connector for given datastream.
    * @param datastream datastream to check against
    * @param updateType - Type of datastream update to validate
-   * @throws DatastreamValidationException
    */
   public void isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType)
       throws DatastreamValidationException {
@@ -1119,8 +1113,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     ConnectorWrapper connector = connectorInfo.getConnector();
     DatastreamDeduper deduper = connectorInfo.getDatastreamDeduper();
 
-    // LISAMZA-8516: Changing a non-flusdh cache version to flush version to avoid erorrs in deduping datastreams
-    // which should be deduped, but fail to due to being created back to back and ZK client not syncing with master
+    // Changing a non-flush cache version to flush version to avoid errors in deduping datastreams which
+    // should be deduped, but fail to due to being created back to back and ZK client not syncing with master
     List<Datastream> allDatastreams = _datastreamCache.getAllDatastreams(true)
         .stream()
         .filter(d -> d.getConnectorName().equals(connectorName))
@@ -1288,7 +1282,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * Set an authorizer implementation to enforce ACL on datastream CRUD operations.
-   * @param authorizer
    */
   public void addAuthorizer(String name, Authorizer authorizer) {
     Validate.notNull(authorizer, "null authorizer");
@@ -1299,6 +1292,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (authorizer instanceof MetricsAware) {
       Optional.ofNullable(((MetricsAware) authorizer).getMetricInfos()).ifPresent(_metrics::addAll);
     }
+  }
+
+  // helper method for logging
+  private String printAssignmentByType(Map<String, List<DatastreamTask>> assignment) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Current assignment for instance: ").append(getInstanceName()).append(":\n");
+    for (Map.Entry<String, List<DatastreamTask>> entry : assignment.entrySet()) {
+      sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+    }
+    // remove the final "\n"
+    String result = sb.toString();
+    return result.substring(0, result.length() - 1);
+  }
+
+  public Connector getConnector(String name) {
+    if (!_connectors.containsKey(name)) {
+      return null;
+    }
+    return _connectors.get(name).getConnector().getConnectorInstance();
   }
 
   private class CoordinatorEventProcessor extends Thread {
@@ -1320,24 +1332,5 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       _log.info("END CoordinatorEventProcessor");
     }
-  }
-
-  // helper method for logging
-  private String printAssignmentByType(Map<String, List<DatastreamTask>> assignment) {
-    StringBuilder sb = new StringBuilder();
-    sb.append("Current assignment for instance: ").append(getInstanceName()).append(":\n");
-    for (Map.Entry<String, List<DatastreamTask>> entry : assignment.entrySet()) {
-      sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-    }
-    // remove the final "\n"
-    String result = sb.toString();
-    return result.substring(0, result.length() - 1);
-  }
-
-  public Connector getConnector(String name) {
-    if (!_connectors.containsKey(name)) {
-      return null;
-    }
-    return _connectors.get(name).getConnector().getConnectorInstance();
   }
 }

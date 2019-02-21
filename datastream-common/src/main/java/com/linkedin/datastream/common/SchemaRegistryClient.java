@@ -1,6 +1,7 @@
 package com.linkedin.datastream.common;
 
 import java.io.IOException;
+
 import org.apache.avro.Schema;
 
 

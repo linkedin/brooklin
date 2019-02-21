@@ -39,21 +39,19 @@ public class KafkaTransportProvider implements TransportProvider {
 
   private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
   private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
-
-  private KafkaProducer<byte[], byte[]> _producer;
-  private final String _brokers;
-
   private static final String EVENT_WRITE_RATE = "eventWriteRate";
   private static final String EVENT_BYTE_WRITE_RATE = "eventByteWriteRate";
   private static final String EVENT_TRANSPORT_ERROR_RATE = "eventTransportErrorRate";
+  private static final String AGGREGATE = "aggregate";
 
+  private final String _brokers;
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
-  private static final String AGGREGATE = "aggregate";
 
+  private KafkaProducer<byte[], byte[]> _producer;
 
   public KafkaTransportProvider(Properties props) {
     this(props, null);

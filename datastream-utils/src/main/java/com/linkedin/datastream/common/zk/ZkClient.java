@@ -1,5 +1,11 @@
 package com.linkedin.datastream.common.zk;
 
+import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+import java.util.Stack;
+
 import org.I0Itec.zkclient.ZkConnection;
 import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.I0Itec.zkclient.exception.ZkMarshallingError;
@@ -11,12 +17,6 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.Stack;
-
 
 /**
  * ZKClient is a wrapper of sgroschupf/zkclient. It provides the following
@@ -27,12 +27,13 @@ import java.util.Stack;
  */
 
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
-  private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
-
   public static final String ZK_PATH_SEPARATOR = "/";
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
-  private ZkSerializer _zkSerializer = new ZKStringSerializer();
+
+  private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
+
+  private final ZkSerializer _zkSerializer = new ZKStringSerializer();
   private int _zkSessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
 
   public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
@@ -138,9 +139,6 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
    * Read the content of a znode, and make sure to read a valid result. When znodes is in an inconsistent
    * state, for example, being written to by a different process, the ZkClient.readData(path) will return
    * null. This is a helper method to do retry until the value is not null.
-   *
-   * @param path
-   * @return
    */
   public String ensureReadData(final String path, final long timeout) {
     Random rn = new Random();
@@ -237,8 +235,8 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     long start = System.nanoTime();
     try {
       final byte[] bytes = _zkSerializer.serialize(datat);
-      return retryUntilConnected(() -> ((ZkConnection) _connection).getZookeeper()
-          .setData(path, bytes, expectedVersion));
+      return retryUntilConnected(
+          () -> ((ZkConnection) _connection).getZookeeper().setData(path, bytes, expectedVersion));
     } finally {
       long end = System.nanoTime();
       if (LOG.isTraceEnabled()) {
@@ -306,7 +304,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       pstack.push(path);
       path = path.substring(0, path.lastIndexOf(ZK_PATH_SEPARATOR));
       if (path.isEmpty()) {
-          path = ZK_PATH_SEPARATOR;
+        path = ZK_PATH_SEPARATOR;
       }
     }
 
@@ -364,5 +362,4 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       return data;
     }
   }
-
 }

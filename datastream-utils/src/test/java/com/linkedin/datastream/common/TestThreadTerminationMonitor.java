@@ -6,6 +6,7 @@ import org.testng.annotations.Test;
 
 import com.codahale.metrics.Meter;
 
+
 public class TestThreadTerminationMonitor {
 
   private Meter meter;
@@ -13,13 +14,12 @@ public class TestThreadTerminationMonitor {
   @BeforeTest
   public void prepare() {
     meter = new Meter();
-        //(Meter) ((StaticBrooklinMetric) ThreadTerminationMonitor.getMetricInfos().stream().findFirst().get()).getMetric();
+    //(Meter) ((StaticBrooklinMetric) ThreadTerminationMonitor.getMetricInfos().stream().findFirst().get()).getMetric();
     Assert.assertEquals(0, meter.getCount());
   }
 
   @Test(enabled = false)
-  public void testHappyDay()
-      throws Exception {
+  public void testHappyDay() throws Exception {
     Thread thread = new Thread(() -> {
     });
     thread.join();
@@ -27,8 +27,7 @@ public class TestThreadTerminationMonitor {
   }
 
   @Test(enabled = false)
-  public void testLeakage()
-      throws Exception {
+  public void testLeakage() throws Exception {
     Thread thread = new Thread(() -> {
       throw new RuntimeException();
     });

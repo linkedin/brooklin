@@ -29,26 +29,24 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
-  private static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
-  private static final String TOPIC_RETENTION_MS = "retention.ms";
-
   public static final String CONFIG_RETENTION_MS = "retentionMs";
   public static final String DEFAULT_REPLICATION_FACTOR = "1";
   public static final Duration DEFAULT_RETENTION = Duration.ofDays(3);
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
-
   public static final String CONFIG_METRICS_NAMES_PREFIX = "metricsNamesPrefix";
-  private final String _transportProviderMetricsNamesPrefix;
 
+  private static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
+  private static final String TOPIC_RETENTION_MS = "retention.ms";
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
-  private final String _zkAddress;
   private static final String DESTINATION_URI_FORMAT = "kafka://%s/%s";
 
+  private final String _transportProviderMetricsNamesPrefix;
+  private final String _zkAddress;
   private final ZkClient _zkClient;
-  private KafkaTransportProvider _kafkaTransportProvider;
-
   private final ZkUtils _zkUtils;
   private final Duration _retention;
+
+  private KafkaTransportProvider _kafkaTransportProvider;
 
   public KafkaTransportProviderAdmin(Properties transportProviderProperties) {
 
@@ -150,7 +148,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       if (!AdminUtils.topicExists(_zkUtils, topicName)) {
         int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
         LOG.info("Creating topic with name {} partitions={} with properties {}", topicName, numberOfPartitions,
-                topicConfig);
+            topicConfig);
 
         // Add default retention if no topic-level retention is specified
         if (!topicConfig.containsKey(TOPIC_RETENTION_MS)) {
@@ -212,5 +210,4 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
     return Collections.unmodifiableList(metrics);
   }
-
 }

@@ -1,7 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
-import com.linkedin.datastream.common.diag.PhysicalSources;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -36,6 +34,8 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
+import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
+import com.linkedin.datastream.common.diag.PhysicalSources;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -47,28 +47,21 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
+
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   private static final String TOPIC_KEY = "topic";
 
   protected final String _connectorName;
-  private final Logger _logger;
-
-  private AtomicInteger threadCounter = new AtomicInteger(0);
-
   protected final KafkaBasedConnectorConfig _config;
-  private ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
-
   protected final GroupIdConstructor _groupIdConstructor;
   protected final String _clusterName;
-
-  enum DiagnosticsRequestType {
-    DATASTREAM_STATE,
-    POSITION
-  }
-
   protected final ConcurrentHashMap<DatastreamTask, AbstractKafkaBasedConnectorTask> _runningTasks =
       new ConcurrentHashMap<>();
+
+  private final Logger _logger;
+  private final AtomicInteger threadCounter = new AtomicInteger(0);
+  private final ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private ScheduledExecutorService _daemonThreadExecutorService =
@@ -81,6 +74,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
           return t;
         }
       });
+
+  enum DiagnosticsRequestType {
+    DATASTREAM_STATE,
+    POSITION
+  }
 
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
       String clusterName, Logger logger) {
@@ -174,8 +172,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   /**
    * Stop the datastream task and wait for it to stop. If it has not stopped within a timeout, interrupt the thread.
-   * @param datastreamTask
-   * @return
    */
   private boolean stopTask(DatastreamTask datastreamTask) {
     try {

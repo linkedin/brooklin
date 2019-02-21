@@ -44,20 +44,6 @@ public class TestZookeeperCheckpointProvider {
     _zookeeper.shutdown();
   }
 
-  public static Datastream generateDatastream(int seed) {
-    Datastream ds = new Datastream();
-    ds.setName("name_" + seed);
-    ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
-    ds.setSource(new DatastreamSource());
-    ds.getSource().setConnectionString("DummySource_" + seed);
-    ds.setDestination(new DatastreamDestination());
-    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
-    StringMap metadata = new StringMap();
-    metadata.put("owner", "person_" + seed);
-    ds.setMetadata(metadata);
-    return ds;
-  }
-
   @Test
   public void testUnassign() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
@@ -110,23 +96,17 @@ public class TestZookeeperCheckpointProvider {
     Assert.assertEquals(commitedCheckpoints2.get(0), "checkpoint2");
   }
 
-//  @Test
-//  public void testReadCommitedShouldIncludeDatastreamTasksWhoseCheckpointsAreNotCommitted() {
-//    ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", ZkClient.DEFAULT_SESSION_TIMEOUT,
-//        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null, null);
-//    adapter.connect();
-//    ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
-//    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(TestDestinationManager.generateDatastream(1));
-//    datastreamTask1.setId("dt1");
-//
-//    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(TestDestinationManager.generateDatastream(2));
-//    datastreamTask2.setId("dt2");
-//
-//    List<DatastreamTask> tasks = new ArrayList<>();
-//    tasks.add(datastreamTask1);
-//    tasks.add(datastreamTask2);
-//    Map<DatastreamTask, String> commitedCheckpoints = checkpointProvider.getCommitted(tasks);
-//    Assert.assertEquals(commitedCheckpoints.get(datastreamTask1), checkpoints.get(datastreamTask1));
-//    Assert.assertFalse(commitedCheckpoints.containsKey(datastreamTask2));
-//  }
+  public static Datastream generateDatastream(int seed) {
+    Datastream ds = new Datastream();
+    ds.setName("name_" + seed);
+    ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
+    ds.setSource(new DatastreamSource());
+    ds.getSource().setConnectionString("DummySource_" + seed);
+    ds.setDestination(new DatastreamDestination());
+    ds.setTransportProviderName(DummyTransportProviderAdminFactory.PROVIDER_NAME);
+    StringMap metadata = new StringMap();
+    metadata.put("owner", "person_" + seed);
+    ds.setMetadata(metadata);
+    return ds;
+  }
 }

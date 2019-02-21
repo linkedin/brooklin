@@ -14,9 +14,7 @@ public interface SqlTypeInterpreter {
    * Convert from underlying JDBC driver specific type to avro compatible type.
    * @param sqlObject Object read from the ResultSet.getObject() call
    * @param colName Name of the column read
-   * @param avroSchema
-   * @return
-   * @throws SQLException
+   * @param avroSchema the Avro schema to use
    */
   public Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException;
 
@@ -24,9 +22,6 @@ public interface SqlTypeInterpreter {
    * Driver could change the column names causing incompatiblity with output avro. Reformat to correct
    * naming scheme. For example Column names are declared in UPPER_CAMEL in Oracle but avro field names are
    * LOWER_CAMEL.
-   * @param dbColName
-   * @return
    */
   public String formatColumnName(String dbColName);
-
 }

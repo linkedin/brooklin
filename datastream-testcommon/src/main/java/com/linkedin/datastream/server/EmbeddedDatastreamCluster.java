@@ -22,11 +22,13 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class EmbeddedDatastreamCluster {
-  private static final Logger LOG = LoggerFactory.getLogger(EmbeddedDatastreamCluster.class);
-  private static final String KAFKA_TRANSPORT_FACTORY = "com.linkedin.datastream.kafka.KafkaTransportProviderAdminFactory";
-  private static final long SERVER_INIT_TIMEOUT_MS = 60000; // 1 minute
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
   public static final String BOOTSTRAP_SERVERS_CONFIG = "bootstrap.servers";
+
+  private static final Logger LOG = LoggerFactory.getLogger(EmbeddedDatastreamCluster.class);
+  private static final String KAFKA_TRANSPORT_FACTORY =
+      "com.linkedin.datastream.kafka.KafkaTransportProviderAdminFactory";
+  private static final long SERVER_INIT_TIMEOUT_MS = 60000; // 1 minute
 
   // the zookeeper ports that are currently taken
   private final KafkaCluster _kafkaCluster;
@@ -91,9 +93,6 @@ public class EmbeddedDatastreamCluster {
    * @param numServers number of datastream servers in the cluster
    * @param dmsPorts the dms ports to be used; accept null if automatic assignment
    * @return instance of a new EmbeddedDatastreamCluster
-   * @throws IllegalArgumentException
-   * @throws IOException
-   * @throws DatastreamException
    */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
       Map<String, Properties> connectorProperties, Properties override, int numServers,

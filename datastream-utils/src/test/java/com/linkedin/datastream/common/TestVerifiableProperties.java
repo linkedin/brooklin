@@ -1,9 +1,9 @@
 package com.linkedin.datastream.common;
 
+import java.util.Properties;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
-
-import java.util.Properties;
 
 
 public class TestVerifiableProperties {

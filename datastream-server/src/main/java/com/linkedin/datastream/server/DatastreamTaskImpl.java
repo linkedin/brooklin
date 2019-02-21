@@ -131,7 +131,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   /**
    * @return DatastreamTask serialized as JSON
-   * @throws IOException
    */
   public String toJson() throws IOException {
     return JsonUtils.toJson(this);
@@ -160,20 +159,24 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _datastreams.get(0).getDestination();
   }
 
-  public void setPartitions(List<Integer> partitions) {
-    Validate.notNull(partitions);
-    _partitions = partitions;
-  }
-
   @Override
   public List<Integer> getPartitions() {
     return _partitions;
+  }
+
+  public void setPartitions(List<Integer> partitions) {
+    Validate.notNull(partitions);
+    _partitions = partitions;
   }
 
   @JsonIgnore
   @Override
   public Map<Integer, String> getCheckpoints() {
     return _checkpoints;
+  }
+
+  public void setCheckpoints(Map<Integer, String> checkpoints) {
+    _checkpoints = new HashMap<>(checkpoints);
   }
 
   /**
@@ -191,6 +194,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
       throw new IllegalArgumentException("Fetch datastream from zk stored task is not allowed");
     }
     return Collections.unmodifiableList(_datastreams);
+  }
+
+  public void setDatastreams(List<Datastream> datastreams) {
+    _datastreams = datastreams;
+    // destination and connector type should be immutable
+    _transportProviderName = _datastreams.get(0).getTransportProviderName();
+    _connectorType = _datastreams.get(0).getConnectorName();
   }
 
   @Override
@@ -211,13 +221,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _zkAdapter.releaseTask(this);
   }
 
-  public void setDatastreams(List<Datastream> datastreams) {
-    _datastreams = datastreams;
-    // destination and connector type should be immutable
-    _transportProviderName = _datastreams.get(0).getTransportProviderName();
-    _connectorType = _datastreams.get(0).getConnectorName();
-  }
-
   @JsonIgnore
   public DatastreamEventProducer getEventProducer() {
     return _eventProducer;
@@ -235,6 +238,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _connectorType;
   }
 
+  public void setConnectorType(String connectorType) {
+    _connectorType = connectorType;
+  }
+
   @Override
   public String getTransportProviderName() {
     return _transportProviderName;
@@ -244,16 +251,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _transportProviderName = transportProviderName;
   }
 
-  public void setConnectorType(String connectorType) {
-    _connectorType = connectorType;
+  public String getId() {
+    return _id;
   }
 
   public void setId(String id) {
     _id = id;
-  }
-
-  public String getId() {
-    return _id;
   }
 
   public String getTaskPrefix() {
@@ -286,18 +289,18 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @JsonIgnore
   @Override
-  public void setStatus(DatastreamTaskStatus status) {
-    saveState(STATUS, JsonUtils.toJson(status));
-  }
-
-  @JsonIgnore
-  @Override
   public DatastreamTaskStatus getStatus() {
     String statusStr = getState(STATUS);
     if (statusStr != null && !statusStr.isEmpty()) {
       return JsonUtils.fromJson(statusStr, DatastreamTaskStatus.class);
     }
     return null;
+  }
+
+  @JsonIgnore
+  @Override
+  public void setStatus(DatastreamTaskStatus status) {
+    saveState(STATUS, JsonUtils.toJson(status));
   }
 
   @Override
@@ -332,9 +335,5 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void updateCheckpoint(int partition, String checkpoint) {
     LOG.debug("Update checkpoint called for partition {} and checkpoint {}", partition, checkpoint);
     _checkpoints.put(partition, checkpoint);
-  }
-
-  public void setCheckpoints(Map<Integer, String> checkpoints) {
-    _checkpoints = new HashMap<>(checkpoints);
   }
 }

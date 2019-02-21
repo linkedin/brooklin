@@ -20,13 +20,14 @@ import com.linkedin.datastream.metrics.MetricsAware;
  * There are 2 levels of metrics. Per reader metrics, per source-aggregate metrics.
  */
 class DatabaseChunkedReaderMetrics extends BrooklinMetrics {
+  public static final String SKIPPED_BAD_MESSAGES_RATE = "skippedBadMessagesRate";
+  protected static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
+
   private static final String CLASS_NAME = DatabaseChunkedReader.class.getSimpleName();
   private static final String SOURCE_METRICS_PREFIX_REGEX = CLASS_NAME + MetricsAware.KEY_REGEX;
-
   private static final String QUERY_EXECUTION_DURATION = "queryExecutionDurationMs";
   private static final String QUERY_EXECUTION_RATE = "queryExecutionRate";
   private static final String ERROR_RATE = "errorRate";
-  public static final String SKIPPED_BAD_MESSAGES_RATE = "skippedBadMessagesRate";
 
   // Per reader metrics
   private final Histogram _readerQueryExecutionDurationMs;
@@ -39,10 +40,7 @@ class DatabaseChunkedReaderMetrics extends BrooklinMetrics {
   private final Meter _sourceQueryExecutionRate;
   private final Meter _sourceErrorRate;
   private final Meter _sourceSkippedBadMessagesRate;
-
   private final String _source;
-
-  protected static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
   /**
    * Create metrics manager object.

@@ -23,5 +23,4 @@ public class BrooklinGaugeInfo extends BrooklinMetricInfo {
   public BrooklinGaugeInfo(String nameOrRegex, Optional<List<String>> gaugeAttributes) {
     super(nameOrRegex, gaugeAttributes);
   }
-
 }

@@ -10,6 +10,11 @@ import org.slf4j.Logger;
 public class ErrorLogger {
   private final Logger _logger;
 
+  public ErrorLogger(Logger logger) {
+    Validate.notNull(logger, "null logger");
+    _logger = logger;
+  }
+
   /**
    * Log error and throw DatastreamRuntimeException with inner exception
    * @param log logger object
@@ -33,11 +38,6 @@ public class ErrorLogger {
    */
   public static void logAndThrowDatastreamRuntimeException(Logger log, String msg) {
     logAndThrowDatastreamRuntimeException(log, msg, null);
-  }
-
-  public ErrorLogger(Logger logger) {
-    Validate.notNull(logger, "null logger");
-    _logger = logger;
   }
 
   /**

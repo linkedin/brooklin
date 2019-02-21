@@ -14,5 +14,4 @@ public class KafkaMirrorMakerConnectorFactory implements ConnectorFactory<KafkaM
   public KafkaMirrorMakerConnector createConnector(String connectorName, Properties config, String clusterName) {
     return new KafkaMirrorMakerConnector(connectorName, config, clusterName);
   }
-
 }

@@ -1,11 +1,5 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import java.lang.reflect.Method;
 import java.util.Random;
 
@@ -14,6 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
 public class TestKafkaBasedConnectorTaskMetrics {
@@ -135,7 +136,6 @@ public class TestKafkaBasedConnectorTaskMetrics {
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE_NAME
         + "numPartitions")).getValue(), consumer1NumPartitions + consumer2NumPartitions);
   }
-
 }
 
 

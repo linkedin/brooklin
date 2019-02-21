@@ -15,9 +15,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AbstractScheduledService;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -27,6 +24,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.AbstractScheduledService;
 
 import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
 import com.linkedin.datastream.common.diag.PhysicalSources;
@@ -48,37 +48,35 @@ public class KafkaPositionTracker {
    * Counts instantiations of this class.
    */
   private static final AtomicInteger CLASS_INSTANTIATION_COUNTER = new AtomicInteger();
-
+  /**
+   * The maximum duration from the last terminated endOffsets RPCs calls to when the Kafka consumer is assumed to be
+   * faulty and is reconstructed.
+   */
+  private static final Duration LAST_CONSUMER_RPC_TERMINATED_TIMEOUT = Duration.ofMinutes(15);
   /**
    * The task name of the connector this class is for.
    */
   private final String _connectorTaskName;
-
   /**
    * The class instantiation count of this current instantiation.
    */
   private final int _classInstantiationCount = CLASS_INSTANTIATION_COUNTER.incrementAndGet();
-
   /**
    * The offset fetcher instantiation count for this current class instantiation.
    */
   private final AtomicInteger _offsetFetcherInstantiationCount = new AtomicInteger();
-
   /**
    * Provides a Kafka consumer for this task.
    */
   private final Supplier<Consumer<?, ?>> _consumerSupplier;
-
   /**
    * The list of assigned partitions for the connector this task is for.
    */
   private final Set<TopicPartition> _assignedPartitions;
-
   /**
    * A check that describes if the connector task is alive. Used for closing threads associated with this task.
    */
   private final Supplier<Boolean> _isConnectorTaskAlive;
-
   /**
    * A store of position data for each TopicPartition. This position data is what will be returned to this task's
    * connector. The position data will be in the form of event timestamp if timestamp data is available, and otherwise
@@ -90,7 +88,6 @@ public class KafkaPositionTracker {
    *      which will contain position data for both the broker and this consumer
    */
   private final PhysicalSources _positions = new PhysicalSources();
-
   /**
    * A store of position data for each TopicPartition. This position data will exclusively be Kafka offset based, and is
    * kept to assist in calculating if the current consumer is caught-up or not.
@@ -101,23 +98,15 @@ public class KafkaPositionTracker {
    *      which will contain position data for both the broker and this consumer
    */
   private final PhysicalSources _offsetPositions = new PhysicalSources();
-
   /**
    * The service which periodically queries Kafka via RPC for the latest available Kafka offsets.
    * @see #getOffsetsFetcherService()
    */
   private volatile AbstractScheduledService _offsetsFetcher;
-
   /**
    * The last time that the endOffsets RPC call successfully exited.
    */
   private volatile Instant _lastRpcUpdate = Instant.now();
-
-  /**
-   * The maximum duration from the last terminated endOffsets RPCs calls to when the Kafka consumer is assumed to be
-   * faulty and is reconstructed.
-   */
-  private static final Duration LAST_CONSUMER_RPC_TERMINATED_TIMEOUT = Duration.ofMinutes(15);
 
   /**
    * Constructor for a KafkaPositionTracker.

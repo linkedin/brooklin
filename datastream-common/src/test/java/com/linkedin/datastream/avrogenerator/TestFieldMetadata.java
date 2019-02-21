@@ -2,6 +2,7 @@ package com.linkedin.datastream.avrogenerator;
 
 import java.util.Map;
 import java.util.Optional;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -44,7 +45,6 @@ public class TestFieldMetadata {
     Assert.assertEquals("WEIGHT", map.get("dbFieldName"));
     Assert.assertEquals("long", map.get("extraMetadataField"));
   }
-
 
   @Test
   public void testFromStringNegative() throws Exception {
@@ -94,6 +94,5 @@ public class TestFieldMetadata {
     } catch (Exception e) {
       Assert.assertTrue(e instanceof IllegalArgumentException);
     }
-
   }
 }

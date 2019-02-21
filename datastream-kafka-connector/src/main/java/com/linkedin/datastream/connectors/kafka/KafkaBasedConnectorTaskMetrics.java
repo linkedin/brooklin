@@ -30,12 +30,6 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of number of topics that are assigned to the task
   public static final String NUM_TOPICS = "numTopics";
 
-  private final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
-  private final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
-  private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
-  private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
-  private final AtomicLong _numTopics = new AtomicLong(0);
-
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR =
@@ -44,6 +38,12 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
       new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC =
       new ConcurrentHashMap<>();
+
+  private final AtomicLong _numConfigPausedPartitions = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsOnError = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
+  private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
+  private final AtomicLong _numTopics = new AtomicLong(0);
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger) {
     super(className, metricsKey, errorLogger);
@@ -92,18 +92,6 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
-  }
-
-  public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
-    List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    prefix = Strings.nullToEmpty(prefix);
-    // Specify the attributes to expose to the final metric registry.
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_CONFIG_PAUSED_PARTITIONS));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
-    return Collections.unmodifiableList(metrics);
   }
 
   /**
@@ -164,5 +152,17 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     if (aggregatedMetric != null) {
       aggregatedMetric.getAndAdd(delta);
     }
+  }
+
+  public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    prefix = Strings.nullToEmpty(prefix);
+    // Specify the attributes to expose to the final metric registry.
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_CONFIG_PAUSED_PARTITIONS));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
+    return Collections.unmodifiableList(metrics);
   }
 }

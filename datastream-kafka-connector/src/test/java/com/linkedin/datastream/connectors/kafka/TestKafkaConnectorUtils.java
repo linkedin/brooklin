@@ -1,9 +1,9 @@
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.CoordinatorConfig;

@@ -49,9 +49,13 @@ public interface DatastreamTask {
 
   /**
    * Serdes used to serialize the events in the destination
-   * @return
    */
   SerDeSet getDestinationSerDes();
+
+  /**
+   * @return Current status of the datastream task.
+   */
+  DatastreamTaskStatus getStatus();
 
   /**
    * Set the status for datastreamtask. This is a way for the connector
@@ -59,11 +63,6 @@ public interface DatastreamTask {
    * @param status Status of the datastream task.
    */
   void setStatus(DatastreamTaskStatus status);
-
-  /**
-   * @return Current status of the datastream task.
-   */
-  DatastreamTaskStatus getStatus();
 
   /**
    * @return the name of the datastream task.
@@ -99,7 +98,6 @@ public interface DatastreamTask {
 
   /**
    * Get the task prefix that is used to identify all the tasks corresponding to the datastream group.
-   * @return
    */
   String getTaskPrefix();
 

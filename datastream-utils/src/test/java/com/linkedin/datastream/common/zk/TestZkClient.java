@@ -8,14 +8,13 @@ import org.I0Itec.zkclient.IZkDataListener;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
 public class TestZkClient {
@@ -77,29 +76,6 @@ public class TestZkClient {
     Assert.assertEquals(liveNodes.get(0), "coordinator-0000000000");
     Assert.assertEquals(liveNodes.get(1), "coordinator-0000000001");
     zkClient.close();
-
-  }
-
-  static class TestZkDataListener implements IZkDataListener, IZkChildListener {
-    public boolean dataChanged = false;
-    public boolean dataDeleted = false;
-    public boolean childChanged = false;
-
-    @Override
-    public void handleDataChange(String s, Object o) throws Exception {
-      dataChanged = true;
-    }
-
-    @Override
-    public void handleDataDeleted(String s) throws Exception {
-      // looks like when the node is deleted, this is triggered.
-      dataDeleted = true;
-    }
-
-    @Override
-    public void handleChildChange(String s, List<String> list) throws Exception {
-      childChanged = true;
-    }
   }
 
   @Test
@@ -158,8 +134,6 @@ public class TestZkClient {
    * This is to validate the live instance situation, when a live instance
    * goes offline, the node will be deleted, and handleDataDeleted callback
    * will be triggered
-   *
-   * @throws Exception
    */
   @Test
   public void testLiveNode() throws Exception {
@@ -204,7 +178,6 @@ public class TestZkClient {
 
   /**
    * make sure special symbols like dots can be in the znode names
-   * @throws Exception
    */
   @Test
   public void testDotsInZnodeName() throws Exception {
@@ -219,5 +192,27 @@ public class TestZkClient {
     Assert.assertEquals(content, "abc");
 
     zkClient.close();
+  }
+
+  static class TestZkDataListener implements IZkDataListener, IZkChildListener {
+    public boolean dataChanged = false;
+    public boolean dataDeleted = false;
+    public boolean childChanged = false;
+
+    @Override
+    public void handleDataChange(String s, Object o) throws Exception {
+      dataChanged = true;
+    }
+
+    @Override
+    public void handleDataDeleted(String s) throws Exception {
+      // looks like when the node is deleted, this is triggered.
+      dataDeleted = true;
+    }
+
+    @Override
+    public void handleChildChange(String s, List<String> list) throws Exception {
+      childChanged = true;
+    }
   }
 }

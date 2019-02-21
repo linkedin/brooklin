@@ -17,14 +17,14 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public class DummyBootstrapConnector implements Connector {
 
-  private final HashMap<String, String> _config;
-
   public static final String CONNECTOR_NAME = "DummyConnectorBootstrap";
+
+  private final HashMap<String, String> _config;
 
   public DummyBootstrapConnector(Properties properties) throws Exception {
 
     _config = new HashMap<>();
-    for (final String name: properties.stringPropertyNames()) {
+    for (final String name : properties.stringPropertyNames()) {
       _config.put(name, properties.getProperty(name));
     }
   }

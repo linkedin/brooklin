@@ -52,11 +52,30 @@ import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_AUTHORIZER_NAME;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_DEDUPER_FACTORY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_NAMES;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CSV_METRICS_DIR;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_DIAG_PATH;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_DIAG_PORT;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_ENABLE_EMBEDDED_JETTY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_HTTP_PORT;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_SERDE_NAMES;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_SERDE_PREFIX;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_NAMES;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_PREFIX;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DEFAULT_DEDUPER_FACTORY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DEDUPER;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DIAG;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.STRATEGY_DOMAIN;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
-
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.*;
 
 /**
  * DatastreamServer is the entry point for starting datastream services. It is a container
@@ -64,27 +83,108 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
  */
 public class DatastreamServer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class);
+  private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
+  private static final List<BrooklinMetricInfo> METRIC_INFOS = new ArrayList<>();
 
+  private final String _csvMetricsDir;
+  private final Map<String, String> _bootstrapConnectors;
 
   private Coordinator _coordinator;
   private DatastreamStore _datastreamStore;
   private DatastreamJettyStandaloneLauncher _jettyLauncher;
   private JmxReporter _jmxReporter;
   private ServerComponentHealthAggregator _serverComponentHealthAggregator;
-
-  private final String _csvMetricsDir;
   private int _httpPort;
-  private final Map<String, String> _bootstrapConnectors;
-
-  private static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
-  private static final List<BrooklinMetricInfo> METRIC_INFOS = new ArrayList<>();
-
   private boolean _isInitialized = false;
   private boolean _isStarted = false;
 
   static {
     // Instantiate a dynamic metrics manager singleton object so that other components can emit metrics on the fly
     DynamicMetricsManager.createInstance(METRIC_REGISTRY);
+  }
+
+  public DatastreamServer(Properties properties) throws DatastreamException {
+    LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
+    LOG.info("Creating coordinator.");
+    VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
+
+    HashSet<String> connectorTypes =
+        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",")));
+    if (connectorTypes.size() == 0) {
+      String errorMessage = "No connectors specified in connectorTypes";
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
+    }
+
+    HashSet<String> transportProviderNames =
+        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_TRANSPORT_PROVIDER_NAMES).split(",")));
+    if (transportProviderNames.size() == 0) {
+      String errorMessage = "No transport providers specified in config: " + CONFIG_TRANSPORT_PROVIDER_NAMES;
+      LOG.error(errorMessage);
+      throw new DatastreamRuntimeException(errorMessage);
+    }
+
+    Set<String> serdeNames = Arrays.asList(verifiableProperties.getString(CONFIG_SERDE_NAMES, "").split(","))
+        .stream()
+        .filter(x -> !x.isEmpty())
+        .collect(Collectors.toSet());
+
+    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
+    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
+
+    LOG.info("Setting up DMS endpoint server.");
+    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
+        coordinatorConfig.getZkConnectionTimeout());
+
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
+    _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
+    LOG.info("Loading connectors {}", connectorTypes);
+    _bootstrapConnectors = new HashMap<>();
+    for (String connectorStr : connectorTypes) {
+      initializeConnector(connectorStr,
+          verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr),
+          coordinatorConfig.getCluster());
+    }
+
+    LOG.info("Loading Transport providers {}", transportProviderNames);
+    for (String tpName : transportProviderNames) {
+      initializeTransportProvider(tpName,
+          verifiableProperties.getDomainProperties(CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName));
+    }
+
+    LOG.info("Loading Serdes {} ", serdeNames);
+    for (String serde : serdeNames) {
+      initializeSerde(serde, verifiableProperties.getDomainProperties(CONFIG_SERDE_PREFIX + serde));
+    }
+
+    _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
+
+    boolean enableEmbeddedJetty = verifiableProperties.getBoolean(CONFIG_ENABLE_EMBEDDED_JETTY, true);
+
+    // Port will be updated after start() is called if it is 0
+    _httpPort = verifiableProperties.getInt(CONFIG_HTTP_PORT, 0);
+    Validate.isTrue(_httpPort == 0 || _httpPort >= 1024, "Invalid port number: " + _httpPort);
+
+    if (enableEmbeddedJetty) {
+      _jettyLauncher = new DatastreamJettyStandaloneLauncher(_httpPort, new DatastreamResourceFactory(this),
+          "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
+    }
+
+    Properties diagProperties = verifiableProperties.getDomainProperties(DOMAIN_DIAG);
+    String diagPortStr = diagProperties.getProperty(CONFIG_DIAG_PORT, "");
+    int diagPort = diagPortStr.isEmpty() ? _httpPort : Integer.valueOf(diagPortStr);
+    String diagPath = diagProperties.getProperty(CONFIG_DIAG_PATH, "");
+    _serverComponentHealthAggregator = new ServerComponentHealthAggregator(zkClient, coordinatorConfig.getCluster(), diagPort, diagPath);
+
+    _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
+
+    verifiableProperties.verify();
+
+    initializeMetrics();
+
+    _isInitialized = true;
+
+    LOG.info("DatastreamServer initialized successfully.");
   }
 
   public synchronized boolean isInitialized() {
@@ -222,90 +322,6 @@ public class DatastreamServer {
         deduper, authorizerName);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
-  }
-
-  public DatastreamServer(Properties properties) throws DatastreamException {
-    LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
-    LOG.info("Creating coordinator.");
-    VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
-
-    HashSet<String> connectorTypes =
-        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",")));
-    if (connectorTypes.size() == 0) {
-      String errorMessage = "No connectors specified in connectorTypes";
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
-    }
-
-    HashSet<String> transportProviderNames =
-        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_TRANSPORT_PROVIDER_NAMES).split(",")));
-    if (transportProviderNames.size() == 0) {
-      String errorMessage = "No transport providers specified in config: " + CONFIG_TRANSPORT_PROVIDER_NAMES;
-      LOG.error(errorMessage);
-      throw new DatastreamRuntimeException(errorMessage);
-    }
-
-    Set<String> serdeNames = Arrays.asList(verifiableProperties.getString(CONFIG_SERDE_NAMES, "").split(","))
-        .stream()
-        .filter(x -> !x.isEmpty())
-        .collect(Collectors.toSet());
-
-    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
-    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
-
-    LOG.info("Setting up DMS endpoint server.");
-    ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
-        coordinatorConfig.getZkConnectionTimeout());
-
-    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, coordinatorConfig.getCluster());
-    _coordinator = new Coordinator(datastreamCache, coordinatorConfig);
-    LOG.info("Loading connectors {}", connectorTypes);
-    _bootstrapConnectors = new HashMap<>();
-    for (String connectorStr : connectorTypes) {
-      initializeConnector(connectorStr,
-          verifiableProperties.getDomainProperties(CONFIG_CONNECTOR_PREFIX + connectorStr),
-          coordinatorConfig.getCluster());
-    }
-
-    LOG.info("Loading Transport providers {}", transportProviderNames);
-    for (String tpName : transportProviderNames) {
-      initializeTransportProvider(tpName,
-          verifiableProperties.getDomainProperties(CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName));
-    }
-
-    LOG.info("Loading Serdes {} ", serdeNames);
-    for (String serde : serdeNames) {
-      initializeSerde(serde, verifiableProperties.getDomainProperties(CONFIG_SERDE_PREFIX + serde));
-    }
-
-    _datastreamStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, coordinatorConfig.getCluster());
-
-    boolean enableEmbeddedJetty = verifiableProperties.getBoolean(CONFIG_ENABLE_EMBEDDED_JETTY, true);
-
-    // Port will be updated after start() is called if it is 0
-    _httpPort = verifiableProperties.getInt(CONFIG_HTTP_PORT, 0);
-    Validate.isTrue(_httpPort == 0 || _httpPort >= 1024, "Invalid port number: " + _httpPort);
-
-    if (enableEmbeddedJetty) {
-      _jettyLauncher = new DatastreamJettyStandaloneLauncher(_httpPort, new DatastreamResourceFactory(this),
-          "com.linkedin.datastream.server.dms", "com.linkedin.datastream.server.diagnostics");
-    }
-
-    Properties diagProperties = verifiableProperties.getDomainProperties(DOMAIN_DIAG);
-    String diagPortStr = diagProperties.getProperty(CONFIG_DIAG_PORT, "");
-    int diagPort = diagPortStr.isEmpty() ? _httpPort : Integer.valueOf(diagPortStr);
-    String diagPath = diagProperties.getProperty(CONFIG_DIAG_PATH, "");
-    _serverComponentHealthAggregator = new ServerComponentHealthAggregator(zkClient, coordinatorConfig.getCluster(), diagPort, diagPath);
-
-    _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
-
-    verifiableProperties.verify();
-
-    initializeMetrics();
-
-    _isInitialized = true;
-
-    LOG.info("DatastreamServer initialized successfully.");
   }
 
   private void initializeMetrics() {

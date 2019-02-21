@@ -19,9 +19,7 @@ public class DatastreamTaskStatus {
 
   private Code _code;
   private String _message;
-
   private long _timeStamp = System.currentTimeMillis();
-
   private String _hostName;
 
   // Needed for JSON deserialization
@@ -36,15 +34,6 @@ public class DatastreamTaskStatus {
     _code = code;
     _message = message;
     _hostName = localHostName();
-  }
-
-  private String localHostName() {
-    try {
-      return InetAddress.getLocalHost().getHostName();
-    } catch (UnknownHostException e) {
-      LOG.warn("Couldn't get the hostname");
-      return "unknown";
-    }
   }
 
   /**
@@ -66,7 +55,6 @@ public class DatastreamTaskStatus {
 
   /**
    * Helper method to create an ERROR status
-   * @param message
    * @return ERROR task status
    */
   public static DatastreamTaskStatus error(String message) {
@@ -87,6 +75,15 @@ public class DatastreamTaskStatus {
    */
   public static DatastreamTaskStatus paused() {
     return new DatastreamTaskStatus(Code.PAUSED, "Paused");
+  }
+
+  private String localHostName() {
+    try {
+      return InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      LOG.warn("Couldn't get the hostname");
+      return "unknown";
+    }
   }
 
   /**
@@ -127,18 +124,18 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return message associated with the status
-   */
-  public String getMessage() {
-    return _message;
-  }
-
-  /**
    * Set Code of the status. Needed for JsonUtils.
    * @param code status code
    */
   public void setCode(Code code) {
     _code = code;
+  }
+
+  /**
+   * @return message associated with the status
+   */
+  public String getMessage() {
+    return _message;
   }
 
   /**

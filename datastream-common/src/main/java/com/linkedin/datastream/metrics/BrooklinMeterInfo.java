@@ -26,5 +26,4 @@ public class BrooklinMeterInfo extends BrooklinMetricInfo {
   public BrooklinMeterInfo(String nameOrRegex, Optional<List<String>> meterAttributes) {
     super(nameOrRegex, meterAttributes);
   }
-
 }

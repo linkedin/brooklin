@@ -2,6 +2,7 @@ package com.linkedin.datastream.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -30,7 +31,6 @@ public class AvroUtils {
    * @param record the instance of the avro record
    * @param <T> The type of the avro record.
    * @return encoded bytes
-   * @throws java.io.IOException
    */
   public static <T> byte[] encodeAvroSpecificRecord(Class<T> clazz, T record) throws IOException {
     DatumWriter<T> msgDatumWriter = new SpecificDatumWriter<>(clazz);
@@ -47,7 +47,6 @@ public class AvroUtils {
    * @param schema schema describing the desired layout of the bytes
    * @param record the instance of the avro record
    * @return encoded bytes
-   * @throws IOException
    */
   public static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -60,7 +59,6 @@ public class AvroUtils {
    * @param schema schema describing the desired layout of the bytes
    * @param record the instance of the avro record
    * @return encoded bytes
-   * @throws IOException
    */
   public static byte[] encodeAvroIndexedRecordAsJson(Schema schema, IndexedRecord record) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -88,7 +86,6 @@ public class AvroUtils {
    * @param bytes bytes to decode
    * @param <T> type of the instance to decode
    * @return decoded instance of T
-   * @throws java.io.IOException
    */
   public static <T extends SpecificRecord> T decodeAvroSpecificRecord(Class<T> clazz, byte[] bytes) throws IOException {
     return decodeAvroSpecificRecord(clazz, bytes, null);
@@ -102,7 +99,6 @@ public class AvroUtils {
    *              will actually be used.
    * @param <T> type of the instance to decode
    * @return decoded instance of T
-   * @throws IOException
    */
   public static <T extends SpecificRecord> T decodeAvroSpecificRecord(Class<T> clazz, byte[] bytes, T reuse)
       throws IOException {
@@ -119,7 +115,6 @@ public class AvroUtils {
    *              will actually be used.
    * @param <T> type of the instance to decode
    * @return decoded instance of T
-   * @throws IOException
    */
   public static <T extends SpecificRecord> T decodeAvroSpecificRecord(Schema schema, byte[] bytes, T reuse)
       throws IOException {
@@ -136,7 +131,6 @@ public class AvroUtils {
    *              will actually be used.
    * @param <T> type of the instance to decode
    * @return decoded instance of T
-   * @throws IOException
    */
   public static <T> T decodeAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
     BinaryDecoder binDecoder = DecoderFactory.defaultFactory().createBinaryDecoder(bytes, null);
@@ -149,7 +143,6 @@ public class AvroUtils {
    * @param schema schema describing the expected information of the bytes.
    * @param bytes bytes to decode
    * @return decoded instance of GenericRecord
-   * @throws IOException
    */
   public static GenericRecord decodeAvroGenericRecord(Schema schema, byte[] bytes) throws IOException {
     return decodeAvroGenericRecord(schema, bytes, (GenericRecord) null);
@@ -160,12 +153,10 @@ public class AvroUtils {
    * @param schema schema describing the expected information of the bytes.
    * @param bytes Json string in bytes to decode
    * @return decoded instance of GenericRecord
-   * @throws IOException
    */
   public static <T> T decodeJsonAsAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
     JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(schema, new String(bytes));
     GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
     return reader.read(reuse, jsonDecoder);
   }
-
 }

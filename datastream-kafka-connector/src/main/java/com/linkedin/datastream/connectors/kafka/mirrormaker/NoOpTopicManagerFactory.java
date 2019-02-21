@@ -8,6 +8,7 @@ import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
 import com.linkedin.datastream.server.DatastreamTask;
 
+
 /**
  * This class implements TopicManagerFactory interface and returns NoOpTopicManager instance. This factory is used by default
  * by mirror maker to create topic manager instance.
