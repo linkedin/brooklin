@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+     Copyright 2019 LinkedIn Corporation. All rights reserved.
+     Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+     See the NOTICE file in the project root for additional information regarding copyright ownership.
+
+-->
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 
 <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">

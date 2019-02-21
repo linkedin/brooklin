@@ -1,9 +1,15 @@
 subprojects {
-    apply plugin: 'license'
+    apply plugin: 'java'
+    apply plugin: 'com.github.hierynomus.license-base'
 
     license {
         header rootProject.file('HEADER')
         // Skip Twitter bootstrap JS and CSS.
         skipExistingHeaders = true
+        ext.year = Calendar.getInstance().get(Calendar.YEAR)
     }
+
+    // Check all source files in the main and
+    // test source sets for license headers
+    check.dependsOn licenseMain, licenseTest
 }
