@@ -217,10 +217,25 @@ public class CommonConnectorMetrics {
 
     @Override
     public void deregister() {
+      long numStuckPartitions = _numStuckPartitions.get();
+      long numPartitions = _numPartitions.get();
+
       super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PARTITIONS);
+
+      // Aggregate gauage metrics should only reflect values for valid registered local metrics. When deregistering
+      // metrics, subtract their values from aggregate metrics.
+      AtomicLong aggregatedNumStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
+      if (aggregatedNumStuckPartitions != null) {
+        aggregatedNumStuckPartitions.getAndAdd(-numStuckPartitions);
+      }
+
+      AtomicLong aggregatedNumPartitions = AGGREGATED_NUM_PARTITIONS.get(_className);
+      if (aggregatedNumPartitions != null) {
+        aggregatedNumPartitions.getAndAdd(-numPartitions);
+      }
     }
 
     @Override
