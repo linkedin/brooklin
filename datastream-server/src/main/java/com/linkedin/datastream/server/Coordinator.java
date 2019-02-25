@@ -142,8 +142,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      effectively suspending processing of the current tasks.
        - In case a datastream is dedupped, the tasks are reassigned only if all the datastreams are paused.
        - The tasks status are changed from OK to Paused.
-
-     For more details, see: https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Pausing+a+Datastream
    */
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   public static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
