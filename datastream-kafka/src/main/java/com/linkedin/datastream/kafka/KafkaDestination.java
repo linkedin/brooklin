@@ -16,6 +16,8 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 
 /**
  * Helper class to work with Kafka destination URIs with ssl/plain-text support.
+ * kafka{ssl}://zkAddress:port{/cluster}/topicName
+ * kafka{ssl}://broker:port1{,broker:port2,...}/topicName
  */
 public class KafkaDestination {
   public static final String SCHEME_KAFKA = "kafka";
@@ -57,10 +59,13 @@ public class KafkaDestination {
     } else {
       topicName = path.substring(1);
     }
-    long portNo = u.getPort();
+    for (String hostInfo : zkAddress.split(",")) {
+      long portNum = URI.create(SCHEME_KAFKA + "://" + hostInfo).getPort();
+      Validate.isTrue(portNum != -1, "Missing port number in URI: " + uri);
+    }
+
     Validate.notBlank(zkAddress, "Missing zkAddress in URI: " + uri);
     Validate.notBlank(topicName, "Missing topic name in URI: " + uri);
-    Validate.isTrue(portNo != -1, "Missing port number in URI: " + uri);
     boolean isSecure = scheme.equals(SCHEME_SECURE_KAFKA);
     return new KafkaDestination(zkAddress, topicName, isSecure);
   }

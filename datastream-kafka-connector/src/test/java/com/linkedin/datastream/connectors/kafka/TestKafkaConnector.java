@@ -27,6 +27,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.SourceBasedDeduper;
+import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 

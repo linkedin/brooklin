@@ -8,14 +8,14 @@ package com.linkedin.datastream.kafka;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang.Validate;
-import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.commons.lang3.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +30,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -42,42 +43,31 @@ public class KafkaTransportProvider implements TransportProvider {
   private static final String CLASS_NAME = KafkaTransportProvider.class.getSimpleName();
   private static final Logger LOG = LoggerFactory.getLogger(CLASS_NAME);
 
-  private static final String KEY_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
-  private static final String VAL_SERIALIZER = "org.apache.kafka.common.serialization.ByteArraySerializer";
+  static final String AGGREGATE = "aggregate";
+  static final String EVENT_WRITE_RATE = "eventWriteRate";
+  static final String EVENT_BYTE_WRITE_RATE = "eventByteWriteRate";
+  static final String EVENT_TRANSPORT_ERROR_RATE = "eventTransportErrorRate";
 
-  private KafkaProducer<byte[], byte[]> _producer;
-  private final String _brokers;
-
-  private static final String EVENT_WRITE_RATE = "eventWriteRate";
-  private static final String EVENT_BYTE_WRITE_RATE = "eventByteWriteRate";
-  private static final String EVENT_TRANSPORT_ERROR_RATE = "eventTransportErrorRate";
+  private final DatastreamTask _datastreamTask;
+  private List<KafkaProducerWrapper<byte[], byte[]>> _producers;
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
-  private static final String AGGREGATE = "aggregate";
 
-
-  public KafkaTransportProvider(Properties props) {
-    this(props, null);
-  }
-
-  public KafkaTransportProvider(Properties props, String metricsNamesPrefix) {
+  public KafkaTransportProvider(DatastreamTask datastreamTask, List<KafkaProducerWrapper<byte[], byte[]>> producers,
+      Properties props, String metricsNamesPrefix) {
+    org.apache.commons.lang.Validate.notNull(datastreamTask, "null tasks");
+    org.apache.commons.lang.Validate.notNull(producers, "null producer wrappers");
+    _producers = producers;
+    _datastreamTask = datastreamTask;
     LOG.info("Creating kafka transport provider with properties: {}", props);
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
-
-    _brokers = props.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
-
-    // Assign mandatory arguments
-    props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
-    props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, VAL_SERIALIZER);
-
-    _producer = new KafkaProducer<>(props);
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -87,7 +77,11 @@ public class KafkaTransportProvider implements TransportProvider {
     _eventTransportErrorRate = new Meter();
   }
 
-  private ProducerRecord<byte[], byte[]> convertToProducerRecord(KafkaDestination destination,
+  public List<KafkaProducerWrapper<byte[], byte[]>> getProducers() {
+    return _producers;
+  }
+
+  private ProducerRecord<byte[], byte[]> convertToProducerRecord(String topicName,
       DatastreamProducerRecord record, Object event) throws DatastreamException {
 
     Optional<Integer> partition = record.getPartition();
@@ -109,18 +103,18 @@ public class KafkaTransportProvider implements TransportProvider {
 
     if (partition.isPresent() && partition.get() >= 0) {
       // If the partition is specified. We send the record to the specific partition
-      return new ProducerRecord<>(destination.getTopicName(), partition.get(), keyValue, payloadValue);
+      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue);
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
       keyValue = record.getPartitionKey().isPresent() ? record.getPartitionKey().get().getBytes() : keyValue;
-      return new ProducerRecord<>(destination.getTopicName(), keyValue, payloadValue);
+      return new ProducerRecord<>(topicName, keyValue, payloadValue);
     }
   }
 
   @Override
   public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
-    KafkaDestination destination = KafkaDestination.parse(destinationUri);
+    String topicName = KafkaTransportProviderUtils.getTopicName(destinationUri);
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
@@ -132,7 +126,7 @@ public class KafkaTransportProvider implements TransportProvider {
       for (Object event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing;
         try {
-          outgoing = convertToProducerRecord(destination, record, event);
+          outgoing = convertToProducerRecord(topicName, record, event);
         } catch (Exception e) {
           String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
           LOG.error(errorMessage, e);
@@ -141,25 +135,34 @@ public class KafkaTransportProvider implements TransportProvider {
         _eventWriteRate.mark();
         _eventByteWriteRate.mark(outgoing.key().length + outgoing.value().length);
 
-        _producer.send(outgoing, (metadata, exception) -> onSendComplete.onCompletion(
-            new DatastreamRecordMetadata(record.getCheckpoint(), metadata != null ? metadata.topic() : "UNKNOWN",
-                metadata != null ? metadata.partition() : -1), exception));
+        KafkaProducerWrapper<byte[], byte[]> producer =
+            _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
+
+        producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
+          int partition = metadata != null ? metadata.partition() : -1;
+          if (exception != null) {
+            LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
+                    + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
+          }
+          doOnSendCallback(record, onSendComplete, metadata, exception);
+        });
 
         // Update topic-specific metrics and aggregate metrics
         int numBytes = outgoing.key().length + outgoing.value().length;
-        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(), EVENT_WRITE_RATE,
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE,
             1);
-        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(),
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName,
             EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
-      _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, destination.getTopicName(), EVENT_TRANSPORT_ERROR_RATE, 1);
+      _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_TRANSPORT_ERROR_RATE, 1);
       String errorMessage = String.format(
-          "Sending event (%s) to topic %s and Kafka cluster (Metadata brokers) %s " + "failed with exception",
-          record.getEvents(), destinationUri, _brokers);
+          "Sending DatastreamRecord (%s) to topic %s, partition %s, Kafka cluster %s failed with exception.", record,
+          topicName, record.getPartition().orElse(-1), destinationUri);
+
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
     }
 
@@ -168,18 +171,21 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void close() {
-    // Close the kafka producer connection immediately (timeout of zero). If timeout > 0 producer connection won't
-    // close immediately and will result in out of order events. More details in the below slide.
-    // http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844/10
-    if (_producer != null) {
-      _producer.close(0, TimeUnit.MILLISECONDS);
-      _producer = null;
-    }
+    _producers.forEach(p -> p.close(_datastreamTask));
   }
 
   @Override
   public void flush() {
-    _producer.flush();
+    _producers.forEach(p -> p.flush(_datastreamTask));
+  }
+
+  private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
+      Exception exception) {
+    if (onComplete != null) {
+      onComplete.onCompletion(
+          metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
+              metadata.partition()) : null, exception);
+    }
   }
 
   public static List<BrooklinMetricInfo> getMetricInfos(String metricsNamesPrefix) {

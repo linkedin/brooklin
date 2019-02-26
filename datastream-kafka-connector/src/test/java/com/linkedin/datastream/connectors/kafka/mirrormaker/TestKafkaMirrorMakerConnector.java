@@ -34,7 +34,6 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
-import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
@@ -50,6 +49,7 @@ import com.linkedin.datastream.server.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
+import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.*;
@@ -170,7 +170,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.initializeDatastream(stream);
 
     String someTopic = "someTopic";
-    Assert.assertEquals(transportProviderAdmin.getDestination(someTopic),
+    Assert.assertEquals(transportProviderAdmin.getDestination(stream,  someTopic),
         stream.getDestination().getConnectionString().replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, someTopic));
 
     coordinator.stop();

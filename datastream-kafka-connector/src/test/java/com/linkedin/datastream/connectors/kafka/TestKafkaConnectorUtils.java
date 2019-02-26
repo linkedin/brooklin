@@ -41,6 +41,6 @@ public class TestKafkaConnectorUtils {
     Properties props = new Properties();
     props.put("zookeeper.connect", kafkaCluster.getZkConnection());
     props.put("bootstrap.servers", kafkaCluster.getBrokers());
-    return new KafkaTransportProviderAdmin(props);
+    return new KafkaTransportProviderAdmin("test", props);
   }
 }

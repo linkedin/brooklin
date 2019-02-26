@@ -54,6 +54,17 @@ public class TestKafkaDestination {
   }
 
   @Test
+  public void testMutipleDestinationsParsing() {
+    String zkAddress = "broker1:12913,broker2:12314/kafka-datastream";
+    String topicName = "testtopic_test";
+    String uri = "kafka://broker1:12913,broker2:12314/kafka-datastream/testtopic_test";
+    KafkaDestination destination = KafkaDestination.parse(uri);
+    Assert.assertEquals(destination.getZkAddress(), zkAddress);
+    Assert.assertEquals(destination.getTopicName(), topicName);
+    Assert.assertFalse(destination.isSecure());
+  }
+
+  @Test
   public void testEscapedUri() throws Exception {
     String uri = "kafka://localhost%3A12913%2Fkafka-datastream/testtopic_test";
     KafkaDestination destination = KafkaDestination.parse(uri);

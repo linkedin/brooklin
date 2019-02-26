@@ -42,6 +42,7 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
+import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.*;
 import static org.mockito.Mockito.*;
