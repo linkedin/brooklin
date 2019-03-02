@@ -215,6 +215,18 @@ public class TestCommonConnectorMetrics {
     metrics1.createPartitionMetrics();
     metrics2.createPartitionMetrics();
 
+    metrics1.updateNumPartitions(15);
+    metrics2.updateNumPartitions(10);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
+        + CommonConnectorMetrics.PartitionMetrics.NUM_PARTITIONS)).getValue(), 25);
+
+    metrics1.updateStuckPartitions(10);
+    metrics2.updateStuckPartitions(15);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
+        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 25);
+
     Assert.assertNotNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, "aggregate", "stuckPartitions")));
     Assert.assertNotNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, CONSUMER1_NAME, "stuckPartitions")));
     Assert.assertNotNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, CONSUMER2_NAME, "stuckPartitions")));
@@ -222,6 +234,13 @@ public class TestCommonConnectorMetrics {
     metrics1.deregisterMetrics();
     Assert.assertNotNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, "aggregate", "stuckPartitions")));
     Assert.assertNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, CONSUMER1_NAME, "stuckPartitions")));
+
+    // Aggregate metrics' value should be only reflect value of valid registered metrics. Any metrics that have been
+    // deregistered should be subtracted from aggregate metrics.
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
+        + CommonConnectorMetrics.PartitionMetrics.NUM_PARTITIONS)).getValue(), 10);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
+        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 15);
 
     metrics2.deregisterMetrics();
     Assert.assertNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, "aggregate", "stuckPartitions")));
