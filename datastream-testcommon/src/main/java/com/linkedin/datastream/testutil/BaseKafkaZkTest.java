@@ -3,7 +3,7 @@
  *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
  *  See the NOTICE file in the project root for additional information regarding copyright ownership.
  */
-package com.linkedin.datastream.connectors.kafka;
+package com.linkedin.datastream.testutil;
 
 import java.util.Properties;
 
@@ -20,7 +20,6 @@ import kafka.utils.ZkUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 
 /**

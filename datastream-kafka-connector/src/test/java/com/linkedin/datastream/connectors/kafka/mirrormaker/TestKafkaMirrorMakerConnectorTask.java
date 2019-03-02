@@ -37,7 +37,6 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
-import com.linkedin.datastream.connectors.kafka.BaseKafkaZkTest;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
@@ -51,6 +50,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.*;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
