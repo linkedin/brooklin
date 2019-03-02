@@ -52,5 +52,4 @@ public class KafkaMirrorMakerCheckpoint {
   public long getOffset() {
     return _offset;
   }
-
 }

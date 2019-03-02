@@ -17,7 +17,6 @@ public class EnumSchemaField extends SchemaField {
   public EnumSchemaField(Field field) {
     super(field);
     enumStrings = field.schema().getEnumSymbols();
-
   }
 
   @Override
@@ -33,5 +32,4 @@ public class EnumSchemaField extends SchemaField {
   public String generateEnum() {
     return enumStrings.get(_randGenerator.getNextInt(0, enumStrings.size()));
   }
-
 }

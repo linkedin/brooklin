@@ -13,8 +13,6 @@ import java.util.List;
 public interface ChunkedQueryManager {
   /**
    * Validate the nested query to be compatible for chunking.
-   * Throws IllegalArgumentException
-   * @param query
    */
   default void validateQuery(String query) throws IllegalArgumentException {
 
@@ -32,6 +30,7 @@ public interface ChunkedQueryManager {
    */
   String generateFirstQuery(String nestedQuery, List<String> keys, long chunkSize, int partitionCount,
       List<Integer> partitions);
+
   /**
    * Generate the final query after appending the chunking predicate.
    * @param nestedQuery Query to filter columns
@@ -49,7 +48,6 @@ public interface ChunkedQueryManager {
    * Assumes query generated from {@code ::generateChunkedQuery()}
    * @param stmt PreparedStatement to populate the variables into
    * @param values List of values to use to initialize the variables in the prepared statement
-   * @throws SQLException
    */
   void prepareChunkedQuery(PreparedStatement stmt, List<Object> values) throws SQLException;
 }

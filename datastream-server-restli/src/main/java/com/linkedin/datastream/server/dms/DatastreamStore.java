@@ -17,8 +17,6 @@ import com.linkedin.datastream.common.DatastreamException;
 public interface DatastreamStore {
   /**
    * Retrieves the datastream associated with the given key.
-   * @param key
-   * @return
    */
   Datastream getDatastream(String key);
 
@@ -26,7 +24,6 @@ public interface DatastreamStore {
    * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
    * to return a Stream and enable further filtering and transformation rather that just a List.
    * The result should be sorted so that consumers can implement paging correctly.
-   * @return
    */
   Stream<String> getAllDatastreams();
 
@@ -35,21 +32,16 @@ public interface DatastreamStore {
    * @param key datastream name of the original datastream to be updated
    * @param datastream content of the updated datastream
    * @param notifyLeader whether to notify leader about the update
-   * @throws DatastreamException
    */
   void updateDatastream(String key, Datastream datastream, boolean notifyLeader) throws DatastreamException;
 
   /**
    * Creates a new datastream and associates it with the provided key.
-   * @param key
-   * @param datastream
-   * @throws DatastreamException
    */
   void createDatastream(String key, Datastream datastream);
 
   /**
    * Deletes the datastream associated with the provided key.
-   * @param key
    */
   void deleteDatastream(String key);
 }

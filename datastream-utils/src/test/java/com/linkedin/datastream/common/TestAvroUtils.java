@@ -42,5 +42,4 @@ public class TestAvroUtils {
     String encodedValue = new String(AvroUtils.encodeAvroIndexedRecordAsJson(schema, record));
     Assert.assertEquals(expectedValue, encodedValue);
   }
-
 }

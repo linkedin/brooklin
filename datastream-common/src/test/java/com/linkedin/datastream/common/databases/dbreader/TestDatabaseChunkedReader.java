@@ -37,9 +37,14 @@ import com.linkedin.datastream.common.databases.DatabaseRow;
 import com.linkedin.datastream.common.databases.MockJDBCConnection;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
-import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.*;
-import static org.mockito.Matchers.anyString;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.DATABASE_QUERY_MANAGER_CLASS_NAME;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.DB_READER_DOMAIN_CONFIG;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.FETCH_SIZE;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.QUERY_TIMEOUT_SECS;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.ROW_COUNT_LIMIT;
+import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.SKIP_BAD_MESSAGE;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
 
 
 public class TestDatabaseChunkedReader {
@@ -57,7 +62,6 @@ public class TestDatabaseChunkedReader {
       + "{\"name\":\"timestamp\",\"type\":[\"null\",\"long\"],\"default\":null,\"meta\":\"dbFieldName=TIMESTAMP;dbFieldPosition=3;dbFieldType=TIMESTAMP;\"}"
       + "],\"meta\":\"dbTableName=TEST_DB_TEST_TABLE;pk=key1,key2,key3;\"}";
   private static final Schema TEST_COMPOSITE_KEY_TABLE_SCHEMA = Schema.parse(TEST_COMPOSITE_KEY_TABLE_SCHEMA_STR);
-
   private static final String TEST_SIMPLE_KEY_TABLE = "TEST_SIMPLE_SCHEMA";
   private static final String TEST_SIMPLE_QUERY = "SELECT * FROM " + TEST_SIMPLE_KEY_TABLE + " ORDER BY KEY1";
   private static final List<String> TEST_SIMPLE_KEYS = Collections.singletonList("key1");
@@ -99,7 +103,6 @@ public class TestDatabaseChunkedReader {
   /**
    * Verify the total rows read and per read row count and data. Test focuses on generation of the query predicate based
    * on previous values. The Mocks are setup to expect specific values.
-   * @throws Exception
    */
   @Test
   public void testRowCount() throws Exception {
@@ -132,10 +135,10 @@ public class TestDatabaseChunkedReader {
     // Generate row data. For this test, the keys are not very important. So we only increment key3 to generate new keys.
     List<DatabaseRow> rows = new ArrayList<>();
     for (int i = 0; i < 6; i++) {
-        rows.add(new DatabaseRow().addField("key1", 0, Types.NUMERIC)
-            .addField("key2", 0, Types.NUMERIC)
-            .addField("key3", i, Types.NUMERIC)
-            .addField("timestamp", System.currentTimeMillis(), Types.TIMESTAMP));
+      rows.add(new DatabaseRow().addField("key1", 0, Types.NUMERIC)
+          .addField("key2", 0, Types.NUMERIC)
+          .addField("key3", i, Types.NUMERIC)
+          .addField("timestamp", System.currentTimeMillis(), Types.TIMESTAMP));
     }
 
     // Generate the argument list to pass to the mocks. The MockJDBCPreparedStatement is set up to expect
@@ -208,7 +211,6 @@ public class TestDatabaseChunkedReader {
     reader3Data.put(2, Collections.emptyList());
     dataMapList.put(3, reader3Data);
 
-
     // Create other mocks and parameter list to create the readers.
     DatabaseSource mockDBSource = Mockito.mock(DatabaseSource.class);
     Mockito.when(mockDBSource.getPrimaryKeyFields(TEST_COMPOSITE_KEY_TABLE)).thenReturn(TEST_COMPOSITE_PKEYS);
@@ -222,7 +224,7 @@ public class TestDatabaseChunkedReader {
     for (int i = 0; i < numPartitions; i++) {
       data.put(i, new ArrayList<>());
       DataSource mockDs = Mockito.mock(DataSource.class);
-          Mockito.when(mockDs.getConnection()).thenReturn(new MockJDBCConnection(keyMapList.get(i), dataMapList.get(i)));
+      Mockito.when(mockDs.getConnection()).thenReturn(new MockJDBCConnection(keyMapList.get(i), dataMapList.get(i)));
       mockSources.add(mockDs);
     }
 
@@ -242,7 +244,6 @@ public class TestDatabaseChunkedReader {
       verifyData(data.get(i), expected);
     }
   }
-
 
   @Test
   void testSkipBadMessages() throws SQLException, SchemaGenerationException {
@@ -269,8 +270,11 @@ public class TestDatabaseChunkedReader {
     Mockito.when(mockRs.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
     ResultSetMetaData mockRsmd = Mockito.mock(ResultSetMetaData.class);
     Mockito.when(mockRs.getMetaData()).thenReturn(mockRsmd);
-    Mockito.when(mockRsmd.getColumnCount()).thenThrow(new SQLException("Bad row - test skip bad message test"))
-      .thenReturn(1).thenThrow(new SQLException("Bad row - test skip bad message test")).thenReturn(1);
+    Mockito.when(mockRsmd.getColumnCount())
+        .thenThrow(new SQLException("Bad row - test skip bad message test"))
+        .thenReturn(1)
+        .thenThrow(new SQLException("Bad row - test skip bad message test"))
+        .thenReturn(1);
     Mockito.when(mockRsmd.getColumnName(anyInt())).thenReturn(field.getColName());
     Mockito.when(mockRsmd.getColumnType(anyInt())).thenReturn(field.getSqlType());
     Mockito.when(mockStmt.executeQuery()).thenReturn(mockRs);

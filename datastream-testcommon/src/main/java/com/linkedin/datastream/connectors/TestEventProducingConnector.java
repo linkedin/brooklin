@@ -37,7 +37,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 
 /**
@@ -45,23 +46,22 @@ import static java.util.concurrent.TimeUnit.*;
  */
 public class TestEventProducingConnector implements Connector {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestEventProducingConnector.class);
-
   public static final String CFG_MESSAGE_SIZE_BYTES = "messageSize";
-  private static final int DEFAULT_MESSAGE_SIZE_BYTES = 100;
-
   public static final String CFG_SLEEP_BETWEEN_SEND_MS = "sleepBetweenSendMs";
-  private static final long DEFAULT_SLEEP_BETWEEN_SEND_MS = 1000;
-
   public static final String CFG_NUM_PRODUCER_THREADS = "numProducerThreads";
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestEventProducingConnector.class);
+  private static final int DEFAULT_MESSAGE_SIZE_BYTES = 100;
+  private static final long DEFAULT_SLEEP_BETWEEN_SEND_MS = 1000;
   private static final int DEFAULT_NUM_PRODUCER_THREADS = 10;
+
   private final ExecutorService _executor;
   private final String _hostName;
   private final RandomValueGenerator _randomValueGenerator;
+  private final Map<DatastreamTask, Future<?>> _tasksAssigned = new HashMap<>();
 
   private int _messageSize;
   private long _sleepBetweenSendMs;
-  private Map<DatastreamTask, Future<?>> _tasksAssigned = new HashMap<>();
 
   public TestEventProducingConnector(Properties props) {
     VerifiableProperties config = new VerifiableProperties(props);

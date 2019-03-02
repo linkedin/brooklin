@@ -5,16 +5,18 @@
  */
 package com.linkedin.datastream.testutil.event.validator;
 
-import com.linkedin.datastream.testutil.event.generator.UnknownTypeException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.linkedin.datastream.testutil.event.generator.UnknownTypeException;
 
 
 /**
@@ -22,10 +24,10 @@ import org.slf4j.LoggerFactory;
  */
 public class GenericEventValidator {
 
-  private static final Logger LOG = LoggerFactory.getLogger(GenericEventValidator.class.getName());
-
   static final String[] PAYLOAD_STRS = {"payload"};
   static final String[] KEY_STRS = {"key"};
+  
+  private static final Logger LOG = LoggerFactory.getLogger(GenericEventValidator.class.getName());
 
   public GenericEventValidator() {
   }
@@ -55,9 +57,7 @@ public class GenericEventValidator {
   }
 
   /**
-   *
-   * @param event1
-   * @param event2
+   * Checks if 2 events have matching payloads
    * @return true if payloads match
    */
 
@@ -72,9 +72,7 @@ public class GenericEventValidator {
   }
 
   /**
-   *
-   * @param event1
-   * @param event2
+   * Checks if 2 events have matching keys
    * @return true if keys match
    */
   public static boolean matchKeys(IndexedRecord event1, IndexedRecord event2) {
@@ -88,9 +86,7 @@ public class GenericEventValidator {
   }
 
   /**
-   *
-   * @param event1
-   * @param event2
+   * Checks if 2 events have matching metadata
    * @return true if metadata matches
    */
   public static boolean matchMetadatas(Object event1, Object event2) {
@@ -98,15 +94,11 @@ public class GenericEventValidator {
   }
 
   /**
-   *
-   * @param list1
-   * @param list2
-   * @return true/false
-   * @throws UnknownTypeException
-   * @throws IOException
+   * Checks if 2 lists have matching events
+   * @return true if the 2 lists have matching events
    */
-  public static boolean validateGenericEventList(List<? extends IndexedRecord> list1, List<? extends IndexedRecord> list2)
-      throws UnknownTypeException, IOException {
+  public static boolean validateGenericEventList(List<? extends IndexedRecord> list1,
+      List<? extends IndexedRecord> list2) throws UnknownTypeException, IOException {
     if (list1 == null && list2 == null) {
       return true;
     }

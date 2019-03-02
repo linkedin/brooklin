@@ -5,10 +5,6 @@
  */
 package com.linkedin.datastream.server;
 
-
-import com.codahale.metrics.Gauge;
-import com.google.common.collect.ImmutableList;
-import com.linkedin.datastream.server.assignment.StickyMulticastStrategy;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,8 +31,10 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.collect.ImmutableList;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -59,6 +57,7 @@ import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
+import com.linkedin.datastream.server.assignment.StickyMulticastStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -77,7 +76,6 @@ import com.linkedin.restli.server.UpdateResponse;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
-
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
@@ -90,10 +88,10 @@ public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
   private static final int WAIT_TIMEOUT_MS = 30000;
-  private CachedDatastreamReader _cachedDatastreamReader;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
+  private CachedDatastreamReader _cachedDatastreamReader;
 
   static {
     DynamicMetricsManager.createInstance(new MetricRegistry(), "TestCoordinator");
@@ -136,118 +134,9 @@ public class TestCoordinator {
     _embeddedZookeeper.shutdown();
   }
 
-  public class TestHookConnector implements Connector {
-    boolean _isStarted = false;
-    boolean _allowDatastreamUpdate = true;
-    String _connectorType = "TestConnector";
-    List<DatastreamTask> _tasks = new ArrayList<>();
-    String _instance = "";
-    String _name;
-
-    public TestHookConnector(String name, String connectorType) {
-      _name = name;
-      _connectorType = connectorType;
-    }
-
-    public TestHookConnector(String connectorType) {
-      _connectorType = connectorType;
-    }
-
-    public String getName() {
-      return _name;
-    }
-
-    public List<DatastreamTask> getTasks() {
-      LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
-      return _tasks;
-    }
-
-    @Override
-    public void start(CheckpointProvider checkpointProvider) {
-      _isStarted = true;
-      LOG.info("Connector " + _name + " started");
-    }
-
-    @Override
-    public void stop() {
-      _isStarted = false;
-    }
-
-    @Override
-    public void onAssignmentChange(List<DatastreamTask> tasks) {
-
-      LOG.info("START: onAssignmentChange. Name: " + _name + ", ConnectorType: " + _connectorType
-          + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
-
-      _tasks = tasks;
-      for (DatastreamTask task : tasks) {
-        if (task.getEventProducer() == null) {
-          Assert.assertNotNull(task.getEventProducer());
-        }
-      }
-
-      LOG.info("END: onAssignmentChange");
-    }
-
-    @Override
-    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
-    }
-
-    @Override
-    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
-        throws DatastreamValidationException {
-      if (!_allowDatastreamUpdate) {
-        throw new DatastreamValidationException("not allowed");
-      }
-    }
-
-    @Override
-    public String toString() {
-      return "Connector " + _name + ", StatusId: " + _connectorType + ", Instance: " + _instance;
-    }
-
-    @Override
-    public List<BrooklinMetricInfo> getMetricInfos() {
-      return null;
-    }
-  }
-
-  // Test hook connector for mirror maker
-  class MMTestHookConnector extends TestHookConnector implements Connector {
-
-    public MMTestHookConnector(String connectorName, String connectorType) {
-      super(connectorName, connectorType);
-    }
-
-    public DatastreamTask getDatastreamTask(String datastreamName) {
-      return _tasks.stream()
-          .filter(x -> x.getDatastreams().stream().findFirst().get().getName().equals(datastreamName))
-          .findFirst()
-          .get();
-    }
-
-    @Override
-    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
-        throws DatastreamValidationException {
-      if (!_allowDatastreamUpdate) {
-        throw new DatastreamValidationException("not allowed");
-      }
-    }
-
-    @Override
-    public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
-      if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
-        return true;
-      }
-      return false;
-    }
-  }
-
   /**
    * testConnectorStateSetAndGet makes sure that the connector can read and write state that
    * is specific to each DatastreamTask.
-   *
-   * @throws Exception
    */
   @Test
   public void testConnectorStateSetAndGet() throws Exception {
@@ -373,8 +262,6 @@ public class TestCoordinator {
    *     <li>create a second datastream (datastream2)</li>
    *     <li>verify that datastream2 is assigned to both instance1 and instance2</li>
    * </ul>
-   *
-   * @throws Exception
    */
   @Test
   public void testCoordinationWithBroadcastStrategy() throws Exception {
@@ -550,8 +437,6 @@ public class TestCoordinator {
    *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
    *     <li>add a instance, verify the new instance get proper assignment</li>
    * </ul>
-   *
-   * @throws Exception
    */
   @Test
   public void testCoordinationWithStickyMulticastStrategy() throws Exception {
@@ -660,10 +545,8 @@ public class TestCoordinator {
     return datastreamMap;
   }
 
-
   /**
    * Test Datastream create with BYOT where destination is in use by another datastream
-   * @throws Exception
    */
   @Test
   public void testBYOTDatastreamWithUsedDestination() throws Exception {
@@ -710,7 +593,6 @@ public class TestCoordinator {
 
   /**
    * Test datastream creation with Connector-managed destination; coordinator should not create or delete topics.
-   * @throws Exception
    */
   @Test
   public void testDatastreamWithConnectorManagedDestination() throws Exception {
@@ -750,7 +632,6 @@ public class TestCoordinator {
   /**
    * Test datastream creation and deletion with regular destination; coordinator should create and delete topics
    * accordingly.
-   * @throws Exception
    */
   @Test
   public void testDatastreamWithoutConnectorManagedDestination() throws Exception {
@@ -1662,41 +1543,6 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  class BadConnector implements Connector {
-    private int assignmentCount;
-
-    public int getAssignmentCount() {
-      return assignmentCount;
-    }
-
-    @Override
-    public void start(CheckpointProvider checkpointProvider) {
-
-    }
-
-    @Override
-    public void stop() {
-
-    }
-
-    @Override
-    public void onAssignmentChange(List<DatastreamTask> tasks) {
-      ++assignmentCount;
-      // throw a fake exception to trigger the error handling
-      throw new RuntimeException();
-    }
-
-    @Override
-    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
-        throws DatastreamValidationException {
-    }
-
-    @Override
-    public List<BrooklinMetricInfo> getMetricInfos() {
-      return null;
-    }
-  }
-
   @Test
   public void testCoordinatorErrorHandling() throws Exception {
     String testCluster = "testCoordinatorErrorHandling";
@@ -1798,8 +1644,6 @@ public class TestCoordinator {
    * datastream but the name of the new datastream is alphabetically "smaller" than
    * the existing datastream. In this case, the existing datastream should be chosen
    * for task assignment after de-dup, thus without resulting in new tasks created.
-   *
-   * @throws Exception
    */
   @Test(enabled = false)
   public void testTaskAssignmentAfterDestinationDedup() throws Exception {
@@ -1810,27 +1654,10 @@ public class TestCoordinator {
    * Test the same scenario as testTaskAssignmentAfterDestinationDedup but ensure
    * compatibility with existing datastreams without the timestamp in metadata.
    * In which case, the datastream without timestamp metadata is the older one.
-   *
-   * @throws Exception
    */
   @Test(enabled = false)
   public void testTaskAssignmentAfterDestinationDedupCompat() throws Exception {
     doTestTaskAssignmentAfterDestinationDedup("testTaskAssignmentAfterDestinationDedupCompat", true);
-  }
-
-  private class TestSetup {
-    public final EmbeddedDatastreamCluster _datastreamKafkaCluster;
-    public final Coordinator _coordinator;
-    public final DatastreamResources _resource;
-    public final TestHookConnector _connector;
-
-    public TestSetup(EmbeddedDatastreamCluster datastreamKafkaCluster, Coordinator coordinator,
-        DatastreamResources resource, TestHookConnector connector) {
-      _datastreamKafkaCluster = datastreamKafkaCluster;
-      _coordinator = coordinator;
-      _resource = resource;
-      _connector = connector;
-    }
   }
 
   private TestSetup createTestCoordinator() throws Exception {
@@ -1873,8 +1700,6 @@ public class TestCoordinator {
    * 2) the datastream has valid destination (populated by DestinationManager)
    * 3) connector is assigned the task for the datastream
    * 4) the data stream is deleted with proper clean-up
-   *
-   * @throws Exception
    */
   @Test
   public void testCreateAndDeleteDatastreamHappyPath() throws Exception {
@@ -1955,7 +1780,7 @@ public class TestCoordinator {
   public void testIsLeader() throws Exception {
     String testCluster = "testIsLeader";
     String isLeaderMetricName = "Coordinator.isLeader";
-    
+
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     instance1.start();
     Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
@@ -2329,11 +2154,9 @@ public class TestCoordinator {
       HashSet<DatastreamTask> tasks = new HashSet<>();
       for (TestHookConnector connector : connectors) {
         tasks.addAll(connector.getTasks());
-
       }
       return tasks.size() == totalTasks;
     }, interval, timeoutMs);
-
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
@@ -2350,5 +2173,162 @@ public class TestCoordinator {
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {
     String path = KeyBuilder.liveInstance(cluster, instance.getInstanceName());
     zkClient.deleteRecursive(path);
+  }
+
+  public class TestHookConnector implements Connector {
+    boolean _isStarted = false;
+    boolean _allowDatastreamUpdate = true;
+    String _connectorType = "TestConnector";
+    List<DatastreamTask> _tasks = new ArrayList<>();
+    String _instance = "";
+    String _name;
+
+    public TestHookConnector(String name, String connectorType) {
+      _name = name;
+      _connectorType = connectorType;
+    }
+
+    public TestHookConnector(String connectorType) {
+      _connectorType = connectorType;
+    }
+
+    public String getName() {
+      return _name;
+    }
+
+    public List<DatastreamTask> getTasks() {
+      LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
+      return _tasks;
+    }
+
+    @Override
+    public void start(CheckpointProvider checkpointProvider) {
+      _isStarted = true;
+      LOG.info("Connector " + _name + " started");
+    }
+
+    @Override
+    public void stop() {
+      _isStarted = false;
+    }
+
+    @Override
+    public void onAssignmentChange(List<DatastreamTask> tasks) {
+
+      LOG.info("START: onAssignmentChange. Name: " + _name + ", ConnectorType: " + _connectorType
+          + ",  Number of assignments: " + tasks.size() + ", tasks: " + tasks);
+
+      _tasks = tasks;
+      for (DatastreamTask task : tasks) {
+        if (task.getEventProducer() == null) {
+          Assert.assertNotNull(task.getEventProducer());
+        }
+      }
+
+      LOG.info("END: onAssignmentChange");
+    }
+
+    @Override
+    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) {
+    }
+
+    @Override
+    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+      if (!_allowDatastreamUpdate) {
+        throw new DatastreamValidationException("not allowed");
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "Connector " + _name + ", StatusId: " + _connectorType + ", Instance: " + _instance;
+    }
+
+    @Override
+    public List<BrooklinMetricInfo> getMetricInfos() {
+      return null;
+    }
+  }
+
+  // Test hook connector for mirror maker
+  class MMTestHookConnector extends TestHookConnector implements Connector {
+
+    public MMTestHookConnector(String connectorName, String connectorType) {
+      super(connectorName, connectorType);
+    }
+
+    public DatastreamTask getDatastreamTask(String datastreamName) {
+      return _tasks.stream()
+          .filter(x -> x.getDatastreams().stream().findFirst().get().getName().equals(datastreamName))
+          .findFirst()
+          .get();
+    }
+
+    @Override
+    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+      if (!_allowDatastreamUpdate) {
+        throw new DatastreamValidationException("not allowed");
+      }
+    }
+
+    @Override
+    public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
+      if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  class BadConnector implements Connector {
+    private int assignmentCount;
+
+    public int getAssignmentCount() {
+      return assignmentCount;
+    }
+
+    @Override
+    public void start(CheckpointProvider checkpointProvider) {
+
+    }
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public void onAssignmentChange(List<DatastreamTask> tasks) {
+      ++assignmentCount;
+      // throw a fake exception to trigger the error handling
+      throw new RuntimeException();
+    }
+
+    @Override
+    public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
+        throws DatastreamValidationException {
+    }
+
+    @Override
+    public List<BrooklinMetricInfo> getMetricInfos() {
+      return null;
+    }
+  }
+
+  private class TestSetup {
+    public final EmbeddedDatastreamCluster _datastreamKafkaCluster;
+    public final Coordinator _coordinator;
+    public final DatastreamResources _resource;
+    public final TestHookConnector _connector;
+
+    public TestSetup(EmbeddedDatastreamCluster datastreamKafkaCluster, Coordinator coordinator,
+        DatastreamResources resource, TestHookConnector connector) {
+      _datastreamKafkaCluster = datastreamKafkaCluster;
+      _coordinator = coordinator;
+      _resource = resource;
+      _connector = connector;
+    }
   }
 }

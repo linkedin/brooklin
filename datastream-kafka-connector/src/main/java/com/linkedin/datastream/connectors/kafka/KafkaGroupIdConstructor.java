@@ -9,6 +9,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 
+
 public class KafkaGroupIdConstructor implements GroupIdConstructor {
 
   private final boolean _isGroupIdHashingEnabled;

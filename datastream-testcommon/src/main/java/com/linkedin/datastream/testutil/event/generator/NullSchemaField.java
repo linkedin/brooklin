@@ -24,5 +24,4 @@ public class NullSchemaField extends SchemaField {
   public Object generateRandomObject() throws UnknownTypeException {
     return null;
   }
-
 }

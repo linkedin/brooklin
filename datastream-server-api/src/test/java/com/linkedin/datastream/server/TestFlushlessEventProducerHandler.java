@@ -26,8 +26,8 @@ import static com.linkedin.datastream.server.FlushlessEventProducerHandler.Sourc
 
 public class TestFlushlessEventProducerHandler {
   private static final Long BIG_CHECKPOINT = Long.MAX_VALUE;
-  private static Random _rnd = new Random();
   private static final String TOPIC = "MyTopic";
+  private static Random _rnd = new Random();
 
   @Test
   public void testSingleRecord() throws Exception {

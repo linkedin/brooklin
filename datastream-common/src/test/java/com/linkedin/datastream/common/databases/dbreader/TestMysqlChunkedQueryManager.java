@@ -100,17 +100,17 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1"
         + " WHERE ( MOD ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
 
-     /**
-      *   SELECT * FROM
-      *   (
-      *       SELECT * FROM
-      *           (
-      *               SELECT * FROM TABLE
-      *           ) nestedTab1
-      *       WHERE ( MOD ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
-      *       ORDER BY KEY1 , KEY2
-      *   ) as nestedTab2 LIMIT 10;
-      */
+    /**
+     *   SELECT * FROM
+     *   (
+     *       SELECT * FROM
+     *           (
+     *               SELECT * FROM TABLE
+     *           ) nestedTab1
+     *       WHERE ( MOD ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
+     *       ORDER BY KEY1 , KEY2
+     *   ) as nestedTab2 LIMIT 10;
+     */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
         + "WHERE ( MOD ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) ) "
         + "ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";

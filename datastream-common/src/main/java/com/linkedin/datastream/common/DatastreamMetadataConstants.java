@@ -81,7 +81,7 @@ public class DatastreamMetadataConstants {
    * UID is added and reserved for the future usage. If set, it could be used
    * to identity the datastream/topic name to prevent duplications.
    */
-   public static final String UID = "system.uid";
+  public static final String UID = "system.uid";
 
   /**
    * Connector can use this for datastreams with finite set of events such that

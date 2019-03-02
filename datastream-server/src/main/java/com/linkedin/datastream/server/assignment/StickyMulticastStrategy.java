@@ -52,12 +52,10 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 public class StickyMulticastStrategy implements AssignmentStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyMulticastStrategy.class.getName());
+  private static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   private final Optional<Integer> _maxTasks;
-
   private final Integer _imbalanceThreshold;
-
-  private static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
     _maxTasks = maxTasks;
@@ -139,7 +137,6 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       }
     }
 
-
     //STEP 3: Trigger rebalance if the number of different tasks more than the configured threshold
     if (newAssignment.get(instancesBySize.get(instancesBySize.size() - 1)).size()
         - newAssignment.get(instancesBySize.get(0)).size() > _imbalanceThreshold) {
@@ -210,5 +207,4 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         .max()
         .orElse(_maxTasks.orElse(numInstances));
   }
-
 }

@@ -34,14 +34,14 @@ public class KafkaBasedConnectorConfig {
   public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
   public static final String CONFIG_ENABLE_LATEST_BROKER_OFFSETS_FETCHER = "enableLatestBrokerOffsetsFetcher";
+  public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
+  public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
   private static final long DEFAULT_RETRY_SLEEP_DURATION_MS = Duration.ofSeconds(5).toMillis();
   private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MS = Duration.ofMinutes(10).toMillis();
   private static final long DEFAULT_POLL_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
   private static final int DEFAULT_RETRY_COUNT = 5;
   private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
-  public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
-  public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
   private static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
   private final Properties _consumerProps;
@@ -160,6 +160,7 @@ public class KafkaBasedConnectorConfig {
     consumerProps.putAll(_consumerProps);
     return consumerProps;
   }
+
   public KafkaConsumerFactory<?, ?> getConsumerFactory() {
     return _consumerFactory;
   }

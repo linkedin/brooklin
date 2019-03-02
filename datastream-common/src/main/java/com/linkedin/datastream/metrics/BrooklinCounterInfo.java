@@ -29,5 +29,4 @@ public class BrooklinCounterInfo extends BrooklinMetricInfo {
   public BrooklinCounterInfo(String nameOrRegex, Optional<List<String>> counterAttributes) {
     super(nameOrRegex, counterAttributes);
   }
-
 }

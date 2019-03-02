@@ -10,6 +10,7 @@ import java.util.Properties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+
 public class TestKafkaBasedConnectorConfig {
 
   /**
@@ -43,5 +44,4 @@ public class TestKafkaBasedConnectorConfig {
     Assert.assertEquals(taskProps.getProperty("someProperty1"), "someValue1");
     Assert.assertEquals(taskProps.getProperty("someProperty2"), "someValue2");
   }
-
 }

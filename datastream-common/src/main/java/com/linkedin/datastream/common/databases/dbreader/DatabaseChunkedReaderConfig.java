@@ -16,11 +16,11 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 
+
 /**
  * Configurations for the DatabaseChunkedReader class.
  */
 public class DatabaseChunkedReaderConfig {
-  private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReaderConfig.class);
   public static final String DB_READER_DOMAIN_CONFIG = "dbReader";
   public static final String QUERY_TIMEOUT_SECS = "queryTimeout";
   // If the ResultSet is 10000 rows, with fetchSize set to 1000, it would take 10 network calls to fetch the entire
@@ -33,7 +33,7 @@ public class DatabaseChunkedReaderConfig {
   // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
   public static final String ROW_COUNT_LIMIT = "chunk.rowCountLimit";
   public static final String DATABASE_QUERY_MANAGER_CLASS_NAME = "database.queryManager";
-
+  private static final Logger LOG = LoggerFactory.getLogger(DatabaseChunkedReaderConfig.class);
   private static final int DEFAULT_QUERY_TIMEOUT_SECS = 0;
   private static final int DEFAULT_FETCH_SIZE = 10000;
   private static final long DEFAULT_ROW_COUNT_LIMIT = 50000;

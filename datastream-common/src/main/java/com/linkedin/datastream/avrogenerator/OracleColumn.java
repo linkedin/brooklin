@@ -7,6 +7,7 @@ package com.linkedin.datastream.avrogenerator;
 
 import com.google.common.base.CaseFormat;
 
+
 /**
  * The OracleColumn class is a simple light weight class that represents a column in a Database table.
  * The class {@link OracleTable} are composed of multiple instances of {@link OracleColumn}.
@@ -86,6 +87,11 @@ public class OracleColumn {
     return typeAvro;
   }
 
+  @Override
+  public String toString() {
+    return String.format("Field: %s, FieldType: %s", _colName, _fieldType);
+  }
+
   private static String buildMetadata(String dbColName, int position, String fieldTypeMetadata) {
     StringBuilder meta = new StringBuilder();
 
@@ -101,10 +107,5 @@ public class OracleColumn {
    */
   private static String lowerCamel(String colName) {
     return CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, colName);
-  }
-
-  @Override
-  public String toString() {
-    return String.format("Field: %s, FieldType: %s", _colName, _fieldType);
   }
 }

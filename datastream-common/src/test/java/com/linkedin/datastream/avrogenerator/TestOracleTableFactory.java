@@ -6,6 +6,7 @@
 package com.linkedin.datastream.avrogenerator;
 
 import java.util.Collections;
+
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.Test;

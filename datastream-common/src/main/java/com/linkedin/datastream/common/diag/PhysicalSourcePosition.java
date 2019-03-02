@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.common.diag;
 
-
 /**
  * A datastream's consumer reads messages sequentially from a physical source. For diagnostic and analytic information,
  * we may want to know our position in the stream (e.g. Do we have more messages to consume? Are we making progress?),

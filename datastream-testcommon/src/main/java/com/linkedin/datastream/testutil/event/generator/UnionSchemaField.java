@@ -5,11 +5,11 @@
  */
 package com.linkedin.datastream.testutil.event.generator;
 
+import java.util.Optional;
+
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
-
-import java.util.Optional;
 
 
 public class UnionSchemaField extends SchemaField {
@@ -34,5 +34,4 @@ public class UnionSchemaField extends SchemaField {
 
     return SchemaField.createField(new Field(_field.name(), schema.orElse(null), null, null));
   }
-
 }

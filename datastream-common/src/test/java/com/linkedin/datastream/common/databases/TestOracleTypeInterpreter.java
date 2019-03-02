@@ -36,7 +36,6 @@ public class TestOracleTypeInterpreter {
   public static final Schema COMPLEX_SCHEMA = Schema.parse("{\"type\":\"record\",\"name\":\"BIG_CITIES_V12\",\"namespace\":\"com.linkedin.events.cities\",\"fields\":[{\"name\":\"key\",\"type\":[\"long\",\"null\"],\"meta\":\"dbFieldName=KEY;dbFieldType=NUMBER;dbFieldPosition=1;\"},{\"name\":\"tokyo\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=TOKYO;dbFieldType=CHAR;dbFieldPosition=32;\"},{\"name\":\"delhi\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=DELHI;dbFieldType=CHAR;dbFieldPosition=33;\"},{\"name\":\"geo\",\"type\":{\"type\":\"record\",\"name\":\"DATABUS_GEO_T\",\"fields\":[{\"name\":\"country\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=COUNTRY;dbFieldType=VARCHAR;dbFieldType=CHAR;dbFieldPosition=0;\"},{\"name\":\"geoPlaceMaskCode\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=GEO_PLACE_MASK_CODE;dbFieldType=CHAR;dbFieldPosition=5;\"},{\"name\":\"latitudeDeg\",\"type\":[\"float\",\"null\"],\"meta\":\"dbFieldName=LATITUDE_DEG;dbFieldType=NUMBER;dbFieldPosition=6;\"},{\"name\":\"longitudeDeg\",\"type\":[\"float\",\"null\"],\"meta\":\"dbFieldName=LONGITUDE_DEG;dbFieldType=NUMBER;dbFieldPosition=7;\"}]},\"meta\":\"dbFieldName=GEO;dbFieldPosition=34;dbFieldType=DATABUS_GEO_T;\"},{\"name\":\"mexicoCity\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=MEXICO_CITY;dbFieldType=CHAR;dbFieldPosition=41;\"},{\"name\":\"smallerCities\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"smallCityT\",\"fields\":[{\"name\":\"cityId\",\"type\":[\"long\",\"null\"],\"meta\":\"dbFieldName=CITY_ID;dbFieldType=NUMBER;dbFieldPosition=0;\"},{\"name\":\"cityName\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=CITY_NAME;dbFieldType=VARCHAR2;dbFieldPosition=1;\"}],\"meta\":\"dbFieldName=SMALLER_CITIES;dbFieldType=ARRAY;dbFieldPosition=42;\"}}},{\"name\":\"osaka\",\"type\":[\"string\",\"null\"],\"meta\":\"dbFieldName=OSAKA;dbFieldType=CHAR;dbFieldPosition=43;\"},{\"name\":\"newYork\",\"type\":[\"long\",\"null\"],\"meta\":\"dbFieldName=NEW_YORK;dbFieldType=NUMBER;dbFieldPosition=74;\"}],\"meta\":\"dbFieldName=sy$BIG_CITIES;\"}");
   //CHECKSTYLE:ON
 
-
   @Test
   public void testGetChildSchemaValidUnion() {
     List<Type> acceptable = new ArrayList<>();
@@ -105,22 +104,27 @@ public class TestOracleTypeInterpreter {
       @Override
       public void free() throws SQLException {
       }
+
       @Override
       public InputStream getBinaryStream() throws SQLException {
         return null;
       }
+
       @Override
       public OutputStream setBinaryStream() throws SQLException {
         return null;
       }
+
       @Override
       public Reader getCharacterStream() throws SQLException {
         return null;
       }
+
       @Override
       public Writer setCharacterStream() throws SQLException {
         return null;
       }
+
       @Override
       public String getString() throws SQLException {
         return " <?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
@@ -128,13 +132,16 @@ public class TestOracleTypeInterpreter {
             + " <subTag:configuration random config\">\n"
             + "</subTag:configuration>";
       }
+
       @Override
       public void setString(String value) throws SQLException {
       }
+
       @Override
       public <T extends Source> T getSource(Class<T> sourceClass) throws SQLException {
         return null;
       }
+
       @Override
       public <T extends Result> T setResult(Class<T> resultClass) throws SQLException {
         return null;
@@ -145,7 +152,6 @@ public class TestOracleTypeInterpreter {
     Assert.assertTrue(object instanceof String);
     Assert.assertEquals(object, ts.getString());
   }
-
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testSqlObjectToAvroUnexpectedType() throws SQLException {
@@ -171,7 +177,7 @@ public class TestOracleTypeInterpreter {
     Object[] objects = new Object[4];
     String country = "a";
     String regionCode = "b";
-    BigDecimal latitude  = new BigDecimal(11.0F);
+    BigDecimal latitude = new BigDecimal(11.0F);
     BigDecimal longitude = new BigDecimal(12.0F);
 
     objects[0] = country;

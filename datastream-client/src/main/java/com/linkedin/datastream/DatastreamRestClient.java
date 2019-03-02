@@ -172,7 +172,6 @@ public class DatastreamRestClient {
    *   wait timeout in milliseconds
    * @return
    *   Returns the initialized datastream object.
-   * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    */
   public Datastream waitTillDatastreamIsInitialized(String datastreamName, long timeoutMs) throws InterruptedException {
     final int pollIntervalMs = 500;
@@ -195,7 +194,6 @@ public class DatastreamRestClient {
    * This method waits till the datastream is completely removed from the system.
    * @param datastreamName Name of the datastream.
    * @param timeoutMs wait timeout in milliseconds.
-   * @throws InterruptedException
    */
   public void waitTillDatastreamIsDeleted(String datastreamName, long timeoutMs) throws InterruptedException {
     final int pollIntervalMs = 500;
@@ -253,8 +251,6 @@ public class DatastreamRestClient {
    *
    * @param start index of the first datastream to produce
    * @param count maximum number of entries to be produced
-   * @return
-   * @throws DatastreamRuntimeException
    */
   public List<Datastream> getAllDatastreams(int start, int count) {
     return getAllDatastreams(_builders.getAll().paginate(start, count).build());
@@ -397,7 +393,7 @@ public class DatastreamRestClient {
   /**
    * Check whether the specified datastream exists in the current Datastream cluster.
    * @param datastreamName name of the datastream to be checked
-   * @return whether such datastream exists
+   * @return true if such datastream exists
    */
   public boolean datastreamExists(String datastreamName) {
     return PollUtils.poll(() -> {

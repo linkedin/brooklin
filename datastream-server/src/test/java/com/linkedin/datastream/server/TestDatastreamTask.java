@@ -7,13 +7,13 @@ package com.linkedin.datastream.server;
 
 import java.util.Collections;
 
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
-
-import org.testng.Assert;
-import org.testng.annotations.Test;
 
 
 public class TestDatastreamTask {

@@ -86,6 +86,15 @@ public class PhysicalSources {
   }
 
   /**
+   * A simple String representation of this object suitable for use in debugging or logging.
+   * @return a simple String representation of this object
+   */
+  @Override
+  public String toString() {
+    return "PhysicalSources{" + "_physicalSourceToPosition=" + _physicalSourceToPosition + '}';
+  }
+
+  /**
    * Merges two PhysicalSources objects together using the freshest data available between the position data
    * in the PhysicalSourcePosition for each physical source.
    * @param first the first PhysicalSources object
@@ -106,14 +115,5 @@ public class PhysicalSources {
       });
     }
     return newSources;
-  }
-
-  /**
-   * A simple String representation of this object suitable for use in debugging or logging.
-   * @return a simple String representation of this object
-   */
-  @Override
-  public String toString() {
-    return "PhysicalSources{" + "_physicalSourceToPosition=" + _physicalSourceToPosition + '}';
   }
 }

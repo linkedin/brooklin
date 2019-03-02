@@ -25,5 +25,4 @@ public class PassThroughSqlTypeInterpreter implements SqlTypeInterpreter {
   public String formatColumnName(String dbColName) {
     return dbColName;
   }
-
 }

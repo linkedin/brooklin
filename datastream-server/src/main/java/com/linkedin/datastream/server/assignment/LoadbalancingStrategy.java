@@ -34,13 +34,12 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
  */
 public class LoadbalancingStrategy implements AssignmentStrategy {
 
-  private static final Logger LOG = LoggerFactory.getLogger(LoadbalancingStrategy.class.getName());
-
   public static final int DEFAULT_OVER_PARTITIONING_FACTOR = 2;
   public static final String CFG_OVER_PARTITIONING_FACTOR = "overPartitioningFactor";
-
   public static final String CFG_MIN_TASKS = "TasksPerDatastream";
   public static final int DEFAULT_MIN_TASKS = -1;
+
+  private static final Logger LOG = LoggerFactory.getLogger(LoadbalancingStrategy.class.getName());
 
   // If the instances are down while the assignment is happening. We need to ensure that at least min tasks are created
   private final int minTasks;

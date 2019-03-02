@@ -5,23 +5,21 @@
  */
 package com.linkedin.datastream.avrogenerator;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.stream.Collectors;
 import java.util.List;
-import java.sql.PreparedStatement;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.ResultSet;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
-
-
 
 
 /**
@@ -46,9 +44,10 @@ public class OracleDatabaseClient extends DatabaseSource {
   private static final List<String> PRIMITIVE_TYPES =
       Arrays.asList(Types.values()).stream().map(t -> t.name()).collect(Collectors.toList());
 
+  private final String _connectionUri;
+
   private DataSource _dataSource;
   private Connection _conn;
-  private final String _connectionUri;
 
   public OracleDatabaseClient(String connectionUri) {
     _connectionUri = connectionUri;
@@ -126,7 +125,6 @@ public class OracleDatabaseClient extends DatabaseSource {
       while (rs.next()) {
         colNames.add(rs.getString("column_name"));
       }
-
     } finally {
       releaseResources(rs, stmt);
     }
@@ -264,7 +262,6 @@ public class OracleDatabaseClient extends DatabaseSource {
       }
 
       return metadataList;
-
     } finally {
       releaseResources(rs, stmt);
     }
@@ -407,5 +404,4 @@ public class OracleDatabaseClient extends DatabaseSource {
       }
     }
   }
-
 }

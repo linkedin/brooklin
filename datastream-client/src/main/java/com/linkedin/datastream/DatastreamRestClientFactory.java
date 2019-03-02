@@ -30,7 +30,6 @@ public final class DatastreamRestClientFactory {
   /**
    * Get a DatastreamRestClient with default HTTP client
    * @param dmsUri URI to DMS endpoint
-   * @return
    */
   public static DatastreamRestClient getClient(String dmsUri) {
     return FACTORY.getClient(dmsUri, Collections.emptyMap());
@@ -44,7 +43,6 @@ public final class DatastreamRestClientFactory {
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
    * @param clientConfig custom config for the DatastreamRestClient.
    *                     Supported config entries can be found in {@link DatastreamRestClient}
-   * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig, Properties clientConfig) {
     return FACTORY.getClient(dmsUri, httpConfig, clientConfig);
@@ -56,8 +54,6 @@ public final class DatastreamRestClientFactory {
    * @param dmsUri URI to DMS endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
-   *
-   * @return
    */
   public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
     return FACTORY.getClient(dmsUri, httpConfig);

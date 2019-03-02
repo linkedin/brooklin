@@ -43,8 +43,7 @@ public class TestPauseResumePartitions {
   public void testPausePartitions() {
     String topic = "testPausePartitions";
     int numPartitions = 8;
-    Set<String> partitions =
-        IntStream.range(0, numPartitions).mapToObj(String::valueOf).collect(Collectors.toSet());
+    Set<String> partitions = IntStream.range(0, numPartitions).mapToObj(String::valueOf).collect(Collectors.toSet());
     Map<String, Set<String>> pausedSourcePartitionsConfig = new HashMap<>();
     Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions = Collections.emptyMap();
 
@@ -177,7 +176,6 @@ public class TestPauseResumePartitions {
         new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
     autoPausedPartitions.put(partition9,
         new PausedSourcePartitionMetadata(() -> false, PausedSourcePartitionMetadata.Reason.SEND_ERROR));
-
 
     Set<TopicPartition> partitionsToPause = KafkaConnectorTask.determinePartitionsToPause(assignedPartitions,
         pausedSourcePartitionsConfig, autoPausedPartitions, LOG);

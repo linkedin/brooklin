@@ -8,6 +8,7 @@ package com.linkedin.datastream.common.databases.dbreader;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
+
 import org.apache.commons.lang.Validate;
 
 

@@ -38,7 +38,6 @@ public class DatabaseRow {
    * @param colName Field Name in the database
    * @param val Value for the field
    * @param sqlType Type of value in the field
-   * @throws DatastreamRuntimeException
    */
   public DatabaseRow addField(String colName, Object val, int sqlType) throws DatastreamRuntimeException {
     DatabaseColumnRecord columnRecord = new DatabaseColumnRecord(colName, val, sqlType);

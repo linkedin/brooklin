@@ -37,7 +37,6 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
 
   /**
    * Create a rest client with the default/leader DMS instance
-   * @return
    */
   private ServerComponentHealthRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamCluster.getDatastreamPorts().get(0));
@@ -52,7 +51,7 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     String content = "topic=datastream";
     String expectedStatus = "HEALTHY";
     ServerComponentHealthRestClient restClient = createRestClient();
-    ServerComponentHealth response =  restClient.getStatus(name, type, content);
+    ServerComponentHealth response = restClient.getStatus(name, type, content);
 
     Assert.assertEquals(response.isSucceeded(), Boolean.TRUE);
     Assert.assertEquals(response.getStatus(), expectedStatus);
@@ -82,7 +81,7 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     String content = "topic=datastream";
     String expectedStatus = "DummyStatus";
     ServerComponentHealthRestClient restClient = createRestClient();
-    ServerComponentHealth response =  restClient.getAllStatus(name, type, content);
+    ServerComponentHealth response = restClient.getAllStatus(name, type, content);
 
     Assert.assertEquals(response.isSucceeded(), Boolean.TRUE);
     Assert.assertEquals(response.getStatus(), expectedStatus);

@@ -29,5 +29,4 @@ public class StringSchemaField extends SchemaField {
   public String generateString() {
     return _randGenerator.getNextString(1, _maxNumElements);
   }
-
 }
