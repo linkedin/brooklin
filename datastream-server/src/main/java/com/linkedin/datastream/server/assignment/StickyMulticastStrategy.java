@@ -117,6 +117,10 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     // Create a helper structure to keep all instances sorted by size.
     List<String> instancesBySize = new ArrayList<>(instances);
+
+    //Shuffle the instances so that we may get a slightly different assignment for each unassigned task
+    Collections.shuffle(instancesBySize);
+
     instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
 
     // STEP2: Distribute the unallocated tasks to the instances with the lowest number of tasks.
