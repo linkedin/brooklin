@@ -33,7 +33,7 @@ public class ReflectionUtils {
   };
 
   /**
-   * Create an instance of the specified class with constuctor
+   * Create an instance of the specified class with constructor
    * matching the argument array.
    * @param className name of the class
    * @param args argument array
@@ -54,7 +54,7 @@ public class ReflectionUtils {
   }
 
   /**
-   * Create an instance of the specified class with constuctor
+   * Create an instance of the specified class with constructor
    * matching the argument array.
    * @param clazz name of the class
    * @param args argument array
@@ -134,7 +134,7 @@ public class ReflectionUtils {
    * Find method with more intelligence to support below two scenarios:
    *
    * 1) argument type is subtype of the corresponding parameter type.
-   * 2) either argument or paramter type is primitive and the other is the boxed type
+   * 2) either argument or parameter type is primitive and the other is the boxed type
    *
    * @param clazz class which the method belongs
    * @param methodName name of the method

@@ -63,7 +63,7 @@ public interface DatastreamTask {
   DatastreamTaskStatus getStatus();
 
   /**
-   * Set the status for datastreamtask. This is a way for the connector
+   * Set the status for DatastreamTask. This is a way for the connector
    * implementation to persist the status of the datastream task
    * @param status Status of the datastream task.
    */

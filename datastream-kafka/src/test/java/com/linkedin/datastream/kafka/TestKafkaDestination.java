@@ -54,7 +54,7 @@ public class TestKafkaDestination {
   }
 
   @Test
-  public void testMutipleDestinationsParsing() {
+  public void testMultipleDestinationsParsing() {
     String zkAddress = "broker1:12913,broker2:12314/kafka-datastream";
     String topicName = "testtopic_test";
     String uri = "kafka://broker1:12913,broker2:12314/kafka-datastream/testtopic_test";

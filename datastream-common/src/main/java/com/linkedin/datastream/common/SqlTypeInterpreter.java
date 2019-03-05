@@ -24,7 +24,7 @@ public interface SqlTypeInterpreter {
   public Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException;
 
   /**
-   * Driver could change the column names causing incompatiblity with output avro. Reformat to correct
+   * Driver could change the column names causing incompatibility with output avro. Reformat to correct
    * naming scheme. For example Column names are declared in UPPER_CAMEL in Oracle but avro field names are
    * LOWER_CAMEL.
    */

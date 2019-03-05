@@ -36,7 +36,7 @@
       "supports" : [ ],
       "finders" : [ {
         "name" : "allStatus",
-        "doc" : "Finder Reqeust to get the status of all server instances.\n   You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...",
+        "doc" : "Finder Request to get the status of all server instances.\n   You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...",
         "parameters" : [ {
           "name" : "type",
           "type" : "string"
@@ -50,7 +50,7 @@
         } ]
       }, {
         "name" : "status",
-        "doc" : "Finder Reqeust to get the status from one server  instance.\n   You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...",
+        "doc" : "Finder Request to get the status from one server  instance.\n   You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...",
         "parameters" : [ {
           "name" : "type",
           "type" : "string"

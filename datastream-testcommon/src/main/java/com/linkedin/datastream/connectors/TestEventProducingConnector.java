@@ -174,8 +174,8 @@ public class TestEventProducingConnector implements Connector {
       LOG.error("Producer thread threw exception, Stopping event producer for task " + task, ex);
     }
 
-    Duration elpaseTime = Duration.between(startTime, Instant.now());
-    double elapseSeconds = ((double) elpaseTime.toNanos()) / NANOSECONDS.convert(1, SECONDS);
+    Duration elapseTime = Duration.between(startTime, Instant.now());
+    double elapseSeconds = ((double) elapseTime.toNanos()) / NANOSECONDS.convert(1, SECONDS);
     LOG.info("XXXXXX {Task: " + task + "} Total Time: " + elapseSeconds + " total Messages: " + counter);
     LOG.info("XXXXXX {Task: " + task + "} QPS:     " + (counter / elapseSeconds));
   }

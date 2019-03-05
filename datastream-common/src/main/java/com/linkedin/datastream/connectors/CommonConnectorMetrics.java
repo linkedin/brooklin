@@ -225,7 +225,7 @@ public class CommonConnectorMetrics {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PARTITIONS);
 
-      // Aggregate gauage metrics should only reflect values for valid registered local metrics. When deregistering
+      // Aggregate gauge metrics should only reflect values for valid registered local metrics. When deregistering
       // metrics, subtract their values from aggregate metrics.
       AtomicLong aggregatedNumStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
       if (aggregatedNumStuckPartitions != null) {

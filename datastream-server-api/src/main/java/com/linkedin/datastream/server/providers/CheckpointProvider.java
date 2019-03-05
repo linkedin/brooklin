@@ -24,7 +24,7 @@ public interface CheckpointProvider extends MetricsAware {
 
   /**
    * update the checkpoint. This might get called every time a send succeeds. So avoid writing to durable store
-   * everytime updateCheckpoint is called.
+   * every time updateCheckpoint is called.
    */
   void updateCheckpoint(DatastreamTask task, int partition, String checkpoint);
 

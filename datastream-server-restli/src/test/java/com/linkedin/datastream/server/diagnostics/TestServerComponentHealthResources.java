@@ -72,7 +72,7 @@ public class TestServerComponentHealthResources {
   }
 
   @Test
-  public void testGetAlltatus() {
+  public void testGetAllStatus() {
     ServerComponentHealthResources resource =
         new ServerComponentHealthResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 

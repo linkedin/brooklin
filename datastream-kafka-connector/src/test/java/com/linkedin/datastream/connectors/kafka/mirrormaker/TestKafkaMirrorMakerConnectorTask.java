@@ -334,7 +334,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Make sure all 3 events were read.
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 3, 100, 25000)) {
       Assert.fail(
-          "Did not transfer the msgs within timeout. Expected: 3 Tansferred: " + datastreamProducer.getEvents().size());
+          "Did not transfer the msgs within timeout. Expected: 3 Transferred: " + datastreamProducer.getEvents().size());
     }
 
     // Now create paused partitions
@@ -376,7 +376,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // be there.
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail(
-          "Did not transfer the msgs within timeout. Expected: 4 Tansferred: " + datastreamProducer.getEvents().size());
+          "Did not transfer the msgs within timeout. Expected: 4 Transferred: " + datastreamProducer.getEvents().size());
     }
 
     // Now pause same set of partitions, and make sure there isn't any update.
@@ -391,7 +391,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals(connectorTask.getPausedPartitionsConfig(), expectedPartitions);
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail(
-          "Transferred msgs when not expected. Expected: 4 Tansferred:  " + datastreamProducer.getEvents().size());
+          "Transferred msgs when not expected. Expected: 4 Transferred:  " + datastreamProducer.getEvents().size());
     }
 
     // Now add * to yummypizza and 0 to spicy pizza, and make sure 0 is neglected for spicypizza and a * is added for yummypizza
@@ -450,7 +450,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // be there.
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 6, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail(
-          "Did not transfer the msgs within timeout. Expected: 6 Tansferred: " + datastreamProducer.getEvents().size());
+          "Did not transfer the msgs within timeout. Expected: 6 Transferred: " + datastreamProducer.getEvents().size());
     }
 
     connectorTask.stop();

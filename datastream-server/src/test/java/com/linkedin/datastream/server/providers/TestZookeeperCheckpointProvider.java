@@ -71,11 +71,11 @@ public class TestZookeeperCheckpointProvider {
     adapter.setDatastreamTaskStateForKey(datastreamTask1, ZookeeperCheckpointProvider.CHECKPOINT_KEY_NAME, "");
     checkpointProvider.unassignDatastreamTask(datastreamTask1);
 
-    Map<Integer, String> commitedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
-    Assert.assertEquals(commitedCheckpoints1.size(), 0);
+    Map<Integer, String> committedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
+    Assert.assertEquals(committedCheckpoints1.size(), 0);
 
-    Map<Integer, String> commitedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
-    Assert.assertEquals(commitedCheckpoints2.get(0), "checkpoint2");
+    Map<Integer, String> committedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
+    Assert.assertEquals(committedCheckpoints2.get(0), "checkpoint2");
   }
 
   @Test
@@ -93,12 +93,12 @@ public class TestZookeeperCheckpointProvider {
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
     checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
 
-    Map<Integer, String> commitedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
-    Map<Integer, String> commitedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
-    Assert.assertEquals(commitedCheckpoints1.size(), 1);
+    Map<Integer, String> committedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
+    Map<Integer, String> committedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
+    Assert.assertEquals(committedCheckpoints1.size(), 1);
 
-    Assert.assertEquals(commitedCheckpoints1.get(0), "checkpoint1");
-    Assert.assertEquals(commitedCheckpoints2.get(0), "checkpoint2");
+    Assert.assertEquals(committedCheckpoints1.get(0), "checkpoint1");
+    Assert.assertEquals(committedCheckpoints2.get(0), "checkpoint2");
   }
 
   public static Datastream generateDatastream(int seed) {

@@ -128,7 +128,7 @@ public class DatabaseChunkedReader implements Closeable {
 
     if (StringUtils.isBlank(db)) {
       _database = _connection.getMetaData().getUserName();
-      LOG.warn("Database name not specified. Using name derived from connection's usename {}",
+      LOG.warn("Database name not specified. Using name derived from connection's username {}",
           _database);
     } else {
       _database = db;

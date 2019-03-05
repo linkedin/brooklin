@@ -23,7 +23,7 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   private static final Logger LOG = LoggerFactory.getLogger(SourceBasedDeduper.class);
 
   @Override
-  public Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates)
+  public Optional<Datastream> dedupeStreams(Datastream stream, List<Datastream> candidates)
       throws DatastreamValidationException {
     List<Datastream> duplicateDatastreams = candidates.stream()
         .filter(d -> d.getSource().equals(stream.getSource()))

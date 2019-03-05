@@ -10,7 +10,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 /**
  * Datastream is transport agnostic system, This is the interface that each TransportProvider needs to be implement
- * to plug the different transport mechanisms (Kafka, kinesis, etc..) to Datastream
+ * to plug the different transport mechanisms (Kafka, Kinesis, etc..) to Datastream
  */
 public interface TransportProvider {
   /**

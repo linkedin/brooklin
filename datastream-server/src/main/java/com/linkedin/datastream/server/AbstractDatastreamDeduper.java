@@ -27,8 +27,8 @@ import static com.linkedin.datastream.common.DatastreamUtils.getPayloadSerDe;
  * 3) existing and new streams have the same transport provider
  * 4) existing and new streams have the same serdes
  *
- * Deduper subclasses should override {@link AbstractDatastreamDeduper#dedupStreams}
- * to apply any additional dedup logic.
+ * Deduper subclasses should override {@link AbstractDatastreamDeduper#dedupeStreams}
+ * to apply any additional dedupe logic.
  *
  * Note that {@link com.linkedin.datastream.common.DatastreamMetadataConstants#TTL_MS}
  * is not considered by the base deduper such that it is up to the sub deduper to
@@ -55,7 +55,7 @@ public abstract class AbstractDatastreamDeduper implements DatastreamDeduper {
         .collect(Collectors.toList());
 
     if (!reuseCandidates.isEmpty()) {
-      return dedupStreams(stream, reuseCandidates);
+      return dedupeStreams(stream, reuseCandidates);
     } else {
       return Optional.empty();
     }
@@ -68,11 +68,11 @@ public abstract class AbstractDatastreamDeduper implements DatastreamDeduper {
   }
 
   /**
-   * Deduper implementations should override this to apply additional dedup logic.
+   * Deduper implementations should override this to apply additional dedupe logic.
    * @param stream new streams to be de-duped
-   * @param candidates existings streams meeting basic requirements for reuse
+   * @param candidates existing streams meeting basic requirements for reuse
    * @return optional wrapper of the reusable stream
    */
-  protected abstract Optional<Datastream> dedupStreams(Datastream stream, List<Datastream> candidates)
+  protected abstract Optional<Datastream> dedupeStreams(Datastream stream, List<Datastream> candidates)
       throws DatastreamValidationException;
 }

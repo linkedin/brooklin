@@ -60,7 +60,7 @@ public class DatastreamProducerRecordBuilder {
   }
 
   /**
-   * Add the event with key and value to the DatatreamProducerRecord. Datastream producer record can have multiple events.
+   * Add the event with key and value to the DatastreamProducerRecord. Datastream producer record can have multiple events.
    */
   public void addEvent(Object key, Object value, Object previousValue, Map<String, String> metadata) {
     key = key == null ? new byte[0] : key;

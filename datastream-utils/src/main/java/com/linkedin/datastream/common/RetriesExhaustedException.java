@@ -5,22 +5,22 @@
  */
 package com.linkedin.datastream.common;
 
-public class RetriesExhaustedExeption extends RuntimeException {
+public class RetriesExhaustedException extends RuntimeException {
   private static final long serialVersionUID = 1;
 
-  public RetriesExhaustedExeption() {
+  public RetriesExhaustedException() {
     super();
   }
 
-  public RetriesExhaustedExeption(String message, Throwable cause) {
+  public RetriesExhaustedException(String message, Throwable cause) {
     super(message, cause);
   }
 
-  public RetriesExhaustedExeption(String message) {
+  public RetriesExhaustedException(String message) {
     super(message);
   }
 
-  public RetriesExhaustedExeption(Throwable cause) {
+  public RetriesExhaustedException(Throwable cause) {
     super(cause);
   }
 }

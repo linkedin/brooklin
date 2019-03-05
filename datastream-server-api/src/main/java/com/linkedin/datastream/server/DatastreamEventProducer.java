@@ -24,7 +24,7 @@ public interface DatastreamEventProducer {
    * Send event onto the transport
    *
    * <p>
-   * Note that the onComplete callbacks will generally execute in the I/O thread of the TransportPrvider and
+   * Note that the onComplete callbacks will generally execute in the I/O thread of the TransportProvider and
    * should be reasonably fast or they will delay sending messages for other threads.
    * If you want to execute an expensive callbacks it is recommended to use your own
    * {@link java.util.concurrent.Executor} in the callback body to parallelize processing.

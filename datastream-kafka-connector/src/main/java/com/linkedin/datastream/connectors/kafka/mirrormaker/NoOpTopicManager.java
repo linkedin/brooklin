@@ -41,7 +41,7 @@ public class NoOpTopicManager implements TopicManager {
 
   public boolean shouldResumePartition(TopicPartition tp) {
     // This should not happen, as onPartitionsAssigned doesn't return any partitions to pause in onPartitionsAssigned().
-    throw new DatastreamRuntimeException("shoudResumePartition called in NoOpTopicManager for partition : " + tp);
+    throw new DatastreamRuntimeException("shouldResumePartition called in NoOpTopicManager for partition : " + tp);
   }
 
   public void stop() {

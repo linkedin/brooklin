@@ -6,7 +6,7 @@
 package com.linkedin.datastream.server.api.transport;
 
 /**
- * Metadata of the succesfully produced datastream record
+ * Metadata of the successfully produced datastream record
  */
 public class DatastreamRecordMetadata {
 

@@ -141,7 +141,7 @@ public final class BaseRestClientFactory<T> {
    *  - add brooklin prefix to the threads
    *  - create daemon threads to prevent jvm unclean shutdown
    *
-   * By default, HttpClientFactory creates deamon threads with NamedThreadFactory.
+   * By default, HttpClientFactory creates daemon threads with NamedThreadFactory.
    * Such threads will block JVM from shutting down when they are not fully stopped.
    * We do not have nor plan to support use cases where we need to access DMS during
    * shutdown, hence it is okay for us to make the threads daemon.

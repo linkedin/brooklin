@@ -211,7 +211,7 @@ public class EmbeddedDatastreamCluster {
     _servers.set(index, server);
     server.startup();
 
-    // Update HTTP port incase it is lazily bound
+    // Update HTTP port in case it is lazily bound
     _datastreamPorts.set(index, server.getHttpPort());
 
     LOG.info("DatastreamServer[{}] started at port={}.", index, server.getHttpPort());
