@@ -54,24 +54,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
-
-
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient extends TestRestliClientBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
-
-  @BeforeTest
-  public void setUp() throws Exception {
-    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
-
-    // Create a cluster with maximum 2 DMS instances
-    setupDatastreamCluster(2);
-  }
-
-  @AfterTest
-  public void tearDown() throws Exception {
-    _datastreamCluster.shutdown();
-  }
 
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
@@ -87,9 +72,21 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     return ds;
   }
 
+  @BeforeTest
+  public void setUp() throws Exception {
+    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
+
+    // Create a cluster with maximum 2 DMS instances
+    setupDatastreamCluster(2);
+  }
+
+  @AfterTest
+  public void tearDown() throws Exception {
+    _datastreamCluster.shutdown();
+  }
+
   /**
    * Create a rest client with the default/leader DMS instance
-   * @return
    */
   private DatastreamRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamCluster.getDatastreamPorts().get(0));
@@ -359,7 +356,6 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
    * Test client handling of DatastreamAlreadyExists exception after a timeout of the previous request.
    * This version tests the case where a DatastreamAlreadyExists exception is thrown because the previous create request
    * went through on server, but client had timed out and retried again.
-   * @throws Exception
    */
   @Test
   public void testCreateDatastreamExistsAfterTimeout() throws Exception {
@@ -370,7 +366,6 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
    * Test client handling of DatastreamAlreadyExists exception after a timeout of the previous request.
    * This version tests the case where a DatastreamAlreadyExists exception is thrown because a different datastream
    * exists of the same name, but create request had previously timed out for some reason like network issues.
-   * @throws Exception
    */
   @Test(expectedExceptions = DatastreamAlreadyExistsException.class)
   public void testCreateDatastreamExistsDifferentAfterTimeout() throws Exception {
@@ -442,7 +437,6 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     DatastreamRestClient restClient = new DatastreamRestClient(httpRestClient, restClientConfig);
     restClient.createDatastream(datastream);
   }
-
 
   @Test
   @SuppressWarnings("unchecked")

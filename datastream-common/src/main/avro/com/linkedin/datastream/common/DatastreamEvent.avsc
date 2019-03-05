@@ -1,4 +1,3 @@
-// DatastreamEvent.avsc
 {
     "name": "DatastreamEvent",
     "version" : 1,

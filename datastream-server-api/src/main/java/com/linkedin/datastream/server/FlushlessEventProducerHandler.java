@@ -31,9 +31,9 @@ import org.slf4j.LoggerFactory;
  */
 public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   private static final Logger LOG = LoggerFactory.getLogger(FlushlessEventProducerHandler.class);
-  private ConcurrentHashMap<SourcePartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
 
   private final DatastreamEventProducer _eventProducer;
+  private final ConcurrentHashMap<SourcePartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
 
   public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
     _eventProducer = eventProducer;
@@ -118,6 +118,25 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     return lowWaterMark != null ? Optional.of(lowWaterMark) : Optional.ofNullable(currentCheckpoint);
   }
 
+  public static final class SourcePartition extends Pair<String, Integer> {
+    public SourcePartition(String source, int partition) {
+      super(source, partition);
+    }
+
+    public String getSource() {
+      return getKey();
+    }
+
+    public int getPartition() {
+      return getValue();
+    }
+
+    @Override
+    public String toString() {
+      return getSource() + "-" + getPartition();
+    }
+  }
+
   /**
    * Helper class to store the callback status of the inFlight events.
    */
@@ -176,26 +195,6 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
           _currentCheckpoint = max;
         }
       }
-    }
-
-  }
-
-  public static final class SourcePartition extends Pair<String, Integer> {
-    public SourcePartition(String source, int partition) {
-      super(source, partition);
-    }
-
-    public String getSource() {
-      return getKey();
-    }
-
-    public int getPartition() {
-      return getValue();
-    }
-
-    @Override
-    public String toString() {
-      return getSource() + "-" + getPartition();
     }
   }
 }

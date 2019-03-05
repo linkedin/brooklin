@@ -18,8 +18,8 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.diagnostics.ServerHealth;
-import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.server.diagnostics.HealthRequestBuilders;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.r2.transport.common.Client;
 import com.linkedin.r2.transport.common.bridge.client.TransportClientAdapter;

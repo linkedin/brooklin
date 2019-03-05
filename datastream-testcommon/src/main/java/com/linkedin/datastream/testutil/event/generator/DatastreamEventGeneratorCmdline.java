@@ -5,9 +5,9 @@
  */
 package com.linkedin.datastream.testutil.event.generator;
 
-import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -124,5 +124,4 @@ public class DatastreamEventGeneratorCmdline {
 
     producerThread.start();
   }
-
 }

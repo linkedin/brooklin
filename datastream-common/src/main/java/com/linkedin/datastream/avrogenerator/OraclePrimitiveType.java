@@ -15,13 +15,6 @@ import com.google.common.annotations.VisibleForTesting;
  * These includes types such as CHAR, VARCHAR2 etc.
  */
 public class OraclePrimitiveType implements FieldType {
-  private Types _type;
-  private Types _originalDbFieldType;
-  private final int _scale;
-  private final int _precision;
-  private final String _nullable;
-  private final DatabaseSource.TableMetadata _tableMetadata;
-
   final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();
   static {
     NUMBER_CLASSIFICATION.add(Types.INTEGER.toString());
@@ -30,6 +23,14 @@ public class OraclePrimitiveType implements FieldType {
     NUMBER_CLASSIFICATION.add(Types.DOUBLE.toString());
     NUMBER_CLASSIFICATION.add(Types.NUMBER.toString());
   }
+
+  private final int _scale;
+  private final int _precision;
+  private final String _nullable;
+  private final DatabaseSource.TableMetadata _tableMetadata;
+
+  private Types _type;
+  private Types _originalDbFieldType;
 
   public OraclePrimitiveType(String fieldTypeName, String nullable, int scale, int precision,
       DatabaseSource.TableMetadata tableMetadata) {
@@ -83,7 +84,7 @@ public class OraclePrimitiveType implements FieldType {
     AvroJson primitiveRecord = new AvroJson();
 
     // Field type
-    String[] type = new String[] {"null", getAvroFieldName()};
+    String[] type = new String[]{"null", getAvroFieldName()};
     primitiveRecord.setType(type);
 
     return primitiveRecord;

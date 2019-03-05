@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.IndexedRecord;
@@ -20,6 +21,7 @@ import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.commons.lang.Validate;
 
+
 public class AvroMessageEncoderUtil {
   public static final byte MAGIC_BYTE = 0x0;
 
@@ -29,11 +31,6 @@ public class AvroMessageEncoderUtil {
    *
    * This is done so when the client decodes the payload, it will contain a schemaId which
    * can be used to retrieve the schema from the Schema Registry
-   *
-   * @param schemaId
-   * @param value
-   * @return
-   * @throws IOException
    */
   public static byte[] encode(String schemaId, byte[] value) throws IOException {
     Validate.notNull(value, "cannot encode null byte array, schemaId: " + schemaId);
@@ -53,11 +50,6 @@ public class AvroMessageEncoderUtil {
    * can be used to retrieve the schema from the Schema Registry
    *
    * This method also converts an IndexedRecord into a byte array first
-   *
-   * @param schemaId
-   * @param record
-   * @return
-   * @throws IOException
    */
   public static byte[] encode(String schemaId, IndexedRecord record) throws AvroEncodingException {
     Validate.notNull(record, "cannot encode null Record, schemaId: " + schemaId);
@@ -85,10 +77,7 @@ public class AvroMessageEncoderUtil {
 
   /**
    * When registering a Schema with some Schema Registry it should return a Hex value
-   * to be used to indentify that schema.
-   *
-   * @param schema
-   * @return
+   * to be used to identify that schema.
    */
   public static String schemaToHex(Schema schema) {
     byte[] utf8Bytes = utf8(schema.toString(false));
@@ -106,7 +95,6 @@ public class AvroMessageEncoderUtil {
       throw new IllegalStateException("This can't happen");
     }
   }
-
 
   private static byte[] md5(byte[] bytes) {
     try {
@@ -128,7 +116,6 @@ public class AvroMessageEncoderUtil {
     }
     return builder.toString();
   }
-
 
   private static byte[] hexToMd5(String s) {
     int len = s.length();

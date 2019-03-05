@@ -34,8 +34,6 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.REUSE_E
  * Simple utility class for working with Datastream-related objects.
  */
 public final class DatastreamUtils {
-  private static final String DEFAULT_TOPIC_REUSE = "true";
-
   /**
    * This type reference will be used when converting paused partitions to/from Json. Paused partitions
    * are stored as part of datastream metadata.
@@ -43,6 +41,8 @@ public final class DatastreamUtils {
   public static final TypeReference<HashMap<String, Set<String>>> PAUSED_SOURCE_PARTITIONS_JSON_MAP =
       new TypeReference<HashMap<String, Set<String>>>() {
       };
+
+  private static final String DEFAULT_TOPIC_REUSE = "true";
 
   private DatastreamUtils() {
   }
@@ -71,8 +71,6 @@ public final class DatastreamUtils {
 
   /**
    * Deserialize JSON text into a Datastream object.
-   * @param json
-   * @return
    */
   public static Datastream fromJSON(String json) {
     InputStream in = IOUtils.toInputStream(json);
@@ -86,8 +84,6 @@ public final class DatastreamUtils {
 
   /**
    * Serialize a Datastream object into a JSON text.
-   * @param datastream
-   * @return
    */
   public static String toJSON(Datastream datastream) {
     byte[] jsonBytes = DataMapUtils.dataTemplateToBytes(datastream, true);
@@ -163,7 +159,6 @@ public final class DatastreamUtils {
 
   /**
    * Given a datastream, returns the paused partitions map with format <source, Set<partitions>>
-   * @param datastream
    * @return map representing paused partitions
    */
   public static Map<String, Set<String>> getDatastreamSourcePartitions(Datastream datastream) {
@@ -181,8 +176,6 @@ public final class DatastreamUtils {
 
   /**
    * Converts a given StringMap into HashMap
-   * @param sourcePartitions StringMap
-   * @return HashMap
    */
   public static Map<String, Set<String>> parseSourcePartitionsStringMap(StringMap sourcePartitions) {
     HashMap<String, Set<String>> map = new HashMap<>();
@@ -196,12 +189,9 @@ public final class DatastreamUtils {
 
   /**
    * Given a list of datastreams, returns the set of unique metadata group IDs from those datastreams.
-   * @param datastreams Collection
-   * @return Set
    */
   public static Set<String> getMetadataGroupIDs(Collection<Datastream> datastreams) {
-    return datastreams
-        .stream()
+    return datastreams.stream()
         .filter(Datastream::hasMetadata)
         .map(ds -> ds.getMetadata().get(DatastreamMetadataConstants.GROUP_ID))
         .filter(Objects::nonNull)

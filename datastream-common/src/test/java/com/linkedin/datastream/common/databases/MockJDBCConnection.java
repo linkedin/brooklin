@@ -76,13 +76,13 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setAutoCommit(boolean autoCommit) throws SQLException {
-
+  public boolean getAutoCommit() throws SQLException {
+    return false;
   }
 
   @Override
-  public boolean getAutoCommit() throws SQLException {
-    return false;
+  public void setAutoCommit(boolean autoCommit) throws SQLException {
+
   }
 
   @Override
@@ -116,17 +116,12 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setReadOnly(boolean readOnly) throws SQLException {
-
-  }
-
-  @Override
   public boolean isReadOnly() throws SQLException {
     return false;
   }
 
   @Override
-  public void setCatalog(String catalog) throws SQLException {
+  public void setReadOnly(boolean readOnly) throws SQLException {
 
   }
 
@@ -136,13 +131,18 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setTransactionIsolation(int level) throws SQLException {
+  public void setCatalog(String catalog) throws SQLException {
 
   }
 
   @Override
   public int getTransactionIsolation() throws SQLException {
     return 0;
+  }
+
+  @Override
+  public void setTransactionIsolation(int level) throws SQLException {
+
   }
 
   @Override
@@ -162,13 +162,12 @@ public class MockJDBCConnection implements Connection {
 
   @Override
   public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
-        throws SQLException {
+      throws SQLException {
     return null;
   }
 
   @Override
-  public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency)
-        throws SQLException {
+  public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
     return null;
   }
 
@@ -183,13 +182,13 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setHoldability(int holdability) throws SQLException {
-
+  public int getHoldability() throws SQLException {
+    return 0;
   }
 
   @Override
-  public int getHoldability() throws SQLException {
-    return 0;
+  public void setHoldability(int holdability) throws SQLException {
+
   }
 
   @Override
@@ -214,19 +213,19 @@ public class MockJDBCConnection implements Connection {
 
   @Override
   public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-        throws SQLException {
+      throws SQLException {
     return null;
   }
 
   @Override
   public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
-  int resultSetHoldability) throws SQLException {
+      int resultSetHoldability) throws SQLException {
     return null;
   }
 
   @Override
   public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
-  int resultSetHoldability) throws SQLException {
+      int resultSetHoldability) throws SQLException {
     return null;
   }
 
@@ -276,11 +275,6 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setClientInfo(Properties properties) throws SQLClientInfoException {
-
-  }
-
-  @Override
   public String getClientInfo(String name) throws SQLException {
     return null;
   }
@@ -288,6 +282,11 @@ public class MockJDBCConnection implements Connection {
   @Override
   public Properties getClientInfo() throws SQLException {
     return null;
+  }
+
+  @Override
+  public void setClientInfo(Properties properties) throws SQLClientInfoException {
+
   }
 
   @Override
@@ -301,13 +300,13 @@ public class MockJDBCConnection implements Connection {
   }
 
   @Override
-  public void setSchema(String schema) throws SQLException {
-
+  public String getSchema() throws SQLException {
+    return null;
   }
 
   @Override
-  public String getSchema() throws SQLException {
-    return null;
+  public void setSchema(String schema) throws SQLException {
+
   }
 
   @Override
@@ -334,5 +333,4 @@ public class MockJDBCConnection implements Connection {
   public boolean isWrapperFor(Class<?> iface) throws SQLException {
     return false;
   }
-
 }

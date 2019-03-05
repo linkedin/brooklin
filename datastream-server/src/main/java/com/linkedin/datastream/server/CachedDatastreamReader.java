@@ -41,9 +41,10 @@ public class CachedDatastreamReader {
   private static final Logger LOG = LoggerFactory.getLogger(CachedDatastreamReader.class);
 
   private final String _cluster;
-  private List<String> _datastreamNames = Collections.emptyList();
-  private Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
   private final ZkClient _zkclient;
+
+  private List<String> _datastreamNames;
+  private Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
 
   public CachedDatastreamReader(ZkClient zkclient, String cluster) {
     _zkclient = zkclient;

@@ -21,6 +21,17 @@ import org.slf4j.LoggerFactory;
 public class ReflectionUtils {
   private static final Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
 
+  private static final Class<?>[][] COMPATIBLE_TYPES = {
+      { Character.TYPE, Character.class },
+      { Byte.TYPE, Byte.class },
+      { Boolean.TYPE, Boolean.class },
+      { Short.TYPE, Short.class },
+      { Integer.TYPE, Integer.class },
+      { Long.TYPE, Long.class },
+      { Float.TYPE, Float.class },
+      { Double.TYPE, Double.class },
+  };
+
   /**
    * Create an instance of the specified class with constuctor
    * matching the argument array.
@@ -108,17 +119,6 @@ public class ReflectionUtils {
       return null;
     }
   }
-
-  private static final Class<?>[][] COMPATIBLE_TYPES = {
-    { Character.TYPE, Character.class },
-    { Byte.TYPE, Byte.class },
-    { Boolean.TYPE, Boolean.class },
-    { Short.TYPE, Short.class },
-    { Integer.TYPE, Integer.class },
-    { Long.TYPE, Long.class },
-    { Float.TYPE, Float.class },
-    { Double.TYPE, Double.class },
-  };
 
   private static <S, T> boolean isCompatiblePrimitive(Class<S> type1, Class<T> type2) {
     for (int i = 0; i < COMPATIBLE_TYPES.length; i++) {

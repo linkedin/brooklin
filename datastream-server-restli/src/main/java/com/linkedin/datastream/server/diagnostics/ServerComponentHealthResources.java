@@ -34,12 +34,12 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  * Resources classes are used by rest.li to process corresponding http request.
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
-
+ *
  * The format of the restli request for the health status of all server instance
  * /diag?q=allStatus&type=connector&scope=espresso&content=componentParameters
  * where type and scope are used by the framework to decide which component to send the request,
  * and content is the parameter passed to the component which should implement the DiagnosticsAware interface.
-
+ *
  * There is an extra restli call to get the status of a single server:
  * /diag?q=status&type=connector&scope=espresso&content=componentParameters
  * It is not intended to be exposed to other team such as Espresso, but it can be used internally for testing purpose.

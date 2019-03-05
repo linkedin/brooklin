@@ -44,7 +44,6 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.connectors.DummyConnectorFactory;
 import com.linkedin.datastream.connectors.file.FileConnector;
 import com.linkedin.datastream.connectors.file.FileConnectorFactory;
-import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.kafka.KafkaTestUtils;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -52,23 +51,33 @@ import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategyFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
 
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.*;
-import static org.mockito.Mockito.*;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_AUTHORIZER_NAME;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME;
+import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 @Test(singleThreaded = true)
 public class TestDatastreamServer {
-  private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
-
   public static final String LOAD_BALANCING_STRATEGY_FACTORY = LoadbalancingStrategyFactory.class.getTypeName();
   public static final String BROADCAST_STRATEGY_FACTORY = BroadcastStrategyFactory.class.getTypeName();
   public static final String DUMMY_CONNECTOR = DummyConnector.CONNECTOR_TYPE;
   public static final String DUMMY_BOOTSTRAP_CONNECTOR = DummyBootstrapConnector.CONNECTOR_NAME;
   public static final String BROKEN_CONNECTOR = BrokenConnector.CONNECTOR_TYPE;
   public static final String FILE_CONNECTOR = FileConnector.CONNECTOR_NAME;
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamServer.class.getName());
 
   private EmbeddedDatastreamCluster _datastreamCluster;
 
@@ -77,15 +86,8 @@ public class TestDatastreamServer {
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
     connectorProperties.put(DUMMY_BOOTSTRAP_CONNECTOR, getBootstrapConnectorProperties());
     connectorProperties.put(BROKEN_CONNECTOR, getDummyConnectorProperties(true));
-    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
-        new Properties());
-  }
-
-  @AfterMethod
-  public void cleanup() {
-    if (_datastreamCluster != null) {
-      _datastreamCluster.shutdown();
-    }
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(),
+        connectorProperties, new Properties());
   }
 
   private static Properties getBootstrapConnectorProperties() {
@@ -123,6 +125,13 @@ public class TestDatastreamServer {
     props.put(CONFIG_FACTORY_CLASS_NAME, BrokenConnectorFactory.class.getTypeName());
     props.put("dummyProperty", "dummyValue");
     return props;
+  }
+
+  @AfterMethod
+  public void cleanup() {
+    if (_datastreamCluster != null) {
+      _datastreamCluster.shutdown();
+    }
   }
 
   private EmbeddedDatastreamCluster initializeTestDatastreamServerWithFileConnector(int numServers, String strategy)
@@ -336,8 +345,7 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
     // Ensure 1st instance was assigned the task
-    String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
+    String cluster = _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -413,8 +421,7 @@ public class TestDatastreamServer {
     countMap.forEach((k, v) -> Assert.assertEquals(v, (Integer) 0, "incorrect number of " + k + " is read"));
 
     // Ensure both instances were assigned the task
-    String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
+    String cluster = _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance);
@@ -506,8 +513,7 @@ public class TestDatastreamServer {
     Assert.assertTrue(eventsReceived2.containsAll(eventsWritten2));
 
     // Ensure 1st instance was assigned both tasks
-    String cluster =
-        _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
+    String cluster = _datastreamCluster.getDatastreamServerProperties().get(0).getProperty(CONFIG_CLUSTER_NAME);
     ZkClient zkclient = new ZkClient(_datastreamCluster.getZkConnection());
     String instance1 = server1.getCoordinator().getInstanceName();
     String assignmentPath = KeyBuilder.instanceAssignments(cluster, instance1);

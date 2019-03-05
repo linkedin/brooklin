@@ -5,23 +5,14 @@
  */
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.common.zk.ZkClient;
-
 import java.time.Duration;
 import java.util.Properties;
 
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.zk.ZkClient;
+
 
 public final class CoordinatorConfig {
-  private final String _cluster;
-  private final String _zkAddress;
-  private final int _zkSessionTimeout;
-  private final int _zkConnectionTimeout;
-  private final Properties _config;
-  private final VerifiableProperties _properties;
-  private final int _retryIntervalMs;
-  private final long _heartbeatPeriodMs;
-
   private static final String PREFIX = "brooklin.server.coordinator.";
   public static final String CONFIG_DEFAULT_TRANSPORT_PROVIDER = PREFIX + "defaultTransportProviderName";
   public static final String CONFIG_CLUSTER = PREFIX + "cluster";
@@ -31,7 +22,16 @@ public final class CoordinatorConfig {
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMs";
   public static final String CONFIG_HEARTBEAT_PERIOD_MS = PREFIX + "heartbeatPeriodMs";
 
+  private final String _cluster;
+  private final String _zkAddress;
+  private final int _zkSessionTimeout;
+  private final int _zkConnectionTimeout;
+  private final Properties _config;
+  private final VerifiableProperties _properties;
+  private final int _retryIntervalMs;
+  private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
+
   private int _assignmentChangeThreadPoolThreadCount = 3;
 
   public CoordinatorConfig(Properties config) {
@@ -70,12 +70,12 @@ public final class CoordinatorConfig {
     return _retryIntervalMs;
   }
 
-  public void setAssignmentChangeThreadPoolThreadCount(int count) {
-    _assignmentChangeThreadPoolThreadCount = count;
-  }
-
   public int getAssignmentChangeThreadPoolThreadCount() {
     return _assignmentChangeThreadPoolThreadCount;
+  }
+
+  public void setAssignmentChangeThreadPoolThreadCount(int count) {
+    _assignmentChangeThreadPoolThreadCount = count;
   }
 
   public String getDefaultTransportProviderName() {

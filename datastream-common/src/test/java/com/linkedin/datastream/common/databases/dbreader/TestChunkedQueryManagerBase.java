@@ -30,5 +30,4 @@ public class TestChunkedQueryManagerBase {
     actual = manager.generateChunkedQuery(nestedQuery, keys, chunkSize, partitionCount, partitions);
     Assert.assertEquals(chunkedExpected, actual);
   }
-
 }

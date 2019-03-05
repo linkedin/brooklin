@@ -32,6 +32,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 
+
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
 

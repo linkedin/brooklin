@@ -5,9 +5,6 @@
  */
 package com.linkedin.datastream.common;
 
-/**
- *
- */
 public class RetriesExhaustedExeption extends RuntimeException {
   private static final long serialVersionUID = 1;
 

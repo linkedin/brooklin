@@ -38,5 +38,4 @@ public class TestRestliClientBase {
     // Test case needing the 2nd one should start the 2nd instance
     _datastreamCluster.startupServer(0);
   }
-
 }

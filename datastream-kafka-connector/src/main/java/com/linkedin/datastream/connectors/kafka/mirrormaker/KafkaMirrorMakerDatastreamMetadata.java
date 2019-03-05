@@ -25,5 +25,4 @@ public final class KafkaMirrorMakerDatastreamMetadata {
         .map(d -> d.getMetadata().get(IDENTITY_PARTITIONING_ENABLED))
         .orElse(Boolean.FALSE.toString()));
   }
-
 }

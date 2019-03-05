@@ -13,6 +13,7 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.jetbrains.annotations.NotNull;
 
+
 /**
  * The Schema generator operates by making queries to the targeted database in order to
  * grab information about the Database Field Types.
@@ -62,7 +63,6 @@ public abstract class DatabaseSource {
   /**
    * Retrieve the list of tables in the specified Database.
    * @return List of tables in the Database
-   * @throws SQLException
    */
   public List<String> getAllTablesInDatabase() throws SQLException {
     throw new UnsupportedOperationException("getAllTablesInDatabase operation not supported");
@@ -105,13 +105,11 @@ public abstract class DatabaseSource {
 
   /**
    * Get the avro schema for the table
-   * @param tableName
    * @return Schema for the table or null if operation not supported
    */
   public Schema getTableSchema(String tableName) {
     return null;
   }
-
 
   public static class CollectionMetadata {
     private String _fieldName;
@@ -119,7 +117,7 @@ public abstract class DatabaseSource {
     private int _precision;
     private int _scale;
 
-    public CollectionMetadata(@NotNull String schemaName, @NotNull  String fieldName, int precision, int scale) {
+    public CollectionMetadata(@NotNull String schemaName, @NotNull String fieldName, int precision, int scale) {
       _fieldName = fieldName;
       _schemaName = schemaName;
       _precision = precision;
@@ -142,7 +140,6 @@ public abstract class DatabaseSource {
       return _scale;
     }
   }
-
 
   public static class StructMetadata {
     private String _fieldTypeName;

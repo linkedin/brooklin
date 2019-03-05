@@ -9,6 +9,7 @@ import java.util.Properties;
 
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
+
 public class BrokenConnectorFactory implements ConnectorFactory<BrokenConnector> {
   @Override
   public BrokenConnector createConnector(String connectorName, Properties config, String clusterName) {

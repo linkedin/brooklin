@@ -84,7 +84,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
   static Datastream createDatastream(String name, String broker, String sourceRegex) {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
-    Datastream datastream =  createDatastream(name, broker, sourceRegex, metadata);
+    Datastream datastream = createDatastream(name, broker, sourceRegex, metadata);
     DatastreamDestination destination = new DatastreamDestination();
     destination.setConnectionString(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER);
     datastream.setDestination(destination);
@@ -150,5 +150,4 @@ final class KafkaMirrorMakerConnectorTestUtils {
     props.put("auditor.class", NoOpAuditor.class.getCanonicalName());
     return props;
   }
-
 }

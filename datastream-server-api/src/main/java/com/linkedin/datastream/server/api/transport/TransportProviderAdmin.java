@@ -46,7 +46,6 @@ public interface TransportProviderAdmin extends MetricsAware {
 
   /**
    * create the destination for the datastream.
-   * @param datastream
    */
   void createDestination(Datastream datastream);
 

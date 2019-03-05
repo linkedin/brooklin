@@ -9,29 +9,30 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
 /**
  * Base class for metric categories with support for metric deregistration.
  * It uses reference counting for deregistering aggregate metrics which can
  * only happen when all keyed metrics of the same name have been deregistered.
  */
 public abstract class BrooklinMetrics {
+  // Map from a [class,category] to its reference counter
+  private static final Map<String, AtomicInteger> REF_COUNTS = new HashMap<>();
+
   protected String _key;
   protected String _className;
-
-  // Map from a [class,category] to its reference counter
-  private static Map<String, AtomicInteger> _refCounts = new HashMap<>();
-
-  private String getRefKey() {
-    return getClass().getSimpleName() + _className;
-  }
 
   public BrooklinMetrics(String className, String key) {
     _className = className;
     _key = key;
 
     String refKey = getRefKey();
-    _refCounts.computeIfAbsent(refKey, k -> new AtomicInteger(0));
-    _refCounts.get(refKey).incrementAndGet();
+    REF_COUNTS.computeIfAbsent(refKey, k -> new AtomicInteger(0));
+    REF_COUNTS.get(refKey).incrementAndGet();
+  }
+
+  private String getRefKey() {
+    return getClass().getSimpleName() + _className;
   }
 
   /**
@@ -41,13 +42,13 @@ public abstract class BrooklinMetrics {
     String refKey = getRefKey();
 
     // Already deregistered?
-    if (!_refCounts.containsKey(refKey)) {
+    if (!REF_COUNTS.containsKey(refKey)) {
       return;
     }
 
-    if (_refCounts.get(refKey).decrementAndGet() == 0) {
+    if (REF_COUNTS.get(refKey).decrementAndGet() == 0) {
       deregisterAggregates();
-      _refCounts.remove(refKey);
+      REF_COUNTS.remove(refKey);
     }
   }
 

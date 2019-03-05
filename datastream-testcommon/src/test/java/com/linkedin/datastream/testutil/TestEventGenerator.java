@@ -5,10 +5,6 @@
  */
 package com.linkedin.datastream.testutil;
 
-import com.linkedin.datastream.common.DatastreamEvent;
-import com.linkedin.datastream.testutil.event.generator.AbstractEventGenerator;
-import com.linkedin.datastream.testutil.event.generator.DatastreamEventGenerator;
-import com.linkedin.datastream.testutil.event.validator.GenericEventValidator;
 import java.io.IOException;
 import java.util.List;
 
@@ -20,13 +16,17 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.common.DatastreamEvent;
+import com.linkedin.datastream.testutil.event.generator.AbstractEventGenerator;
+import com.linkedin.datastream.testutil.event.generator.DatastreamEventGenerator;
+import com.linkedin.datastream.testutil.event.validator.GenericEventValidator;
+
 
 public class TestEventGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(TestEventGenerator.class);
 
   @BeforeMethod
-  public void setup()
-      throws IOException {
+  public void setup() throws IOException {
     LOG.info("Test EventGenerator class");
   }
 
@@ -36,8 +36,7 @@ public class TestEventGenerator {
   }
 
   @Test
-  public void testDatastreamEvents()
-      throws Exception {
+  public void testDatastreamEvents() throws Exception {
     int numEvents = 10;
     int percentageUpdates = 20;
     int percentageDeletes = 20;

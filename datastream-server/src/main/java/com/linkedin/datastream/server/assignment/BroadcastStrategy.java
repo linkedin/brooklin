@@ -23,6 +23,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 
+
 /**
  * The number of tasks created for datastream is configurable using "maxTasks" config. This can also be overriden at the
  * Datastream level via the Datastream metadata "maxTasks". The number of tasks is not necessarily capped at the
@@ -97,5 +98,4 @@ public class BroadcastStrategy implements AssignmentStrategy {
         .max()
         .orElse(_maxTasks.orElse(numInstances));
   }
-
 }

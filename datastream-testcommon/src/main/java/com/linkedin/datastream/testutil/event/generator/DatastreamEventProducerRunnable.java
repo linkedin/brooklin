@@ -24,15 +24,11 @@ public class DatastreamEventProducerRunnable implements Runnable {
   /**
    * This producer basically ignores the type of request for now
    * It will produce
-   * @param globalSettings
    */
   public DatastreamEventProducerRunnable(GlobalSettings globalSettings) {
     _globalSettings = globalSettings;
-
   }
 
-  /**
-   */
   @Override
   public void run() {
     File schemaFile = new File(_globalSettings._schemataPath, _globalSettings._schemaFileName);
@@ -68,7 +64,6 @@ public class DatastreamEventProducerRunnable implements Runnable {
     }
     deg.setDatastreamName(_globalSettings._datastreamName);
 
-
     // generate events
     // List<Object> eventList = null;
     try {
@@ -89,5 +84,4 @@ public class DatastreamEventProducerRunnable implements Runnable {
       LOG.error("Unknown schema field Exception " + exp.getStackTrace());
     }
   }
-
 }

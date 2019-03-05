@@ -17,7 +17,7 @@ public class SerDeSet {
   public SerDeSet(SerDe keySerDe, SerDe valueSerDe, SerDe envelopeSerDe) {
     _keySerDe = Optional.ofNullable(keySerDe);
     _valueSerDe = Optional.ofNullable(valueSerDe);
-    _envelopeSerDe =  Optional.ofNullable(envelopeSerDe);
+    _envelopeSerDe = Optional.ofNullable(envelopeSerDe);
   }
 
   public Optional<SerDe> getKeySerDe() {

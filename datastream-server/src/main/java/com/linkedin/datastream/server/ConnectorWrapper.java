@@ -102,7 +102,7 @@ public class ConnectorWrapper {
     logApiEnd("stop");
   }
 
-  public Connector  getConnectorInstance() {
+  public Connector getConnectorInstance() {
     return _connector;
   }
 
@@ -180,7 +180,6 @@ public class ConnectorWrapper {
    * @param stream Datastream being initialized
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.
-   * @throws DatastreamValidationException
    */
   public void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {

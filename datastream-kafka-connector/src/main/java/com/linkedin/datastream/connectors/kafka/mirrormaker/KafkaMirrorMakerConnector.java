@@ -22,8 +22,9 @@ import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+
 
 /**
  * KafkaMirrorMakerConnector is similar to KafkaConnector but it has the ability to consume from multiple topics in a
@@ -31,11 +32,12 @@ import com.linkedin.datastream.server.DatastreamTask;
  * destination cluster.
  */
 public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
+  protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
+  protected static final String MM_TOPIC_PLACEHOLDER = "*";
+
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
 
-  protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
   private final boolean _isFlushlessModeEnabled;
-  protected static final String MM_TOPIC_PLACEHOLDER = "*";
 
   public KafkaMirrorMakerConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaMirrorMakerGroupIdConstructor(

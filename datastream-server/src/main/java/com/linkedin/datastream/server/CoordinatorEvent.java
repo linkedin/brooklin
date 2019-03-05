@@ -25,20 +25,10 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
-
   protected final EventType _eventType;
 
   private CoordinatorEvent(EventType eventType) {
     _eventType = eventType;
-  }
-
-  public EventType getType() {
-    return _eventType;
-  }
-
-  @Override
-  public String toString() {
-    return "type:" + _eventType;
   }
 
   public static CoordinatorEvent createLeaderDoAssignmentEvent() {
@@ -61,6 +51,15 @@ public class CoordinatorEvent {
     return new HandleInstanceError(errorMessage);
   }
 
+  public EventType getType() {
+    return _eventType;
+  }
+
+  @Override
+  public String toString() {
+    return "type:" + _eventType;
+  }
+
   public static final class HandleInstanceError extends CoordinatorEvent {
     private final String _errorMessage;
 
@@ -78,5 +77,4 @@ public class CoordinatorEvent {
       return "type:" + _eventType + "\n" + _errorMessage;
     }
   }
-
 }

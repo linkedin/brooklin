@@ -8,7 +8,7 @@ package com.linkedin.datastream.common;
 /**
  * Represents an exception that can be retried.
  */
-public class RetriableException extends RuntimeException  {
+public class RetriableException extends RuntimeException {
   private static final long serialVersionUID = 1;
 
   public RetriableException() {

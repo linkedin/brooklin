@@ -43,7 +43,6 @@ public interface FieldType {
   /* The key for the scale of Number fields */
   static final String SCALE = "numberScale";
 
-
   /**
    * @return the Schema Name of the Field type
    */

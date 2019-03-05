@@ -57,25 +57,20 @@ public class PausedSourcePartitionMetadata {
     return _reason;
   }
 
-  public String getDescription() {
-    return _description;
-  }
-
-  public void setResumeCondition(BooleanSupplier resumeCondition) {
-    _resumeCondition = resumeCondition;
-  }
-
   public void setReason(Reason reason) {
     _reason = reason;
+  }
+
+  public String getDescription() {
+    return _description;
   }
 
   public void setDescription(String description) {
     _description = description;
   }
 
-  public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
-    return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
-        Reason.SEND_ERROR);
+  public void setResumeCondition(BooleanSupplier resumeCondition) {
+    _resumeCondition = resumeCondition;
   }
 
   @Override
@@ -98,5 +93,10 @@ public class PausedSourcePartitionMetadata {
   @Override
   public String toString() {
     return _description == null ? "" : _description.toString();
+  }
+
+  public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
+    return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
+        Reason.SEND_ERROR);
   }
 }

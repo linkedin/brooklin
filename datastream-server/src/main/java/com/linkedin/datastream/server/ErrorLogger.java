@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
 
+
 /**
  * Simple utility class for logging and throwing/returning a restli exception.
  * A shortened random UUID, as well as the server instance name,

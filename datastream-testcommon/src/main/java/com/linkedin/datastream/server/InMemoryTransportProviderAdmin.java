@@ -21,17 +21,12 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
 
-  public InMemoryTransportProviderAdmin() {
-
-  }
-
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProviderAdminFactory.class);
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
-
-  private static InMemoryTransportProvider _transportProvider = new InMemoryTransportProvider();
+  private static final InMemoryTransportProvider TRANSPORT_PROVIDER = new InMemoryTransportProvider();
 
   public static InMemoryTransportProvider getTransportProvider() {
-    return _transportProvider;
+    return TRANSPORT_PROVIDER;
   }
 
   @Override
@@ -42,17 +37,17 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
   public synchronized void createDestination(Datastream datastream) {
     String topicName = datastream.getDestination().getConnectionString();
     int numberOfPartitions = datastream.getDestination().getPartitions();
-    if (_transportProvider.getTopics().containsKey(topicName)) {
+    if (TRANSPORT_PROVIDER.getTopics().containsKey(topicName)) {
       LOG.warn("Topic {} already exists", topicName);
     }
-    _transportProvider.addTopic(topicName, numberOfPartitions);
+    TRANSPORT_PROVIDER.addTopic(topicName, numberOfPartitions);
   }
 
   @Override
   public synchronized void dropDestination(Datastream datastream) {
 
     String topicName = datastream.getDestination().getConnectionString();
-    if (!_transportProvider.getTopics().containsKey(topicName)) {
+    if (!TRANSPORT_PROVIDER.getTopics().containsKey(topicName)) {
       String msg = String.format("Topic %s doesn't exist", topicName);
       LOG.error(msg);
       throw new DatastreamRuntimeException(msg);
@@ -61,7 +56,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
 
   @Override
   public TransportProvider assignTransportProvider(DatastreamTask task) {
-    return _transportProvider;
+    return TRANSPORT_PROVIDER;
   }
 
   @Override

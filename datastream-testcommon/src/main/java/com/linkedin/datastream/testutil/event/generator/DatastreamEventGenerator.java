@@ -106,16 +106,13 @@ public class DatastreamEventGenerator extends AbstractEventGenerator<DatastreamE
       if (_needPreviousPayload) {
         datastreamEvent.previous_payload = preEvent.payload;
       }
-
     } else { // default event
       datastreamEvent.key = getKey();
       opcode = "INSERT";
       datastreamEvent.previous_payload = null;
       _lastInsertedEvent = datastreamEvent;
-
     }
     datastreamEvent.metadata = getMetaData(partNum, opcode); // get common meta data for this sequence
     return datastreamEvent;
   }
-
 }
