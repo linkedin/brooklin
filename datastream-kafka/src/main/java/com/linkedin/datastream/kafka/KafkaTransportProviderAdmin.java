@@ -88,7 +88,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
     _zkUtils = _zkAddress.map(address -> new ZkUtils(new ZkClient(address), new ZkConnection(address), false));
 
-    //Load default producer bootsrtap server from config if available
+    //Load default producer bootstrap server from config if available
     _brokersConfig =
         Optional.ofNullable(_transportProviderProperties.getProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG));
 

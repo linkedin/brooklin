@@ -32,7 +32,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.RetriesExhaustedExeption;
+import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.server.dms.DatastreamRequestBuilders;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.restli.client.ActionRequest;
@@ -157,7 +157,7 @@ public class DatastreamRestClient {
           return null; // not reachable; Meltdown hack goes here...
         }
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("getDatastream for datastream {} took {} ms", Duration.between(startTime, Instant.now()).toMillis());
     return datastream;
   }
@@ -227,7 +227,7 @@ public class DatastreamRestClient {
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("getAllDatastreams took {} ms", Duration.between(startTime, Instant.now()).toMillis());
     return datastreams;
   }
@@ -310,7 +310,7 @@ public class DatastreamRestClient {
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
         return null; // unreachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("createDatastream for datastream {} took {} ms", datastream,
         Duration.between(startTime, Instant.now()).toMillis());
   }
@@ -348,7 +348,7 @@ public class DatastreamRestClient {
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to update datastreams", e);
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
 
     LOG.info("updateDatastreams for datastreams {} took {} ms", datastreams,
         Duration.between(startTime, Instant.now()).toMillis());
@@ -384,7 +384,7 @@ public class DatastreamRestClient {
         }
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
 
     LOG.info("deleteDatastream for datastream {} took {} ms", datastreamName,
         Duration.between(startTime, Instant.now()).toMillis());
@@ -413,7 +413,7 @@ public class DatastreamRestClient {
         }
       }
       return Boolean.FALSE;
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
   }
 
   /**
@@ -459,7 +459,7 @@ public class DatastreamRestClient {
         }
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("pause for datastream {} took {} ms", datastreamName,
         Duration.between(startTime, Instant.now()).toMillis());
   }
@@ -505,7 +505,7 @@ public class DatastreamRestClient {
         }
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("resume for datastream {} took {} ms", datastreamName,
         Duration.between(startTime, Instant.now()).toMillis());
   }
@@ -532,7 +532,7 @@ public class DatastreamRestClient {
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "findGroup failed with error.", e);
       }
       return null; // not reachable
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
   }
 
   /**
@@ -570,7 +570,7 @@ public class DatastreamRestClient {
         }
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("pauseSourcePartitions for datastream {}, sourcePartitions {} took {} ms", datastreamName, sourcePartitions,
         Duration.between(startTime, Instant.now()).toMillis());
   }
@@ -610,7 +610,7 @@ public class DatastreamRestClient {
         }
         return null; // not reachable
       }
-    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedExeption::new);
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
     LOG.info("resumeSourcePartitions for datastream {}, sourcePartitions {} took {} ms", datastreamName, sourcePartitions,
         Duration.between(startTime, Instant.now()).toMillis());
   }

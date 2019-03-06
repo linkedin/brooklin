@@ -25,7 +25,7 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 
 
 /**
- * The number of tasks created for datastream is configurable using "maxTasks" config. This can also be overriden at the
+ * The number of tasks created for datastream is configurable using "maxTasks" config. This can also be overridden at the
  * Datastream level via the Datastream metadata "maxTasks". The number of tasks is not necessarily capped at the
  * number of instances, so each instance could process multiple tasks for the same Datastream. If "maxTasks" is not
  * provided, the strategy will broadcast one task to each of the instances in the cluster.

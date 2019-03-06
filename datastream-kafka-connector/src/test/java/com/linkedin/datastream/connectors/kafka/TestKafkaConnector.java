@@ -64,7 +64,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
   @Test
   public void testConnectorWithStartPosition() throws UnsupportedEncodingException, DatastreamValidationException {
-    String topicName = "testConectorWithStartPosition";
+    String topicName = "testConnectorWithStartPosition";
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 100);
     long ts = System.currentTimeMillis();
     TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
@@ -77,9 +77,9 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
   }
 
   @Test(expectedExceptions = DatastreamValidationException.class)
-  public void testInitializeDatastreamWithNonexistTopic() throws DatastreamValidationException {
-    String topicName = "testInitializeDatastreamWithNonexistTopic";
-    Datastream ds = createDatastream("testInitializeDatastreamWithNonexistTopic", topicName);
+  public void testInitializeDatastreamWithNonexistentTopic() throws DatastreamValidationException {
+    String topicName = "testInitializeDatastreamWithNonexistentTopic";
+    Datastream ds = createDatastream("testInitializeDatastreamWithNonexistentTopic", topicName);
     KafkaConnector connector =
         new KafkaConnector("test", getDefaultConfig(null), "testCluster");
     connector.initializeDatastream(ds, Collections.emptyList());
@@ -177,7 +177,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     LOG.info("datastream2 groupID: {}", datastream2.getMetadata().get(DatastreamMetadataConstants.GROUP_ID));
     LOG.info("datastream2 task prefix:: {}", datastream2.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
 
-    // create datastream with group ID override and same source as datasteram 1 & 2
+    // create datastream with group ID override and same source as datastream 1 & 2
     // - group ID override should take precedence
     Datastream datastream3 = createDatastream("datastream3", topicName1);
     datastream3.getMetadata().put(DatastreamMetadataConstants.GROUP_ID, "datastream3");

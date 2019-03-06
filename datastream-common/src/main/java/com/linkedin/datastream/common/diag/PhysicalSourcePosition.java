@@ -43,7 +43,7 @@ public class PhysicalSourcePosition {
   /**
    * Position type representing an event's time.
    */
-  public static final String EVENT_TIME_POSTIION_TYPE = "eventTime";
+  public static final String EVENT_TIME_POSITION_TYPE = "eventTime";
 
   /**
    * Position type representing a Kafka offset.

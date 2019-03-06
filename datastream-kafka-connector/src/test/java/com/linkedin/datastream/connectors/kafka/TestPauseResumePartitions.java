@@ -185,7 +185,7 @@ public class TestPauseResumePartitions {
   }
 
   /**
-   * Test that the Kafka connectors support PAUSE_RESUME_PARTITIONS. The test case is intentially in this class because
+   * Test that the Kafka connectors support PAUSE_RESUME_PARTITIONS. The test case is intentionally in this class because
    * this class does not make any ZK/Kafka connections, and this test case does not require it. The test classes for
    * the connectors do have the overhead of setting up and tearing down such connections.
    */

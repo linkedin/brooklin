@@ -145,7 +145,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
      The coordinator reassign the tasks of the paused datastream to a dummy instance  "PAUSED_INSTANCE",
      effectively suspending processing of the current tasks.
-       - In case a datastream is dedupped, the tasks are reassigned only if all the datastreams are paused.
+       - In case a datastream is deduped, the tasks are reassigned only if all the datastreams are paused.
        - The tasks status are changed from OK to Paused.
    */
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
@@ -717,7 +717,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    *
    * Note that expired streams are not handled during rebalancing which is okay because
    * if there are no more streams getting created there is no pressure to delete streams
-   * either. Also, expired streams are excluded from any future task assigments.
+   * either. Also, expired streams are excluded from any future task assignments.
    */
   private void handleDatastreamAddOrDelete() {
     boolean shouldRetry = false;
@@ -819,7 +819,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         Duration retention = _transportProviderAdmins.get(datastream.getTransportProviderName()).getRetention(datastream);
         if (retention != null) {
           datastream.getMetadata()
-              .put(DatastreamMetadataConstants.DESTINATION_RETENION_MS, String.valueOf(retention.toMillis()));
+              .put(DatastreamMetadataConstants.DESTINATION_RETENTION_MS, String.valueOf(retention.toMillis()));
         }
       } catch (UnsupportedOperationException e) {
         _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
@@ -1179,7 +1179,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       DatastreamDeduper deduper, List<Datastream> allDatastreams) throws DatastreamValidationException {
     Optional<Datastream> existingDatastream = Optional.empty();
 
-    // Dedup datastream only when its destination is not populated and allows reuse
+    // Dedupe datastream only when its destination is not populated and allows reuse
     if (!hasValidDestination(datastream) && isReuseAllowed(datastream)) {
       existingDatastream = deduper.findExistingDatastream(datastream, allDatastreams);
     }

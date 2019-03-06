@@ -23,7 +23,7 @@ public class RetryUtils {
 
     if (!result) {
       LOG.error("Retries exhausted.", supplier.getLastException());
-      throw new RetriesExhaustedExeption(supplier.getLastException());
+      throw new RetriesExhaustedException(supplier.getLastException());
     }
 
     return supplier.getValue();

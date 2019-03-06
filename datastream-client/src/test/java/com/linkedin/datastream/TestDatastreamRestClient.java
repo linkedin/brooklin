@@ -36,7 +36,7 @@ import com.linkedin.datastream.common.DatastreamNotFoundException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.RetriesExhaustedExeption;
+import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.r2.RemoteInvocationException;
 import com.linkedin.restli.client.CreateIdRequest;
@@ -176,7 +176,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   private void clearDynamicMetadata(Collection<Datastream> datastreams) {
     for (Datastream stream : datastreams) {
       stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_CREATION_MS);
-      stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_RETENION_MS);
+      stream.getMetadata().remove(DatastreamMetadataConstants.DESTINATION_RETENTION_MS);
       stream.getMetadata().remove(DatastreamMetadataConstants.CREATION_MS);
       stream.getMetadata().remove(DatastreamMetadataConstants.TASK_PREFIX);
     }
@@ -458,9 +458,9 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
         datastream.getSource().getConnectionString());
   }
 
-  @Test(expectedExceptions = RetriesExhaustedExeption.class)
+  @Test(expectedExceptions = RetriesExhaustedException.class)
   @SuppressWarnings("unchecked")
-  public void testCreateDatastreamRetryExhuast() throws Exception {
+  public void testCreateDatastreamRetryExhaust() throws Exception {
     Datastream datastream = generateDatastream(20);
     RestClient httpRestClient = mock(RestClient.class);
     ResponseFuture<IdResponse<String>> response = mock(ResponseFuture.class);
@@ -473,9 +473,9 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
     restClient.createDatastream(datastream);
   }
 
-  @Test(expectedExceptions = RetriesExhaustedExeption.class)
+  @Test(expectedExceptions = RetriesExhaustedException.class)
   @SuppressWarnings("unchecked")
-  public void testGetDatastreamRetryExhuast() throws Exception {
+  public void testGetDatastreamRetryExhaust() throws Exception {
     RestClient httpRestClient = mock(RestClient.class);
     ResponseFuture<IdResponse<String>> response = mock(ResponseFuture.class);
     when(httpRestClient.sendRequest(any(Request.class))).thenReturn(response);

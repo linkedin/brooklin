@@ -264,7 +264,7 @@ public class TestZkAdapter {
     validateConnectorTask(testCluster, connectorType, "task2", zkClient);
 
     //
-    // simuate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
+    // simulate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
     //
     DatastreamTaskImpl task3 = new DatastreamTaskImpl();
     task3.setTaskPrefix("task3");
@@ -428,8 +428,8 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testTaskAquireRelease() throws Exception {
-    String testCluster = "testTaskAquireRelease";
+  public void testTaskAcquireRelease() throws Exception {
+    String testCluster = "testTaskAcquireRelease";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
 
@@ -472,8 +472,8 @@ public class TestZkAdapter {
    * such that the owner didn't get the chance to release the task.
    */
   @Test
-  public void testTaskAquireReleaseOwnerUncleanShutdown() throws Exception {
-    String testCluster = "testTaskAquireReleaseOwnerUncleanShutdown";
+  public void testTaskAcquireReleaseOwnerUncleanShutdown() throws Exception {
+    String testCluster = "testTaskAcquireReleaseOwnerUncleanShutdown";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
 
@@ -510,8 +510,8 @@ public class TestZkAdapter {
    * such that the owner didn't get the chance to release the task.
    */
   @Test
-  public void testTaskAquireReleaseOwnerUncleanBounce() throws Exception {
-    String testCluster = "testTaskAquireReleaseOwnerUncleanBounce";
+  public void testTaskAcquireReleaseOwnerUncleanBounce() throws Exception {
+    String testCluster = "testTaskAcquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
 

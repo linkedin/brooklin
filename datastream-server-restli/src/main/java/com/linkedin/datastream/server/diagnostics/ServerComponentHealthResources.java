@@ -63,7 +63,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
   }
 
   /**
-   Finder Reqeust to get the status of all server instances.
+   Finder Request to get the status of all server instances.
    You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...
    */
   @Finder("allStatus")
@@ -84,7 +84,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
   }
 
   /**
-   Finder Reqeust to get the status from one server  instance.
+   Finder Request to get the status from one server  instance.
    You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...
    */
   @Finder("status")

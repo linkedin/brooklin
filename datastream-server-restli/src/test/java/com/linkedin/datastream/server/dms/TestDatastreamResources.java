@@ -234,7 +234,7 @@ public class TestDatastreamResources {
     final String topic1 = "topic1";
     final String topic2 = "topic2";
     final String topic3 = "topic3";
-    final String nonExistantTopic = "nonExistantTopic";
+    final String nonExistentTopic = "nonExistentTopic";
     StringMap pausedPartitions = new StringMap();
     StringMap expectedPartitions = new StringMap();
 
@@ -323,7 +323,7 @@ public class TestDatastreamResources {
     // Now try resuming from a nonexistent topic.
     // This should be a no op, as there is nothing to resume.
     partitionsToResume.clear();
-    partitionsToResume.put(nonExistantTopic, "*");
+    partitionsToResume.put(nonExistentTopic, "*");
     resumePartitionResponse = resource1.resumeSourcePartitions(pathKey, partitionsToResume);
     Assert.assertEquals(resumePartitionResponse.getStatus(), HttpStatus.S_200_OK);
     ds = resource1.get(datastreamName);
@@ -597,8 +597,8 @@ public class TestDatastreamResources {
     return stream;
   }
 
-  private List<Datastream> createDatastreams(DatastreamResources resource, String preffix, int count) throws Exception {
-    return IntStream.range(0, count).mapToObj(n -> createDatastream(resource, preffix, n)).collect(Collectors.toList());
+  private List<Datastream> createDatastreams(DatastreamResources resource, String prefix, int count) throws Exception {
+    return IntStream.range(0, count).mapToObj(n -> createDatastream(resource, prefix, n)).collect(Collectors.toList());
   }
 
   @Test

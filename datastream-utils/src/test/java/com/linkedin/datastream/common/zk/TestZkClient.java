@@ -157,7 +157,7 @@ public class TestZkClient {
     TestZkDataListener l = new TestZkDataListener();
     zkClient2.subscribeDataChanges(instance1, l);
 
-    // test existance and setup watch
+    // test existence and setup watch
     Assert.assertTrue(PollUtils.poll(() -> zkClient2.exists(instance1, true), 100, 1000));
 
     // now disconnect zkClient1 so the node will disappear

@@ -719,7 +719,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Need to change this logic to update all datastreams in case that assumption changes.
     if (getGroupedDatastreams(datastream).size() > 1) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Can only pause/resume partitions for a datastream that are not a part of any datastremgroup : "
+          "Can only pause/resume partitions for a datastream that are not a part of any datastreamgroup : "
               + datastream.getName());
     }
 

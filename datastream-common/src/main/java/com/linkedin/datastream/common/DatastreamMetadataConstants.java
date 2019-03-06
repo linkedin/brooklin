@@ -55,7 +55,7 @@ public class DatastreamMetadataConstants {
   /**
    * Duration in Epoch-millis before destination starts to delete messages
    */
-  public static final String DESTINATION_RETENION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
+  public static final String DESTINATION_RETENTION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
 
   /**
    * Indicates if the data store in destination requires to be encrypted or not
@@ -68,7 +68,7 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
 
   /**
-   * Timestamp of datastream creation in epoch-milis
+   * Timestamp of datastream creation in epoch-millis
    */
   public static final String CREATION_MS = "system.creation.ms";
 
@@ -85,7 +85,7 @@ public class DatastreamMetadataConstants {
 
   /**
    * Connector can use this for datastreams with finite set of events such that
-   * can be deleted after TTL expires. The TTL is expressed as miliseconds.
+   * can be deleted after TTL expires. The TTL is expressed as milliseconds.
    */
   public static final String TTL_MS = "system.ttl.ms";
 

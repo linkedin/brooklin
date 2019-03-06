@@ -72,7 +72,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *
  *  Note: * Callback for leader only.
  *
- * ZkAdapter is the adapter between the Coordiantor and the ZkClient. It uses ZkClient to communicate
+ * ZkAdapter is the adapter between the Coordinator and the ZkClient. It uses ZkClient to communicate
  * with Zookeeper, and provides a set of callbacks that allows the Coordinator to react on events like
  * leadership changes, assigment changes, and live instances changes.
  *
@@ -667,7 +667,7 @@ public class ZkAdapter {
   }
 
   // create a live instance node, in the form of a sequence number with the znode path
-  // /{cluster}/liveinstances/{sequenceNuber}
+  // /{cluster}/liveinstances/{sequenceNumber}
   // also write the hostname as the content of the node. This allows us to map this node back
   // to a corresponding instance node with path /{cluster}/instances/{hostname}-{sequenceNumber}
   private String createLiveInstanceNode() {
@@ -675,7 +675,7 @@ public class ZkAdapter {
     _zkclient.ensurePath(KeyBuilder.liveInstances(_cluster));
 
     // default name in case of UnknownHostException
-    _hostname = "UnknowHost-" + randomGenerator.nextInt(10000);
+    _hostname = "UnknownHost-" + randomGenerator.nextInt(10000);
 
     try {
       _hostname = InetAddress.getLocalHost().getHostName();
@@ -814,8 +814,8 @@ public class ZkAdapter {
     String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
 
     if (_zkclient.exists(lockPath)) {
-      IZkChildListener listener = (parentPath, currentChilds) -> {
-        if (!currentChilds.contains(lockNode)) {
+      IZkChildListener listener = (parentPath, currentChildren) -> {
+        if (!currentChildren.contains(lockNode)) {
           busyLatch.countDown();
         }
       };
@@ -1040,7 +1040,7 @@ public class ZkAdapter {
   }
 
   /**
-   * ZkBackedTaskListProvider provides informations about all DatastreamTasks existing in the cluster
+   * ZkBackedTaskListProvider provides information about all DatastreamTasks existing in the cluster
    * grouped by the connector type. In addition, it notifies the listener about changes happened to
    * task node changes under the connector node.
    */

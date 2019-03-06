@@ -94,7 +94,7 @@ public interface GroupIdConstructor {
    * group ID inconsistency
    * 2. If group ID not found, it constructs it explicitly and returns it.
    * Note: If some group ID constructor doesn't get group ID in any other way other than explicitly constructing it,
-   * this method should be same as constuctGroupId(DatastreamTask task) method.
+   * this method should be same as constructGroupId(DatastreamTask task) method.
    * @param task Task for which group ID should be returned
    * @param logger Optional logger - in case logs should be recorded while getting group ID
    */

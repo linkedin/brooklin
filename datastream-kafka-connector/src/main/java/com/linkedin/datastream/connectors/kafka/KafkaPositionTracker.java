@@ -496,7 +496,7 @@ public class KafkaPositionTracker {
     if (record.timestampType() != null && record.timestampType() == TimestampType.LOG_APPEND_TIME
         && record.timestamp() >= 0) {
       // If the event timestamp is available, let's use that.
-      position.setPositionType(PhysicalSourcePosition.EVENT_TIME_POSTIION_TYPE);
+      position.setPositionType(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE);
       position.setSourceQueriedTimeMs(readTime.toEpochMilli());
       position.setSourcePosition(Long.toString(readTime.toEpochMilli()));
       position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
@@ -555,7 +555,7 @@ public class KafkaPositionTracker {
 
           // Fill in/update the source position data
           position.setSourceQueriedTimeMs(sourceQueriedTimeMs);
-          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSTIION_TYPE)) {
+          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE)) {
             position.setSourcePosition(String.valueOf(sourceQueriedTimeMs));
           } else {
             position.setSourcePosition(String.valueOf(sourcePosition));
@@ -568,7 +568,7 @@ public class KafkaPositionTracker {
           // that's positioned at the last time we successfully fetched broker offsets, and we update the metadata
           // accordingly.
 
-          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSTIION_TYPE)) {
+          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE)) {
             // If we are using event time positions, then we should update our event time position.
             position.setConsumerPosition(Long.toString(sourceQueriedTimeMs));
           }

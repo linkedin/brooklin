@@ -26,7 +26,7 @@ public interface AssignmentStrategy {
    * {@link DatastreamTask} is the minimum assignable element of Datastream.
    * This makes it possible to split a Datastream into multiple assignable DatastreamTask so that they
    * can be assigned to multiple instances, and hence allowing load balancing. For example, the Oracle
-   * bootstrap Datastream can be splitted into multiple instances of DatastreamTask, one per partition,
+   * bootstrap Datastream can be split into multiple instances of DatastreamTask, one per partition,
    * if the bootstrap files are hosted on HDFS. This allows the concurrent processing of the partitions
    * to maximize the network IO.
    *
