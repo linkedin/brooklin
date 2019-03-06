@@ -5,8 +5,6 @@
  */
 package com.linkedin.datastream.kafka;
 
-import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
-import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,10 +18,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.RateLimiter;
-
-
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -33,10 +27,15 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
+import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -45,7 +44,8 @@ import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 
 import static com.linkedin.datastream.connectors.CommonConnectorMetrics.AGGREGATE;
-import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.*;
+import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_PRODUCER;
+
 
 public class KafkaProducerWrapper<K, V> {
   private static final String CLASS_NAME = KafkaProducerWrapper.class.getSimpleName();
