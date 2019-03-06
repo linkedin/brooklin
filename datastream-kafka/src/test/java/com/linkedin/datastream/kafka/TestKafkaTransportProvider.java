@@ -19,14 +19,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.codahale.metrics.MetricRegistry;
-import kafka.admin.AdminUtils;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import com.codahale.metrics.MetricRegistry;
+import kafka.admin.AdminUtils;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
@@ -43,7 +44,8 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+
 
 @Test
 public class TestKafkaTransportProvider extends BaseKafkaZkTest {

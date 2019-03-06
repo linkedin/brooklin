@@ -18,6 +18,13 @@ LinkedIn Java style.
     <module name="AnnotationUseStyle">
       <property name="elementStyle" value="ignore"/>
     </module>
+
+    <!-- No star imports -->
+    <module name="AvoidStarImport">
+      <property name="allowClassImports" value="false"/>
+      <property name="allowStaticMemberImports" value="false"/>
+    </module>
+
     <!-- Ensure @Override is present when {@inheritDoc} Javadoc tag is present
       Ignored because it likely causes inconsistent use of @Override (some methods have it while other methods don't)-->
     <!-- <module name="MissingOverride"/> -->
