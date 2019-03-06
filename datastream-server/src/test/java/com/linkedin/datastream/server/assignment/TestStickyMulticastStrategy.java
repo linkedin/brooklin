@@ -60,6 +60,50 @@ public class TestStickyMulticastStrategy {
   }
 
   @Test
+  public void testCreateNewAssignmentRandomlyEachTime() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3", "instance4", "instance5"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds1", 3);
+    List<DatastreamGroup> datastreams2 = generateDatastreams("ds2", 1);
+    datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
+    datastreams2.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
+
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> originalAssignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    System.out.println(originalAssignment);
+
+    datastreams.addAll(datastreams2);
+
+    Map<String, Set<DatastreamTask>> newAssignment1 =
+        strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+
+
+    Map<String, Set<DatastreamTask>> newAssignment2 =
+        strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+
+
+    List<Integer> assignment1Size = newAssignment1.values().stream().map(Set::size).collect(Collectors.toList());
+    List<Integer> assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
+
+    //Since this is random shuffling, there is still a chance that we have the same results, we compute multiple times
+    //to avoid the same assignment
+    final int maxAttempts = 100;
+    for (int i = 0; i < maxAttempts; ++i) {
+      if (!assignment1Size.equals(assignment2Size)) {
+        break;
+      } else {
+        newAssignment2 =
+            strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+        assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
+      }
+    }
+
+    Assert.assertNotEquals(assignment1Size, assignment2Size);
+  }
+
+
+  @Test
   public void testMaxTasks() {
     int numDatastreams = 10;
     int numInstances = 20;
