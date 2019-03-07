@@ -7,18 +7,17 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -30,9 +29,7 @@ import org.apache.kafka.common.record.TimestampType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AbstractScheduledService;
-
+import com.linkedin.datastream.common.DurableScheduledService;
 import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
 import com.linkedin.datastream.common.diag.PhysicalSources;
 
@@ -50,38 +47,15 @@ public class KafkaPositionTracker {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaPositionTracker.class);
 
   /**
-   * Counts instantiations of this class.
-   */
-  private static final AtomicInteger CLASS_INSTANTIATION_COUNTER = new AtomicInteger();
-  /**
-   * The maximum duration from the last terminated endOffsets RPCs calls to when the Kafka consumer is assumed to be
-   * faulty and is reconstructed.
-   */
-  private static final Duration LAST_CONSUMER_RPC_TERMINATED_TIMEOUT = Duration.ofMinutes(15);
-  /**
    * The task name of the connector this class is for.
    */
   private final String _connectorTaskName;
-  /**
-   * The class instantiation count of this current instantiation.
-   */
-  private final int _classInstantiationCount = CLASS_INSTANTIATION_COUNTER.incrementAndGet();
-  /**
-   * The offset fetcher instantiation count for this current class instantiation.
-   */
-  private final AtomicInteger _offsetFetcherInstantiationCount = new AtomicInteger();
-  /**
-   * Provides a Kafka consumer for this task.
-   */
-  private final Supplier<Consumer<?, ?>> _consumerSupplier;
+
   /**
    * The list of assigned partitions for the connector this task is for.
    */
   private final Set<TopicPartition> _assignedPartitions;
-  /**
-   * A check that describes if the connector task is alive. Used for closing threads associated with this task.
-   */
-  private final Supplier<Boolean> _isConnectorTaskAlive;
+
   /**
    * A store of position data for each TopicPartition. This position data is what will be returned to this task's
    * connector. The position data will be in the form of event timestamp if timestamp data is available, and otherwise
@@ -93,6 +67,7 @@ public class KafkaPositionTracker {
    *      which will contain position data for both the broker and this consumer
    */
   private final PhysicalSources _positions = new PhysicalSources();
+
   /**
    * A store of position data for each TopicPartition. This position data will exclusively be Kafka offset based, and is
    * kept to assist in calculating if the current consumer is caught-up or not.
@@ -103,15 +78,23 @@ public class KafkaPositionTracker {
    *      which will contain position data for both the broker and this consumer
    */
   private final PhysicalSources _offsetPositions = new PhysicalSources();
+
   /**
-   * The service which periodically queries Kafka via RPC for the latest available Kafka offsets.
-   * @see #getOffsetsFetcherService()
+   * The frequency at which to fetch offsets from the broker using an RPC call.
    */
-  private volatile AbstractScheduledService _offsetsFetcher;
+  private static final Duration OFFSETS_FETCH_INTERVAL = Duration.ofSeconds(30);
+
   /**
-   * The last time that the endOffsets RPC call successfully exited.
+   * The maximum duration from the last terminated endOffsets RPCs calls to when the Kafka consumer is assumed to be
+   * faulty and is reconstructed.
    */
-  private volatile Instant _lastRpcUpdate = Instant.now();
+  private static final Duration LAST_CONSUMER_RPC_TERMINATED_TIMEOUT = Duration.ofMinutes(5);
+
+  /**
+   * The service responsible for fetching offsets.
+   */
+  private DurableScheduledService _offsetsFetcherService; // Defined to help investigation issues (when you have a heap
+  // dump or are in a debugger)
 
   /**
    * Constructor for a KafkaPositionTracker.
@@ -131,151 +114,67 @@ public class KafkaPositionTracker {
     LOG.info("Creating KafkaPositionTracker for {} with offset fetching set to {}", connectorTaskName,
         enableBrokerOffsetFetcher);
     _connectorTaskName = connectorTaskName;
-    _isConnectorTaskAlive = isConnectorTaskAlive;
-    _consumerSupplier = consumerSupplier;
     _assignedPartitions = assignedPartitions;
     if (enableBrokerOffsetFetcher) {
-      _offsetsFetcher = getOffsetsFetcherService();
-      _offsetsFetcher.startAsync();
-      getThreadWatcherService().startAsync();
+      _offsetsFetcherService = new DurableScheduledService(_connectorTaskName, OFFSETS_FETCH_INTERVAL,
+          LAST_CONSUMER_RPC_TERMINATED_TIMEOUT) {
+        private Consumer<?, ?> _consumer;
+
+        @Override
+        protected void startUp() {
+          _consumer = consumerSupplier.get();
+        }
+
+        @Override
+        protected void runOneIteration() {
+          final Instant currentTime = Instant.now();
+
+          // Make a quick copy of our assigned partitions (we share it with the KafkaConnectorTask thread, so it isn't
+          // thread-safe).
+          final Set<TopicPartition> assignedPartitions = ImmutableSet.copyOf(_assignedPartitions);
+
+          // We want to update only those partitions which are assigned to us and haven't been updated in our fetch
+          // interval.
+          final Set<TopicPartition> partitionsNeedingUpdate = assignedPartitions.stream()
+              .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
+                  .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
+                  .map(Instant::ofEpochMilli)
+                  .orElse(Instant.EPOCH)
+                  .isBefore(currentTime.minus(OFFSETS_FETCH_INTERVAL)))
+              .collect(Collectors.toSet());
+
+          // If we are caught up on all partitions, there is no need to make any RPC calls.
+          if (partitionsNeedingUpdate.isEmpty()) {
+            return;
+          }
+
+          LOG.debug("Detected that the following partitions would benefit from broker endOffsets RPC: {}",
+              partitionsNeedingUpdate);
+
+          try {
+            updateLatestBrokerOffsetsByRpc(_consumer, partitionsNeedingUpdate, currentTime.toEpochMilli());
+          } catch (Exception e) {
+            // If we run into an exception, we should crash and allow ourselves to be revived by the
+            // DurableScheduledService
+            LOG.warn("Failed to update broker end offsets via RPC.", e);
+            throw e;
+          }
+        }
+
+        @Override
+        protected void shutDown() {
+          if (_consumer != null) {
+            _consumer.close();
+          }
+        }
+
+        @Override
+        protected boolean hasLeaked() {
+          return !isConnectorTaskAlive.get();
+        }
+      };
+      _offsetsFetcherService.startAsync();
     }
-  }
-
-  /**
-   * Returns a service that watches/monitors, restarts, and closes tasks for this class appropriately.
-   * @return a service that monitors the tasks this class starts
-   */
-  private AbstractScheduledService getThreadWatcherService() {
-    return new AbstractScheduledService() {
-      private final String _name = "offsetsFetcherWatcher-" + _connectorTaskName + "-" + _classInstantiationCount;
-
-      @Override
-      protected void startUp() throws Exception {
-        LOG.info("Thread watcher for {} - Starting up", _connectorTaskName);
-        _offsetsFetcher.awaitRunning();
-      }
-
-      @Override
-      protected void shutDown() throws Exception {
-        LOG.info("Thread watcher for {} - Shutting down", _connectorTaskName);
-      }
-
-      @Override
-      protected String serviceName() {
-        return _name;
-      }
-
-      @Override
-      protected void runOneIteration() throws Exception {
-        // If the connector thread is no longer alive - we need to kill ourself and the offset fetcher
-        if (!_isConnectorTaskAlive.get()) {
-          LOG.warn("Detected that connector task thread for {} is no longer alive. "
-              + "Shutting down the thread watcher and offset fetcher service.", _connectorTaskName);
-          _offsetsFetcher.stopAsync();
-          this.stopAsync();
-          return;
-        }
-
-        // If the offset fetcher stopped running, we need to restart it
-        if (!_offsetsFetcher.isRunning()) {
-          LOG.warn("Detected that offset fetcher {} crashed - restarting it", _offsetsFetcher);
-          _lastRpcUpdate = Instant.now();
-          _offsetsFetcher = getOffsetsFetcherService();
-          _offsetsFetcher.startAsync();
-          return;
-        }
-
-        // If the offset fetcher hasn't successfully made an RPC call in awhile, restart the offset fetcher
-        final Instant rpcSlaExpiration = _lastRpcUpdate.plus(LAST_CONSUMER_RPC_TERMINATED_TIMEOUT);
-        if (Instant.now().isAfter(rpcSlaExpiration)) {
-          LOG.warn("Detected that offset fetcher {} has not successfully made an RPC call for an extended time - "
-              + "killing and restarting it", _offsetsFetcher);
-          _lastRpcUpdate = Instant.now();
-          _offsetsFetcher.stopAsync();
-          _offsetsFetcher = getOffsetsFetcherService();
-          _offsetsFetcher.startAsync();
-        }
-      }
-
-      @Override
-      protected Scheduler scheduler() {
-        return Scheduler.newFixedRateSchedule(0, 1, TimeUnit.MINUTES);
-      }
-    };
-  }
-
-  /**
-   * Creates a service which uses an RPC to fetch the latest broker offset no more than every 30 seconds, if that
-   * information becomes out of date.
-   *
-   * As part of normal consumer operations, the latest broker offsets for a TopicPartition are fetched when records are
-   * successfully retrieved for that topic partition. If that happens, there is no need to make a separate RPC call, as
-   * we get those offsets from the Kafka consumer's metrics() API every time we get events
-   * (see {@link #updateBrokerPositions(Instant, ConsumerRecords, Map, Map)}).
-   *
-   * However, if fetching records fails for whatever reason, then the stored information will become stale. The only way
-   * for Brooklin to know for sure what the latest broker offsets are in this case is to make the RPC.
-   */
-  private AbstractScheduledService getOffsetsFetcherService() {
-    return new AbstractScheduledService() {
-      private final String _name = "offsetsFetcher-" + _connectorTaskName + "-" + _classInstantiationCount + "-"
-          + _offsetFetcherInstantiationCount.incrementAndGet();
-      private Consumer<?, ?> _consumer;
-
-      @Override
-      protected void startUp() throws Exception {
-        LOG.info("OffsetsFetcher for {} - Starting up", _connectorTaskName);
-        _consumer = _consumerSupplier.get();
-      }
-
-      @Override
-      protected void shutDown() throws Exception {
-        LOG.info("OffsetsFetcher for {} - Shutting down and closing the consumer", _connectorTaskName);
-        if (_consumer != null) {
-          _consumer.close();
-        }
-        LOG.info("OffsetFetcher for {} - Successfully shut down", _connectorTaskName);
-      }
-
-      @Override
-      protected String serviceName() {
-        return _name;
-      }
-
-      @Override
-      protected void runOneIteration() throws Exception {
-        final Instant currentTime = Instant.now();
-
-        // We want to update only those partitions which are assigned to us and haven't been updated in over 30 seconds.
-        final Set<TopicPartition> partitionsNeedingUpdate = _assignedPartitions.stream()
-            .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
-                .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
-                .map(Instant::ofEpochMilli)
-                .orElse(Instant.EPOCH)
-                .isBefore(currentTime.minus(30, ChronoUnit.SECONDS)))
-            .collect(Collectors.toSet());
-
-        // If we are caught up on all partitions, flag the Kafka consumer as healthy to ensure it stays alive.
-        if (partitionsNeedingUpdate.isEmpty()) {
-          _lastRpcUpdate = Instant.now();
-          return;
-        }
-
-        LOG.debug("Detected that the following partitions would benefit from broker endOffsets RPC: {}",
-            partitionsNeedingUpdate);
-
-        try {
-          updateLatestBrokerOffsetsByRpc(_consumer, partitionsNeedingUpdate, currentTime.toEpochMilli());
-        } catch (Exception e) {
-          LOG.warn("Failed to update broker end offsets via RPC.", e);
-        }
-      }
-
-      @Override
-      protected Scheduler scheduler() {
-        return Scheduler.newFixedRateSchedule(0, 30, TimeUnit.SECONDS);
-      }
-    };
   }
 
   /**
@@ -290,35 +189,30 @@ public class KafkaPositionTracker {
    */
   @VisibleForTesting
   void updateLatestBrokerOffsetsByRpc(final Consumer<?, ?> consumer, final Set<TopicPartition> partitions,
-      final long currentTime) throws Exception {
+      final long currentTime) {
     LOG.debug("Updating the offsetPosition via endOffsets RPC for partitions {} for time {} for task {}", partitions,
         currentTime, _connectorTaskName);
 
-    CompletableFuture.supplyAsync(() -> consumer.endOffsets(partitions))
-        // Update the offset positions with the result of the RPC call
-        .thenAccept(offsetMap -> offsetMap.forEach((tp, offset) -> {
-          PhysicalSourcePosition offsetPosition = _offsetPositions.get(tp.toString());
-          if (offsetPosition == null) {
-            offsetPosition = new PhysicalSourcePosition();
-            _offsetPositions.set(tp.toString(), offsetPosition);
-          }
-          offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-          offsetPosition.setSourceQueriedTimeMs(currentTime);
-          offsetPosition.setSourcePosition(String.valueOf(offset));
-          LOG.debug("New offsetPosition for partition {} is {}", tp, offsetPosition);
+    // Update the offset positions with the result of the RPC call
+    consumer.endOffsets(partitions).forEach((tp, offset) -> {
+      PhysicalSourcePosition offsetPosition = _offsetPositions.get(tp.toString());
+      if (offsetPosition == null) {
+        offsetPosition = new PhysicalSourcePosition();
+        _offsetPositions.set(tp.toString(), offsetPosition);
+      }
+      offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
+      offsetPosition.setSourceQueriedTimeMs(currentTime);
+      offsetPosition.setSourcePosition(String.valueOf(offset));
+      LOG.debug("New offsetPosition for partition {} is {}", tp, offsetPosition);
 
-          final PhysicalSourcePosition position = _positions.get(tp.toString());
-          if (position != null && position.getPositionType().equals(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE)) {
-            LOG.debug("Updating the source position for partition {} via endOffsets RPC due to "
-                + "kafkaOffset position type being used", tp);
-            position.setSourceQueriedTimeMs(currentTime);
-            position.setSourcePosition(String.valueOf(offset));
-          }
-        }))
-        // Mark the last RPC update time to indicate a successful RPC
-        .thenAccept(nothing -> _lastRpcUpdate = Instant.now())
-        // Time out in 15 minutes
-        .get(15, TimeUnit.MINUTES);
+      final PhysicalSourcePosition position = _positions.get(tp.toString());
+      if (position != null && position.getPositionType().equals(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE)) {
+        LOG.debug("Updating the source position for partition {} via endOffsets RPC due to "
+            + "kafkaOffset position type being used", tp);
+        position.setSourceQueriedTimeMs(currentTime);
+        position.setSourcePosition(String.valueOf(offset));
+      }
+    });
   }
 
   /**
@@ -513,8 +407,17 @@ public class KafkaPositionTracker {
   }
 
   /**
-   * Gets a DatastreamPositionResponse containing position data for the current task.
-   * @return the current position data
+   * Gets a PhysicalSources object containing offset-based position data for the current task.
+   * @return the current offset-based position data
+   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
+   */
+  public PhysicalSources getOffsetPositions() {
+    return _offsetPositions;
+  }
+
+  /**
+   * Gets a PhysicalSources object containing time-based position data for the current task.
+   * @return the current time-based position data
    * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
    */
   public PhysicalSources getPositions() {

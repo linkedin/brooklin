@@ -56,6 +56,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   private static final String TOPIC_KEY = "topic";
+  private static final String OFFSETS_KEY = "offsets";
 
   protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
@@ -338,9 +339,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    */
   private String processDatastreamPositionRequest(URI request) {
     _logger.debug("Processing datastream position request: {}", request);
+
+    // Determine if the user is asking specifically for the offset position data
+    boolean offsetPositionTypeRequested = extractQueryParam(request, OFFSETS_KEY).map(Boolean::parseBoolean).orElse(false);
+
     DatastreamPositionResponse response = _runningTasks.values()
         .stream()
-        .map(AbstractKafkaBasedConnectorTask::getPositionResponse)
+        .map(task -> offsetPositionTypeRequested ? task.getOffsetPositionResponse() : task.getPositionResponse())
         .reduce(DatastreamPositionResponse::merge)
         .orElse(new DatastreamPositionResponse());
     _logger.debug("Unfiltered datastream position response: {}", response);
