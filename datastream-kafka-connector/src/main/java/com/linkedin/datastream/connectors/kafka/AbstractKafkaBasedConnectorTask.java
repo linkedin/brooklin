@@ -890,11 +890,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Gets a DatastreamPositionResponse containing position data for the current task.
-   * @return the current position data
+   * Gets a DatastreamPositionResponse containing time-based position data for the current task.
+   * @return the current time-based position data
    * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
    */
   public DatastreamPositionResponse getPositionResponse() {
     return new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, _kafkaPositionTracker.getPositions()));
+  }
+
+  /**
+   * Gets a DatastreamPositionResponse containing offset-based position data for the current task.
+   * @return the current offset-based position data
+   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
+   */
+  public DatastreamPositionResponse getOffsetPositionResponse() {
+    return new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, _kafkaPositionTracker.getOffsetPositions()));
   }
 }
