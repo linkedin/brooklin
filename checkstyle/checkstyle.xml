@@ -19,12 +19,6 @@ LinkedIn Java style.
       <property name="elementStyle" value="ignore"/>
     </module>
 
-    <!-- No star imports -->
-    <module name="AvoidStarImport">
-      <property name="allowClassImports" value="false"/>
-      <property name="allowStaticMemberImports" value="false"/>
-    </module>
-
     <!-- Ensure @Override is present when {@inheritDoc} Javadoc tag is present
       Ignored because it likely causes inconsistent use of @Override (some methods have it while other methods don't)-->
     <!-- <module name="MissingOverride"/> -->
@@ -76,6 +70,12 @@ LinkedIn Java style.
     <module name="OneStatementPerLine"/>
     <!-- Classes must have an explicit package declaration -->
     <module name="PackageDeclaration"/>
+    <!-- Do not allow references to internal tickets -->
+    <module name="Regexp">
+      <property name="format" value="(DDSDBUS|LISAMZA|DATAPIPES)-\d+"/>
+      <property name="illegalPattern" value="true"/>
+      <property name="message" value="Referencing internal ticket names is not allowed" />
+    </module>
     <!-- Do not test boolean expressions against the values true or false -->
     <module name="SimplifyBooleanExpression"/>
     <!-- Do not test for boolean conditions and return the values true or false -->
@@ -87,12 +87,11 @@ LinkedIn Java style.
 
     <!-- IMPORTS -->
 
-    <!-- No imports statements using '*' notation except static imports -->
-    <!-- ignored due to low signal to noise
+    <!-- No star imports -->
     <module name="AvoidStarImport">
-      <property name="allowStaticMemberImports" value="true"/>
+      <property name="allowClassImports" value="false"/>
+      <property name="allowStaticMemberImports" value="false"/>
     </module>
-    -->
     <!-- Do not import 'sun' packages -->
     <module name="IllegalImport"/>
     <!-- Do not duplicate import statements -->

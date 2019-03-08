@@ -189,8 +189,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * between onAssignmentChange (because of datastream update for example). It's connector's
    * responsibility to re-fetch the datastream list even when it receives the exact same set
    * of datastream tasks.
-   *
-   * TODO: Datastream might be null if derived from zk or json, we need a better abstraction here
    */
   @JsonIgnore
   @Override

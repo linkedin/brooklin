@@ -37,7 +37,6 @@ public class DynamicDataSourceFactoryImpl implements OracleDataSourceFactory {
       Object ods = oracleDataSourceClass.newInstance();
       ds = (DataSource) ods;
 
-      // TODO?  These reflection calls are almost certainly pigs as well, though not nearly as bad as
       // (the old version of) loadClass().
       Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
       Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");

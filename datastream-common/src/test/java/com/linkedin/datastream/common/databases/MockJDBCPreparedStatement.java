@@ -159,7 +159,6 @@ public class MockJDBCPreparedStatement implements PreparedStatement {
 
   @Override
   public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-    //todo
   }
 
   @Override

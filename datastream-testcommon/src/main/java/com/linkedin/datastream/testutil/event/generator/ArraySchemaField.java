@@ -35,14 +35,6 @@ public class ArraySchemaField extends SchemaField {
     GenericData.Array<Object> array = new GenericData.Array<Object>(numElements, _field.schema());
 
     for (int i = 0; i < numElements; i++) {
-      /* --> uglier way to fetch the random object
-      Field fakeField = new Field(field.name()+"fake", innerElementSchema, null, null);
-      List<Schema.Field> tlist = new ArrayList<Schema.Field>();
-      tlist.add(fakeField);
-      Schema fakeSchema = Schema.createRecord(tlist);
-      GenericRecord tempRecord  = new GenericData.Record(fakeSchema);
-      SchemaField schemaFill = SchemaField.createRandomField(fakeField);
-      */
       Field fakeField = new Field(_field.name() + "fake", innerElementSchema, null, null);
       SchemaField schemaFill = SchemaField.createField(fakeField); //Safe from infinite recursion (array within an array, assuming nullable)
       array.add(schemaFill.generateRandomObject());

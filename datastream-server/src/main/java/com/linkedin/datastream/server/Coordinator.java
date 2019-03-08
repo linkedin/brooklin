@@ -552,7 +552,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         } catch (Exception ex) {
           _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
               + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
-          // TODO: should have some delays between CoordinatorEvents to avoid constant retires that drain CPUs
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
           if (isDatastreamUpdate) {
             _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
@@ -1050,8 +1049,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public void validateDatastreamsUpdate(List<Datastream> datastreams) throws DatastreamValidationException {
     _log.info("About to validate datastreams update: " + datastreams);
-    // TODO: validate that the datastream updates won't break the current task assignment (e.g. new datastream group
-    // is created which requires a new datastream task)
     try {
       // DatastreamResources checks ensure we dont have more than one connector type in the updated datastream list
       String connectorName = datastreams.get(0).getConnectorName();

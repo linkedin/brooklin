@@ -107,7 +107,6 @@ public class FileConnector implements Connector {
           _fileProcessors.put(task, processor);
           _executorService.submit(processor);
         } catch (FileNotFoundException e) {
-          // TODO This is not good, How do i handle exceptions here?
           throw new RuntimeException("FileProcessor threw an exception", e);
         }
       }

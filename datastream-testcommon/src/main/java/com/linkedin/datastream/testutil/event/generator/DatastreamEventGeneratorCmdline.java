@@ -79,8 +79,6 @@ public class DatastreamEventGeneratorCmdline {
 
     LOG.info("Data generator stop() invoked.");
 
-    // globalSettings.stopProducer = true;
-
     LOG.info("Waiting for producer and consumer to complete & gracefully exit");
     try {
       waitForProducersToFinish();
@@ -94,7 +92,6 @@ public class DatastreamEventGeneratorCmdline {
     if (producerToStop != null) {
       producerToStop.join();
     }
-    // globals.isProducerDone = true;
     LOG.info("Put/Delete/Update Request Producer Thread completed producing requests. Waiting for consumers to finish.");
     writeGeneratedIndexToFile();
   }

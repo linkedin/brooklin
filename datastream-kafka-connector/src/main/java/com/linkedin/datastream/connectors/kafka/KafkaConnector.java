@@ -58,7 +58,6 @@ public class KafkaConnector extends AbstractKafkaConnector {
     DatastreamSource source = stream.getSource();
     String connectionString = source.getConnectionString();
 
-    //TODO - better validation and canonicalization
     //its possible to list the same broker as a hostname or IP
     //(kafka://localhost:666 vs kafka://127.0.0.1:666 vs kafka://::1:666/topic)
     //the "best" thing to do would be connect to _ALL_ brokers listed, and from each broker

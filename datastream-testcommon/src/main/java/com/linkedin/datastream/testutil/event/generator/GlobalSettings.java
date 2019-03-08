@@ -151,7 +151,7 @@ public class GlobalSettings {
       _numPartitions = Integer.valueOf(commandLine.getOptionValue("np", "1"));
       _maxTransactionSize = Integer.valueOf(commandLine.getOptionValue("xs", "1"));
       _numEvents = Integer.valueOf(commandLine.getOptionValue("ne", "100"));
-      _percentData = commandLine.getOptionValue("pd", "100,0,0,0"); // todo - a check that these percentages add up to 100
+      _percentData = commandLine.getOptionValue("pd", "100,0,0,0");
 
       _startResourceKey = Integer.valueOf(commandLine.getOptionValue("sr", "1"));
       _seed = Integer.valueOf(commandLine.getOptionValue("sd", "-1")); // add system.current time

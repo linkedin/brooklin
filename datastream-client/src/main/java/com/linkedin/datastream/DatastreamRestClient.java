@@ -55,8 +55,6 @@ import com.linkedin.restli.common.UpdateStatus;
 
 /**
  * Datastream REST Client
- *
- * TODO(misanchez) Make constructors package protected, and convert this class to an interface.
  */
 public class DatastreamRestClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClient.class);

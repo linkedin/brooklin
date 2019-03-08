@@ -434,8 +434,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime) {
     // send the batch out the other end
-    // TODO(misanchez): we should have a way to signal the producer to stop and throw an exception
-    //                  in case the _shutdown signal is set (similar to kafka wakeup)
     translateAndSendBatch(records, readTime);
 
     if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMs) {

@@ -122,7 +122,6 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     }
 
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
-    //TODO - copy over headers if/when they are ever supported
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);

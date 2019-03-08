@@ -36,17 +36,6 @@ public abstract class SchemaField {
     }
   }
 
-  /*
-   * Constructor to create an schema field instance of the given field and also lets you define an random generator
-   * @param field The type of field to create a filler for.
-   * @param randGen The random generator to be used to generate this field (Implement the interface RandomValueGenerator to use your own).
-   * ?? do we need this now ?
-  public SchemaField(Field field, RandomValueGenerator randGenerator) {
-    this.field = field;
-    this.randGenerator = randGenerator;
-  }
-   */
-
   private static void createRandomValueGenerator() {
     _randGenerator = new RandomValueGenerator(_seed);
   }
