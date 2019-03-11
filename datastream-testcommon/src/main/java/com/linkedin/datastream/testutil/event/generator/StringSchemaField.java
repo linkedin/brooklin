@@ -13,7 +13,6 @@ public class StringSchemaField extends SchemaField {
 
   public StringSchemaField(Field field) {
     super(field);
-    // todo - do we want a default mode that changes the default sizes for each of these fields ??
   }
 
   @Override

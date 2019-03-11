@@ -65,9 +65,8 @@ public class DatastreamEventProducerRunnable implements Runnable {
     deg.setDatastreamName(_globalSettings._datastreamName);
 
     // generate events
-    // List<Object> eventList = null;
     try {
-      List<DatastreamEvent> eventList = deg.generateGenericEventList(_globalSettings._numEvents); // todo this should be posting to the proper producer
+      List<DatastreamEvent> eventList = deg.generateGenericEventList(_globalSettings._numEvents);
       BufferedWriter indexWriter = new BufferedWriter(new FileWriter(_globalSettings._dataFileName));
       for (Object obj : eventList) {
         @SuppressWarnings("unchecked")

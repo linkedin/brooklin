@@ -124,8 +124,6 @@ public interface DatastreamTask {
    * A connector should remember to release a task if the task is unassigned to it
    * such that the next assigned instance can acquire the task for processing.
    * This is a no-op if the task is not assigned to the current instance.
-   * TODO we should be able to remove this from the interface and coordinator can call this (internal) api
-   * TODO after on assignment change call.
    */
   void release();
 }

@@ -479,12 +479,10 @@ public class ZkAdapter {
     try {
       String content = _zkclient.ensureReadData(KeyBuilder.instanceAssignment(_cluster, instance, taskName));
       DatastreamTaskImpl task = DatastreamTaskImpl.fromJson(content);
-      // TODO Remove this after the upgrade
       if (Strings.isNullOrEmpty(task.getTaskPrefix())) {
         task.setTaskPrefix(parseTaskPrefix(task.getDatastreamTaskName()));
       }
 
-      // TODO Remove this after the upgrade
       if (Strings.isNullOrEmpty(task.getTransportProviderName())) {
         task.setTransportProviderName(_defaultTransportProviderName);
       }

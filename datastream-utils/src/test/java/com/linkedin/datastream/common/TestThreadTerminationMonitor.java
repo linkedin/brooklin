@@ -19,7 +19,6 @@ public class TestThreadTerminationMonitor {
   @BeforeTest
   public void prepare() {
     meter = new Meter();
-    //(Meter) ((StaticBrooklinMetric) ThreadTerminationMonitor.getMetricInfos().stream().findFirst().get()).getMetric();
     Assert.assertEquals(0, meter.getCount());
   }
 

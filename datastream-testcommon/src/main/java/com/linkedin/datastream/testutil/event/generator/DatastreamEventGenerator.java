@@ -17,9 +17,7 @@ import com.linkedin.datastream.common.DatastreamEvent;
 
 /**
  * The class is for generating datastream events.
- * todo - right now, it returns a list of generated events. Need to support publishing to kafka topic directly
  */
-
 public class DatastreamEventGenerator extends AbstractEventGenerator<DatastreamEvent> {
 
   private boolean _needPreviousPayload;

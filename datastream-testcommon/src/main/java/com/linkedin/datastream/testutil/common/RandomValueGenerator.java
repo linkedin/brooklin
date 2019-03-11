@@ -10,7 +10,7 @@ import java.util.Random;
 
 public class RandomValueGenerator {
 
-  private String validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"; //.,/';\\][=-`<>?\":|}{+_)(*&^%$#@!~";
+  private final String validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   private Random rand;
 
   // to help reproducibility of failed tests, seed is always required
@@ -27,7 +27,6 @@ public class RandomValueGenerator {
     if (max == min) {
       return min;
     }
-    // assert(max > min);
 
     return (rand.nextInt(max - min + 1) + min);
   }

@@ -70,7 +70,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
   public Iterator<T> genericEventIterator() {
     if (_schema != null && _schema.getType() != Schema.Type.RECORD) {
-      // LOG.error("The schema first level must be record.");
+      // The schema first level must be record.
       return null;
     }
 
@@ -86,19 +86,15 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   public List<T> generateGenericEventList(int numEvents) throws UnknownTypeException, IOException {
 
     if (_schema != null && _schema.getType() != Schema.Type.RECORD) {
-      // LOG.error("The schema first level must be record.");
+      // The schema first level must be record.
       return null;
     }
 
-    // todo - compute min and max inserts needed and pick a random num between them and then compute updates-on-updates,
-    //        updates-on-inserts, so on. In that sense, updates can go up to 99%, but deletes can't go beyond 50%
     int numControls = numEvents * _cfg.getPercentageControls() / 100;
     int numDataEvents = numEvents - numControls;
     int numUpdates = numDataEvents * _cfg.getPercentageUpdates() / 100;
     int numDeletes = numDataEvents * _cfg.getPercentageDeletes() / 100;
     int numInserts = numDataEvents - numUpdates - numDeletes;
-    // assert((numInserts + numUpdates + numDeletes) == numDataEvents);
-    // assert(numInserts > max(numUpdates, numDeletes));
     int numDeletesOnUpdates = numDeletes * numUpdates / numDataEvents;
     int numDeletesOnInserts = numDeletes - numDeletesOnUpdates;
     int controlIndex = (numControls > 0) ? (numEvents / numControls) : (numEvents + 1);
@@ -107,9 +103,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
     int curPartition = 0;
 
     List<T> eventList = new ArrayList<>();
-    // todo - randomizing it truly and guaranteeing that every event happens
-    //        mean while we are using a simple logic to determine whether it is an insert, update or delete
-    //        update and deletes need preimage - so we choose them only when that condition met, otherwise, it is insert
     for (int i = 0; i < numEvents; ++i) {
       EventType eventType;
       if (((i + 1) % controlIndex) == 0) { // transition event
@@ -120,7 +113,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
         --numDeletesOnUpdates;
         lastUpdateScn = -1;
       } else if ((lastInsertScn >= 0) && ((numDeletesOnInserts > 0) || (numUpdates > 0))) {
-        // todo - make it probabilistically either a delete on insert or an update
         if ((((i % 2) == 1) || (numDeletesOnInserts == 0)) && (numUpdates > 0)) {
           eventType = EventType.UPDATE; // make it an update
           lastUpdateScn = _scn;

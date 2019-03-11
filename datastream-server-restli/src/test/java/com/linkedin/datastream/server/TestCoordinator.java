@@ -214,12 +214,7 @@ public class TestCoordinator {
     String name2 = (String) taskNames.toArray()[1];
     String datastream2CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType, name2, "counter");
     Assert.assertTrue(PollUtils.poll(zkClient::exists, 500, 30000, datastream2CounterPath));
-    //
-    // verify that the counter for datastream1 is "2" but the counter for datastream2 is "1"
-    //
-    //    Assert.assertEquals(zkClient.readData(datastream1CounterPath), "2");
-    //    Assert.assertEquals(zkClient.readData(datastream2CounterPath), "1");
-    //
+
     Thread.sleep(1000 * 60);
 
     //
@@ -1138,9 +1133,6 @@ public class TestCoordinator {
     LOG.info("Tasks2: " + tasks2.toString());
 
     Assert.assertEquals(tasks1, tasks2);
-
-    // Verify dead instance assignments have been removed
-    // Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName())));
 
     //
     // clean up

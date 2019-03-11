@@ -53,7 +53,7 @@ public class TestEventGenerator {
     DatastreamEventGenerator eeg = new DatastreamEventGenerator(Schema.parse(schema), generatorConfig);
 
     // generate events
-    List<DatastreamEvent> eventList = eeg.generateGenericEventList(numEvents); // todo this should be generateEventList
+    List<DatastreamEvent> eventList = eeg.generateGenericEventList(numEvents);
     List<DatastreamEvent> eventList2 = eeg.generateGenericEventList(numEvents);
 
     Assert.assertTrue(GenericEventValidator.validateGenericEventList(eventList, eventList),

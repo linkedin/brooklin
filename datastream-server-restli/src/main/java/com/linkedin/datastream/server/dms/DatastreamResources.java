@@ -399,7 +399,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     // Now validate the operation
     // Note: This is connector specific logic (for example: Kafka mirror maker will convert any "*" into actual
     // list of partitions).
-    //TODO: Will need to add code in non-MM connectors to invalidate the operation.
     try {
       _coordinator.validateDatastreamsUpdate(Collections.singletonList(datastream));
     } catch (DatastreamValidationException e) {

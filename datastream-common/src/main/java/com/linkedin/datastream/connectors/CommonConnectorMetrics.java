@@ -105,8 +105,6 @@ public class CommonConnectorMetrics {
     protected void deregisterAggregates() {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_PROCESSED_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, EVENTS_BYTE_PROCESSED_RATE);
-      // Keep aggregate error rate as it is still used for connector error tracking
-      // DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, ERROR_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, NUM_PROCESSING_ABOVE_THRESHOLD);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, AGGREGATE, TIME_SINCE_LAST_EVENT_RECEIVED);
     }
@@ -275,7 +273,6 @@ public class CommonConnectorMetrics {
     static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
       List<BrooklinMetricInfo> metrics = new ArrayList<>();
       // Specify the attributes to expose to the final metric registry.
-      // TODO: Remove the override once a choice has been made between COUNT and ONE_MINUTE_RATE
       metrics.add(new BrooklinMeterInfo(prefix + REBALANCE_RATE,
           Optional.of(Arrays.asList(BrooklinMeterInfo.COUNT, BrooklinMeterInfo.ONE_MINUTE_RATE))));
       metrics.add(new BrooklinGaugeInfo(prefix + STUCK_PARTITIONS));
@@ -368,7 +365,6 @@ public class CommonConnectorMetrics {
    * @param val Value to increment the metric by
    */
   public void updateErrorRate(long val) {
-    // TODO: Move logging out of this class; possibly to a common abstract base task handler class in the future
     _errorLogger.error("updateErrorRate with {}. Look for error logs right before this message to see what happened", val);
     updateErrorRate(val, null, null);
   }
