@@ -12,6 +12,7 @@ Describe your issue here.
 
 ### Your environment
 * Operating System
+* Brooklin version
 * Java version (if applicable)
 * Kafka version (if applicable)
 
