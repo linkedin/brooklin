@@ -32,7 +32,7 @@ public final class ServerComponentHealthRestClientFactory {
   public static ServerComponentHealthRestClient getClient(String dmsUri) {
     // A ServerComponentHealth response can be very large if Brooklin is responsible for lots of partitions.
     // These defaults should accommodate almost all use cases.
-    final Map<String, String> properties = new HashMap<>();
+    final Map<String, Object> properties = new HashMap<>();
     properties.put(HttpClientFactory.HTTP_MAX_RESPONSE_SIZE, "256000000"); // 256 MB
     properties.put(HttpClientFactory.HTTP_REQUEST_TIMEOUT, "10000"); // 10 seconds
 
@@ -46,7 +46,7 @@ public final class ServerComponentHealthRestClientFactory {
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
    */
-  public static ServerComponentHealthRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
+  public static ServerComponentHealthRestClient getClient(String dmsUri, Map<String, Object> httpConfig) {
     return FACTORY.getClient(dmsUri, httpConfig);
   }
 

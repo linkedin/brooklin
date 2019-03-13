@@ -44,7 +44,7 @@ public final class DatastreamRestClientFactory {
    * @param clientConfig custom config for the DatastreamRestClient.
    *                     Supported config entries can be found in {@link DatastreamRestClient}
    */
-  public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig, Properties clientConfig) {
+  public static DatastreamRestClient getClient(String dmsUri, Map<String, Object> httpConfig, Properties clientConfig) {
     return FACTORY.getClient(dmsUri, httpConfig, clientConfig);
   }
 
@@ -55,7 +55,7 @@ public final class DatastreamRestClientFactory {
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
    */
-  public static DatastreamRestClient getClient(String dmsUri, Map<String, String> httpConfig) {
+  public static DatastreamRestClient getClient(String dmsUri, Map<String, Object> httpConfig) {
     return FACTORY.getClient(dmsUri, httpConfig);
   }
 
