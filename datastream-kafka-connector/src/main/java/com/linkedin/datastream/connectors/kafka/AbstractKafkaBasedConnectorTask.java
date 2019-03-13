@@ -123,7 +123,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
   protected final KafkaPositionTracker _kafkaPositionTracker;
-  private volatile boolean _positionsInitialized;
 
   private volatile int _pollAttempts;
 
@@ -168,7 +167,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
     _kafkaPositionTracker = new KafkaPositionTracker(_taskName, _enableLatestBrokerOffsetsFetcher,
         () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
-        () -> createKafkaConsumer(_consumerProps), _consumerAssignment);
+        () -> createKafkaConsumer(_consumerProps));
     _pollAttempts = 0;
   }
 
@@ -630,7 +629,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Partition ownership assigned for {}.", partitions);
 
     updateConsumerAssignment(partitions);
-    _positionsInitialized = false;
+    _kafkaPositionTracker.onPartitionsAssigned(partitions);
 
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -663,11 +662,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       } else {
         throw new IllegalStateException("Found null update type in task updates set.");
       }
-    }
-
-    // check if there are positions that need initializing
-    if (!_positionsInitialized) {
-      _positionsInitialized = _kafkaPositionTracker.initializePositions(_consumer);
     }
   }
 

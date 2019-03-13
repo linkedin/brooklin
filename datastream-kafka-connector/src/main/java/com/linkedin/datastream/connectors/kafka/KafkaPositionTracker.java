@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -50,11 +51,6 @@ public class KafkaPositionTracker {
    * The task name of the connector this class is for.
    */
   private final String _connectorTaskName;
-
-  /**
-   * The list of assigned partitions for the connector this task is for.
-   */
-  private final Set<TopicPartition> _assignedPartitions;
 
   /**
    * A store of position data for each TopicPartition. This position data is what will be returned to this task's
@@ -93,8 +89,17 @@ public class KafkaPositionTracker {
   /**
    * The service responsible for fetching offsets.
    */
-  private DurableScheduledService _offsetsFetcherService; // Defined to help investigation issues (when you have a heap
-  // dump or are in a debugger)
+  private DurableScheduledService _offsetsFetcherService;
+
+  /**
+   * define if the positions tracker need to be initializc
+   */
+  private volatile boolean _positionsInitialized;
+
+  /**
+   * The list of assigned partitions for the connector this task is for
+   */
+  private final Set<TopicPartition> _assignedPartitions = Sets.newConcurrentHashSet();
 
   /**
    * Constructor for a KafkaPositionTracker.
@@ -106,15 +111,13 @@ public class KafkaPositionTracker {
    *                             not, then we should stop.
    * @param consumerSupplier a consumer supplier that is suitable for querying the brokers that the connector task is
    *                         talking to
-   * @param assignedPartitions the list of assigned partitions to the connector task this task is for
    */
   public KafkaPositionTracker(final String connectorTaskName, final boolean enableBrokerOffsetFetcher,
-      final Supplier<Boolean> isConnectorTaskAlive, final Supplier<Consumer<?, ?>> consumerSupplier,
-      final Set<TopicPartition> assignedPartitions) {
+      final Supplier<Boolean> isConnectorTaskAlive, final Supplier<Consumer<?, ?>> consumerSupplier) {
     LOG.info("Creating KafkaPositionTracker for {} with offset fetching set to {}", connectorTaskName,
         enableBrokerOffsetFetcher);
     _connectorTaskName = connectorTaskName;
-    _assignedPartitions = assignedPartitions;
+    _positionsInitialized = false;
     if (enableBrokerOffsetFetcher) {
       _offsetsFetcherService = new DurableScheduledService(_connectorTaskName, OFFSETS_FETCH_INTERVAL,
           LAST_CONSUMER_RPC_TERMINATED_TIMEOUT) {
@@ -127,15 +130,16 @@ public class KafkaPositionTracker {
 
         @Override
         protected void runOneIteration() {
-          final Instant currentTime = Instant.now();
+          if (!_positionsInitialized) {
+            _positionsInitialized = initializePositions(_consumer, _assignedPartitions);
+            return;
+          }
 
-          // Make a quick copy of our assigned partitions (we share it with the KafkaConnectorTask thread, so it isn't
-          // thread-safe).
-          final Set<TopicPartition> assignedPartitions = ImmutableSet.copyOf(_assignedPartitions);
+          final Instant currentTime = Instant.now();
 
           // We want to update only those partitions which are assigned to us and haven't been updated in our fetch
           // interval.
-          final Set<TopicPartition> partitionsNeedingUpdate = assignedPartitions.stream()
+          final Set<TopicPartition> partitionsNeedingUpdate = _assignedPartitions.stream()
               .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
                   .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
                   .map(Instant::ofEpochMilli)
@@ -215,14 +219,27 @@ public class KafkaPositionTracker {
     });
   }
 
+  public synchronized void onPartitionsAssigned(final Collection<TopicPartition> assignedPartitions) {
+    _positionsInitialized = false;
+    // Make a quick copy of our assigned partitions (we share it with the KafkaConnectorTask thread, so it isn't
+    // thread-safe).
+    _assignedPartitions.clear();
+    _assignedPartitions.addAll(assignedPartitions);
+  }
+
   /**
    * Updates the initial positions with offset data from the consumer and broker.
    * @param consumer the consumer to use for fetching the consumer and broker positions for all assignments
    * @return true if the initialization was successful, false if it should be retried
    */
-  public boolean initializePositions(final Consumer<?, ?> consumer) {
+  public boolean initializePositions(final Consumer<?, ?> consumer, final Set<TopicPartition> assignedPartitions) {
+    if (assignedPartitions == null || assignedPartitions.isEmpty()) {
+      LOG.info("partitions are not assigned yet");
+      return false;
+    }
+
     // Get list of partitions needing position init
-    final List<TopicPartition> partitionsNeedingInit = consumer.assignment()
+    final List<TopicPartition> partitionsNeedingInit = assignedPartitions
         .stream()
         .filter(tp -> getPositions().get(tp.toString()) == null)
         .collect(Collectors.toList());
@@ -489,10 +506,12 @@ public class KafkaPositionTracker {
   }
 
   /**
-   * Removes data for all but the specified topic partitions.
+   * Removes data for all but the specified topic partitions, called if partition get revoked
    * @param topicPartitions the specified topic partitions
    */
-  public void retainAll(final Set<TopicPartition> topicPartitions) {
+  public synchronized void retainAll(final Collection<TopicPartition> topicPartitions) {
+    _assignedPartitions.clear();
+    _assignedPartitions.addAll(topicPartitions);
     LOG.debug("Removing all topic partitions besides {} from positions and offsetPositions", topicPartitions);
     _positions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));
     _offsetPositions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));
