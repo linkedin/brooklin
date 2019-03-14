@@ -25,7 +25,7 @@ import com.linkedin.diagnostics.ServerComponentHealthRestClientFactory;
 
 
 /**
- * Server Component Health reader is to get the restli response from all  server instances, do the merge and return
+ * Server Component Health reader is to get the restli response from all server instances, do the merge, and return
  * the overall status of the server.
  */
 public class ServerComponentHealthAggregator {

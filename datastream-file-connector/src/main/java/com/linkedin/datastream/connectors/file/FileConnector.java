@@ -32,7 +32,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 /**
  * Connector reads the text file line by line and produces events.
  * Connector uses the simple strategy, so the datastream can go to any instance. In a distributed environment,
- *   source should be  network files. local files can be used only on standalone environment.
+ *   source should be  network files. local files can be used only in a standalone environment.
  * Uses a single thread per file
  */
 public class FileConnector implements Connector {

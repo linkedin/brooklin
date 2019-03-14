@@ -20,8 +20,8 @@ public class DatastreamEmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private boolean _isStarted;
 
   /**
-   * Create a DatastreamEmbeddedZookeeperKafkaCluster with specific base kafka config
-   * @param kafkaBaseConfig base config of kafka brokers
+   * Create a DatastreamEmbeddedZookeeperKafkaCluster with specific base Kafka config
+   * @param kafkaBaseConfig base config of Kafka brokers
    */
   public DatastreamEmbeddedZookeeperKafkaCluster(Properties kafkaBaseConfig) throws IOException {
     _embeddedZookeeper = new EmbeddedZookeeper();
@@ -34,7 +34,7 @@ public class DatastreamEmbeddedZookeeperKafkaCluster implements KafkaCluster {
   }
 
   /**
-   * Create a DatastreamEmbeddedZookeeperKafkaCluster with default base kafka config
+   * Create a DatastreamEmbeddedZookeeperKafkaCluster with default base Kafka config
    */
   public DatastreamEmbeddedZookeeperKafkaCluster() throws IOException {
     this(new Properties());

@@ -15,10 +15,10 @@ import org.jetbrains.annotations.NotNull;
 
 
 /**
- * The Schema generator operates by making queries to the targeted database in order to
+ * The Schema generator operates by making queries to the target database in order to
  * grab information about the Database Field Types.
  *
- * Implementations of this interface are responsible for all communication to the Database.
+ * Implementations of this interface are responsible for all communication with the Database.
  */
 public abstract class DatabaseSource {
 
@@ -38,19 +38,19 @@ public abstract class DatabaseSource {
 
   /**
    * Determine if the arguments points to a table or view in the Database
-   * @return true is exists, false otherwise
+   * @return true if table exists
    */
   public abstract boolean isTable(String schemaName, String tableName);
 
   /**
    * Determine if the arguments point to a Collection type in the table
-   * @return true is collection, false otherwise
+   * @return true if collection exists
    */
   public abstract boolean isCollection(String schemaName, String fieldTypeName) throws SQLException;
 
   /**
    * Determine if the arguments point to Struct Type in the table
-   * @return true if Struct, false otherwise
+   * @return true if Struct exists
    */
   public abstract boolean isStruct(String schemaName, String fieldTypeName) throws SQLException;
 

@@ -22,9 +22,9 @@ package com.linkedin.datastream.avrogenerator;
  *    Now this type SETTING can be modeled with child types that are primitive or might be other
  *    Struct Types. The wrapper class for Struct types are {@link OracleStructType}
  *
- * 3. Array / Collection Types
- *    This is when developers choose to store an associative array with in a single column.
- *    For example you might have a column with name: PhoneNumbers, that stores a type: ARRAY.
+ * 3. Array/Collection Types
+ *    This is when developers choose to store an associative array within a single column.
+ *    For example, you might have a column with name: PhoneNumbers, that stores a type: ARRAY.
  *    Each element in the Array might be type CHAR. The elements of this array can be of
  *    any type [CHARS (primitive), SETTING (struct), or more ARRAY's (array), .. etc]
  *    Note, that Oracle collections adhere to strict types, meaning a collection can only

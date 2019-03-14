@@ -298,7 +298,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   /**
-   * Look for config {@value CFG_SKIP_MSG_SERIALIZATION_ERRORS} in the datastream metadata and returns its value.
+   * Looks for config {@value CFG_SKIP_MSG_SERIALIZATION_ERRORS} in the datastream metadata and returns its value.
    * Default value is false.
    */
   private Boolean getSkipMessageOnSerializationErrors(DatastreamTask task, Properties config) {

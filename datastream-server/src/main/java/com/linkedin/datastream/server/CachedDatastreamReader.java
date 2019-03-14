@@ -31,7 +31,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
  * Class that maintains the cache of all the datastreams in the datastream cluster.
  *
  * List of all the datastream names are always kept up-to date (barring ZK watcher delay).
- * But the complete datastream objects are lazily read from the zookeeper when they are
+ * But the complete datastream objects are lazily read from Zookeeper when they are
  * requested.
  *
  * Note: Caller of this class is expected to call invalidateAllCache for any datastream

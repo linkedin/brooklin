@@ -21,7 +21,7 @@ import com.linkedin.datastream.common.DatastreamUtils;
 
 
 /**
- * Represents list of de-duped datastreams.
+ * Represents list of deduped datastreams.
  */
 public class DatastreamGroup {
 

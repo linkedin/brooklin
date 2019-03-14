@@ -18,7 +18,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
- * A trivial implementation of connector interface
+ * A trivial implementation of the {@link Connector} interface
  */
 public class DummyBootstrapConnector implements Connector {
 

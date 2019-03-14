@@ -39,7 +39,7 @@ public class TestZkAdapter {
 
   @BeforeMethod
   public void setup() throws IOException {
-    // each embedded zookeeper should be on different port
+    // each embedded Zookeeper should be on different port
     // so the tests can run in parallel
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
@@ -95,7 +95,7 @@ public class TestZkAdapter {
     ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
-    // verify the zookeeper path exists for the two live instance nodes
+    // verify Zookeeper path exists for the two live instance nodes
     ZkClient client = new ZkClient(_zkConnectionString);
 
     List<String> instances = client.getChildren(KeyBuilder.instances(testCluster));
@@ -213,7 +213,7 @@ public class TestZkAdapter {
   }
 
   // When Coordinator leader writes the assignment to a specific instance, the change is indeed
-  // persisted in zookeeper
+  // persisted in Zookeper
   @Test
   public void testUpdateInstanceAssignment() throws Exception {
     String testCluster = "testUpdateInstanceAssignment";
@@ -236,7 +236,7 @@ public class TestZkAdapter {
     tasks.add(task1);
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
-    // verify that there are 1 znode under the zookeeper /{cluster}/instances/{instance}/
+    // verify that there are 1 znode under the Zookeper /{cluster}/instances/{instance}/
     //
     List<String> assignment =
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
@@ -253,7 +253,7 @@ public class TestZkAdapter {
     tasks.add(task2);
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
-    // verify that there are 2 znodes under the zookeeper path /{cluster}/instances/{instance}
+    // verify that there are 2 znodes under the Zookeper path /{cluster}/instances/{instance}
     //
     assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Collections.sort(assignment);
@@ -273,7 +273,7 @@ public class TestZkAdapter {
     tasks.remove(task2);
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     //
-    // verify that there are still 2 znodes under zookeeper path /{cluster}/instances/{instance}
+    // verify that there are still 2 znodes under Zookeper path /{cluster}/instances/{instance}
     //
     assignment = zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 2, 100, 5000, assignment));
@@ -290,7 +290,7 @@ public class TestZkAdapter {
   }
 
   // When Coordinator leader writes the assignment to a specific instance, the change is indeed
-  // persisted in zookeeper
+  // persisted in Zookeper
   @Test
   public void testUpdateAllAssignments() throws Exception {
     String testCluster = "testUpdateAllInstanceAssignment";
@@ -331,7 +331,7 @@ public class TestZkAdapter {
     adapter1.updateAllAssignments(assignmentsByInstance);
 
     //
-    // verify that there are 1 znode under the zookeeper /{cluster}/instances/{instance1}/
+    // verify that there are 1 znode under the Zookeper /{cluster}/instances/{instance1}/
     //
     List<String> assignment1 =
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter1.getInstanceName()));
@@ -340,7 +340,7 @@ public class TestZkAdapter {
     validateConnectorTask(testCluster, connectorType, "task1", zkClient);
 
     //
-    // verify that there are 2 znode under the zookeeper /{cluster}/instances/{instance2}/
+    // verify that there are 2 znode under the Zookeper /{cluster}/instances/{instance2}/
     //
     List<String> assignment2 =
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter2.getInstanceName()));
@@ -395,7 +395,7 @@ public class TestZkAdapter {
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
 
     //
-    // verify there are 4 znodes under zookeeper path /{cluster}/instances/{instance}
+    // verify there are 4 znodes under Zookeper path /{cluster}/instances/{instance}
     //
     List<String> assignment =
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));

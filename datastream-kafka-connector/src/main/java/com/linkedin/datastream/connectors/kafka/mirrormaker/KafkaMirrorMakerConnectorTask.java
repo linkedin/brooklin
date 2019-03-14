@@ -232,7 +232,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     super.onPartitionsAssigned(partitions);
     Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
     // we need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
-    // The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+    // The reason being onPartitionsAssigned() gets called as part of Kafka poll, so we need to pause partitions
     // before that poll call can return any data.
     // If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
     // Chances are that the current poll call will return data already for that topic/partition and we will end up
@@ -316,7 +316,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   /**
    * This method pauses topics that are returned by topic manager.
    * We need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
-   * The reason being onPartitionsAssigned() gets called as part of kafka poll, so we need to pause partitions
+   * The reason being onPartitionsAssigned() gets called as part of Kafka poll, so we need to pause partitions
    * before that poll call can return any data.
    * If we let partitions be paused as part of pre-poll hook, that will happen in the next poll cycle.
    * Chances are that the current poll call will return data already for that topic/partition and we will end up

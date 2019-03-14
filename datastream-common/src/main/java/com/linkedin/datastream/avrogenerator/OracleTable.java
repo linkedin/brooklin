@@ -16,12 +16,12 @@ import org.jetbrains.annotations.Nullable;
 
 
 /**
- * The {@code OracleTable} class is the top level wrapper for the entire table in the Database
+ * The {@code OracleTable} class is the top-level wrapper for the entire table in the Database
  * It is composed of multiple {@code OracleColumn} instances which associate to each Column in the
  * Database Table.
  *
  * Calling {@code #toAvro()} from an instance of {@code OracleTable} will generate an Avro Schema
- * for the entire table (in Json form), A secondary call to {@code AvroJson#toSchema()} will generate
+ * for the entire table (in Json form). A secondary call to {@code AvroJson#toSchema()} will generate
  * the final Avro Schema
  *
 

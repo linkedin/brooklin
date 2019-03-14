@@ -74,7 +74,7 @@ public class DatastreamRestClient {
   private long _retryTimeoutMs = DEFAULT_RETRY_TIMEOUT_MS;
 
   /**
-   * @deprecated Please use factory {@link DatastreamRestClientFactory}
+   * @deprecated Please use {@link DatastreamRestClientFactory} instead
    * @param restClient pre-created RestClient
    */
   @Deprecated
@@ -85,7 +85,7 @@ public class DatastreamRestClient {
   /**
    * Construct the DatastreamRestClient. Should be called by {@link DatastreamRestClientFactory} only
    * @param restClient rest.li client to use
-   * @param config config for the DatastreamRestClient. Note that this is not the http config for the underlying
+   * @param config config for the DatastreamRestClient. Note that this is not the HTTP config for the underlying
    *               RestClient
    */
   public DatastreamRestClient(RestClient restClient, Properties config) {
@@ -124,8 +124,8 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Get the complete datastream object corresponding to the datastream name. This method makes a GET rest call
-   * to the Datastream management service which in turn fetches this Datastream object from the store (zookeeper).
+   * Get the complete datastream object corresponding to the datastream name. This method makes a GET REST call
+   * to the Datastream management service which in turn fetches this Datastream object from the store (Zookeeper).
    * @param datastreamName
    *    Name of the datastream that should be retrieved.
    * @return
@@ -133,7 +133,7 @@ public class DatastreamRestClient {
    * @throws com.linkedin.datastream.common.DatastreamRuntimeException
    *    Throws DatastreamNotFoundException if the datastream doesn't exist,
    *    Throws DatastreamRuntimeException for any other errors encountered while fetching the datastream.
-   *    If there are any other network/ system level errors while sending the request or receiving the response.
+   *    If there are any other network/system level errors while sending the request or receiving the response.
    */
   public Datastream getDatastream(String datastreamName) {
     Instant startTime = Instant.now();
@@ -231,9 +231,9 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Get all the datastream objects available on the sever. This method makes a GET rest call
-   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
-   * Entries will be return in lexicographical based on their getName() property.
+   * Get all the datastream objects available on the sever. This method makes a GET REST call
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (Zookeeper).
+   * Entries will be returned in lexicographical order based on their getName() property.
    *
    * @return all the Datastream objects
    * @for any errors encountered while fetching the datastream.
@@ -243,9 +243,9 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Get all the datastream objects available on the sever. This method makes a GET rest call
-   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
-   * Entries will be return in lexicographical based on their getName() property.
+   * Get all the datastream objects available on the sever. This method makes a GET REST call
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (Zookeeper).
+   * Entries will be returned in lexicographical order based on their getName() property.
    *
    * @param start index of the first datastream to produce
    * @param count maximum number of entries to be produced
@@ -255,8 +255,8 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Creates a new datastream. Name of the datastream must be unique. This method makes a POST rest call to the
-   * Datastream management service which validates the datastream object and writes it to the store (zookeeper).
+   * Creates a new datastream. Name of the datastream must be unique. This method makes a POST REST call to the
+   * Datastream management service which validates the datastream object and writes it to the store (Zookeeper).
    * @param datastream
    *   Datastream that needs to be created.
    * @for any errors encountered while creating the datastream.
@@ -314,7 +314,7 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Update a datastream. Validation will be performed on the server side to ensure certain conditions are met.
+   * Update a datastream. Validation will be performed on the server side to ensure certain conditions are met
    * (e.g. datastream is valid, the connector type supports datastream updates, etc.)
    * @param datastream datastream to be updated
    */
@@ -324,7 +324,7 @@ public class DatastreamRestClient {
 
   /**
    * Update datastreams in batch. Either all datastreams get updated or none get updated. Validation will be
-   * performed on the server side to ensure certain conditions are met. (e.g. datastreams are valid, the connector
+   * performed on the server side to ensure certain conditions are met (e.g. datastreams are valid, the connector
    * type supports datastream updates, etc.)
    * @param datastreams list of datastreams to be updated
    */
@@ -353,8 +353,8 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Delete the datastream with the name. This method makes a DELETE rest call to the Datastream management service
-   * on the DatastreamResource which in turn deletes the entity from the zookeeper. All the connectors that
+   * Delete the datastream with the specified name. This method makes a DELETE REST call to the Datastream management service
+   * on the DatastreamResource which in turn deletes the entity from Zookeeper. All the connectors that
    * are serving the datastream will get notified to stop producing events for the datastream.
    * @param datastreamName
    *   Name of the datastream that should be deleted.
@@ -418,9 +418,9 @@ public class DatastreamRestClient {
    * Pause a datastream, by changing its status to PAUSED. In case there are multiple datastreams
    * in a group, the group is PAUSED if ALL the datastreams are paused
    * @param datastreamName
-   *    Name of the datastream to paused.
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
+   *    Name of the datastream to pause.
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from
+   * the server.
    */
   public void pause(String datastreamName) throws RemoteInvocationException {
     pause(datastreamName, false);
@@ -430,11 +430,11 @@ public class DatastreamRestClient {
    * Pause a datastream, by changing its status to PAUSED. In case there are multiple datastreams
    * in a group, the group is PAUSED if ALL the datastreams are paused
    * @param datastreamName
-   *    Name of the datastream to paused.
+   *    Name of the datastream to pause.
    * @param force
    *    If true, change all the datastreams in the same group to PAUSED, forcing the group to pause.
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from
+   * the server.
    */
   public void pause(String datastreamName, boolean force) {
     Instant startTime = Instant.now();
@@ -466,7 +466,7 @@ public class DatastreamRestClient {
    * Resume a datastream, by changing its status from PAUSED to READY.
    * @param datastreamName
    *    Name of the datastream to resume.
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * @throws DatastreamRuntimeException in case of a communication issue or
    * an error response from the server.
    */
   public void resume(String datastreamName) throws RemoteInvocationException {
@@ -479,7 +479,7 @@ public class DatastreamRestClient {
    *    Name of the datastream to resume.
    * @param force
    *    If true, changes all the datastreams in the same group to READY.
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
+   * @throws DatastreamRuntimeException in case of a communication issue or
    * an error response from the server.
    */
   public void resume(String datastreamName, boolean force) throws RemoteInvocationException {
@@ -509,13 +509,12 @@ public class DatastreamRestClient {
   }
 
   /**
-   * Get all the datastream objects that are in the same group that "datastreamName". This method makes a GET rest call
-   * to the Datastream management service which in turn fetches all the Datastream objects from the store (zookeeper).
-   * Entries will be return in lexicographical based on their getName() property.
+   * Get all the datastream objects that are in the same group as the datastream whose name is "datastreamName".
+   * This method makes a GET REST call to the Datastream management service which in turn fetches all the Datastream
+   * objects from the store (Zookeeper). Entries will be return in lexicographical based on their getName() property.
    *
-   * @return all the Datastream objects that are in the same group than the passed datastreamName
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
+   * @return all the Datastream objects that are in the same group as the supplied datastreamName
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from the server.
    */
   public List<Datastream> findGroup(String datastreamName) {
     return PollUtils.poll(() -> {
@@ -540,8 +539,7 @@ public class DatastreamRestClient {
    * @param sourcePartitions
    *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
    *                         or <"FooTopic","*">
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from the server.
    */
   public void pauseSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {
@@ -580,8 +578,7 @@ public class DatastreamRestClient {
    * @param sourcePartitions
    *    StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
    *                         or <"FooTopic","*">
-   * @throws DatastreamRuntimeException An exception is thrown in case of a communication issue or
-   * an error response from the server.
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from the server.
    */
   public void resumeSourcePartitions(String datastreamName, StringMap sourcePartitions)
       throws RemoteInvocationException {

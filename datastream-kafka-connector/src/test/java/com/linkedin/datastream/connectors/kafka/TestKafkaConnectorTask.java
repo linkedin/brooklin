@@ -147,7 +147,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     Datastream datastream = getDatastream(_broker, topic);
 
-    // Unable to set the start position, OffsetToTimestamp is returning null in the embedded kafka cluster.
+    // Unable to set the start position, OffsetToTimestamp is returning null in the embedded Kafka cluster.
     datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(startOffsets));
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);

@@ -23,7 +23,7 @@ import com.linkedin.datastream.common.DynamicDataSourceFactoryImpl;
 
 
 /**
- * The OracleDatabaseClient handles all of the communication to the Oracle Database
+ * The OracleDatabaseClient handles all of the communication with the Oracle Database
  */
 public class OracleDatabaseClient extends DatabaseSource {
   private static final Logger LOG = LoggerFactory.getLogger(OracleDatabaseClient.class);
@@ -150,9 +150,9 @@ public class OracleDatabaseClient extends DatabaseSource {
   }
 
   /**
-   * Determine if the fieldTypeName passed in the argument is one of the built in
-   * Oracle Types. This class maintains a {@code PRIMITIVE_TYPES} which stores the
-   * names of all the pre built Types.
+   * Determine if the fieldTypeName passed in the argument is one of the built-in
+   * Oracle Types. This class maintains a list of primitive types in which names
+   * of all built-in types are stored.
    */
   public boolean isPrimitive(String fieldTypeName) throws SQLException {
     return PRIMITIVE_TYPES.contains(fieldTypeName);

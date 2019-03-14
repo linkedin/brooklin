@@ -12,8 +12,8 @@ import org.apache.avro.generic.IndexedRecord;
 import com.linkedin.datastream.testutil.common.RandomValueGenerator;
 
 
-/*
- * The class is a factory which returns an instance based on which random data can be written to the record
+/**
+ * The class is a factory which returns an instance based on which random data can be written to the record.
  */
 public abstract class SchemaField {
 
@@ -24,8 +24,8 @@ public abstract class SchemaField {
   static int _maxNumElements = 10;
   protected Field _field;
 
-  /*
-   * Constructor to create an schema field instance of the given field.
+  /**
+   * Constructor to create a schema field instance of the given field.
    * @param field The type of field to create a filler for.
    */
   public SchemaField(Field field) {
@@ -62,7 +62,7 @@ public abstract class SchemaField {
     return _seed >= 0;
   }
 
-  /*
+  /**
    * Factory method to generate random data according to type
    * @param field The field based on which random data is be generated
    * @return SchemaField The SchemaField instance let's you write data to the record based on the field passed to the function.
@@ -105,14 +105,14 @@ public abstract class SchemaField {
     }
   }
 
-  /*
+  /**
    * Override to write data
    * @param  record  The IndexedRecord to which the data is to be written.
    */
   public abstract void writeToRecord(IndexedRecord record) throws UnknownTypeException;
 
-  /*
-   * return the random generated object. Use this to fetch the object instead of writing to an record.
+  /**
+   * Return the random generated object. Use this to fetch the object instead of writing to an record.
    */
   public abstract Object generateRandomObject() throws UnknownTypeException;
 }

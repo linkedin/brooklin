@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * The OracleStructType class implements the FieldType interface in order to act
  * as a wrapper class for Oracle Struct Types. Developers can store objects in Oracle
- * that have their own sub columns. For example:
+ * that have their own sub-columns. For example:
  *
  * colName: ContactInfo, Type: CONTACT_INFO
  *                             childColName1: address, Type: VARCHAR

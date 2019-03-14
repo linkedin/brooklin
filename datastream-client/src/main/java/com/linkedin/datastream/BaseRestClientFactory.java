@@ -38,16 +38,16 @@ import com.linkedin.restli.client.RestClient;
  * 2) use a cached or new RestClient created with the specified http properties through HttpClientFactory.
  *
  * The registered R2 RestClient is mapped with (URI, EMPTY_MAP) in the cache so it will not be used
- * when caller specify non-empty HTTP_PARAMS.
+ * when the caller specifies non-empty HTTP_PARAMS.
  *
- * Rest.li client wrapper class is expected to provide a constructor with a R2 RestClient as the
+ * Rest.li client wrapper class is expected to provide a constructor with an R2 RestClient as the
  * only argument.
  *
- * Caller can specify a custom Rest.li client wrapper instance per URI which will be used whenever
+ * Callers can specify a custom Rest.li client wrapper instance per URI which will be used whenever
  * wrapper is requested for such URI. This has the highest precedence and is useful for plugging
  * in mocked wrappers for unit/integration tests.
  *
- * Lastly, there is no need to shutdown the factory or rest client during runtime because they are
+ * Lastly, there is no need to shut down the factory or REST client during runtime because they are
  * essentially singleton per (URI, HTTP_PARAMS). As such, they might be reused for future wrapper
  * creations so we need to keep them alive. When application shuts down, all resources will be
  * released by the JVM.
@@ -72,7 +72,7 @@ public final class BaseRestClientFactory<T> {
   }
 
   /**
-   * Get a rest client wrapper with custom HTTP configs
+   * Get a REST client wrapper with custom HTTP configs
    * @param uri URI to the HTTP endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
@@ -87,7 +87,7 @@ public final class BaseRestClientFactory<T> {
   }
 
   /**
-   * Get a rest client wrapper with custom HTTP configs
+   * Get a REST client wrapper with custom HTTP configs
    * @param uri URI to the HTTP endpoint
    * @param httpConfig custom config for HTTP client, please find the configs in
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
@@ -114,7 +114,7 @@ public final class BaseRestClientFactory<T> {
   }
 
   /**
-   * Used mainly for testing, to override the rest client wrapper returned for a given URI.
+   * Used mainly for testing, to override the REST client wrapper returned for a given URI.
    * As custom factories are used in the static context, each test case should use its own
    * URI, to avoid conflicts in case the test are running in parallel.
    */

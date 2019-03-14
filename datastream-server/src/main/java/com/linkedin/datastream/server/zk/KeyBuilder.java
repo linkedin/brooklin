@@ -110,24 +110,24 @@ public class KeyBuilder {
     return String.format(CONNECTOR_DATASTREAM_TASK, cluster, connectorType, name);
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
+  // Zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
   public static String datastreamTaskState(String cluster, String connectorType, String name) {
     // taskId could be empty space, which can result in "//" in the path
     return String.format(DATASTREAM_TASK_STATE, cluster, connectorType, name).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
+  // Zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
   public static String datastreamTaskConfig(String cluster, String connectorType, String name) {
     return String.format(DATASTREAM_TASK_CONFIG, cluster, connectorType, name).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
+  // Zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/state
   public static String datastreamTaskStateKey(String cluster, String connectorType, String name, String key) {
     // taskId could be empty space, which can result in "//" in the path
     return String.format(DATASTREAM_TASK_STATE_KEY, cluster, connectorType, name, key).replaceAll("//", "/");
   }
 
-  // zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
+  // Zookeeper path: /{cluster}/connectors/{connectorType}/{taskName}/config
   public static String datastreamTaskLock(String cluster, String connectorType, String name) {
     return String.format(DATASTREAM_TASK_LOCK, cluster, connectorType, name).replaceAll("//", "/");
   }

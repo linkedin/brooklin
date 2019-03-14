@@ -15,7 +15,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 public interface AssignmentStrategy {
   /**
-   * assign a list of datastreams to a list of instances, and return a map from instances-> list of streams.
+   * Assign a list of datastreams to a list of instances, and return a map from instances-> list of streams.
    * Each connector is associated with one implementation of the AssignmentStrategy, and it is only called
    * by the Coordinator Leader.
    *
@@ -24,7 +24,7 @@ public interface AssignmentStrategy {
    *
    * <p>Note that the output is a map from instance to list of DatastreamTask instead of Datastream.
    * {@link DatastreamTask} is the minimum assignable element of Datastream.
-   * This makes it possible to split a Datastream into multiple assignable DatastreamTask so that they
+   * This makes it possible to split a Datastream into multiple assignable DatastreamTasks so that they
    * can be assigned to multiple instances, and hence allowing load balancing. For example, the Oracle
    * bootstrap Datastream can be split into multiple instances of DatastreamTask, one per partition,
    * if the bootstrap files are hosted on HDFS. This allows the concurrent processing of the partitions

@@ -61,7 +61,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
     //its possible to list the same broker as a hostname or IP
     //(kafka://localhost:666 vs kafka://127.0.0.1:666 vs kafka://::1:666/topic)
     //the "best" thing to do would be connect to _ALL_ brokers listed, and from each broker
-    //get the cluster members and the cluster unique ID (which only exists in kafka ~0.10+)
+    //get the cluster members and the cluster unique ID (which only exists in Kafka ~0.10+)
     //and then:
     //1. fail if brokers listed are member of different clusters
     //2. "normalize" the connection string to be either all members as they appear in metadata

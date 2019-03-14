@@ -21,8 +21,8 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 /**
  * This class traps threads with unhandled exceptions and
- * reports abnormal terminations and reports them as metric,
- * however it doesn't attempt to recover the condition
+ * reports abnormal terminations and reports them as metric.
+ * However, it doesn't attempt to recover the condition.
  */
 public class ThreadTerminationMonitor {
 

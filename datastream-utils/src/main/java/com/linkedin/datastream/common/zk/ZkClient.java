@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
  * ZKClient is a wrapper of sgroschupf/zkclient. It provides the following
  * basic features:
  * (1) tolerate network reconnects so the caller doesn't have to handle the retries
- * (2) provide a String serializer since we only need to store JSON strings in zookeeper
+ * (2) provide a String serializer since we only need to store JSON strings in Zookeeper
  * (3) additional features like ensurePath to recursively create paths
  */
 

@@ -9,7 +9,7 @@ import java.util.Properties;
 
 
 /**
- * Connector factory interface, Each connector should implement this which creates the connector instance.
+ * Connector factory interface. Each connector should implement this which creates the connector instance.
  */
 public interface ConnectorFactory<T extends Connector> {
 

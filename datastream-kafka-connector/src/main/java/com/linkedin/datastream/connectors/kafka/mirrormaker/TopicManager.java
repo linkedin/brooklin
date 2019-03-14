@@ -11,7 +11,7 @@ import org.apache.kafka.common.TopicPartition;
 
 
 /**
- * The interface can used to implement any topics related management that mirror maker needs to do (for example,
+ * The interface can be used to implement any topics-related management that mirror maker needs to do.
  */
 public interface TopicManager {
 
@@ -24,7 +24,7 @@ public interface TopicManager {
 
   /**
    * This gets called as part of Kafka's onPartitionsRevoked() callback, in case any topic management needs to be done
-   * when partitions are revoked by kafka.
+   * when partitions are revoked by Kafka.
    */
   public void onPartitionsRevoked(Collection<TopicPartition> partitions);
 
@@ -36,7 +36,7 @@ public interface TopicManager {
   public boolean shouldResumePartition(TopicPartition tp);
 
   /**
-   * Method that mirror maker task calls whenever it stops. TopicManager can perform any clean ups it needs to do at this
+   * Method that mirror maker task calls whenever it stops. TopicManager can perform any cleanups it needs to do at this
    * point.
    */
   public void stop();

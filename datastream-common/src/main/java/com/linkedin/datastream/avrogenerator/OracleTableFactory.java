@@ -16,10 +16,10 @@ import com.google.common.base.Joiner;
 
 /**
  * {@link FieldType} classes are used as wrappers around database Types. This
- * Factory class is responsible for creating these classes as needed
+ * Factory class is responsible for creating these classes as needed.
  *
  * This class does this by running special queries against the metadata tables in
- * in the Oracle database in order to grab information such as Oracle types, Column Names,
+ * the Oracle database in order to grab information such as Oracle types, Column Names,
  * Precision and Scale of Numerics etc.
  */
 public class OracleTableFactory {
@@ -30,11 +30,11 @@ public class OracleTableFactory {
   }
 
   /**
-   * Build an OracleTable FieldType. OracleTable FieldTypes are a wrapper for top level
+   * Build an OracleTable FieldType. OracleTable FieldTypes are a wrapper for top-level
    * Database Tables, this is very similar to the OracleStructType with the exception that
    * there is a primaryKey.
    *
-   * Column information is gotten through {@code _databaseSource}, we then recursively call
+   * Column information is attained through {@code _databaseSource}, we then recursively call
    * {@code #buildFieldType} in order to build each child Column.
    *
    * @param schemaName The SchemaName, associated with the Owner of the table
