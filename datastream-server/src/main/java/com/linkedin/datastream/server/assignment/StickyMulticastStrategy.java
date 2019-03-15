@@ -33,7 +33,7 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 /**
  * This Assignment Strategy follows the following rules:
  * a) The number of tasks for each datastream can be different. There will be a default value in case the datastream
- * does not have one defined.
+ *    does not have one defined.
  * b) For each datastream the number of tasks might be greater than the number of instances, but only as many as
  *    dsTaskLimitPerInstance. The default is 1.
  * c) The differences in the number of tasks assigned between any two instances should be less than or equal to

@@ -125,7 +125,7 @@ public class DatastreamRestClient {
 
   /**
    * Get the complete datastream object corresponding to the datastream name. This method makes a GET REST call
-   * to the Datastream management service which in turn fetches this Datastream object from the store (Zookeeper).
+   * to the Datastream management service which in turn fetches this Datastream object from the store (ZooKeeper).
    * @param datastreamName
    *    Name of the datastream that should be retrieved.
    * @return
@@ -232,7 +232,7 @@ public class DatastreamRestClient {
 
   /**
    * Get all the datastream objects available on the sever. This method makes a GET REST call
-   * to the Datastream management service which in turn fetches all the Datastream objects from the store (Zookeeper).
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (ZooKeeper).
    * Entries will be returned in lexicographical order based on their getName() property.
    *
    * @return all the Datastream objects
@@ -244,7 +244,7 @@ public class DatastreamRestClient {
 
   /**
    * Get all the datastream objects available on the sever. This method makes a GET REST call
-   * to the Datastream management service which in turn fetches all the Datastream objects from the store (Zookeeper).
+   * to the Datastream management service which in turn fetches all the Datastream objects from the store (ZooKeeper).
    * Entries will be returned in lexicographical order based on their getName() property.
    *
    * @param start index of the first datastream to produce
@@ -256,7 +256,7 @@ public class DatastreamRestClient {
 
   /**
    * Creates a new datastream. Name of the datastream must be unique. This method makes a POST REST call to the
-   * Datastream management service which validates the datastream object and writes it to the store (Zookeeper).
+   * Datastream management service which validates the datastream object and writes it to the store (ZooKeeper).
    * @param datastream
    *   Datastream that needs to be created.
    * @for any errors encountered while creating the datastream.
@@ -354,7 +354,7 @@ public class DatastreamRestClient {
 
   /**
    * Delete the datastream with the specified name. This method makes a DELETE REST call to the Datastream management service
-   * on the DatastreamResource which in turn deletes the entity from Zookeeper. All the connectors that
+   * on the DatastreamResource which in turn deletes the entity from ZooKeeper. All the connectors that
    * are serving the datastream will get notified to stop producing events for the datastream.
    * @param datastreamName
    *   Name of the datastream that should be deleted.
@@ -511,7 +511,7 @@ public class DatastreamRestClient {
   /**
    * Get all the datastream objects that are in the same group as the datastream whose name is "datastreamName".
    * This method makes a GET REST call to the Datastream management service which in turn fetches all the Datastream
-   * objects from the store (Zookeeper). Entries will be return in lexicographical based on their getName() property.
+   * objects from the store (ZooKeeper). Entries will be return in lexicographical based on their getName() property.
    *
    * @return all the Datastream objects that are in the same group as the supplied datastreamName
    * @throws DatastreamRuntimeException in case of a communication issue or an error response from the server.

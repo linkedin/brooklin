@@ -235,7 +235,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
 
     try {
-      // Zookeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
+      // ZooKeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
       // are updated before we touch the "assignments" node to avoid race condition
       for (String key : datastreamMap.keySet()) {
         _store.updateDatastream(key, datastreamMap.get(key), false);

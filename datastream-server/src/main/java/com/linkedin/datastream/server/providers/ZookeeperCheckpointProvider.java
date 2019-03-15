@@ -111,7 +111,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private Map<Integer, String> mergeAndGetSafeCheckpoints(DatastreamTask task, Map<Integer, String> safeCheckpoints) {
 
     // It is possible that the safe checkpoints contains only subset of partitions.
-    // So it is safe to merge them with the existing checkpoints in Zookeeper.
+    // So it is safe to merge them with the existing checkpoints in ZooKeeper.
     Map<Integer, String> checkpoints = getCheckpoint(task);
 
     if (safeCheckpoints != null && !safeCheckpoints.isEmpty()) {

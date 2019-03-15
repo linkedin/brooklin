@@ -16,7 +16,7 @@ public interface KafkaCluster {
   String getBrokers();
 
   /**
-   * @return Zookeeper connection string used by the Kafka cluster.
+   * @return ZooKeeper connection string used by the Kafka cluster.
    */
   String getZkConnection();
 

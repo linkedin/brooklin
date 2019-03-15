@@ -23,7 +23,7 @@ import com.linkedin.datastream.common.NetworkUtils;
 
 
 /**
- * Provides a testing cluster with Zookeeper and Kafka together.
+ * Provides a testing cluster with ZooKeeper and Kafka together.
  */
 public class EmbeddedKafkaCluster {
   private final List<Integer> _ports;

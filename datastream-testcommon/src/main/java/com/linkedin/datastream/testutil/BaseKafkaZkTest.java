@@ -24,7 +24,7 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 /**
  * Base test class for test cases that rely on {@link DatastreamEmbeddedZookeeperKafkaCluster} so that all tests
- * in a given class could share the same Zookeeper-Kafka cluster and zk client/utils.
+ * in a given class could share the same ZooKeeper-Kafka cluster and zk client/utils.
  */
 @Test
 public abstract class BaseKafkaZkTest {

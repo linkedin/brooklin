@@ -23,7 +23,7 @@ public interface TopicManagerFactory {
    * @param datastreamTask Task that topic manager is going to be created for.
    * @param datastream Datastream that topic manager is going to be created for.
    * @param groupIdConstructor This will be used while creating source/destination consumers
-   * @param kafkaConsumerFactory This will be used to create source/destination kafka consumer
+   * @param kafkaConsumerFactory This will be used to create source/destination Kafka consumer
    * @param consumerProperties properties for Kafka consumer
    * @param topicManagerProperties Any additional properties that need to be passed to topic manager
    * @param consumerMetrics In case one needs to log consumer metrics.

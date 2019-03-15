@@ -43,7 +43,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
  * Datastream object, DatastreamTask also contains key-value store Properties. This allows the assignment
  * strategy to attach extra parameters.
  *
- * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in Zookeeper
+ * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in ZooKeeper
  * This should be unique for each instance of DatastreamTask, especially in the case when a Datastream is
  * split into multiple DatastreamTasks. This is because we will have a state associated with each DatastreamTask.
  *
@@ -64,7 +64,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   // The Id of the datastream task. It is a string that will represent one assignable element of
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
-  // mapped to one Datastream. Each of the _id value will be represented in Zookeeper
+  // mapped to one Datastream. Each of the _id value will be represented in ZooKeeper
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 

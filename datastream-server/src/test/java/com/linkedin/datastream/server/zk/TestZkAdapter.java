@@ -39,7 +39,7 @@ public class TestZkAdapter {
 
   @BeforeMethod
   public void setup() throws IOException {
-    // each embedded Zookeeper should be on different port
+    // each embedded ZooKeeper should be on different port
     // so the tests can run in parallel
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();
@@ -95,7 +95,7 @@ public class TestZkAdapter {
     ZkAdapter adapter2 = createZkAdapter(testCluster);
     adapter2.connect();
 
-    // verify Zookeeper path exists for the two live instance nodes
+    // verify ZooKeeper path exists for the two live instance nodes
     ZkClient client = new ZkClient(_zkConnectionString);
 
     List<String> instances = client.getChildren(KeyBuilder.instances(testCluster));

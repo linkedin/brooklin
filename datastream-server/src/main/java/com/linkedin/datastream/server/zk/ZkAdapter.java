@@ -73,7 +73,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *  Note: * Callback for leader only.
  *
  * ZkAdapter is the adapter between the Coordinator and the ZkClient. It uses ZkClient to communicate
- * with Zookeeper, and provides a set of callbacks that allows the Coordinator to react on events like
+ * with ZooKeeper, and provides a set of callbacks that allows the Coordinator to react on events like
  * leadership changes, assigment changes, and live instances changes.
  *
  * <p> ZkAdapter provide two main roles:
@@ -81,7 +81,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *     <li>ZooKeeper-backed data provider. Each of these zk-backed data provider is implemented as an embedded
  *     class. For example, {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedLiveInstanceListProvider}
  *     provides the current list of live instances, and its data is automatically updated when the underlying
- *     Zookeeper data structure is updated.
+ *     ZooKeeper data structure is updated.
  *     </li>
  *
  *     <li>Notify the observers. ZkAdapter will trigger the {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkAdapterListener}
@@ -90,8 +90,8 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *     </li>
  * </ul>
  *
- * <p>The ZK-backed data providers cache the data read from the corresponding Zookeeper nodes so they can be accessed
- * without reading Zookeeper frequently. These providers also set up the watch on these nodes so it can be notified
+ * <p>The ZK-backed data providers cache the data read from the corresponding ZooKeeper nodes so they can be accessed
+ * without reading ZooKeeper frequently. These providers also set up the watch on these nodes so it can be notified
  * when the data changes. For example, {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
  * provides the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
  * znode /{cluster}/instances/{instanceName} for children changes, and automatically refreshes the cached values.
@@ -960,7 +960,7 @@ public class ZkAdapter {
 
   /**
    * ZkBackedLiveInstanceListProvider is only used by the current leader instance. It provides a cached
-   * list of current live instances, by watching the live instances tree in Zookeeper. The watched path
+   * list of current live instances, by watching the live instances tree in ZooKeeper. The watched path
    * is <i>/{cluster}/liveinstances</i>. Note the difference between the node names under live instances
    * znode and under instances znode: the znode for instances has the format {hostname}-{sequence}.
    * ZkBackedLiveInstanceListProvider is responsible for translating from live instance name to instance
