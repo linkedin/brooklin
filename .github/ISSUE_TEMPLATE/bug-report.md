@@ -13,8 +13,9 @@ Describe your issue here.
 ### Your environment
 * Operating System
 * Brooklin version
-* Java version (if applicable)
-* Kafka version (if applicable)
+* Java version
+* Kafka version
+* ZooKeeper version
 
 ### Steps to reproduce
 Tell us how to reproduce this issue.
