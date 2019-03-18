@@ -78,7 +78,7 @@ public final class BaseRestClientFactory<T> {
    *                   {@link com.linkedin.r2.transport.http.client.HttpClientFactory}
    * @return instance of the BaseRestClient
    */
-  public synchronized T getClient(String uri, Map<String, String> httpConfig) {
+  public synchronized T getClient(String uri, Map<String, Object> httpConfig) {
     T client = getOverride(uri);
     if (client == null) {
       client = createClient(getRestClient(uri, httpConfig));
@@ -94,7 +94,7 @@ public final class BaseRestClientFactory<T> {
    * @param clientConfig custom config for the DatastreamRestClient
    * @return instance of the BaseRestClient which takes in clientConfig as a parameter in the constructor
    */
-  public synchronized T getClient(String uri, Map<String, String> httpConfig, Properties clientConfig) {
+  public synchronized T getClient(String uri, Map<String, Object> httpConfig, Properties clientConfig) {
     T client = getOverride(uri);
     if (client == null) {
       client = createClient(getRestClient(uri, httpConfig), clientConfig);
@@ -132,7 +132,7 @@ public final class BaseRestClientFactory<T> {
     return _overrides.getOrDefault(uri, null);
   }
 
-  private static String getKey(String uri, Map<String, String> httpConfig) {
+  private static String getKey(String uri, Map<String, Object> httpConfig) {
     return String.format("%s-%d", uri, httpConfig.hashCode());
   }
 
@@ -168,7 +168,7 @@ public final class BaseRestClientFactory<T> {
         .build();
   }
 
-  private RestClient getRestClient(String uri, Map<String, String> httpConfig) {
+  private RestClient getRestClient(String uri, Map<String, Object> httpConfig) {
     String canonicalUri = RestliUtils.sanitizeUri(uri);
     RestClient restClient;
     String key = getKey(uri, httpConfig);
