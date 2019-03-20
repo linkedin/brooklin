@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * Util class for logging related methods
+ * Util class for logging-related methods
  */
 public class LogUtils {
   private static final Logger LOG = LoggerFactory.getLogger(LogUtils.class.getName());

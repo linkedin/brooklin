@@ -9,10 +9,10 @@ import com.google.common.base.CaseFormat;
 
 
 /**
- * The OracleColumn class is a simple light weight class that represents a column in a Database table.
- * The class {@link OracleTable} are composed of multiple instances of {@link OracleColumn}.
+ * The OracleColumn class is a simple lightweight class that represents a column in a Database table.
+ * The class {@link OracleTable} is composed of multiple instances of {@link OracleColumn}.
  * While {@link FieldType} classes hold information about the Database types
- * (acting as wrappers for CHAR, VARCHAR, etc), the {@link OracleColumn} class is a wrapper a specific
+ * (acting as wrappers for CHAR, VARCHAR, etc), the {@link OracleColumn} class is a wrapper of a specific
  * column in a Database table. Therefore, information about the columnName is stored in member variables
  * of {@link OracleColumn} instances.
  *

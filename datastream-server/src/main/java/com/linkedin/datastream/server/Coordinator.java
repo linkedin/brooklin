@@ -81,12 +81,12 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 
 /**
  *
- * Coordinator is the object that bridges the ZooKeeper with Connector implementations. There is one instance
+ * Coordinator is the object that bridges ZooKeeper with Connector implementations. There is one instance
  * of Coordinator for each deployable DatastreamService instance. The Coordinator can connect multiple connectors,
- * but each of them must belong to different type. The Coordinator calls the Connector.getConnectorType() to
+ * but each of them must belong to a different type. The Coordinator calls the Connector.getConnectorType() to
  * inspect the type of the connectors to make sure that there is only one connector for each type.
  *
- * <p> The zookeeper interactions wrapped in {@link ZkAdapter}, and depending on the state of the instance, it
+ * <p> ZooKeeper interactions wrapped in {@link ZkAdapter}, and depending on the state of the instance, it
  * emits callbacks:
  *
  * <ul>
@@ -96,7 +96,7 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
  *     <li>{@link Coordinator#onDatastreamAddOrDrop()} Only the Coordinator leader monitors the Datastream definitions
  *     in ZooKeeper. When there are changes made to datastream definitions through Datastream Management Service,
  *     this callback will be triggered on the Coordinator Leader so it can reassign datastream tasks among
- *     live instances..</li>
+ *     live instances.</li>
  *
  *     <li>{@link Coordinator#onLiveInstancesChange()} Only the Coordinator leader monitors the list of
  *     live instances in the cluster. If there are any instances go online or offline, this callback is triggered
@@ -253,7 +253,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       connector.setInstanceName(getInstanceName());
 
       // make sure connector znode exists upon instance start. This way in a brand new cluster
-      // we can inspect zookeeper and know what connectors are created
+      // we can inspect ZooKeeper and know what connectors are created
       _adapter.ensureConnectorZNode(connector.getConnectorType());
 
       // call connector::start API
@@ -663,7 +663,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("END: Handle event " + event);
   }
 
-  // when we encounter an error, we need to persist the error message in zookeeper. We only persist the
+  // when we encounter an error, we need to persist the error message in ZooKeeper. We only persist the
   // first 10 messages. Why we put this logic in event loop instead of synchronously handle it? This
   // is because the same reason that can result in error can also result in the failure of persisting
   // the error message.
@@ -704,7 +704,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * This method performs two tasks:
-   * 1) initializes destination for a newly created datastream and update it in zookeeper
+   * 1) initializes destination for a newly created datastream and update it in ZooKeeper
    * 2) delete an existing datastream if it is marked as deleted or its TTL has expired.
    *
    * If #2 occurs, it also invalidates the datastream cache for the next assignment.
@@ -715,7 +715,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    *  3) an existing stream is deleted
    *
    * Note that expired streams are not handled during rebalancing which is okay because
-   * if there are no more streams getting created there is no pressure to delete streams
+   * if there are no more streams getting created, there is no pressure to delete streams
    * either. Also, expired streams are excluded from any future task assignments.
    */
   private void handleDatastreamAddOrDelete() {
@@ -894,10 +894,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Map between Instance and the tasks
       newAssignmentsByInstance = performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
 
-      // persist the assigned result to zookeeper. This means we will need to compare with the current
-      // assignment and do remove and add zNodes accordingly. In the case of zookeeper failure (when
+      // persist the assigned result to ZooKeeper. This means we will need to compare with the current
+      // assignment and do remove and add zNodes accordingly. In the case of ZooKeeper failure (when
       // it failed to create or delete zNodes), we will do our best to continue the current process
-      // and schedule a retry. The retry should be able to diff the remaining zookeeper work
+      // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
       _adapter.updateAllAssignments(newAssignmentsByInstance);
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
@@ -1002,14 +1002,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Add a connector to the coordinator. A coordinator can handle multiple type of connectors, but only one
+   * Add a connector to the coordinator. A coordinator can handle multiples type of connectors, but only one
    * connector per connector type.
    *
    * @param connectorName of the connector.
    * @param connector a connector that implements the Connector interface
    * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
-   *                            Coordinator will not perform checkpointing to the zookeeper.
+   *                            Coordinator will not perform checkpointing to ZooKeeper.
    * @param deduper the deduper used by connector
    * @param authorizerName name of the authorizer configured by connector
    *
@@ -1095,8 +1095,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * initializes the datastream. Datastream management service will call this before writing the
-   * Datastream into zookeeper. This method should ensure that the source has sufficient details.
+   * Initializes the datastream. Datastream management service will call this before writing the
+   * Datastream into ZooKeeper. This method should ensure that the source has sufficient details.
    * @param datastream datastream for validation
    * @return result of the validation
    */

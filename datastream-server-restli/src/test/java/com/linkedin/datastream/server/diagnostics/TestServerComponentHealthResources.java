@@ -23,7 +23,7 @@ import com.linkedin.restli.server.PagingContext;
 
 
 /**
- * Test ServerComponentHealthResources with zookeeper backed DatastreamStore
+ * Test ServerComponentHealthResources with ZooKeeper backed DatastreamStore
  */
 @Test(singleThreaded = true)
 public class TestServerComponentHealthResources {

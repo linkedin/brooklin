@@ -33,7 +33,7 @@ public class DatastreamProducerRecordBuilder {
   private Optional<String> _destination = Optional.empty();
 
   /**
-   * Partition to which this DatastreamProducerRecord should be produced. if the partition is not set, TransportProvider
+   * Partition to which this DatastreamProducerRecord should be produced. If the partition is not set, TransportProvider
    * is expected to use key to send the event to appropriate partition. In this case, It is possible that
    * events within the DatastreamProducerRecord will be sent to different partitions.
    */

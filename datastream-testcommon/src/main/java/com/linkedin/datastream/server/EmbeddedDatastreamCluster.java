@@ -35,7 +35,7 @@ public class EmbeddedDatastreamCluster {
       "com.linkedin.datastream.kafka.KafkaTransportProviderAdminFactory";
   private static final long SERVER_INIT_TIMEOUT_MS = 60000; // 1 minute
 
-  // the zookeeper ports that are currently taken
+  // ZooKeeper ports that are currently taken
   private final KafkaCluster _kafkaCluster;
   private final String _zkAddress;
   private EmbeddedZookeeper _zk = null;
@@ -50,8 +50,8 @@ public class EmbeddedDatastreamCluster {
       KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts) throws IOException {
     _kafkaCluster = kafkaCluster;
 
-    // If the datastream cluster doesn't use the Kafka as transport, then we setup our own zookeeper otherwise
-    // use the kafka's zookeeper.
+    // If the datastream cluster doesn't use the Kafka as transport, then we setup our own ZooKeeper otherwise
+    // use Kafka's ZooKeeper.
     if (_kafkaCluster != null) {
       _zkAddress = _kafkaCluster.getZkConnection();
     } else {
@@ -92,7 +92,7 @@ public class EmbeddedDatastreamCluster {
 
   /**
    * Create a new test datastream cluster
-   * @param kafkaCluster kafka cluster to be used by the datastream cluster
+   * @param KafkaCluster Kafka cluster to be used by the datastream cluster
    * @param connectorProperties a map of the connector configs with connector name as the keys
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster

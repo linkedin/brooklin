@@ -73,8 +73,8 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
   private Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
 
-  // List of kafka producers per connector-destination (broker address) pair.
-  // The numProducersPerConnector config is actually number of producers per connector-destination pair, if a the
+  // List of Kafka producers per connector-destination (broker address) pair.
+  // The numProducersPerConnector config is actually the number of producers per connector-destination pair, if the
   // transport provider handles multiple destination brokers.
   private Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
 
@@ -205,7 +205,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
   /**
    * Consult Kafka to get the retention for a topic. This is not cached
-   * in case the retention might be changed externally after creation.
+   * in case the retention is changed externally after creation.
    * If no topic-level retention is configured, this method returns null.
    *
    * @param datastream Datastream
@@ -265,7 +265,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   private List<KafkaProducerWrapper<byte[], byte[]>> getNextKafkaProducers(String connectorType, String destinationBrokers, int count) {
-    // Return the least used kafka producers.
+    // Return the least used Kafka producers.
     return _kafkaProducers.get(connectorType)
         .get(destinationBrokers)
         .stream()

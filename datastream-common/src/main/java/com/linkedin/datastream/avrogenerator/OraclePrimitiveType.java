@@ -11,8 +11,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 
 /**
- * light weight class to act as a wrapper around primitive Oracle Database Types
- * These includes types such as CHAR, VARCHAR2 etc.
+ * Lightweight class to act as a wrapper around primitive Oracle Database Types
+ * This includes types such as CHAR, VARCHAR2 ... etc.
  */
 public class OraclePrimitiveType implements FieldType {
   final static HashSet<String> NUMBER_CLASSIFICATION = new HashSet<>();

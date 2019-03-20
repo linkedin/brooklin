@@ -34,7 +34,7 @@ public class ServerComponentHealthRestClient {
   }
 
   /**
-   * Get the ServerComponentHealth status from one server instance. This method makes a FIND rest call
+   * Get the ServerComponentHealth status from one server instance. This method makes a FIND REST call
    * to the ServerComponentHealth management service which in turn fetches this status from the component.
    * @param type
    *    Type of the component such as connector.
@@ -66,7 +66,7 @@ public class ServerComponentHealthRestClient {
   }
 
   /**
-   * Get the ServerComponentHealth statuses from all server instances. This method makes a FIND rest call
+   * Get the ServerComponentHealth statuses from all server instances. This method makes a FIND REST call
    * to the ServerComponentHealth management service which in turn fetches this status from the component.
    * @param type
    *    Type of the component such as connector.

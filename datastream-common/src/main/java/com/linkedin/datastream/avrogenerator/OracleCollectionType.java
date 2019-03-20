@@ -9,7 +9,7 @@ import java.util.List;
 
 
 /**
- * Light weight class wrapper around a Database collection Type
+ * Lightweight class wrapper around a Database collection Type
  */
 public class OracleCollectionType implements FieldType {
   private static final String AVRO_FIELD_NAME = "array";

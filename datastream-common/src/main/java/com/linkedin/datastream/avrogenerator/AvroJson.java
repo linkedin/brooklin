@@ -43,7 +43,7 @@ public class AvroJson {
   private final Map<String, Object> _info = new HashMap<>();
 
   /**
-   * A static helper method to build a inner arrayType Avro Json
+   * A static helper method to build an inner arrayType Avro Json
    */
   public static AvroJson arrayType(String dbFieldTypeName, AvroJson items) {
     AvroJson avroRecord = new AvroJson();

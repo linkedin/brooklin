@@ -12,7 +12,7 @@ import com.linkedin.datastream.common.DatastreamException;
 
 
 /**
- * A key value store interface for Datastream that supports CREATE, READ, UPDATE, and DELETE
+ * A key-value store interface for Datastream that supports CREATE, READ, UPDATE, and DELETE
  */
 public interface DatastreamStore {
   /**

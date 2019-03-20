@@ -248,7 +248,7 @@ public class TestCoordinator {
   /**
    * testCoordinationWithBroadcastStrategy is a smoke test, to verify that datastreams created by DSM can be
    * assigned to live instances. The datastreams created by DSM is mocked by directly creating
-   * the znodes in zookeeper. The steps involved:
+   * the znodes in ZooKeeper. The steps involved:
    * <ul>
    *     <li>create a cluster with 1 live instance named instance1, start the live instance</li>
    *     <li>create the first datastream (datastream1) with broadcast strategy, and verify it is assigned to instance1</li>

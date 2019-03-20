@@ -122,8 +122,8 @@ public class DatastreamTestUtils {
   }
 
   /**
-   * Store the datastreams into the appropriate locations in zookeeper.
-   * @param zkClient zookeeper client
+   * Stores the datastreams into the appropriate locations in ZooKeeper.
+   * @param zkClient ZooKeeper client
    * @param cluster name of the datastream cluster
    * @param datastreams list of datastreams
    * @throws DatastreamException the datastream exception
@@ -139,9 +139,9 @@ public class DatastreamTestUtils {
   }
 
   /**
-   * Create a list of Datastreams with default fields and store them into ZooKeeper.
+   * Creates a list of Datastreams with default fields and store them into ZooKeeper.
    * This can be used when the test does not need to modify the default fields.
-   * @param zkClient zookeeper client
+   * @param zkClient ZooKeeper client
    * @param cluster name of the datastream cluster
    * @param connectorType connector type string
    * @param datastreamNames list of datastream names
@@ -166,8 +166,8 @@ public class DatastreamTestUtils {
   }
 
   /**
-   * Update the datastreams into the appropriate locations in zookeeper.
-   * @param zkClient zookeeper client
+   * Updates the datastreams into the appropriate locations in ZooKeeper.
+   * @param zkClient ZooKeeper client
    * @param cluster name of the datastream cluster
    * @param datastreams list of datastreams
    * @throws DatastreamException the datastream exception

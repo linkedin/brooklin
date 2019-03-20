@@ -42,7 +42,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
  *
  * There is an extra restli call to get the status of a single server:
  * /diag?q=status&type=connector&scope=espresso&content=componentParameters
- * It is not intended to be exposed to other team such as Espresso, but it can be used internally for testing purpose.
+ * It is not intended to be exposed to other teams such as Espresso, but it can be used internally for testing purpose.
  */
 
 @RestLiCollection(name = "diag", namespace = "com.linkedin.datastream.server.diagnostics")
@@ -63,8 +63,8 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
   }
 
   /**
-   Finder Request to get the status of all server instances.
-   You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...
+   * Finder Request to get the status of all server instances.
+   * You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...
    */
   @Finder("allStatus")
   public List<ServerComponentHealth> getAllStatus(@PagingContextParam PagingContext context,
@@ -84,8 +84,8 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
   }
 
   /**
-   Finder Request to get the status from one server  instance.
-   You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...
+   * Finder Request to get the status from one server instance.
+   * You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...
    */
   @Finder("status")
   public List<ServerComponentHealth> getStatus(@PagingContextParam PagingContext context,

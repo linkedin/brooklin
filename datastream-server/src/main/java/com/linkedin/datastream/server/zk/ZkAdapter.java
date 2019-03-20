@@ -73,28 +73,28 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *  Note: * Callback for leader only.
  *
  * ZkAdapter is the adapter between the Coordinator and the ZkClient. It uses ZkClient to communicate
- * with Zookeeper, and provides a set of callbacks that allows the Coordinator to react on events like
+ * with ZooKeeper, and provides a set of callbacks that allows the Coordinator to react on events like
  * leadership changes, assigment changes, and live instances changes.
  *
  * <p> ZkAdapter provide two main roles:
  * <ul>
- *     <li>ZooKeeper backed data provider. Each of these zk backed data provider is implemented as an embedded
+ *     <li>ZooKeeper-backed data provider. Each of these zk-backed data provider is implemented as an embedded
  *     class. For example, {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedLiveInstanceListProvider}
  *     provides the current list of live instances, and its data is automatically updated when the underlying
- *     zookeeper data structure is updated.
+ *     ZooKeeper data structure is updated.
  *     </li>
  *
  *     <li>Notify the observers. ZkAdapter will trigger the {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkAdapterListener}
  *     callbacks based on the current state. The {@link com.linkedin.datastream.server.Coordinator} implements
- *     this interface so it can take appropriate actions.
+ *     this interface so it can take appropriate action.
  *     </li>
  * </ul>
  *
- * <p>The ZK backed data providers cache the data read from the corresponding zookeeper nodes so they can be accessed
- * without reading zookeeper frequently. These providers also set up the watch on these nodes so it can be notified
- * when the data changes. For example {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
- * provide the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
- * znode /{cluster}/instances/{instanceName} for children changes, and automatically refresh the cached values.
+ * <p>The ZK-backed data providers cache the data read from the corresponding ZooKeeper nodes so they can be accessed
+ * without reading ZooKeeper frequently. These providers also set up the watch on these nodes so it can be notified
+ * when the data changes. For example, {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
+ * provides the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
+ * znode /{cluster}/instances/{instanceName} for children changes, and automatically refreshes the cached values.
  *
  * @see com.linkedin.datastream.server.Coordinator
  * @see ZkClient
@@ -152,7 +152,7 @@ public class ZkAdapter {
   }
 
   /**
-   * gracefully disconnect from zookeeper, clean up znodes
+   * gracefully disconnect from Zookeper, clean up znodes
    */
   public void disconnect() {
 
@@ -182,14 +182,14 @@ public class ZkAdapter {
   }
 
   /**
-   * Connect the adapter so that it can connect and bridge events between zookeeper changes and
-   * the actions that needs to be taken with them, which are implemented in the Coordinator class
+   * Connect the adapter so that it can connect and bridge events between Zookeper changes and
+   * the actions that need to be taken with them, which are implemented in the Coordinator class
    *
    */
   public void connect() {
     _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout);
 
-    // create a globally uniq instance name and create a live instance node in zookeeper
+    // create a globally uniq instance name and create a live instance node in Zookeper
     _instanceName = createLiveInstanceNode();
 
     LOG.info("Coordinator instance " + _instanceName + " is online");
@@ -240,9 +240,9 @@ public class ZkAdapter {
   }
 
   /**
-   *  Each instance of coordinator (and coordinator zk adapter) must participate the leader
+   *  Each instance of coordinator (and coordinator zk adapter) must participate in the leader
    *  election. This method will be called when the zk connection is made, in ZkAdapter.connect() method.
-   *  This is a standard implementation of the ZooKeeper leader election recipe.
+   *  This is a standard implementation of ZooKeeper leader election recipe.
    *
    *  <ul>
    *      <li>
@@ -276,7 +276,7 @@ public class ZkAdapter {
     int index = liveInstances.indexOf(nodeName);
 
     if (index < 0) {
-      // only when the zookeeper session already expired by the time this adapter joins for leader election.
+      // only when the Zookeper session already expired by the time this adapter joins for leader election.
       // mostly because the zkclient session expiration timeout.
       LOG.error("Failed to join leader election. Try reconnect the zookeeper");
       connect();
@@ -380,7 +380,7 @@ public class ZkAdapter {
   }
 
   /**
-   * @return a list of instances include both dead and live ones.
+   * @return a list of instances including both dead and live ones.
    * Dead ones can be removed only after new assignments have
    * been fully populated by the leader Coordinator via strategies.
    */
@@ -391,7 +391,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Touch all assignment nodes for every instance. So that all instances get notified that some datastreams
+   * Touch all assignment nodes for every instance, so that all instances get notified that some datastreams
    * get updated.
    */
   public void touchAllInstanceAssignments() {
@@ -430,7 +430,7 @@ public class ZkAdapter {
   }
 
   /**
-   * When previous leader dies, we lose all the cached tasks.
+   * When the previous leader dies, we lose all the cached tasks.
    * As the current leader, we should try to load tasks from ZK.
    * This is very likely to be one time operation, so it should be
    * okay to hit ZK.
@@ -490,7 +490,7 @@ public class ZkAdapter {
       task.setZkAdapter(this);
       return task;
     } catch (ZkNoNodeException e) {
-      // This can occur there is another task assignment change in the middle of
+      // This can occur if there is another task assignment change in the middle of
       // handleAssignmentChange and some tasks are unassigned to the current
       // instance. In this case, we would get such exception. This is tolerable
       // because we should be receiving another AssignmentChange event right after
@@ -641,7 +641,7 @@ public class ZkAdapter {
           .map(DatastreamTask::getDatastreamTaskName)
           .collect(Collectors.toSet());
 
-      // get the old assignment from zookeeper
+      // get the old assignment from Zookeper
       Set<String> oldAssignmentNames = new HashSet<>();
       String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
       if (_zkclient.exists(instancePath)) {
@@ -708,7 +708,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Save the error message in zookeeper under /{cluster}/instances/{instanceName}/errors
+   * Save the error message in Zookeper under /{cluster}/instances/{instanceName}/errors
    */
   public void zkSaveInstanceError(String message) {
     String path = KeyBuilder.instanceErrors(_cluster, _instanceName);
@@ -718,7 +718,7 @@ public class ZkAdapter {
     }
 
     // the coordinator is a server, so let's don't do infinite retry, log
-    // error instead. The error node in zookeeper will stay only when the instance
+    // error instead. The error node in Zookeper will stay only when the instance
     // is alive. Only log the first 10 errors that would be more than enough for
     // debugging the server in most cases.
 
@@ -883,20 +883,20 @@ public class ZkAdapter {
 
     /**
      * onLiveInstancesChange is called when the list of live instances changed. That is, any
-     * children change under zookeeper under /{cluster}/instances. This method is called
+     * children change under Zookeper under /{cluster}/instances. This method is called
      * only when this Coordinator is the leader.
      */
     void onLiveInstancesChange();
 
     /**
-     * onAssignmentChange is a callback method triggered when the children changed in zookeeper
+     * onAssignmentChange is a callback method triggered when the children changed in Zookeper
      * under /{cluster}/instances/{instance-name}.
      */
     void onAssignmentChange();
 
     /**
      * onDatastreamAddOrDrop is called when there are changes to the datastreams under
-     * zookeeper path /{cluster}/dms. This method is called only when the Coordinator
+     * Zookeper path /{cluster}/dms. This method is called only when the Coordinator
      * is the leader.
      */
     void onDatastreamAddOrDrop();
@@ -915,7 +915,7 @@ public class ZkAdapter {
     private String _path;
 
     /**
-     * default constructor, it will initiate the list by first read from zookeeper, and also setup
+     * default constructor, it will initiate the list by first read from Zookeper, and also set up
      * a watch on the /{cluster}/dms tree, so it can be notified for future changes.
      */
     public ZkBackedDMSDatastreamList() {
@@ -960,11 +960,11 @@ public class ZkAdapter {
 
   /**
    * ZkBackedLiveInstanceListProvider is only used by the current leader instance. It provides a cached
-   * list of current live instances, by watching the live instances tree in zookeeper. The watched path
+   * list of current live instances, by watching the live instances tree in ZooKeeper. The watched path
    * is <i>/{cluster}/liveinstances</i>. Note the difference between the node names under live instances
    * znode and under instances znode: the znode for instances has the format {hostname}-{sequence}.
-   * ZkBackedLiveInstanceListProvider is responsible to do the translation from live instance names
-   * to instance names.
+   * ZkBackedLiveInstanceListProvider is responsible for translating from live instance name to instance
+   * names.
    *
    * <p>Because ZkBackedLiveInstanceListProvider abstracts the knowledge of live instances, it is
    * also responsible for cleaning up when a previously live instances go offline or crash. When
@@ -1039,8 +1039,8 @@ public class ZkAdapter {
 
   /**
    * ZkBackedTaskListProvider provides information about all DatastreamTasks existing in the cluster
-   * grouped by the connector type. In addition, it notifies the listener about changes happened to
-   * task node changes under the connector node.
+   * grouped by the connector type. In addition, it notifies the listener about changes that happened
+   * to task node changes under the connector node.
    */
   public class ZkBackedTaskListProvider implements IZkChildListener, IZkDataListener {
     private final String _path;

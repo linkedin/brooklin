@@ -37,7 +37,7 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
 /**
- * This is Kafka Transport provider that writes events to kafka.
+ * This is Kafka Transport provider that writes events to Kafka.
  */
 public class KafkaTransportProvider implements TransportProvider {
   private static final String CLASS_NAME = KafkaTransportProvider.class.getSimpleName();

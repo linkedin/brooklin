@@ -67,7 +67,7 @@ import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
-/*
+/**
  * Resources classes are used by rest.li to process corresponding http request.
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
@@ -235,7 +235,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
 
     try {
-      // Zookeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
+      // ZooKeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
       // are updated before we touch the "assignments" node to avoid race condition
       for (String key : datastreamMap.keySet()) {
         _store.updateDatastream(key, datastreamMap.get(key), false);
@@ -421,7 +421,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
+   * Given a datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
    * @param pathKeys Datastream resource key
    * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
    *                         or <"FooTopic","*">

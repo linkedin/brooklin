@@ -90,9 +90,9 @@ public interface GroupIdConstructor {
   /**
    * The method is supposed to return group ID for a task.
    * Default implementation:
-   * 1. Checks if group ID is present in any datastream's metadata and return it if found. (It also checks for
-   * group ID inconsistency
-   * 2. If group ID not found, it constructs it explicitly and returns it.
+   * 1. Checks if group ID is present in any datastream's metadata and returns it if found. (It also checks for
+   * group ID inconsistency)
+   * 2. If group ID is not found, it constructs it explicitly and returns it.
    * Note: If some group ID constructor doesn't get group ID in any other way other than explicitly constructing it,
    * this method should be same as constructGroupId(DatastreamTask task) method.
    * @param task Task for which group ID should be returned
