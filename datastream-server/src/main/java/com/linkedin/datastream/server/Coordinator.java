@@ -82,7 +82,7 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 /**
  *
  * Coordinator is the object that bridges ZooKeeper with Connector implementations. There is one instance
- * of Coordinator for each deployable DatastreamService instance. The Coordinator can connect multiple connectors,
+ * of Coordinator for each deployable Brooklin service instance. The Coordinator can connect multiple connectors,
  * but each of them must belong to a different type. The Coordinator calls the Connector.getConnectorType() to
  * inspect the type of the connectors to make sure that there is only one connector for each type.
  *
