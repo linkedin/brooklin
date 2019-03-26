@@ -10,7 +10,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,7 +20,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -113,8 +111,8 @@ public class DatastreamServer {
     LOG.info("Creating coordinator.");
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
 
-    HashSet<String> connectorTypes =
-        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_CONNECTOR_NAMES).split(",")));
+    HashSet<String> connectorTypes = new HashSet<>(verifiableProperties.getStringList(CONFIG_CONNECTOR_NAMES,
+        Collections.emptyList()));
     if (connectorTypes.size() == 0) {
       String errorMessage = "No connectors specified in connectorTypes";
       LOG.error(errorMessage);
@@ -122,17 +120,12 @@ public class DatastreamServer {
     }
 
     HashSet<String> transportProviderNames =
-        new HashSet<>(Arrays.asList(verifiableProperties.getString(CONFIG_TRANSPORT_PROVIDER_NAMES).split(",")));
+        new HashSet<>(verifiableProperties.getStringList(CONFIG_TRANSPORT_PROVIDER_NAMES, Collections.emptyList()));
     if (transportProviderNames.size() == 0) {
       String errorMessage = "No transport providers specified in config: " + CONFIG_TRANSPORT_PROVIDER_NAMES;
       LOG.error(errorMessage);
       throw new DatastreamRuntimeException(errorMessage);
     }
-
-    Set<String> serdeNames = Arrays.asList(verifiableProperties.getString(CONFIG_SERDE_NAMES, "").split(","))
-        .stream()
-        .filter(x -> !x.isEmpty())
-        .collect(Collectors.toSet());
 
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
     coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
@@ -157,6 +150,7 @@ public class DatastreamServer {
           verifiableProperties.getDomainProperties(CONFIG_TRANSPORT_PROVIDER_PREFIX + tpName));
     }
 
+    Set<String> serdeNames = new HashSet<>(verifiableProperties.getStringList(CONFIG_SERDE_NAMES, Collections.emptyList()));
     LOG.info("Loading Serdes {} ", serdeNames);
     for (String serde : serdeNames) {
       initializeSerde(serde, verifiableProperties.getDomainProperties(CONFIG_SERDE_PREFIX + serde));

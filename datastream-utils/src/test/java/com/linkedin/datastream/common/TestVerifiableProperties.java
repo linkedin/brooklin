@@ -5,6 +5,8 @@
  */
 package com.linkedin.datastream.common;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 
 import org.testng.Assert;
@@ -58,5 +60,31 @@ public class TestVerifiableProperties {
     Assert.assertEquals(props3.getProperty(key1), "value1");
     Assert.assertEquals(props3.getProperty(key2), "value2");
     Assert.assertEquals(props3.getProperty(key3), "value3");
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testGetStringListThrowsIfNonExistentPropertyNoDefault() {
+    VerifiableProperties verifiableProperties = new VerifiableProperties(new Properties());
+    verifiableProperties.getStringList("non-existing-prop-no-default");
+  }
+
+  @Test
+  public void testGetStringListReturnsValueOrDefault() {
+    final String propertyName = "prop-name";
+    Properties properties = new Properties();
+    properties.put(propertyName, ", value1,value2 ,, value3 ,value4,,");
+
+    VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
+
+    // Get non-existing property with default
+    List<String> defaultValue = Arrays.asList("a", "b");
+    Assert.assertEquals(verifiableProperties.getStringList("non-existing-prop-with-default", defaultValue), defaultValue);
+
+    // Get existing property
+    List<String> strings = verifiableProperties.getStringList(propertyName);
+    List<String> expectedStringList = Arrays.asList("value1", "value2", "value3", "value4");
+
+    Assert.assertEquals(strings.size(), expectedStringList.size());
+    Assert.assertEquals(strings, expectedStringList);
   }
 }
