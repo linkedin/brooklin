@@ -3,7 +3,7 @@
   "namespace" : "com.linkedin.datastream.server.dms",
   "path" : "/datastream",
   "schema" : "com.linkedin.datastream.common.Datastream",
-  "doc" : "generated from: com.linkedin.datastream.server.dms.DatastreamResources",
+  "doc" : "Resources classes are used by rest.li to process corresponding http request.\n Note that rest.li will instantiate an object each time it processes a request.\n So do make it thread-safe when implementing the resources.\n\ngenerated from: com.linkedin.datastream.server.dms.DatastreamResources",
   "collection" : {
     "identifier" : {
       "name" : "datastreamId",
@@ -57,7 +57,7 @@
         } ]
       }, {
         "name" : "resumeSourcePartitions",
-        "doc" : "Given datastream and a map representing < source, list of partitions to resume >, resumes the partitions.",
+        "doc" : "Given a datastream and a map representing < source, list of partitions to resume >, resumes the partitions.",
         "parameters" : [ {
           "name" : "sourcePartitions",
           "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
