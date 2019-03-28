@@ -45,10 +45,13 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 
 /**
- * This implements a TransportProviderAdmin for Kafka as the transport provider.
- * - Maintains the mapping of which TransportProvider each DatastreamTask is assigned to
- * - Topic creation/deletion on the datastream destination
- * - Setting up the correct destination connection string/kafka brokers.
+ * {@link TransportProviderAdmin} implementation for {@link KafkaTransportProvider}
+ *
+ * <ul>
+ *  <li>Maintains the mapping of which {@link TransportProvider} each {@link DatastreamTask} is assigned to</li>
+ *  <li>Takes care of topic creation/deletion on the datastream destination</li>
+ *  <li>Sets up the correct destination connection string/kafka brokers</li>
+ * </ul>
  */
 public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
@@ -85,10 +88,9 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   private Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
 
   /**
-   * Constructor for KafkaTransportProviderAdmin. This takes as input the transport provider name and the properties
-   * to be used by the transport provider.
-   * This sets up the the metadata needed for destination management such as ZK connect string/bootstrap.servers config
-   * Initializes the transport provider properties and topic properties.
+   * Constructor for KafkaTransportProviderAdmin.
+   * @param transportProviderName transport provider name
+   * @param props TransportProviderAdmin configuration properties, e.g. ZooKeeper connection string, bootstrap.servers.
    */
   public KafkaTransportProviderAdmin(String transportProviderName, Properties props) {
     _transportProviderProperties = props;
@@ -237,7 +239,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   /**
-   * Create topic based on the destination connection string if it does not already exist.
+   * Create Kafka topic based on the destination connection string, if it does not already exist.
    * @param connectionString connection string from which to obtain topic name
    * @param numberOfPartitions number of partitions
    * @param topicConfig topic config to use for topic creation
@@ -313,10 +315,10 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   /**
-   * Get the kafka destination for a given Datastream object
-   * @param datastream the Datastream object for which to return the destination.
-   * @param topicName the topic name for which to return the destination.
-   * @return KafkaDestination string
+   * Get the kafka destination URI for a given {@link Datastream} object
+   * @param datastream the Datastream object for which to return the destination
+   * @param topicName the topic name for which to return the destination
+   * @return Kafka destination URI as a string
    */
   public String getDestination(Datastream datastream, String topicName) {
     String destinationBrokers = datastream == null ? null

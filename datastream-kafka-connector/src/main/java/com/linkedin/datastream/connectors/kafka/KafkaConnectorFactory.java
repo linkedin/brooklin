@@ -11,7 +11,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
 /**
- * Factory class that creates and returns an instance of a KafkaConnector object.
+ * Factory class for creating instances of {@link KafkaConnector}
  */
 public class KafkaConnectorFactory implements ConnectorFactory<KafkaConnector> {
   @Override

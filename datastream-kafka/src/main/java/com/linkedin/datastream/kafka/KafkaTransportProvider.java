@@ -60,9 +60,13 @@ public class KafkaTransportProvider implements TransportProvider {
 
   /**
    * Constructor for KafkaTransportProvider.
-   * This takes the datastreamTask, list of producers, transport provider properties and a metrics name prefix as input
-   * for metrics management.
-   * The config properties must have "bootstrap.servers" config set for initialization to succeed.
+   * @param datastreamTask the {@link DatastreamTask} to which this transport provider is being assigned
+   * @param producers Kafka producers to use for producing data to destination Kafka cluster
+   * @param props Kafka producer configuration
+   * @param metricsNamesPrefix the prefix to use when emitting metrics
+   * @throws IllegalArgumentException if either datastreamTask or producers is null
+   * @throws DatastreamRuntimeException if "bootstrap.servers" is not specified in the supplied config
+   * @see ProducerConfig
    */
   public KafkaTransportProvider(DatastreamTask datastreamTask, List<KafkaProducerWrapper<byte[], byte[]>> producers,
       Properties props, String metricsNamesPrefix) {
@@ -198,7 +202,7 @@ public class KafkaTransportProvider implements TransportProvider {
   /**
    * Get the metrics info for a given metrics name prefix.
    * @param metricsNamesPrefix metrics name prefix to look up metrics info for.
-   * @return the list of BrooklinMetricInfo found for the metrics name prefix.
+   * @return the list of {@link BrooklinMetricInfo} found for the metrics name prefix
    */
   public static List<BrooklinMetricInfo> getMetricInfos(String metricsNamesPrefix) {
     String prefix = metricsNamesPrefix == null ? CLASS_NAME + MetricsAware.KEY_REGEX

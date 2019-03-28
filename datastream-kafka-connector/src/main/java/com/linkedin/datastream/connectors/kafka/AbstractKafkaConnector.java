@@ -51,11 +51,12 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  * Base class for connectors that consume from Kafka.
  *
  * This class abstracts out common logic needed for all Kafka connectors such as:
- * - Create and spawn threads to handle DatastreamTasks assigned to this connector instance
- * - Track all currently running tasks and listen for changes in task assginment in onAssignmentChange() callback
- *   calls. Update the new task assignment (starting/stopping tasks as needed).
- * - Restarting stalled DatastreamTasks
- * - Pause and resume support as Datastream update types, paused partition validation
+ * <ul>
+ *  <li>Creating and spawning threads to handle {@link DatastreamTask}s assigned to this connector instance</li>
+ *  <li>Tracking all currently running tasks and listening for changes in task assignment</li>
+ *  <li>Updating the new task assignment (starting/stopping tasks as needed)</li>
+ *  <li>Restarting stalled {@link DatastreamTask}s</li>
+ * </ul>
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
@@ -94,8 +95,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Constructor for AbstractKafkaConnector. Takes as input the connector name, the logger to be used for log messages,
-   * the cluster name, config parameters for kafka connectors, and a group ID constructor for the consumer.
+   * Constructor for AbstractKafkaConnector.
+   * @param connectorName the connector name
+   * @param config Kafka-based connector configuration options
+   * @param groupIdConstructor Consumer group ID constructor for the Kafka Consumer
+   * @param clusterName Brooklin cluster name
+   * @see KafkaBasedConnectorConfig
    */
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
       String clusterName, Logger logger) {
@@ -135,7 +140,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Create the task thread to run an AbstractKafkaBasedConnectorTask
+   * Create a thread to run the provided {@link AbstractKafkaBasedConnectorTask} without starting it.
    */
   public Thread createTaskThread(AbstractKafkaBasedConnectorTask task) {
     Thread t = new Thread(task);

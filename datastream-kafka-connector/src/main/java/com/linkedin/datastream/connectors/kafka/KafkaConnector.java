@@ -44,8 +44,8 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   /**
    * Constructor for KafkaConnector.
-   * This takes care of constructing the KafkaGroupIdConstructor for constructing the consumer group ID.
-   * It also creates a whitelist of Kafka brokers from properties passed in.
+   * This takes care of constructing the {@link KafkaGroupIdConstructor} for constructing the consumer group ID.
+   * It also creates a whitelist of Kafka brokers from the provided config properties.
    */
   public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(

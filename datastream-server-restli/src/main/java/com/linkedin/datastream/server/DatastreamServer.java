@@ -107,17 +107,24 @@ public class DatastreamServer {
   }
 
   /**
-   * Constructor for the DatastreamServer which sets up state and initializes various components used.
-   * Some of the objects/services set up are:
-   * - Initializes all connectors (including bootstrap connectors) declared in properties
-   * - Initializes all transport providers declared in properties
-   * - Initializes all SerDes declared in properties
-   * - Sets up the coordinator with coordinator properties obtained from properties
-   * - Sets up the jetty launcher
-   * - Sets up the DMS endpoint server
-   * - Initializes metrics
+   * Constructor for the DatastreamServer
+   *
+   * Sets up state and initializes various components, e.g.
+   * <ul>
+   *  <li>Initializes all connectors (including bootstrap connectors) declared in properties</li>
+   *  <li>Initializes all transport providers declared in properties</li>
+   *  <li>Initializes all SerDes declared in properties</li>
+   *  <li>Sets up the coordinator with coordinator properties obtained from properties</li>
+   *  <li>Sets up the jetty launcher</li>
+   *  <li>Sets up the DMS endpoint server</li>
+   *  <li>Initializes metrics</li>
+   * </ul>
    * @param properties properties to set up the DatastreamServer with.
-   * @throws DatastreamException
+   * @throws DatastreamException if any of the following config properties is missing or empty:
+   *  <ul>
+   *    <li>{@value DatastreamServerConfigurationConstants#CONFIG_CONNECTOR_NAMES}</li>
+   *    <li>{@value DatastreamServerConfigurationConstants#CONFIG_TRANSPORT_PROVIDER_NAMES}</li>
+   *  </ul>
    */
   public DatastreamServer(Properties properties) throws DatastreamException {
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
@@ -361,9 +368,9 @@ public class DatastreamServer {
   }
 
   /**
-   * Method called on startup of the DatastreamServer
-   * This starts up the JMX reporter, coordinator, and the DMS rest endpoint
-   * @throws DatastreamException
+   * Starts the DatastreamServer
+   * This starts up the JMX reporter, coordinator, and the DMS REST endpoint.
+   * @throws DatastreamException if starting the HTTP jetty server fails
    */
   public synchronized void startup() throws DatastreamException {
     // Start the JMX reporter
@@ -389,8 +396,8 @@ public class DatastreamServer {
   }
 
   /**
-   * Method called on shutdown of DatastreamServer
-   * This stops the JMX reporter, coordinator, and DMS rest endpoint on shutdown.
+   * Shuts down the DatastreamServer
+   * This stops the JMX reporter, coordinator, and DMS REST endpoint.
    */
   public synchronized void shutdown() {
     if (_coordinator != null) {
@@ -415,10 +422,10 @@ public class DatastreamServer {
   }
 
   /**
-   * Takes a file containing a list of server properites as argument to create an instance of the DatastreamServer.
-   * Starts up the instance of the DatastreamServer and waits for shutdown via a shutdown handler to catch control-c.
-   * @param args the file containing the server properties to be used to set up the DatastreamServer
-   * @throws Exception
+   * The main entry point for Brooklin server application
+   *
+   * Expects a Java properties configuration file containing the server
+   * properties to use for setting up a {@link DatastreamServer} instance.
    */
   public static void main(String[] args) throws Exception {
     Properties serverProperties = getServerProperties(args);
@@ -453,10 +460,8 @@ public class DatastreamServer {
   }
 
   /**
-   * Load properties from given filename.
-   * @param filename Name of the file to load properties from.
-   * @return properties object loaded from file.
-   * @throws IOException
+   * Load properties from the specified Java properties file
+   * @param filename  Properties file path
    */
   public static Properties loadProps(String filename) throws IOException {
     Properties props = new Properties();

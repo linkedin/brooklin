@@ -12,7 +12,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamDeduperFactory;
 
 
 /**
- * Factory that creates and returns an instance of a SourceBasedDeduper.
+ * A factory of {@link SourceBasedDeduper} objects
  */
 public class SourceBasedDeduperFactory implements DatastreamDeduperFactory {
   @Override

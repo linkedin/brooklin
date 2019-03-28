@@ -31,9 +31,9 @@ public class KafkaDestination {
 
   /**
    * Constructor for creating a KafkaDestination object
-   * @param zkAddress zkAddress of the Kafka destination
-   * @param topicName topic name of the Kafka destination
-   * @param isSecure boolean to denote whether the Kafka destination is secure or not
+   * @param zkAddress ZooKeeper address and port
+   * @param topicName Kafka topic name
+   * @param isSecure boolean to indicate whether the Kafka destination uses SSL or not
    */
   public KafkaDestination(String zkAddress, String topicName, boolean isSecure) {
     _zkAddress = zkAddress;
@@ -42,9 +42,9 @@ public class KafkaDestination {
   }
 
   /**
-   * URI parser for extracting out the relevant fields within a URI string and constructing a KafkaDestination.
-   * @param uri the URI string to parse to obtain the KafkaDestination.
-   * @return the KafkaDestination created by parsing the URI string.
+   * Construct a KafkaDestination by parsing URI to extract the relevant fields
+   * @param uri Kafka destination URI
+   * @return KafkaDestination created by parsing the URI string
    */
   public static KafkaDestination parse(String uri) {
     Validate.isTrue(uri.startsWith(SCHEME_KAFKA) || uri.startsWith(SCHEME_SECURE_KAFKA),
