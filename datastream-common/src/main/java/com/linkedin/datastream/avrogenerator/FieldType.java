@@ -7,20 +7,18 @@ package com.linkedin.datastream.avrogenerator;
 
 /**
  * FieldType is an interface to the wrapper classes for different Database Types.
- * Using Oracle as an example:
  *
- * In Oracle there are 3 main types of data you can store:
+ * there are 3 main types of data you can store:
  *
  * 1. Simple Primitive types
- *    These are the CHARS, VARCHAR2, TIMESTAMP etc. For these types we have the wrapper class
- *    {@link OraclePrimitiveType}
+ *    These are the CHARS, VARCHAR2, TIMESTAMP etc.
  *
  * 2. Struct Types
  *    Struct Types are better viewed as table with in a table. In some cases developers might
  *    want to build their own type and store it in Oracle. For example you might have a column
  *    with name: Settings, that stores a type: SETTING, (instead of the primitive CHARS or NCHARS).
  *    Now this type SETTING can be modeled with child types that are primitive or might be other
- *    Struct Types. The wrapper class for Struct types are {@link OracleStructType}
+ *    Struct Types.
  *
  * 3. Array/Collection Types
  *    This is when developers choose to store an associative array within a single column.
@@ -28,7 +26,7 @@ package com.linkedin.datastream.avrogenerator;
  *    Each element in the Array might be type CHAR. The elements of this array can be of
  *    any type [CHARS (primitive), SETTING (struct), or more ARRAY's (array), .. etc]
  *    Note, that Oracle collections adhere to strict types, meaning a collection can only
- *    only one subtype. The wrapper class is {@link OracleCollectionType}
+ *    only one subtype.
  *
  */
 public interface FieldType {
