@@ -30,7 +30,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
  * Creates the datastreamTasks only for the new datastreams. The number of tasks created for datastream is
  * min(NumberOfPartitionsInDatastream, numberOfInstances * OVER_PARTITIONING_FACTOR).
  * These datastreamTasks are sorted by the datastreamName.
- * These tasks are then redistributed across all the instances equally.
+ * These tasks are then evenly redistributed across all the instances.
  */
 public class LoadbalancingStrategy implements AssignmentStrategy {
 

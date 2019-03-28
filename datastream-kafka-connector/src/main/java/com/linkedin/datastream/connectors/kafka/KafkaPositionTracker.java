@@ -43,7 +43,7 @@ import com.linkedin.datastream.common.diag.PhysicalSources;
  * This information can then be used to provide diagnostic and analytic information about our position on the Kafka
  * topic (e.g. Do we have more messages to consume? Are we stuck or are we making progress?).
  */
-public class KafkaPositionTracker {
+public class  KafkaPositionTracker {
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaPositionTracker.class);
 

@@ -20,7 +20,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactor
 
 
 /**
- * Factory for the NoOpTransportProvider that doesn't perform anything.
+ * Factory for the NoOpTransportProvider that doesn't do anything.
  */
 public class NoOpTransportProviderAdminFactory implements TransportProviderAdminFactory {
   @Override

@@ -47,15 +47,15 @@ public interface Connector extends MetricsAware {
   void onAssignmentChange(List<DatastreamTask> tasks);
 
   /**
-   * Initialize the datastream. Any connector specific validations for the datastream needs to performed here.
+   * Initialize the datastream. Any connector-specific validations for the datastream needs to performed here.
    * Connector can mutate the datastream object in this call. Framework will write the updated datastream object.
    * NOTE:
-   *   1. This method is called by the rest li service before the datastream is written to the zookeeper, So please make sure,
-   *   this call doesn't block for more then few seconds otherwise the rest call will timeout.
+   *   1. This method is called by the restli service before the datastream is written to ZooKeeper, so please make sure,
+   *   this call doesn't block for more then few seconds otherwise the rest call will time out.
    *   2. It is possible that the brooklin framework may call this method in parallel to another onAssignmentChange
-   *   call. It is upto the connector to perform the synchronization if it needs between initialize and onAssignmentChange.
-   * @param stream: Datastream model
-   * @param allDatastreams: all existing datastreams in the system of connector type of the datastream that is being
+   *   call. It is up to the connector to perform the synchronization if it needs between initialize and onAssignmentChange.
+   * @param stream Datastream model
+   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.
    * @throws DatastreamValidationException when the datastream that is being created fails any validation.
    */
@@ -77,8 +77,8 @@ public interface Connector extends MetricsAware {
   /**
    * Checks if certain update type is supported by given connector. Can be used to validate if given update operation is
    * supported for given connector(s).
+   * @param datastream datastream to check for update support
    * @param updateType Type of datastream update
-   * @throws DatastreamValidationException when connector doesn't support update type.
    */
   default boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
     return false;
@@ -112,7 +112,7 @@ public interface Connector extends MetricsAware {
    * Hook that can be used to do any final connector related initializations on datastream, after coordinator is done
    * with its set of initializations.
    *
-   * NOTE: This method is called by the rest li service before the datastream is written to the zookeeper, So please make
+   * NOTE: This method is called by the restli service before the datastream is written to ZooKeeper, so please make
    *   sure this call doesn't block for more then few seconds otherwise the rest call will timeout.
    * @param stream Datastream being initialized
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being

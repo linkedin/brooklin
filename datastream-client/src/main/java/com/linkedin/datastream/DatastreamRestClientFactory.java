@@ -18,7 +18,7 @@ import com.linkedin.restli.client.RestClient;
 /**
  * Factory class for obtaining {@link DatastreamRestClient} objects.
  *
- * The reason is that currently we inject the dmsUri as part of the configuration
+ * The reason is that we currently inject the dmsUri as part of the configuration
  * but we don't have a dependency injection framework that allows us to inject mock
  * DatastreamRestClient, without doing a major refactoring of the code.
  */

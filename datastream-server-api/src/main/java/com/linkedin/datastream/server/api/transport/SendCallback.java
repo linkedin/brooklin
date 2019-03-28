@@ -13,7 +13,7 @@ public interface SendCallback {
   /**
    * Callback method that needs to be called when the send completes
    * @param metadata
-   *   Metadata of the Datastream record that got sent. Could be Null if an exception occurred based on the transport
+   *   Metadata of the Datastream record that got sent. Could be null if an exception occurred based on the transport
    * @param exception
    *   null if the send succeeded, Contains the exception if the send failed.
    */

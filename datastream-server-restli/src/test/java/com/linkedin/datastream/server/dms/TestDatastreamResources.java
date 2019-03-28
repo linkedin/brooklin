@@ -46,7 +46,7 @@ import com.linkedin.restli.server.RestLiServiceException;
 
 
 /**
- * Test DatastreamResources with zookeeper backed DatastreamStore
+ * Test DatastreamResources with ZooKeeper backed DatastreamStore
  */
 @Test(singleThreaded = true)
 public class TestDatastreamResources {

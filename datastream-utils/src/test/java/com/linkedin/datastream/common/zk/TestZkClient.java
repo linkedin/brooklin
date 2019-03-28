@@ -30,7 +30,7 @@ public class TestZkClient {
 
   @BeforeMethod
   public void setup() throws IOException {
-    // each embeddedzookeeper should be on different port
+    // each embeddedZookeper should be on different port
     // so the tests can run in parallel
     _embeddedZookeeper = new EmbeddedZookeeper();
     _zkConnectionString = _embeddedZookeeper.getConnection();

@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * Class for sending events to the corresponding EventProducer and keeping track of the in flight messages,
+ * Class for sending events to the corresponding EventProducer and keeping track of the inflight messages,
  * and the acknowledged checkpoints for each source partition.
  *
  * The main assumption of this class is that: For each source/partition tuple, the send method should
@@ -40,7 +40,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * Reset all the in-flight status counters, and metadata stored for this eventProducer.
+   * Reset all the inflight status counters, and metadata stored for this eventProducer.
    * This should be used after calling flush and getting partition reassignments.
    */
   public void clear() {
@@ -96,7 +96,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   /**
    * @return the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
    *         If all tasks are up to date, returns the passed {@code currentCheckpoint}
-   *         NOTE: This method assume that the checkpoints are monotonically increasing across DestinationPartition.
+   *         NOTE: This method assumes that the checkpoints are monotonically increasing across DestinationPartition.
    *               For example, for a connector reading from a source with a global monotonic SCN (e.g. Espresso)
    *               this function will work correctly.
    */
@@ -138,7 +138,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * Helper class to store the callback status of the inFlight events.
+   * Helper class to store the callback status of the inflight events.
    */
   private class CallbackStatus {
     private T _currentCheckpoint = null;

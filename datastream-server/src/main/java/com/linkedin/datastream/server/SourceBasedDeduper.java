@@ -17,7 +17,7 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 
 
 /**
- * Deduper that uses the source to figure out whether two datastreams can be de-duped.
+ * Deduper that uses the source to figure out whether two datastreams can be deduped.
  */
 public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   private static final Logger LOG = LoggerFactory.getLogger(SourceBasedDeduper.class);

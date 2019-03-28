@@ -10,6 +10,9 @@ import java.util.Properties;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
+/**
+ * Factory class for creating instances of {@link KafkaConnector}
+ */
 public class KafkaConnectorFactory implements ConnectorFactory<KafkaConnector> {
   @Override
   public KafkaConnector createConnector(String connectorName, Properties config, String clusterName) {

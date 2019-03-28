@@ -6,32 +6,32 @@
 package com.linkedin.datastream.kafka;
 
 /**
- * Interface to control the kafka cluster that is setup during testing.
+ * Interface to control the Kafka cluster that is setup during testing.
  */
 public interface KafkaCluster {
 
   /**
-   * @return the brokers that are part of the kafka cluster.
+   * @return the brokers that are part of the Kafka cluster.
    */
   String getBrokers();
 
   /**
-   * @return the zookeeper connection string used by the kafka cluster.
+   * @return ZooKeeper connection string used by the Kafka cluster.
    */
   String getZkConnection();
 
   /**
-   * @return whether the kafka cluster is started or not.
+   * @return whether the Kafka cluster is started or not.
    */
   boolean isStarted();
 
   /**
-   * Start the kafka cluster.
+   * Start the Kafka cluster.
    */
   void startup();
 
   /**
-   * Stop the kafka cluster.
+   * Stop the Kafka cluster.
    */
   void shutdown();
 }

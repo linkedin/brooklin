@@ -11,7 +11,7 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
 /**
- * Factory for creating KafkaMirrorMakerConnector instances.
+ * Factory for creating {@link KafkaMirrorMakerConnector} instances.
  */
 public class KafkaMirrorMakerConnectorFactory implements ConnectorFactory<KafkaMirrorMakerConnector> {
 

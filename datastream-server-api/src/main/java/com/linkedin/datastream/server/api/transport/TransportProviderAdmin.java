@@ -14,12 +14,13 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 
 
 /**
- * Transport provider Admin interface that each of the transport providers need to implement.
+ * The TransportProviderAdmin abstracts the creation and lifetime management of {@link TransportProvider}s
+ * as well as their assignment to {@link DatastreamTask}s.
  */
 public interface TransportProviderAdmin extends MetricsAware {
 
   /**
-   * assign the instance of the TransportProvider to the DatastreamTask. TransportProviderAdmin can
+   * Assign the instance of the TransportProvider to the DatastreamTask. TransportProviderAdmin can
    * choose to create a new TransportProvider to reuse the existing transport provider for this task.
    * @return
    *   TransportProvider associated with the task
@@ -35,7 +36,7 @@ public interface TransportProviderAdmin extends MetricsAware {
   void unassignTransportProvider(DatastreamTask task);
 
   /**
-   * initializes the destination for the datastream.
+   * Initializes the destination for the datastream.
    * If the datastream has destination already filled. Transport provider performs the necessary validations.
    * @param datastream
    *   Datastream whose destination needs to be validated.
@@ -45,7 +46,7 @@ public interface TransportProviderAdmin extends MetricsAware {
   void initializeDestinationForDatastream(Datastream datastream, String destinationName) throws DatastreamValidationException;
 
   /**
-   * create the destination for the datastream.
+   * Create the destination for the datastream.
    */
   void createDestination(Datastream datastream);
 

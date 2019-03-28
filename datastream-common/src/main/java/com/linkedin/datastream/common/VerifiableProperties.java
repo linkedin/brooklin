@@ -6,10 +6,13 @@
 package com.linkedin.datastream.common;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
 
+import java.util.stream.Collectors;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -266,6 +269,35 @@ public class VerifiableProperties {
     } else {
       return getProperty(name);
     }
+  }
+
+  /**
+   * Get a string property whose value is a comma-separated list of strings.
+   * @param name property name
+   * @return property value as a list of strings; split around comma with
+   *         leading/trailing whitespaces surrounding substrings trimmed
+   *         and empty substrings removed.
+   * @throws IllegalArgumentException if no such property is defined.
+   */
+  public List<String> getStringList(String name) {
+    String v = getString(name);
+    return Arrays.stream(StringUtils.split(v, ',')).map(String::trim).collect(Collectors.toList());
+  }
+
+  /**
+   * Get a string property whose value is a comma-separated list of strings.
+   * @param name property name
+   * @param defaultValue value to return if no such property is defined
+   * @return property value as a list of strings; split around comma with
+   *         leading/trailing whitespaces surrounding substrings trimmed
+   *         and empty substrings removed, or default value if no such
+   *         property is defined.
+   */
+  public List<String> getStringList(String name, List<String> defaultValue) {
+    if (!containsKey(name)) {
+      return defaultValue;
+    }
+    return getStringList(name);
   }
 
   public void verify() {

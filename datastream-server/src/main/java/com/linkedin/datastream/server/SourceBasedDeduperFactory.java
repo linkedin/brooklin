@@ -11,6 +11,9 @@ import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduperFactory;
 
 
+/**
+ * A factory of {@link SourceBasedDeduper} objects
+ */
 public class SourceBasedDeduperFactory implements DatastreamDeduperFactory {
   @Override
   public DatastreamDeduper createDatastreamDeduper(Properties deduperProperties) {

@@ -20,7 +20,7 @@ import static com.linkedin.datastream.common.DatastreamUtils.getPayloadSerDe;
 
 
 /**
- * Abstract class for implementing dedupers conforming some basic requirements:
+ * Abstract class for implementing dedupers conforming to some basic requirements:
  *
  * 1) reuse is allowed per datastream metadata for both new and existing streams
  * 2) existing streams have valid source/destination

@@ -31,13 +31,13 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 
 
 /**
- * This Assignment Strategy follow the following rules:
+ * This Assignment Strategy follows the following rules:
  * a) The number of tasks for each datastream can be different. There will be a default value in case the datastream
- * does not have one defined.
+ *    does not have one defined.
  * b) For each datastream the number of tasks might be greater than the number of instances, but only as many as
  *    dsTaskLimitPerInstance. The default is 1.
- * c) The differences on the number of tasks assigned between any two instances should be less than or equal to
- *    the imbalance threshold, otherwise, it will trigger an rebalance
+ * c) The differences in the number of tasks assigned between any two instances should be less than or equal to
+ *    the imbalance threshold, otherwise, it will trigger a rebalance
  * d) Try to preserve previous tasks assignment, in order to minimize the number of task movements.
  * e) The tasks for a datastream might not be balanced across the instances; however, the tasks across all datastreams
  *    will be balanced such that condition (c) above is held.

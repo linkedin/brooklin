@@ -111,10 +111,10 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
 
     long eventsSourceTimestamp = readTime.toEpochMilli();
     if (fromKafka.timestampType() == TimestampType.CREATE_TIME) {
-      // If the kafka header contains the create time. We store the event creation time as event timestamp
+      // If the Kafka header contains the create time. We store the event creation time as event timestamp
       metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
     } else if (fromKafka.timestampType() == TimestampType.LOG_APPEND_TIME) {
-      // If the kafka header contains the log append time, We use that as event source Timestamp
+      // If the Kafka header contains the log append time, We use that as event source Timestamp
       // which will be used to calculate the SLA.
       metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_TIMESTAMP, String.valueOf(fromKafka.timestamp()));
       metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(readTime.toEpochMilli()));

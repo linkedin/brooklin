@@ -17,7 +17,7 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 public class LiKafkaProducerFactory implements KafkaProducerFactory<byte[], byte[]> {
   // New producer configurations. Please look at http://kafka.apache.org/documentation.html#producerconfigs for
   // more details on what these configs mean.
-  // The configs below should ensure that there is no data loss in the kafka pipeline
+  // The configs below should ensure that there is no data loss in the Kafka pipeline
   // http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844
   private static final String CFG_REQUEST_REQUIRED_ACKS = "acks";
   private static final String DEFAULT_REQUEST_REQUIRED_ACKS = "-1";

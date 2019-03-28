@@ -13,7 +13,7 @@ import java.util.StringJoiner;
 
 
 /**
- * the object representation of a kafka connection string.
+ * the object representation of a Kafka connection string.
  * strings are of the form:
  * kafka://[host1:port1,host2:port2...]/topicName
  */

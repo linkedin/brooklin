@@ -140,7 +140,7 @@ public class DatastreamProducerRecord {
    * Normally the destination is defined at the datastream level, but for some scenarios
    * like MirrorMaker, we need to write to multiple topics.
    *
-   * If this field is set, then it specify the destination to write this message. If it is
+   * If this field is set, then it specifies the destination to write this message. If it is
    * missing, then we should it send it to the destination indicated at the datastream level.
    */
   public Optional<String> getDestination() {

@@ -69,17 +69,17 @@ public class KafkaProducerWrapper<K, V> {
   // Last exception thrown by Kafka producer for that particular task
   private Map<DatastreamTask, RuntimeException> _lastExceptionForTasks = new ConcurrentHashMap<>();
 
-  // Producer is lazy initialize during the first send call.
-  // Also, can be nullified for exception and recreated by the subsequent send calls
+  // Producer is lazily initialized during the first send call.
+  // Also, can be nullified in case of exceptions, and recreated by subsequent send calls.
   // Mark as volatile as it is mutable and used by different threads
   private volatile Producer<K, V> _kafkaProducer;
 
   private final KafkaProducerFactory<K, V> _producerFactory;
 
   // Limiter to control how fast producers are re-created after failures.
-  // Note that there is not delay the first time the producer is created,
+  // Note that there is no delay the first time the producer is created,
   // but subsequent calls will be limited to 1 every 10 seconds by default.
-  // The reason is to give time to the kafka producer to release resources and
+  // The reason is to give time to the Kafka producer to release resources and
   // close threads before creating a new one.
   private static final Double DEFAULT_RATE_LIMITER = 0.1;
   private final RateLimiter _rateLimiter;
@@ -177,7 +177,7 @@ public class KafkaProducerWrapper<K, V> {
    */
   private synchronized Producer<K, V> initializeProducer(DatastreamTask task) {
     if (!_tasks.contains(task)) {
-      _log.warn("Task {} has been unassigned for for producer, abort the sending ", task);
+      _log.warn("Task {} has been unassigned for producer, abort the sending ", task);
       return null;
     } else {
       if (_kafkaProducer == null) {

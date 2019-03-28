@@ -44,6 +44,15 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 
+/**
+ * {@link TransportProviderAdmin} implementation for {@link KafkaTransportProvider}
+ *
+ * <ul>
+ *  <li>Maintains the mapping of which {@link TransportProvider} each {@link DatastreamTask} is assigned to</li>
+ *  <li>Takes care of topic creation/deletion on the datastream destination</li>
+ *  <li>Sets up the correct destination connection string/kafka brokers</li>
+ * </ul>
+ */
 public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
   public static final int DEFAULT_PRODUCERS_PER_CONNECTOR = 10;
@@ -73,11 +82,16 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
   private Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
 
-  // List of kafka producers per connector-destination (broker address) pair.
-  // The numProducersPerConnector config is actually number of producers per connector-destination pair, if a the
+  // List of Kafka producers per connector-destination (broker address) pair.
+  // The numProducersPerConnector config is actually the number of producers per connector-destination pair, if the
   // transport provider handles multiple destination brokers.
   private Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
 
+  /**
+   * Constructor for KafkaTransportProviderAdmin.
+   * @param transportProviderName transport provider name
+   * @param props TransportProviderAdmin configuration properties, e.g. ZooKeeper connection string, bootstrap.servers.
+   */
   public KafkaTransportProviderAdmin(String transportProviderName, Properties props) {
     _transportProviderProperties = props;
     VerifiableProperties transportProviderProperties = new VerifiableProperties(_transportProviderProperties);
@@ -205,7 +219,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
   /**
    * Consult Kafka to get the retention for a topic. This is not cached
-   * in case the retention might be changed externally after creation.
+   * in case the retention is changed externally after creation.
    * If no topic-level retention is configured, this method returns null.
    *
    * @param datastream Datastream
@@ -224,6 +238,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     return Duration.ofMillis(Long.parseLong(props.getProperty(TOPIC_RETENTION_MS)));
   }
 
+  /**
+   * Create Kafka topic based on the destination connection string, if it does not already exist.
+   * @param connectionString connection string from which to obtain topic name
+   * @param numberOfPartitions number of partitions
+   * @param topicConfig topic config to use for topic creation
+   */
   public void createTopic(String connectionString, int numberOfPartitions, Properties topicConfig) {
     Validate.notNull(connectionString, "destination should not be null");
     Validate.notNull(topicConfig, "topicConfig should not be null");
@@ -265,7 +285,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   private List<KafkaProducerWrapper<byte[], byte[]>> getNextKafkaProducers(String connectorType, String destinationBrokers, int count) {
-    // Return the least used kafka producers.
+    // Return the least used Kafka producers.
     return _kafkaProducers.get(connectorType)
         .get(destinationBrokers)
         .stream()
@@ -294,6 +314,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     return Collections.unmodifiableList(metrics);
   }
 
+  /**
+   * Get the kafka destination URI for a given {@link Datastream} object
+   * @param datastream the Datastream object for which to return the destination
+   * @param topicName the topic name for which to return the destination
+   * @return Kafka destination URI as a string
+   */
   public String getDestination(Datastream datastream, String topicName) {
     String destinationBrokers = datastream == null ? null
         : datastream.getMetadata().get(KafkaDatastreamMetadataConstants.DESTINATION_KAFKA_BROKERS);

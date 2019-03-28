@@ -3,7 +3,7 @@
   "namespace" : "com.linkedin.datastream.server.diagnostics",
   "path" : "/diag",
   "schema" : "com.linkedin.datastream.diagnostics.ServerComponentHealth",
-  "doc" : "Resources classes are used by rest.li to process corresponding http request.\n Note that rest.li will instantiate an object each time it processes a request.\n So do make it thread-safe when implementing the resources.\n\n The format of the restli request for the health status of all server instance\n /diag?q=allStatus&type=connector&scope=espresso&content=componentParameters\n where type and scope are used by the framework to decide which component to send the request,\n and content is the parameter passed to the component which should implement the DiagnosticsAware interface.\n\n There is an extra restli call to get the status of a single server:\n /diag?q=status&type=connector&scope=espresso&content=componentParameters\n It is not intended to be exposed to other team such as Espresso, but it can be used internally for testing purpose.\n\ngenerated from: com.linkedin.datastream.server.diagnostics.ServerComponentHealthResources",
+  "doc" : "Resources classes are used by rest.li to process corresponding http request.\n Note that rest.li will instantiate an object each time it processes a request.\n So do make it thread-safe when implementing the resources.\n\n The format of the restli request for the health status of all server instance\n /diag?q=allStatus&type=connector&scope=espresso&content=componentParameters\n where type and scope are used by the framework to decide which component to send the request,\n and content is the parameter passed to the component which should implement the DiagnosticsAware interface.\n\n There is an extra restli call to get the status of a single server:\n /diag?q=status&type=connector&scope=espresso&content=componentParameters\n It is not intended to be exposed to other teams such as Espresso, but it can be used internally for testing purpose.\n\ngenerated from: com.linkedin.datastream.server.diagnostics.ServerComponentHealthResources",
   "collection" : {
     "identifier" : {
       "name" : "diagId",
@@ -12,7 +12,7 @@
     "supports" : [ ],
     "finders" : [ {
       "name" : "allStatus",
-      "doc" : "Finder Request to get the status of all server instances.\n   You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...",
+      "doc" : "Finder Request to get the status of all server instances.\n You can access this FINDER method via /diag?q=status&type=connector&scope=espresso&content=...",
       "parameters" : [ {
         "name" : "type",
         "type" : "string"
@@ -26,7 +26,7 @@
       } ]
     }, {
       "name" : "status",
-      "doc" : "Finder Request to get the status from one server  instance.\n   You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...",
+      "doc" : "Finder Request to get the status from one server instance.\n You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...",
       "parameters" : [ {
         "name" : "type",
         "type" : "string"

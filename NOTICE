@@ -3,7 +3,11 @@ All Rights Reserved.
 
 Licensed under the BSD 2-Clause License (the "License"). See License in the project root for license information.
 
-This product uses the open-source libraries listed below.
+This product includes/uses Gradle/gradle (https://github.com/gradle/gradle)
+Copyright 2019 Gradle
+License: Apache-2.0
+
+Additionally, this product uses the open-source libraries listed below.
 
 1. Group: com.101tec Name: zkclient Version: 0.10
 POM Project URL: https://github.com/sgroschupf/zkclient

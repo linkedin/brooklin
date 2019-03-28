@@ -29,7 +29,7 @@ import com.linkedin.restli.server.resources.ResourceFactory;
 
 
 /**
- * Datastream specific netty standalone launcher which uses the DatastreamResourceFactory for instantiating
+ * Datastream specific Jetty standalone launcher which uses the DatastreamResourceFactory for instantiating
  * the datastream restli resources.
  */
 public class DatastreamJettyStandaloneLauncher {
@@ -68,7 +68,7 @@ public class DatastreamJettyStandaloneLauncher {
   /**
    * Start the server
    *
-   * @throws java.io.IOException server startup fails
+   * @throws java.io.IOException if server startup fails
    */
   public void start() throws Exception {
     _httpJettyServer.start();
@@ -91,7 +91,7 @@ public class DatastreamJettyStandaloneLauncher {
   /**
    * Stop the server
    *
-   * @throws java.io.IOException server shutdown fails
+   * @throws java.io.IOException if server shutdown fails
    */
   public void stop() throws Exception {
     _httpJettyServer.stop();

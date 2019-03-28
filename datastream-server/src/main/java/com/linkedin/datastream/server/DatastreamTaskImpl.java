@@ -35,15 +35,15 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 /**
  * DatastreamTask is the minimum assignable element of a Datastream. It is mainly used to partition the datastream
  * defined by Datastream. For example, the user can define an instance of Datastream for an Oracle bootstrap
- * connector, but this logical datastream can be split to a number of DatastreamTask instances, each is tied
+ * connector, but this logical datastream can be split into a number of DatastreamTask instances, each is tied
  * to one partition. This way, each instance of DatastreamTask can be assigned independently, which in turn can
  * result in bigger output and better concurrent IO.
  *
- * <p>DatastreamTask are used as input for specific connectors. Besides the reference of the original
- * Datastream object, DatastreamTask also contains a key-value store Properties. This allows the assignment
+ * <p>DatastreamTask is used as input for specific connectors. Besides the reference of the original
+ * Datastream object, DatastreamTask also contains key-value store Properties. This allows the assignment
  * strategy to attach extra parameters.
  *
- * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in zookeeper
+ * <p>DatastreamTask has a unique name called _datastreamtaskName. This is used as the znode name in ZooKeeper
  * This should be unique for each instance of DatastreamTask, especially in the case when a Datastream is
  * split into multiple DatastreamTasks. This is because we will have a state associated with each DatastreamTask.
  *
@@ -64,7 +64,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   // The Id of the datastream task. It is a string that will represent one assignable element of
   // datastream. By default, the value is empty string, representing that the DatastreamTask is by default
-  // mapped to one Datastream. Each of the _id value will be represented in zookeeper
+  // mapped to one Datastream. Each of the _id value will be represented in ZooKeeper
   // under /{cluster}/connectors/{connectorType}/{datastream}/{id}.
   private String _id = "";
 
