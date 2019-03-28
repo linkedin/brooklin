@@ -29,12 +29,23 @@ public class KafkaDestination {
   private final String _topicName;
   private final boolean _isSecure;
 
+  /**
+   * Constructor for creating a KafkaDestination object
+   * @param zkAddress zkAddress of the Kafka destination
+   * @param topicName topic name of the Kafka destination
+   * @param isSecure boolean to denote whether the Kafka destination is secure or not
+   */
   public KafkaDestination(String zkAddress, String topicName, boolean isSecure) {
     _zkAddress = zkAddress;
     _topicName = topicName;
     _isSecure = isSecure;
   }
 
+  /**
+   * URI parser for extracting out the relevant fields within a URI string and constructing a KafkaDestination.
+   * @param uri the URI string to parse to obtain the KafkaDestination.
+   * @return the KafkaDestination created by parsing the URI string.
+   */
   public static KafkaDestination parse(String uri) {
     Validate.isTrue(uri.startsWith(SCHEME_KAFKA) || uri.startsWith(SCHEME_SECURE_KAFKA),
         "Invalid scheme in URI: " + uri);

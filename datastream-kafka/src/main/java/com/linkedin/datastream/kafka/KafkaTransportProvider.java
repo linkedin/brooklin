@@ -37,7 +37,8 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
 /**
- * This is Kafka Transport provider that writes events to Kafka.
+ * This is a Kafka Transport provider that writes events to Kafka.
+ * It handles record translation and data movement to the Kafka producer.
  */
 public class KafkaTransportProvider implements TransportProvider {
   private static final String CLASS_NAME = KafkaTransportProvider.class.getSimpleName();
@@ -57,6 +58,12 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
 
+  /**
+   * Constructor for KafkaTransportProvider.
+   * This takes the datastreamTask, list of producers, transport provider properties and a metrics name prefix as input
+   * for metrics management.
+   * The config properties must have "bootstrap.servers" config set for initialization to succeed.
+   */
   public KafkaTransportProvider(DatastreamTask datastreamTask, List<KafkaProducerWrapper<byte[], byte[]>> producers,
       Properties props, String metricsNamesPrefix) {
     org.apache.commons.lang.Validate.notNull(datastreamTask, "null tasks");
@@ -188,6 +195,11 @@ public class KafkaTransportProvider implements TransportProvider {
     }
   }
 
+  /**
+   * Get the metrics info for a given metrics name prefix.
+   * @param metricsNamesPrefix metrics name prefix to look up metrics info for.
+   * @return the list of BrooklinMetricInfo found for the metrics name prefix.
+   */
   public static List<BrooklinMetricInfo> getMetricInfos(String metricsNamesPrefix) {
     String prefix = metricsNamesPrefix == null ? CLASS_NAME + MetricsAware.KEY_REGEX
         : metricsNamesPrefix + CLASS_NAME + MetricsAware.KEY_REGEX;

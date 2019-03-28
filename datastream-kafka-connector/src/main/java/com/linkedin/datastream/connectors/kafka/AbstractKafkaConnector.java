@@ -49,6 +49,13 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 /**
  * Base class for connectors that consume from Kafka.
+ *
+ * This class abstracts out common logic needed for all Kafka connectors such as:
+ * - Create and spawn threads to handle DatastreamTasks assigned to this connector instance
+ * - Track all currently running tasks and listen for changes in task assginment in onAssignmentChange() callback
+ *   calls. Update the new task assignment (starting/stopping tasks as needed).
+ * - Restarting stalled DatastreamTasks
+ * - Pause and resume support as Datastream update types, paused partition validation
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
@@ -86,6 +93,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     POSITION
   }
 
+  /**
+   * Constructor for AbstractKafkaConnector. Takes as input the connector name, the logger to be used for log messages,
+   * the cluster name, config parameters for kafka connectors, and a group ID constructor for the consumer.
+   */
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
       String clusterName, Logger logger) {
     _connectorName = connectorName;
@@ -123,6 +134,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     }
   }
 
+  /**
+   * Create the task thread to run an AbstractKafkaBasedConnectorTask
+   */
   public Thread createTaskThread(AbstractKafkaBasedConnectorTask task) {
     Thread t = new Thread(task);
     t.setDaemon(true);

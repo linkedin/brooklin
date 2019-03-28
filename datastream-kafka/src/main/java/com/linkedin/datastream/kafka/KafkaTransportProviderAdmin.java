@@ -44,6 +44,12 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 
+/**
+ * This implements a TransportProviderAdmin for Kafka as the transport provider.
+ * - Maintains the mapping of which TransportProvider each DatastreamTask is assigned to
+ * - Topic creation/deletion on the datastream destination
+ * - Setting up the correct destination connection string/kafka brokers.
+ */
 public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
   public static final int DEFAULT_PRODUCERS_PER_CONNECTOR = 10;
@@ -78,6 +84,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   // transport provider handles multiple destination brokers.
   private Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
 
+  /**
+   * Constructor for KafkaTransportProviderAdmin. This takes as input the transport provider name and the properties
+   * to be used by the transport provider.
+   * This sets up the the metadata needed for destination management such as ZK connect string/bootstrap.servers config
+   * Initializes the transport provider properties and topic properties.
+   */
   public KafkaTransportProviderAdmin(String transportProviderName, Properties props) {
     _transportProviderProperties = props;
     VerifiableProperties transportProviderProperties = new VerifiableProperties(_transportProviderProperties);
@@ -224,6 +236,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     return Duration.ofMillis(Long.parseLong(props.getProperty(TOPIC_RETENTION_MS)));
   }
 
+  /**
+   * Create topic based on the destination connection string if it does not already exist.
+   * @param connectionString connection string from which to obtain topic name
+   * @param numberOfPartitions number of partitions
+   * @param topicConfig topic config to use for topic creation
+   */
   public void createTopic(String connectionString, int numberOfPartitions, Properties topicConfig) {
     Validate.notNull(connectionString, "destination should not be null");
     Validate.notNull(topicConfig, "topicConfig should not be null");
@@ -294,6 +312,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     return Collections.unmodifiableList(metrics);
   }
 
+  /**
+   * Get the kafka destination for a given Datastream object
+   * @param datastream the Datastream object for which to return the destination.
+   * @param topicName the topic name for which to return the destination.
+   * @return KafkaDestination string
+   */
   public String getDestination(Datastream datastream, String topicName) {
     String destinationBrokers = datastream == null ? null
         : datastream.getMetadata().get(KafkaDatastreamMetadataConstants.DESTINATION_KAFKA_BROKERS);

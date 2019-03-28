@@ -106,6 +106,19 @@ public class DatastreamServer {
     DynamicMetricsManager.createInstance(METRIC_REGISTRY);
   }
 
+  /**
+   * Constructor for the DatastreamServer which sets up state and initializes various components used.
+   * Some of the objects/services set up are:
+   * - Initializes all connectors (including bootstrap connectors) declared in properties
+   * - Initializes all transport providers declared in properties
+   * - Initializes all SerDes declared in properties
+   * - Sets up the coordinator with coordinator properties obtained from properties
+   * - Sets up the jetty launcher
+   * - Sets up the DMS endpoint server
+   * - Initializes metrics
+   * @param properties properties to set up the DatastreamServer with.
+   * @throws DatastreamException
+   */
   public DatastreamServer(Properties properties) throws DatastreamException {
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
@@ -347,6 +360,11 @@ public class DatastreamServer {
     }
   }
 
+  /**
+   * Method called on startup of the DatastreamServer
+   * This starts up the JMX reporter, coordinator, and the DMS rest endpoint
+   * @throws DatastreamException
+   */
   public synchronized void startup() throws DatastreamException {
     // Start the JMX reporter
     if (_jmxReporter != null) {
@@ -370,6 +388,10 @@ public class DatastreamServer {
     }
   }
 
+  /**
+   * Method called on shutdown of DatastreamServer
+   * This stops the JMX reporter, coordinator, and DMS rest endpoint on shutdown.
+   */
   public synchronized void shutdown() {
     if (_coordinator != null) {
       _coordinator.stop();
@@ -392,6 +414,12 @@ public class DatastreamServer {
     _isStarted = false;
   }
 
+  /**
+   * Takes a file containing a list of server properites as argument to create an instance of the DatastreamServer.
+   * Starts up the instance of the DatastreamServer and waits for shutdown via a shutdown handler to catch control-c.
+   * @param args the file containing the server properties to be used to set up the DatastreamServer
+   * @throws Exception
+   */
   public static void main(String[] args) throws Exception {
     Properties serverProperties = getServerProperties(args);
     DatastreamServer server = new DatastreamServer(serverProperties);
@@ -424,6 +452,12 @@ public class DatastreamServer {
     return loadProps(args[0]);
   }
 
+  /**
+   * Load properties from given filename.
+   * @param filename Name of the file to load properties from.
+   * @return properties object loaded from file.
+   * @throws IOException
+   */
   public static Properties loadProps(String filename) throws IOException {
     Properties props = new Properties();
 

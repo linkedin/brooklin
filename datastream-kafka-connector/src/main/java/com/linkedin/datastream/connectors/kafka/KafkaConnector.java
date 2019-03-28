@@ -31,6 +31,10 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
+/**
+ * Connector implementation that consumes from one Kafka source. Extends AbstractKafkaConnector which handles the
+ * bulk of the logic for Kafka connectors.
+ */
 public class KafkaConnector extends AbstractKafkaConnector {
 
   public static final String CONFIG_WHITE_LISTED_CLUSTERS = "whiteListedClusters";
@@ -38,6 +42,11 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   private final Set<KafkaBrokerAddress> _whiteListedBrokers;
 
+  /**
+   * Constructor for KafkaConnector.
+   * This takes care of constructing the KafkaGroupIdConstructor for constructing the consumer group ID.
+   * It also creates a whitelist of Kafka brokers from properties passed in.
+   */
   public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(
             Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
