@@ -14,7 +14,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
 
 
 /**
- * Transport provider Admin interface that each of the transport providers needs to implement.
+ * The TransportProviderAdmin abstracts the creation and lifetime management of {@link TransportProvider}s
+ * as well as their assignment to {@link DatastreamTask}s.
  */
 public interface TransportProviderAdmin extends MetricsAware {
 

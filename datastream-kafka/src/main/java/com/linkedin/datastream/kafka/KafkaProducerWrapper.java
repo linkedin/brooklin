@@ -177,7 +177,7 @@ public class KafkaProducerWrapper<K, V> {
    */
   private synchronized Producer<K, V> initializeProducer(DatastreamTask task) {
     if (!_tasks.contains(task)) {
-      _log.warn("Task {} has been unassigned for for producer, abort the sending ", task);
+      _log.warn("Task {} has been unassigned for producer, abort the sending ", task);
       return null;
     } else {
       if (_kafkaProducer == null) {
