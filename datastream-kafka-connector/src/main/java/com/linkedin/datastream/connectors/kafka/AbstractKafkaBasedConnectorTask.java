@@ -617,7 +617,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     updateConsumerAssignment(_consumer.assignment());
 
     // Remove old position data
-    _kafkaPositionTracker.retainAll(_consumerAssignment);
+    _kafkaPositionTracker.onPartitionsRevoked(_consumerAssignment);
 
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);

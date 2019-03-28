@@ -89,10 +89,11 @@ public class  KafkaPositionTracker {
   /**
    * The service responsible for fetching offsets.
    */
-  private DurableScheduledService _offsetsFetcherService;
+  private DurableScheduledService _offsetsFetcherService; // Defined to help investigation issues (when you have a heap
+  // dump or are in a debugger)
 
   /**
-   * define if the positions tracker need to be initializc
+   * define if the positions tracker need to be initialize
    */
   private volatile boolean _positionsInitialized;
 
@@ -221,8 +222,6 @@ public class  KafkaPositionTracker {
 
   public synchronized void onPartitionsAssigned(final Collection<TopicPartition> assignedPartitions) {
     _positionsInitialized = false;
-    // Make a quick copy of our assigned partitions (we share it with the KafkaConnectorTask thread, so it isn't
-    // thread-safe).
     _assignedPartitions.clear();
     _assignedPartitions.addAll(assignedPartitions);
   }
@@ -509,7 +508,7 @@ public class  KafkaPositionTracker {
    * Removes data for all but the specified topic partitions, called if partition get revoked
    * @param topicPartitions the specified topic partitions
    */
-  public synchronized void retainAll(final Collection<TopicPartition> topicPartitions) {
+  public synchronized void onPartitionsRevoked(final Collection<TopicPartition> topicPartitions) {
     _assignedPartitions.clear();
     _assignedPartitions.addAll(topicPartitions);
     LOG.debug("Removing all topic partitions besides {} from positions and offsetPositions", topicPartitions);
