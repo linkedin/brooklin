@@ -1,6 +1,7 @@
 apply from: file('gradle/license.gradle')
 apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
+apply from: file("gradle/install-git-hooks.gradle")
 
 buildscript {
   repositories {
