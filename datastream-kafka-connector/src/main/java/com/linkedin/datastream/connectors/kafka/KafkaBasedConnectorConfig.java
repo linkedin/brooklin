@@ -106,7 +106,6 @@ public class KafkaBasedConnectorConfig {
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
-   * NOTE: Visible only for testing purpose.
    * @param consumerFactory KafkaConsumerFactory instance to use for creating consumers.
    * @param connectorProps Properties of kafka based connector.
    * @param consumerProps Properties of consumer used in the connector.
@@ -174,8 +173,7 @@ public class KafkaBasedConnectorConfig {
   }
 
   /**
-   * Returns all the config related to kafka consumer.
-   * @return Kafka consumer properties.
+   * Get all Kafka consumer config properties
    */
   public Properties getConsumerProps() {
     Properties consumerProps = new Properties();

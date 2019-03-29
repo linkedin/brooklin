@@ -39,7 +39,7 @@ public class ConnectorWrapper {
   private AtomicLong _numDatastreamTasks;
 
   /**
-   * Create ConnectorWrapper that wraps Connector interface.
+   * Create ConnectorWrapper that wraps the provided Connector
    * @param connectorType Name of the connector
    * @param connector Connector for which wrapper should be created.
    */
@@ -52,16 +52,16 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Returns if there was any error seen with the connector when a connector API was called last time.
+   * Check if any error was encountered within the connector the last time a connector API was called
    * Note: The error resets every time an API is called.
-   * @return Returns true if any error was seen, false otherwise.
+   * @return true if any error was seen
    */
   public boolean hasError() {
     return _lastError != null;
   }
 
   /**
-   * Returns error message (if any) seen with the connector when last time connector API was called.
+   * Get the message of the last error encountered the last time a connector API was called (if any)
    * Note: The error message resets every time an API is called.
    * @return Error message (if any), null otherwise.
    */
@@ -133,8 +133,8 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Wrapper API to notify connector about assignment change.
-   * @param tasks  the list of the current assignment.
+   * Wrapper API to notify connector about changes in DatastreamTask assignment.
+   * @param tasks the list of currently assigned tasks
    */
   public void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
@@ -153,10 +153,10 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Wrapper API to initialize datastream in connector.This API in calls connector's initializeDatastream.
+   * Wrapper API to initialize datastream in connector. This API calls connector's {@link Connector#initializeDatastream}
    * @param stream Datastream to initialize.
-   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
-   *                       initialized.
+   * @param allDatastreams all existing datastreams in the system that have the same connector type as the datastream
+   *                       being initialized.
    * @throws DatastreamValidationException when the datastream that is being created fails any validation.
    */
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
@@ -179,10 +179,10 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Wrapper API to validate update to given datastreams. This API in calls connector's validateUpdateDatastreams.
-   * @param datastreams List of datastreams for which update operation needs to be validated.
-   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
-   *                       validated.
+   * Wrapper API to validate updates to given datastreams. This API calls connector's {@link Connector#validateUpdateDatastreams}.
+   * @param datastreams List of datastreams whose update needs to be validated.
+   * @param allDatastreams all existing datastreams in the system that have the same connector type as the datastream
+   *    *                  being updated.
    * @throws DatastreamValidationException
    */
   public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
@@ -215,9 +215,9 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Wrapper API to find out destination of given datastream.This API in turn calls
+   * Wrapper API to find out destination of given datastream. This API calls connector's {@link Connector#getDestinationName}.
    * @param datastream Datastream whose destination needs to be found out.
-   * @return Destination of the datastream. 
+   * @return Destination of the datastream.
    */
   public String getDestinationName(Datastream datastream) {
     logApiStart("getDestinationName");

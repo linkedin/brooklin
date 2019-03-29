@@ -11,7 +11,7 @@ import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.server.DatastreamTask;
 
 /**
- * Implementation of GroupIdConstructor interface for kafka mirror maker connectors.
+ * Implementation of {@link GroupIdConstructor} for kafka mirror maker connectors.
  * The class generates group ID for given datastream/task according to kafka mirrormaker connector conventions.
  */
 public class KafkaMirrorMakerGroupIdConstructor implements GroupIdConstructor {

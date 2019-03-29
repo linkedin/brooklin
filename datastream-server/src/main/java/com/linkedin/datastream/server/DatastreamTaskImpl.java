@@ -81,7 +81,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
 
   /**
-   * Constructor for DatastreamTaskImpl. This constructor just empty list of partitions to the task.
+   * Constructor for DatastreamTaskImpl.
+   * Initializes task partitions to an empty list.
    * NOTE: The constructor is intended for tests only.
    */
   @TestOnly
@@ -90,9 +91,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Constructor for DatastreamTaskImpl. This constructor assigns a random ID and empty list of partitions
-   * to the task.
-   * @param datastreams
+   * Constructor for DatastreamTaskImpl.
+   * Initializes task with the provided datastreams, a random task ID, and an empty list of partitions
    */
   public DatastreamTaskImpl(List<Datastream> datastreams) {
     this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
@@ -100,9 +100,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   /**
    * Constructor for DatastreamTaskImpl.
-   * @param datastreams List of datastreams associated with the task.
-   * @param id ID of the task.
-   * @param partitions List of partitions associated with the task.
+   * @param datastreams Datastreams associated with the task.
+   * @param id Task ID
+   * @param partitions Partitions associated with the task.
    */
   public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions) {
     Validate.notEmpty(datastreams, "empty datastream");
@@ -185,8 +185,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Sets/updates partitions associated with the task.
-   * @param partitions List of partitions associated with task.
+   * Set partitions associated with the task.
+   * @param partitions List of partitions to associate with task.
    */
   public void setPartitions(List<Integer> partitions) {
     Validate.notNull(partitions);
@@ -219,7 +219,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Sets/updates datastreams associated with the task.
+   * Set datastreams associated with the task.
    * @param datastreams List of datastreams associated with task.
    */
   public void setDatastreams(List<Datastream> datastreams) {
@@ -257,8 +257,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Setter method for destination serde.
-   * @param destination SerdeSet to set to.
+   * Set destination serde
    */
   public void assignSerDes(SerDeSet destination) {
     _destinationSerDes = destination;
@@ -363,7 +362,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * This method updates checkpoint info for given partition inside the task.
+   * Update checkpoint info for given partition inside the task.
    * @param partition Partition whose checkpoint needs to be updated.
    * @param checkpoint Checkpoint to update to.
    */

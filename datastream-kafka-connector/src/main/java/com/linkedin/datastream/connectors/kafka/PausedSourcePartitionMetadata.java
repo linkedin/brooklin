@@ -63,7 +63,7 @@ public class PausedSourcePartitionMetadata {
 
   /**
    * Evaluates if the partition that PausedSourcePartitionMetadata represents should now resume.
-   * @return True if the partition should resume, false otherwise.
+   * @return true if the partition should resume
    */
   public boolean shouldResume() {
     return _resumeCondition.getAsBoolean();
@@ -112,12 +112,11 @@ public class PausedSourcePartitionMetadata {
   }
 
   /**
-   * Creates a PausedSourcePartitionMetadata with "SEND_ERROR" reason. It represents a pause partition because of errors
-   * seen while sending data to that partition.
+   * Creates a PausedSourcePartitionMetadata with {@link Reason#SEND_ERROR} as reason. It represents a partition that
+   * has been paused due to errors encountered while sending data to it.
    * @param start Start time when the partition was paused.
    * @param pauseDuration Duration for which the partition should be paused. The duration is used to check if partition
-   *                      should be unpaused.
-   * @return Instance of PausedSourcePartitionMetadata.
+   *                      should be resumed.
    */
   public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
     return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,

@@ -34,8 +34,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * This class represents connector task that can consume from a single kafka topic.
- *
+ * A connector task that can consume from a single kafka topic.
  */
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
@@ -93,7 +92,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   /**
-   * Method to create kafka consumer.
+   * Create kafka consumer
    * @param consumerFactory Instance of KafkaConsumerFactory that is used to create consumer.
    * @param consumerProps Properties of the consumer to be created.
    * @param groupId Consumer group that the consumer to create is part of.
@@ -158,13 +157,11 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   /**
-   * Returns group ID for given kafka connector based tasks.
-   * NOTE: The method is visible only for testing purpose.
-   * @param task Task for which group ID needs to be generating.
-   * @param groupIdConstructor Instance of GroupIdConstructor to use for generating group ID.
-   * @param consumerMetrics Instance of CommonConnectorMetrics to report any errors.
-   * @param logger Instance of Logger for logging information.
-   * @return
+   * Get Kafka group ID of given task
+   * @param task Task for which group ID is generated.
+   * @param groupIdConstructor GroupIdConstructor to use for generating group ID.
+   * @param consumerMetrics CommonConnectorMetrics to use for reporting errors.
+   * @param logger Logger for logging information.
    */
   @VisibleForTesting
   public static String getKafkaGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,

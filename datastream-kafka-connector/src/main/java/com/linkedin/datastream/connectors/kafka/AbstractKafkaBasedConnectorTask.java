@@ -355,7 +355,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Method to stop task.
+   * Signal task to stop
    */
   public void stop() {
     _logger.info("{} stopping", _taskName);
@@ -368,22 +368,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * The method waits till the task is started or given timeout is reached.
-   * @param timeout Time to wait.
-   * @param unit The time unit of given timeout.
-   * @return true if the task is started in given time, false otherwise.
-   * @throws InterruptedException
+   * Wait till the task is started or given timeout is reached
+   * @param timeout Time to wait
+   * @param unit The time unit of given timeout
+   * @return true if the task is started in given time
    */
   public boolean awaitStart(long timeout, TimeUnit unit) throws InterruptedException {
     return _startedLatch.await(timeout, unit);
   }
 
   /**
-   * The method waits till the task is shutdown or given timeout is reached.
-   * @param timeout Time to wait.
-   * @param unit The time unit of given timeout.
-   * @return true if the task stopped in given time, false otherwise.
-   * @throws InterruptedException
+   * Wait till the task is shut down or given timeout is reached
+   * @param timeout Time to wait
+   * @param unit The time unit of given timeout
+   * @return true if the task stopped within the specified timeout
    */
   public boolean awaitStop(long timeout, TimeUnit unit) throws InterruptedException {
     return _stoppedLatch.await(timeout, unit);
@@ -886,17 +884,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Returns if the task belongs to given datastream.
+   * Check if this task belongs to given datastream
    * @param datastreamName Name of the datastream that needs to be checked.
-   * @return True if task belongs to given datastream, false otherwise.
+   * @return true if task belongs to given datastream
    */
   public boolean hasDatastream(String datastreamName) {
     return _datastreamName.equals(datastreamName);
   }
 
   /**
-   * Returns group ID for given task from metadata (if present), null otherwise.
-   * NOTE: This method is public only for testing purpose.
+   * Get group ID for given task from metadata (if present), null otherwise.
+   *
    * @param task Task whose group ID needs to be found out.
    * @param consumerMetrics CommonConnectorMetrics instance for any errors that need to be reported.
    * @param logger Logger instance to log information.

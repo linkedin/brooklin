@@ -43,7 +43,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    * Constructor for KafkaMirrorMakerConnector.
    * @param connectorName Name of the KafkaMirrorMakerConnector.
    * @param config Config to use while creating the instance of KafkaMirrorMakerConnector.
-   * @param clusterName Name of the cluster where connector will be running
+   * @param clusterName Name of Brooklin cluster where connector will be running
    */
   public KafkaMirrorMakerConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaMirrorMakerGroupIdConstructor(

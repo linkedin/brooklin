@@ -10,7 +10,7 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 
 /**
- * Implementation of GroupIdConstructor interface for kafka connectors. The class generates group ID for given
+ * Implementation of {@link GroupIdConstructor} for kafka connectors. The class generates group ID for given
  * datastream/task according to kafka connector conventions.
  */
 public class KafkaGroupIdConstructor implements GroupIdConstructor {

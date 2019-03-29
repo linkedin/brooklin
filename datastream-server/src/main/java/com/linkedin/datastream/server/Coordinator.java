@@ -209,7 +209,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
    * @param config Config properties to use while creating coordinator.
-   * @throws DatastreamException when coordinator creation fails.
+   * @throws DatastreamException if coordinator creation fails.
    */
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
@@ -219,7 +219,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Construtor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
    * @param config Coordinator config to use while creating coordinator.
-   * @throws DatastreamException
    */
   public Coordinator(CachedDatastreamReader datastreamCache, CoordinatorConfig config) throws DatastreamException {
     _datastreamCache = datastreamCache;
@@ -253,7 +252,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Method to start connector.
+   * Start Coordinator (and all connectors)
    */
   public void start() {
     _log.info("Starting coordinator");
@@ -287,7 +286,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Method to stop coordinator.
+   * Stop coordinator (and all connectors)
    */
   public void stop() {
     _log.info("Stopping coordinator");
@@ -1066,9 +1065,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * The method validates if update to given datastreams is valid or not.
-   * @param datastreams List of datastreams for which update needs to be validated.
-   * @throws DatastreamValidationException in case update is invalid.
+   * Validate updates to given datastreams
+   * @param datastreams List of datastreams whose updates are validated.
+   * @throws DatastreamValidationException if any update is invalid.
    */
   public void validateDatastreamsUpdate(List<Datastream> datastreams) throws DatastreamValidationException {
     _log.info("About to validate datastreams update: " + datastreams);
@@ -1282,9 +1281,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * API to add transport provider that coordinator can assign to datastreams it creates.
+   * Add a transport provider that the coordinator can assign to datastreams it creates.
    * @param transportProviderName Name of transport provider.
-   * @param admin Instance of TransportProviderAdmin that coordinator can assign.
+   * @param admin Instance of TransportProviderAdmin that the coordinator can assign.
    */
   public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
     _transportProviderAdmins.put(transportProviderName, admin);
@@ -1294,9 +1293,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * API to add Serde that coordinator can assign to datastreams it creates.
+   * Add a Serde that the coordinator can assign to datastreams it creates.
    * @param serdeName Name of Serde.
-   * @param admin Instance of SerdeAdmin that coordinator can assign.
+   * @param admin Instance of SerdeAdmin that the coordinator can assign.
    */
   public void addSerde(String serdeName, SerdeAdmin admin) {
     _serdeAdmins.put(serdeName, admin);
@@ -1339,7 +1338,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Method to retrieve instance of given connector.
+   * Get connector by name
    * @param name Name of the connector.
    * @return Instance of the connector (if present), null otherwise.
    */

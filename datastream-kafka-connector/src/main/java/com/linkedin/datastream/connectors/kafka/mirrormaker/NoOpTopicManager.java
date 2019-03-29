@@ -20,8 +20,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * The class implements a no-op version of TopicManager interface. This class is used by default by mirror maker for topic
- * management, if no other TopicManager is specified.
+ * A no-op implementation of {@link TopicManager}, used by default by mirror maker for topic management if no other
+ * TopicManager is specified.
  */
 public class NoOpTopicManager implements TopicManager {
 
@@ -46,17 +46,16 @@ public class NoOpTopicManager implements TopicManager {
   }
 
   /**
-   * This method is called during kafka rebalance, within kafka's onPartitionsAssigned callback. The method is a
+   * This method is called during a kafka rebalance, within kafka's onPartitionsAssigned callback. The method is a
    * no-op for this topic manager.
    * @param partitions Partitions which were assigned.
-   * @return
    */
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {
     return _emptyPartitions;
   }
 
   /**
-   * This method is called during kafka rebalance, within kafka's onPartitionsRevoked callback. The method is a
+   * This method is called during a kafka rebalance, within kafka's onPartitionsRevoked callback. The method is a
    * no-op for this topic manager.
    * @param partitions Partitions which were revoked.
    */
@@ -64,8 +63,8 @@ public class NoOpTopicManager implements TopicManager {
   }
 
   /**
-   * Method to check if partition that topic manager has paused should resume.It throws exception for this topic manager
-   * as its a no-op topic manager, so it is not expected to pause any partition to begin with.
+   * Check if a partition that topic manager has paused should resume. It throws exception for this topic manager
+   * as its a no-op topic manager; it is not expected to pause any partition to begin with.
    * @param tp
    * @return
    */
@@ -75,7 +74,7 @@ public class NoOpTopicManager implements TopicManager {
   }
 
   /**
-   * Method to stop topic manager. Its a no-op for this topic manager.
+   * Stop topic manager. Its a no-op for this topic manager.
    */
   public void stop() {
   }

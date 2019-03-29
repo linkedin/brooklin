@@ -15,13 +15,13 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * This class implements TopicManagerFactory interface and returns NoOpTopicManager instance. This factory is used by default
- * by mirror maker to create topic manager instance.
+ * An implementation of {@link TopicManagerFactory} for creating {@link NoOpTopicManager} instances. This factory is
+ * used by default by mirror maker to create topic manager instance.
  */
 public class NoOpTopicManagerFactory implements TopicManagerFactory {
 
   /**
-   * Method to create an instance of NoOpTopicManager.
+   * Create an instance of NoOpTopicManager.
    * @param datastreamTask Task that topic manager is going to be created for.
    * @param datastream Datastream that topic manager is going to be created for.
    * @param groupIdConstructor This will be used while creating source/destination consumers
