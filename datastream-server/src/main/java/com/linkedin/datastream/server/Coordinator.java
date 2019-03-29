@@ -1037,14 +1037,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
-    String className = connector.getClass().getSimpleName();
-    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAMS,
+    // Use connector name for the metrics, as there can be multiple connectors specified in the config that use
+    // same connector class.
+    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAMS,
         () -> connectorInfo.getConnector().getNumDatastreams());
-    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAM_TASKS,
+    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
         () -> connectorInfo.getConnector().getNumDatastreamTasks());
 
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAMS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
   }
 
   public void validateDatastreamsUpdate(List<Datastream> datastreams) throws DatastreamValidationException {
