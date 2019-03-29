@@ -6,6 +6,8 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -21,6 +23,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
+import static java.lang.Math.*;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.mock;
@@ -45,6 +48,28 @@ public class TestAbstractKafkaConnector {
 
     connector.stop();
   }
+
+
+  @Test
+  public void testCalculateThreadStartDelay() {
+    Properties props = new Properties();
+    props.setProperty("daemonThreadIntervalInSeconds", "30");
+    TestKafkaConnector connector = new TestKafkaConnector(false, props);
+    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+    long fireDelay = connector.getThreadDelayTimeInSecond(300);
+
+    boolean found = false;
+    for (int i = 0; i <= 3600/300; ++ i) {
+      OffsetDateTime expectedFireTime =
+          OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour() + (i * 5) / 60, (i * 5) % 60, 0, 0, ZoneOffset.UTC);
+      if (abs(expectedFireTime.toEpochSecond() - now.plusSeconds(fireDelay).toEpochSecond()) < 10) {
+        found = true;
+        break;
+      }
+    }
+    Assert.assertTrue(found);
+  }
+
 
   @Test
   public void testRestartThrowsException() {

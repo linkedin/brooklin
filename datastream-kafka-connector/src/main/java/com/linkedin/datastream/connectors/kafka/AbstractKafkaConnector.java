@@ -5,9 +5,12 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +79,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private final Logger _logger;
   private final AtomicInteger threadCounter = new AtomicInteger(0);
   private final ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
+  private final int MINIMAL_THREAD_WAIT_TIME_WHEN_START = 120;
+
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private ScheduledExecutorService _daemonThreadExecutorService =
@@ -176,7 +181,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         // see java doc of scheduleAtFixedRate
         _logger.warn("Failed to check status of kafka connector tasks.", e);
       }
-    }, _config.getDaemonThreadIntervalSeconds(), _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
+    }, getThreadDelayTimeInSecond(_config.getDaemonThreadIntervalSeconds()), _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
   }
 
   /**
@@ -238,6 +243,20 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _runningTasks.clear();
     _taskThreads.clear();
     _logger.info("Connector stopped.");
+  }
+
+  /**
+   *  This will make the thread delay a certain timestamp, ex. 6:00, 6:05, 6:10..etc so that threads in different
+   *  hosts are firing roughly at the same time
+   * @param daemonThreadIntervalSeconds
+   * @return the time thread need to be delayed in second
+   */
+  @VisibleForTesting
+  long getThreadDelayTimeInSecond(int daemonThreadIntervalSeconds) {
+    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+    long roundOfTimeStamp = OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), 0, 0, 0, ZoneOffset.UTC).toEpochSecond();
+    for (;(roundOfTimeStamp - now.toEpochSecond()) < MINIMAL_THREAD_WAIT_TIME_WHEN_START; roundOfTimeStamp = roundOfTimeStamp += daemonThreadIntervalSeconds);
+    return roundOfTimeStamp - now.toEpochSecond();
   }
 
   @Override
