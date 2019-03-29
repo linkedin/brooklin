@@ -164,7 +164,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _pollTimeoutMs = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
-    _enableLatestBrokerOffsetsFetcher = config.enableLatestBrokerOffsetsFetcher();
+    _enableLatestBrokerOffsetsFetcher = config.getEnableLatestBrokerOffsetsFetcher();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
     _kafkaPositionTracker = new KafkaPositionTracker(_taskName, _enableLatestBrokerOffsetsFetcher,
         () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
@@ -354,6 +354,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
+  /**
+   * Method to stop task.
+   */
   public void stop() {
     _logger.info("{} stopping", _taskName);
     _shutdown = true;
@@ -364,10 +367,24 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics.deregisterMetrics();
   }
 
+  /**
+   * The method waits till the task is started or given timeout is reached.
+   * @param timeout Time to wait.
+   * @param unit The time unit of given timeout.
+   * @return true if the task is started in given time, false otherwise.
+   * @throws InterruptedException
+   */
   public boolean awaitStart(long timeout, TimeUnit unit) throws InterruptedException {
     return _startedLatch.await(timeout, unit);
   }
 
+  /**
+   * The method waits till the task is shutdown or given timeout is reached.
+   * @param timeout Time to wait.
+   * @param unit The time unit of given timeout.
+   * @return true if the task stopped in given time, false otherwise.
+   * @throws InterruptedException
+   */
   public boolean awaitStop(long timeout, TimeUnit unit) throws InterruptedException {
     return _stoppedLatch.await(timeout, unit);
   }
@@ -838,6 +855,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             || pausedPartitionsForTopic.contains(Integer.toString(topicPartition.partition())));
   }
 
+  /**
+   * Retrieve information about the metrics, which will be created dynamically. All metrics will be captured by
+   * regular expression.
+   * @param prefix Prefix to use while creating metric name.
+   * @return list of metric information.
+   */
   public static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(KafkaBasedConnectorTaskMetrics.getEventProcessingMetrics(prefix));
@@ -862,10 +885,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return Collections.unmodifiableMap(_pausedPartitionsConfig);
   }
 
+  /**
+   * Returns if the task belongs to given datastream.
+   * @param datastreamName Name of the datastream that needs to be checked.
+   * @return True if task belongs to given datastream, false otherwise.
+   */
   public boolean hasDatastream(String datastreamName) {
     return _datastreamName.equals(datastreamName);
   }
 
+  /**
+   * Returns group ID for given task from metadata (if present), null otherwise.
+   * NOTE: This method is public only for testing purpose.
+   * @param task Task whose group ID needs to be found out.
+   * @param consumerMetrics CommonConnectorMetrics instance for any errors that need to be reported.
+   * @param logger Logger instance to log information.
+   * @return Group ID if present, null otherwise.
+   */
   @VisibleForTesting
   public static String getTaskMetadataGroupId(DatastreamTask task, CommonConnectorMetrics consumerMetrics,
       Logger logger) {

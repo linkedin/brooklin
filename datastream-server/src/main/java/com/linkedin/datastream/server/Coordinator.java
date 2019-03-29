@@ -205,10 +205,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
 
+  /**
+   * Constructor for coordinator
+   * @param datastreamCache Cache to maintain all the datastreams in the cluster.
+   * @param config Config properties to use while creating coordinator.
+   * @throws DatastreamException when coordinator creation fails.
+   */
   public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
     this(datastreamCache, new CoordinatorConfig(config));
   }
 
+  /**
+   * Construtor for coordinator
+   * @param datastreamCache Cache to maintain all the datastreams in the cluster.
+   * @param config Coordinator config to use while creating coordinator.
+   * @throws DatastreamException
+   */
   public Coordinator(CachedDatastreamReader datastreamCache, CoordinatorConfig config) throws DatastreamException {
     _datastreamCache = datastreamCache;
     _config = config;
@@ -240,6 +252,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.addAll(EventProducer.getMetricInfos());
   }
 
+  /**
+   * Method to start connector.
+   */
   public void start() {
     _log.info("Starting coordinator");
     _eventThread.start();
@@ -271,6 +286,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
+  /**
+   * Method to stop coordinator.
+   */
   public void stop() {
     _log.info("Stopping coordinator");
 
@@ -1047,6 +1065,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
   }
 
+  /**
+   * The method validates if update to given datastreams is valid or not.
+   * @param datastreams List of datastreams for which update needs to be validated.
+   * @throws DatastreamValidationException in case update is invalid.
+   */
   public void validateDatastreamsUpdate(List<Datastream> datastreams) throws DatastreamValidationException {
     _log.info("About to validate datastreams update: " + datastreams);
     try {
@@ -1098,7 +1121,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Initializes the datastream. Datastream management service will call this before writing the
    * Datastream into ZooKeeper. This method should ensure that the source has sufficient details.
    * @param datastream datastream for validation
-   * @return result of the validation
    */
   public void initializeDatastream(Datastream datastream) throws DatastreamValidationException {
     datastream.setStatus(DatastreamStatus.INITIALIZING);
@@ -1259,6 +1281,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _clusterName;
   }
 
+  /**
+   * API to add transport provider that coordinator can assign to datastreams it creates.
+   * @param transportProviderName Name of transport provider.
+   * @param admin Instance of TransportProviderAdmin that coordinator can assign.
+   */
   public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
     _transportProviderAdmins.put(transportProviderName, admin);
 
@@ -1266,6 +1293,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     transportProviderMetrics.ifPresent(_metrics::addAll);
   }
 
+  /**
+   * API to add Serde that coordinator can assign to datastreams it creates.
+   * @param serdeName Name of Serde.
+   * @param admin Instance of SerdeAdmin that coordinator can assign.
+   */
   public void addSerde(String serdeName, SerdeAdmin admin) {
     _serdeAdmins.put(serdeName, admin);
   }
@@ -1306,6 +1338,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return result.substring(0, result.length() - 1);
   }
 
+  /**
+   * Method to retrieve instance of given connector.
+   * @param name Name of the connector.
+   * @return Instance of the connector (if present), null otherwise.
+   */
   public Connector getConnector(String name) {
     if (!_connectors.containsKey(name)) {
       return null;

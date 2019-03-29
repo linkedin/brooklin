@@ -20,7 +20,11 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 
-
+/**
+ * Interface that represents ways to generate group ID from given datastream/task. Each connector has its own
+ * conventions to generate group ID, so each connector can create its own implementation and use it to generate
+ * group IDs in its consumers.
+ */
 public interface GroupIdConstructor {
 
   /**

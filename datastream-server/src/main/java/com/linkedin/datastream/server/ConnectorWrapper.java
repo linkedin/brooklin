@@ -38,6 +38,11 @@ public class ConnectorWrapper {
   private AtomicLong _numDatastreams;
   private AtomicLong _numDatastreamTasks;
 
+  /**
+   * Create ConnectorWrapper that wraps Connector interface.
+   * @param connectorType Name of the connector
+   * @param connector Connector for which wrapper should be created.
+   */
   public ConnectorWrapper(String connectorType, Connector connector) {
     _log = LoggerFactory.getLogger(String.format("%s:%s", ConnectorWrapper.class.getName(), connectorType));
     _connectorType = connectorType;
@@ -46,10 +51,20 @@ public class ConnectorWrapper {
     _numDatastreamTasks = new AtomicLong(0);
   }
 
+  /**
+   * Returns if there was any error seen with the connector when a connector API was called last time.
+   * Note: The error resets every time an API is called.
+   * @return Returns true if any error was seen, false otherwise.
+   */
   public boolean hasError() {
     return _lastError != null;
   }
 
+  /**
+   * Returns error message (if any) seen with the connector when last time connector API was called.
+   * Note: The error message resets every time an API is called.
+   * @return Error message (if any), null otherwise.
+   */
   public String getLastError() {
     return _lastError;
   }
@@ -76,6 +91,10 @@ public class ConnectorWrapper {
         _connectorType, _instanceName, _endTime - _startTime);
   }
 
+  /**
+   * Wrapper API to start connector.
+   * @param checkpointProvider CheckpointProvider if the connector needs a checkpoint store.
+   */
   public void start(CheckpointProvider checkpointProvider) {
     logApiStart("start");
 
@@ -89,6 +108,9 @@ public class ConnectorWrapper {
     logApiEnd("start");
   }
 
+  /**
+   * Wrapper API to stop connector.
+   */
   public void stop() {
     logApiStart("stop");
 
@@ -110,6 +132,10 @@ public class ConnectorWrapper {
     return _connectorType;
   }
 
+  /**
+   * Wrapper API to notify connector about assignment change.
+   * @param tasks  the list of the current assignment.
+   */
   public void onAssignmentChange(List<DatastreamTask> tasks) {
     logApiStart("onAssignmentChange");
 
@@ -126,6 +152,13 @@ public class ConnectorWrapper {
     logApiEnd("onAssignmentChange");
   }
 
+  /**
+   * Wrapper API to initialize datastream in connector.This API in calls connector's initializeDatastream.
+   * @param stream Datastream to initialize.
+   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
+   *                       initialized.
+   * @throws DatastreamValidationException when the datastream that is being created fails any validation.
+   */
   public void initializeDatastream(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     logApiStart("initializeDatastream");
@@ -145,6 +178,13 @@ public class ConnectorWrapper {
     logApiEnd("initializeDatastream");
   }
 
+  /**
+   * Wrapper API to validate update to given datastreams. This API in calls connector's validateUpdateDatastreams.
+   * @param datastreams List of datastreams for which update operation needs to be validated.
+   * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
+   *                       validated.
+   * @throws DatastreamValidationException
+   */
   public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     logApiStart("validateUpdateDatastreams");
@@ -152,6 +192,13 @@ public class ConnectorWrapper {
     logApiEnd("validateUpdateDatastreams");
   }
 
+  /**
+   * Wrapper API to decide if give update operation type is supported for given datastream. This API in turn calls
+   * connector's isDatastreamUpdateTypeSupported API.
+   * @param datastream Datastream on which update operation will be performed.
+   * @param updateType Type of datastream update which needs to be checked against.
+   * @return true if given operation type is supported, false otherwise.
+   */
   public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
     logApiStart("isDatastreamUpdateTypeSupported");
     boolean ret = _connector.isDatastreamUpdateTypeSupported(datastream, updateType);
@@ -167,6 +214,11 @@ public class ConnectorWrapper {
     return _numDatastreamTasks.get();
   }
 
+  /**
+   * Wrapper API to find out destination of given datastream.This API in turn calls
+   * @param datastream Datastream whose destination needs to be found out.
+   * @return Destination of the datastream. 
+   */
   public String getDestinationName(Datastream datastream) {
     logApiStart("getDestinationName");
     String destinationName = _connector.getDestinationName(datastream);

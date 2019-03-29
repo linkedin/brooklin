@@ -80,15 +80,30 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
 
+  /**
+   * Constructor for DatastreamTaskImpl. This constructor just empty list of partitions to the task.
+   * NOTE: The constructor is intended for tests only.
+   */
   @TestOnly
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
   }
 
+  /**
+   * Constructor for DatastreamTaskImpl. This constructor assigns a random ID and empty list of partitions
+   * to the task.
+   * @param datastreams
+   */
   public DatastreamTaskImpl(List<Datastream> datastreams) {
     this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
+  /**
+   * Constructor for DatastreamTaskImpl.
+   * @param datastreams List of datastreams associated with the task.
+   * @param id ID of the task.
+   * @param partitions List of partitions associated with the task.
+   */
   public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions) {
     Validate.notEmpty(datastreams, "empty datastream");
     Validate.notNull(id, "null id");
@@ -169,6 +184,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _partitions;
   }
 
+  /**
+   * Sets/updates partitions associated with the task.
+   * @param partitions List of partitions associated with task.
+   */
   public void setPartitions(List<Integer> partitions) {
     Validate.notNull(partitions);
     _partitions = partitions;
@@ -199,6 +218,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return Collections.unmodifiableList(_datastreams);
   }
 
+  /**
+   * Sets/updates datastreams associated with the task.
+   * @param datastreams List of datastreams associated with task.
+   */
   public void setDatastreams(List<Datastream> datastreams) {
     _datastreams = datastreams;
     // destination and connector type should be immutable
@@ -233,6 +256,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _eventProducer = eventProducer;
   }
 
+  /**
+   * Setter method for destination serde.
+   * @param destination SerdeSet to set to.
+   */
   public void assignSerDes(SerDeSet destination) {
     _destinationSerDes = destination;
   }
@@ -335,6 +362,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _zkAdapter = adapter;
   }
 
+  /**
+   * This method updates checkpoint info for given partition inside the task.
+   * @param partition Partition whose checkpoint needs to be updated.
+   * @param checkpoint Checkpoint to update to.
+   */
   public void updateCheckpoint(int partition, String checkpoint) {
     LOG.debug("Update checkpoint called for partition {} and checkpoint {}", partition, checkpoint);
     _checkpoints.put(partition, checkpoint);

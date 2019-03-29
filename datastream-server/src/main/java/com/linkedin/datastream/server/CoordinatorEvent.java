@@ -5,8 +5,14 @@
  */
 package com.linkedin.datastream.server;
 
+/**
+ * Class that represents different event types inside coordinator.
+ */
 public class CoordinatorEvent {
 
+  /**
+   * Enum that represents event types inside coordinator.
+   */
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
@@ -31,22 +37,44 @@ public class CoordinatorEvent {
     _eventType = eventType;
   }
 
+  /**
+   * Returns LEADER_DO_ASSIGNMENT_EVENT that represents new assignment needs to be done (this is a leader
+   * specific event).
+   * @return Coordinator event LEADER_DO_ASSIGNMENT_EVENT.
+   */
   public static CoordinatorEvent createLeaderDoAssignmentEvent() {
     return LEADER_DO_ASSIGNMENT_EVENT;
   }
 
+  /**
+   * Returns HANDLE_ASSIGNMENT_CHANGE_EVENT that represents change in task assignment to connectors.
+   * @return Coordinator event HANDLE_ASSIGNMENT_CHANGE_EVENT.
+   */
   public static CoordinatorEvent createHandleAssignmentChangeEvent() {
     return HANDLE_ASSIGNMENT_CHANGE_EVENT;
   }
 
+  /**
+   * Returns HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT that represents update to a datastream.
+   * @return Coordinator event HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT.
+   */
   public static CoordinatorEvent createHandleDatastreamChangeEvent() {
     return HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT;
   }
 
+  /**
+   * Returns HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT that represents addition/deletion of new datastream.
+   * @return Coordinator event HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT.
+   */
   public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
     return HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT;
   }
 
+  /**
+   * Creates an instance of HandleInstanceError that represents an error event inside coordinator.
+   * @param errorMessage Error message associated with the event.
+   * @return An instance of HandleInstanceError that represents error event.
+   */
   public static HandleInstanceError createHandleInstanceErrorEvent(String errorMessage) {
     return new HandleInstanceError(errorMessage);
   }
@@ -60,6 +88,9 @@ public class CoordinatorEvent {
     return "type:" + _eventType;
   }
 
+  /**
+   * Class that represents an error event seen inside coorodinator.It stores the error event along with error message.
+   */
   public static final class HandleInstanceError extends CoordinatorEvent {
     private final String _errorMessage;
 

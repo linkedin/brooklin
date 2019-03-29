@@ -9,12 +9,23 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 
-
+/**
+ * Implementation of GroupIdConstructor interface for kafka connectors. The class generates group ID for given
+ * datastream/task according to kafka connector conventions.
+ */
 public class KafkaGroupIdConstructor implements GroupIdConstructor {
 
   private final boolean _isGroupIdHashingEnabled;
   private final String _clusterName;
 
+  /**
+   * Constructor for KafkaGroupIdConstructor
+   * @param isGroupIdHashingEnabled Indicates if group ID generated should be hashed. In that case, cluster name is
+   *                                appended to the hashed group ID to indicate origin of the group ID.
+   * @param clusterName Name of the cluster where the group ID constructor is running. This should be the same as
+   *                    cluster where corresponding datastream server is running. The cluster name is used in
+   *                    generating group ID if isGroupIdHashingEnabled argument is set to true.
+   */
   public KafkaGroupIdConstructor(boolean isGroupIdHashingEnabled, String clusterName) {
     _isGroupIdHashingEnabled = isGroupIdHashingEnabled;
     _clusterName = clusterName;

@@ -39,6 +39,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   private final boolean _isFlushlessModeEnabled;
 
+  /**
+   * Constructor for KafkaMirrorMakerConnector.
+   * @param connectorName Name of the KafkaMirrorMakerConnector.
+   * @param config Config to use while creating the instance of KafkaMirrorMakerConnector.
+   * @param clusterName Name of the cluster where connector will be running
+   */
   public KafkaMirrorMakerConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaMirrorMakerGroupIdConstructor(
             Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
