@@ -23,7 +23,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
-import static java.lang.Math.*;
+import static java.lang.Math.abs;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.mock;
@@ -59,7 +59,7 @@ public class TestAbstractKafkaConnector {
     long fireDelay = connector.getThreadDelayTimeInSecond(300);
 
     boolean found = false;
-    for (int i = 0; i <= 3600/300; ++ i) {
+    for (int i = 0; i <= 3600 / 300; ++i) {
       OffsetDateTime expectedFireTime =
           OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour() + (i * 5) / 60, (i * 5) % 60, 0, 0, ZoneOffset.UTC);
       if (abs(expectedFireTime.toEpochSecond() - now.plusSeconds(fireDelay).toEpochSecond()) < 10) {
