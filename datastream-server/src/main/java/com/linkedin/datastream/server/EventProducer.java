@@ -133,6 +133,9 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     // provision some metrics to force them to create
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 0);
+    if (!_enablePerTopicMetrics) {
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getDatastreams().get(0).getName(), EVENTS_PRODUCED_OUTSIDE_SLA, 0);
+    }
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
         EVENTS_PRODUCED_OUTSIDE_SLA, 0);
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
