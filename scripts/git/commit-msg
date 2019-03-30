@@ -182,7 +182,7 @@ def main():
                 processed_commit_message = process_commit_message(commit_file.read())
             with open(commit_filename, 'w') as commit_file:
                 commit_file.write(processed_commit_message)
-        except (TypeError, ValueError) as err:
+        except ValueError as err:
             print_error(str(err))
             sys.exit(1)
 
@@ -192,4 +192,3 @@ if __name__ == '__main__':
 
     # Uncomment to run unit tests whenever script is changed
     # unittest.main()
-
