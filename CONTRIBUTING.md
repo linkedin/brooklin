@@ -24,7 +24,7 @@ Our Java coding style guidelines are encoded in the [Checkstyle configuration fi
 1. Separate subject from body with a blank line
 2. Limit the subject line to 120 characters
 3. Wrap the body at 100 characters
-4. Captialize the subject line
+4. Capitalize the subject line
 5. Do not end the subject line with a period
 6. Do not make references to internal Jira tickets
 7. Do not add PR number in subject line (GitHub appends it by default)
@@ -33,7 +33,7 @@ Here is an example of a good Git commit message:
 > ```
 > Summarize changes in up to 120 characters
 >
-> More detailed explanatory text, if necessary.  Wrap it to about 100 characters or so. The blank line
+> More detailed explanatory text, if necessary. Wrap it to about 100 characters or so. The blank line
 > separating the summary from the body is critical (unless you omit the body entirely); tools like
 > rebase can get confused if you run the two together. Further paragraphs come after blank lines.
 >
