@@ -31,9 +31,9 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   private final CachedDatastreamReader _datastreamCache;
 
   public ZookeeperBackedDatastreamStore(CachedDatastreamReader datastreamCache, ZkClient zkClient, String cluster) {
-    assert zkClient != null;
-    assert cluster != null;
-    assert datastreamCache != null;
+    Validate.notNull(datastreamCache);
+    Validate.notNull(zkClient);
+    Validate.notNull(cluster);
 
     _datastreamCache = datastreamCache;
     _zkClient = zkClient;

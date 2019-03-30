@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,8 +40,8 @@ public class ServerComponentHealthAggregator {
   private int _restEndPointPort;
 
   public ServerComponentHealthAggregator(ZkClient zkClient, String cluster, int endPointPort, String endPointPath) {
-    assert zkClient != null;
-    assert cluster != null;
+    Validate.notNull(zkClient);
+    Validate.notNull(cluster);
 
     _zkClient = zkClient;
     _cluster = cluster;
