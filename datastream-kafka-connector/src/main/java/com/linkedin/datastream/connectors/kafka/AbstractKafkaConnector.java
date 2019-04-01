@@ -10,6 +10,7 @@ import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -68,7 +69,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   private static final String TOPIC_KEY = "topic";
   private static final String OFFSETS_KEY = "offsets";
-  private static final long INITIAL_THREAD_DELAY = 120L;
+  private static final long MIN_INITIAL_DELAY = 120L;
 
 
   protected final String _connectorName;
@@ -248,20 +249,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   *  This will make the thread delay a certain timestamp, ex. 6:00, 6:05, 6:10..etc so that threads in different
-   *  hosts are firing roughly at the same time
+   *  This will make the thread delay and fire until a certain timestamp, ex. 6:00, 6:05, 6:10..etc so that threads
+   *  in different hosts are firing roughly at the same time. The initial delays will be larger than min_initial_delay
+   *  unless the threads interval is too small, so that a 5:99 task, will not fire at 6:00 but 6:05.
    * @param daemonThreadIntervalSeconds
    * @return the time thread need to be delayed in second
    */
   @VisibleForTesting
   long getThreadDelayTimeInSecond(int daemonThreadIntervalSeconds) {
     OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-    long roundOfTimeStamp = OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), 0, 0, 0, ZoneOffset.UTC).toEpochSecond();
-    long initialDelay = Math.min(INITIAL_THREAD_DELAY, daemonThreadIntervalSeconds);
-    while ((roundOfTimeStamp - now.toEpochSecond()) < initialDelay) {
-      roundOfTimeStamp += daemonThreadIntervalSeconds;
+    long truncatedTimestamp = now.truncatedTo(ChronoUnit.HOURS).toEpochSecond();
+    long minDelay = Math.min(MIN_INITIAL_DELAY, daemonThreadIntervalSeconds);
+    while ((truncatedTimestamp - now.toEpochSecond()) < minDelay) {
+      truncatedTimestamp += daemonThreadIntervalSeconds;
     }
-    return roundOfTimeStamp - now.toEpochSecond();
+    return truncatedTimestamp - now.toEpochSecond();
   }
 
   @Override
