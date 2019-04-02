@@ -1,0 +1,9 @@
+
+// Copy Git hook into hooks directory, unless it already exists.
+if (!new File(rootProject.rootDir, '.git/hooks/commit-msg').exists()) {
+  project.copy {
+    from new File(rootProject.rootDir, 'scripts/git/commit-msg')
+    into new File(rootProject.rootDir, '.git/hooks')
+    fileMode 0544   // -r-xr--r--
+  }
+}
