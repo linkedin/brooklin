@@ -194,7 +194,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     LOG.info("Sending third set of events");
 
     //Sleep 1 seconds to wait for maybeCommitOffsets being called
-    Thread.sleep(1100);
+    Thread.sleep(2000);
     spiedTask.stop();
     Assert.assertTrue(spiedTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
