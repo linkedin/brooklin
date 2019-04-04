@@ -104,7 +104,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMs;
   protected final Optional<Map<Integer, Long>> _startOffsets;
-  protected final boolean _enableLatestBrokerOffsetsFetcher;
 
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
@@ -122,7 +121,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
-  protected final KafkaPositionTracker _kafkaPositionTracker;
+  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
 
   private volatile int _pollAttempts;
 
@@ -163,11 +162,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _pollTimeoutMs = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
-    _enableLatestBrokerOffsetsFetcher = config.enableLatestBrokerOffsetsFetcher();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
-    _kafkaPositionTracker = new KafkaPositionTracker(_taskName, _enableLatestBrokerOffsetsFetcher,
+
+    _kafkaPositionTracker = config.enableKafkaPositionTracker() ? Optional.of(new KafkaPositionTracker(_taskName,
         () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
-        () -> createKafkaConsumer(_consumerProps));
+        () -> createKafkaConsumer(_consumerProps))) : Optional.empty();
+
     _pollAttempts = 0;
   }
 
@@ -244,8 +244,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
     }
-    _kafkaPositionTracker.updatePositions(readTime, records, _consumer.metrics(),
-        records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp))));
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.updatePositions(readTime, records, _consumer.metrics(),
+        records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp)))));
+
     if (shouldAddPausePartitionsTask) {
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
@@ -617,7 +618,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     updateConsumerAssignment(_consumer.assignment());
 
     // Remove old position data
-    _kafkaPositionTracker.onPartitionsRevoked(_consumerAssignment);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(_consumerAssignment));
 
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -629,7 +630,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Partition ownership assigned for {}.", partitions);
 
     updateConsumerAssignment(partitions);
-    _kafkaPositionTracker.onPartitionsAssigned(partitions);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
 
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -883,19 +884,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   /**
    * Gets a DatastreamPositionResponse containing time-based position data for the current task.
-   * @return the current time-based position data
+   * @return the current time-based position data, or null if position tracker is disabled
    * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
    */
   public DatastreamPositionResponse getPositionResponse() {
-    return new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, _kafkaPositionTracker.getPositions()));
+    return _kafkaPositionTracker.map(
+        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getPositions())))
+        .orElse(null);
   }
 
   /**
    * Gets a DatastreamPositionResponse containing offset-based position data for the current task.
-   * @return the current offset-based position data
+   * @return the current offset-based position data, or null if position tracker is disabled
    * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
    */
   public DatastreamPositionResponse getOffsetPositionResponse() {
-    return new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, _kafkaPositionTracker.getOffsetPositions()));
+    return _kafkaPositionTracker.map(
+        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getOffsetPositions())))
+        .orElse(null);
   }
 }
