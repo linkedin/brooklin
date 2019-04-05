@@ -19,6 +19,10 @@ public class DatabaseColumnRecord {
   private final Object _value;
   private final int _sqlType;
 
+  /**
+   * Creates a DatabaseColumnRecord instance given a column name,
+   * value, and SQL type
+   */
   public DatabaseColumnRecord(String colName, Object value, int sqlType) {
     _colName = colName;
     _value = value;
@@ -37,6 +41,7 @@ public class DatabaseColumnRecord {
     return _sqlType;
   }
 
+  @Override
   public String toString() {
     StringBuilder str = new StringBuilder();
     str.append("[" + _colName + ":");
@@ -45,6 +50,7 @@ public class DatabaseColumnRecord {
     return str.toString();
   }
 
+  @Override
   public boolean equals(Object o) {
     if (!(o instanceof DatabaseColumnRecord)) {
       return false;
@@ -63,6 +69,7 @@ public class DatabaseColumnRecord {
     return true;
   }
 
+  @Override
   public int hashCode() {
     return Objects.hash(this.getColName(), this.getValue(), this.getSqlType());
   }

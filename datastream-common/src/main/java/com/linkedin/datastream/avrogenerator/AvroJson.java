@@ -81,38 +81,65 @@ public class AvroJson {
     return nullableType;
   }
 
+  /**
+   * Set the {@value NAME_KEY} schema component
+   */
   public void setName(String name) {
     _info.put(NAME_KEY, name);
   }
 
+  /**
+   * Set the {@value META_KEY} schema component
+   */
   public void setMeta(String meta) {
     _info.put(META_KEY, meta);
   }
 
+  /**
+   * Set the {@value DOC_KEY} schema component
+   */
   public void setDoc(String doc) {
     _info.put(DOC_KEY, doc);
   }
 
+  /**
+   * Set the {@value TYPE_KEY} schema component
+   */
   public void setType(Object type) {
     _info.put(TYPE_KEY, type);
   }
 
+  /**
+   * Set the {@value ARRAY_ITEMS_KEY} schema component
+   */
   public void setArrayItems(Object items) {
     _info.put(ARRAY_ITEMS_KEY, items);
   }
 
+  /**
+   * Set the {@value NAMESPACE_KEY} schema component
+   */
   public void setNamespace(String namespace) {
     _info.put(NAMESPACE_KEY, namespace);
   }
 
+  /**
+   * Set the {@value DEFAULT_KEY} key to null
+   */
   public void nullDefault() {
     _info.put(DEFAULT_KEY, null);
   }
 
+  /**
+   * Set the the {@value FIELD_KEY} schema component
+   */
   public void setFields(List<Map<String, Object>> fields) {
     _info.put(FIELD_KEY, fields);
   }
 
+  /**
+   * Get schema components map
+   */
   public Map<String, Object> info() {
     return _info;
   }

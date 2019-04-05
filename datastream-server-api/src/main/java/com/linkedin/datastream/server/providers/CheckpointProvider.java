@@ -12,7 +12,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * Checkpoint provider
+ * An abstraction for maintaining information about the progress made
+ * in processing {@link DatastreamTask}s, e.g. checkpoints/offsets.
  */
 public interface CheckpointProvider extends MetricsAware {
 
@@ -42,7 +43,7 @@ public interface CheckpointProvider extends MetricsAware {
 
   /**
    * Read the checkpoints from the checkpoint store for the task
-   * @param datastreamTask datastream tasks whose checkpoints need to be read
+   * @param datastreamTask DatastreamTask whose checkpoints need to be read
    * @return Map of the checkpoints associated with the datastream task.
    */
   Map<Integer, String> getCommitted(DatastreamTask datastreamTask);

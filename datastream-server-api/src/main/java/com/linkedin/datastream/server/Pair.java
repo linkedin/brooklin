@@ -8,11 +8,19 @@ package com.linkedin.datastream.server;
 import java.util.Objects;
 
 
+/**
+ * Key-value pair
+ * @param <K> type of key
+ * @param <V> type of value
+ */
 public class Pair<K, V> {
 
   private final V _value;
   private final K _key;
 
+  /**
+   * Constructor using key and value
+   */
   public Pair(K key, V value) {
     _key = key;
     _value = value;
@@ -26,6 +34,7 @@ public class Pair<K, V> {
     return _key;
   }
 
+  @Override
   @SuppressWarnings("unchecked")
   public boolean equals(Object obj) {
     if (obj instanceof Pair) {
@@ -40,7 +49,9 @@ public class Pair<K, V> {
     return Objects.hash(_key, _value);
   }
 
-  /*convenient method*/
+  /**
+   * Convenience method for creating a pair given a key and a value
+   */
   public static <S, T> Pair<S, T> of(S first, T second) {
     return new Pair<>(first, second);
   }
