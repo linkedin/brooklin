@@ -4,7 +4,7 @@ First of all, thank you for taking the time to contribute to Brooklin.
 
 Code and documentation contributions can be made by forking the repository and sending a pull request against the master branch of this repo.
 
-Please, take some time to review the [Contribution Guidelines](#contribution-guidelines) below before creating a new issue or sending out a PR.
+Please, take some time to review our [Contribution Guidelines](#contribution-guidelines) before creating a new issue or sending out a PR.
 
 ## Contribution Agreement
 As a contributor, you represent that the code you submit is your original work or that of your employer (in which case you represent you have the right to bind your employer). By submitting code, you (and, if applicable, your employer) are licensing the submitted code to LinkedIn and the open source community subject to the BSD 2-Clause license.
@@ -15,6 +15,9 @@ Please, review the guidelines at https://www.linkedin.com/help/linkedin/answer/6
 Reports should be encrypted using LinkedIn's [Public PGP Key](https://www.linkedin.com/help/linkedin/answer/79676) and sent to [security@linkedin.com](mailto:security@linkedin.com), preferably with the title "GitHub linkedin/Brooklin — < short summary >".
 
 ## Contribution Guidelines
+
+### Code of Conduct
+Please, take a moment to read our [Code of Conduct](https://github.com/linkedin/brooklin/blob/master/CODE_OF_CONDUCT.md).
 
 ### Java Coding Style Guide
 Our Java coding style guidelines are encoded in the [Checkstyle configuration file](https://github.com/linkedin/Brooklin/blob/master/checkstyle/checkstyle.xml) checked into this repo.
