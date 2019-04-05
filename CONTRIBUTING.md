@@ -27,7 +27,6 @@ Our Java coding style guidelines are encoded in the [Checkstyle configuration fi
 4. Capitalize the subject line
 5. Do not end the subject line with a period
 6. Do not make references to internal Jira tickets
-7. Do not add PR number in subject line (GitHub appends it by default)
 
 Here is an example of a good Git commit message:
 > ```
