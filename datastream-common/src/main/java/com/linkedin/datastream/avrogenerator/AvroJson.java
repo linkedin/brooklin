@@ -81,38 +81,65 @@ public class AvroJson {
     return nullableType;
   }
 
+  /**
+   * setting the name schema component in the HashMap
+   */
   public void setName(String name) {
     _info.put(NAME_KEY, name);
   }
 
+  /**
+   * setting the meta schema component in the HashMap
+   */
   public void setMeta(String meta) {
     _info.put(META_KEY, meta);
   }
 
+  /**
+   * setting the Doc schema component in the HashMap
+   */
   public void setDoc(String doc) {
     _info.put(DOC_KEY, doc);
   }
 
+  /**
+   * setting the Type schema component in the HashMap
+   */
   public void setType(Object type) {
     _info.put(TYPE_KEY, type);
   }
 
+  /**
+   * setting the ArrayItems schema component in the HashMap
+   */
   public void setArrayItems(Object items) {
     _info.put(ARRAY_ITEMS_KEY, items);
   }
 
+  /**
+   * setting the Namespace schema component in the HashMap
+   */
   public void setNamespace(String namespace) {
     _info.put(NAMESPACE_KEY, namespace);
   }
 
+  /**
+   * setting the default key to null in the HashMap
+   */
   public void nullDefault() {
     _info.put(DEFAULT_KEY, null);
   }
 
+  /**
+   * setting the the Fields in the HashMap
+   */
   public void setFields(List<Map<String, Object>> fields) {
     _info.put(FIELD_KEY, fields);
   }
 
+  /**
+   * setting the  schema component in the HashMap
+   */
   public Map<String, Object> info() {
     return _info;
   }

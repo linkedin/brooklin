@@ -17,13 +17,15 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamEvent;
 
 
+/**
+ * A runnable for DatastreamEventProducer
+ */
 public class DatastreamEventProducerRunnable implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerRunnable.class.getName());
   private final GlobalSettings _globalSettings;
 
   /**
-   * This producer basically ignores the type of request for now
-   * It will produce
+   * Constructs an instance given the GlobalSettings
    */
   public DatastreamEventProducerRunnable(GlobalSettings globalSettings) {
     _globalSettings = globalSettings;

@@ -20,7 +20,7 @@ import com.linkedin.datastream.testutil.event.generator.UnknownTypeException;
 
 
 /**
- * Event validator functionality
+ * Generic event validator functionality
  */
 public class GenericEventValidator {
 
@@ -29,6 +29,9 @@ public class GenericEventValidator {
   
   private static final Logger LOG = LoggerFactory.getLogger(GenericEventValidator.class.getName());
 
+  /**
+   * Default constructor
+   */
   public GenericEventValidator() {
   }
 
@@ -44,6 +47,10 @@ public class GenericEventValidator {
     return obj;        // treat this as generic payload record
   }
 
+  /**
+   * get the key of a given IndexedRecord if found, o.w. retun the 
+   * IndexedRecord object itself as generic payload record
+   */
   private static Object getKey(IndexedRecord obj) {
     Schema schema = obj.getSchema();
     for (String name : KEY_STRS) {

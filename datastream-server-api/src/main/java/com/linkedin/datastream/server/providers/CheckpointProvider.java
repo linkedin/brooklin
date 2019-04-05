@@ -12,7 +12,9 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * Checkpoint provider
+ * Checkpoint provider Interface: the APIs a Checkpoint provider need to implement
+ *   which includes updating the Checkpoint, flushing out to the store durably, and
+ *   retrieving the checkpoints.
  */
 public interface CheckpointProvider extends MetricsAware {
 
@@ -42,7 +44,7 @@ public interface CheckpointProvider extends MetricsAware {
 
   /**
    * Read the checkpoints from the checkpoint store for the task
-   * @param datastreamTask datastream tasks whose checkpoints need to be read
+   * @param datastreamTask datastream task whose checkpoints need to be read
    * @return Map of the checkpoints associated with the datastream task.
    */
   Map<Integer, String> getCommitted(DatastreamTask datastreamTask);

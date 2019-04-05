@@ -28,18 +28,32 @@ public final class KafkaTestUtils {
   private static AtomicInteger _groupCounter = new AtomicInteger();
 
 
+  /**
+   * Interface for the callback used as reader ( ReaderCallback)
+   * used to make sure the callback implements onMessage API
+   */
   public interface ReaderCallback {
+
+    /**
+     * API for the reader callback to consume an incoming message
+     */
     boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
 
   private KafkaTestUtils() {
   }
 
+  /**
+   * Get a List of PartitionInfo for partitions of a given topic
+   */
   public static List<PartitionInfo> getPartitionInfo(String topic, String brokerList) {
     KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
     return consumer.partitionsFor(topic);
   }
 
+  /**
+   * consume events from a given partition of a kafka topic, using given ReaderCallback
+   */
   public static void readTopic(String topic, Integer partition, String brokerList, ReaderCallback callback)
       throws Exception {
     Validate.notNull(topic);

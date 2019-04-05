@@ -11,18 +11,30 @@ package com.linkedin.datastream.common;
 public class RetriableException extends RuntimeException {
   private static final long serialVersionUID = 1;
 
+  /**
+   * default constructor
+   */
   public RetriableException() {
     super();
   }
 
+  /**
+   * constructor using message and a cause
+   */
   public RetriableException(String message, Throwable cause) {
     super(message, cause);
   }
 
+  /**
+   * constructor using message only
+   */
   public RetriableException(String message) {
     super(message);
   }
 
+  /**
+   * constructor using a cause only
+   */
   public RetriableException(Throwable cause) {
     super(cause);
   }
