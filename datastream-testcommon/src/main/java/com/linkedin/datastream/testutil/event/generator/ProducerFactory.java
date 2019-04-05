@@ -6,13 +6,14 @@
 package com.linkedin.datastream.testutil.event.generator;
 
 /**
- *  ProducerFactory: Factory for DatastreamEventProducerRunnable
+ *  A utility factory of {@link DatastreamEventProducerRunnable} objects
  */
 public class ProducerFactory {
 
   /**
-   * returns the Producer runnable, currently supports DatastreamEventProducer 
-   * only. Throw exception for all other producer types.
+   * Creates a {@link DatastreamEventProducerRunnable} based on the provided {@link GlobalSettings}
+   * @throws IllegalArgumentException for all {@link GlobalSettings.ProducerType}s other than
+   * {@link GlobalSettings.ProducerType#Datastream}.
    */
   public static Runnable getProducer(GlobalSettings globalSettings) {
     switch (globalSettings._producerType) {

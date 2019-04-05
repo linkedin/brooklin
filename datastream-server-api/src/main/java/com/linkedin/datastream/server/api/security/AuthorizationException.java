@@ -15,28 +15,28 @@ public class AuthorizationException extends DatastreamRuntimeException {
   private static final long serialVersionUID = 1;
 
   /**
-   * default constructor
+   * Default constructor
    */
   public AuthorizationException() {
     super();
   }
 
   /**
-   * constructor using message and cause
+   * Constructor using message and cause
    */
   public AuthorizationException(String message, Throwable cause) {
     super(message, cause);
   }
 
   /**
-   * constructor using message only
+   * Constructor using message only
    */
   public AuthorizationException(String message) {
     super(message);
   }
 
   /**
-   * constructor using cause only
+   * Constructor using cause only
    */
   public AuthorizationException(Throwable cause) {
     super(cause);

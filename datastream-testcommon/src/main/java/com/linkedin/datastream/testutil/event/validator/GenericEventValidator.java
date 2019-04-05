@@ -20,13 +20,13 @@ import com.linkedin.datastream.testutil.event.generator.UnknownTypeException;
 
 
 /**
- * Generic event validator functionality
+ * Avro {@link IndexedRecord} validation utilities
  */
 public class GenericEventValidator {
 
   static final String[] PAYLOAD_STRS = {"payload"};
   static final String[] KEY_STRS = {"key"};
-  
+
   private static final Logger LOG = LoggerFactory.getLogger(GenericEventValidator.class.getName());
 
   /**
@@ -48,8 +48,8 @@ public class GenericEventValidator {
   }
 
   /**
-   * get the key of a given IndexedRecord if found, o.w. retun the 
-   * IndexedRecord object itself as generic payload record
+   * Get the key of a given IndexedRecord if found.
+   * Otherwise, return the entire IndexedRecord object.
    */
   private static Object getKey(IndexedRecord obj) {
     Schema schema = obj.getSchema();

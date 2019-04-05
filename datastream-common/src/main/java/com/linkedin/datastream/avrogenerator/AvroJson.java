@@ -82,63 +82,63 @@ public class AvroJson {
   }
 
   /**
-   * setting the name schema component in the HashMap
+   * Set the {@value NAME_KEY} schema component
    */
   public void setName(String name) {
     _info.put(NAME_KEY, name);
   }
 
   /**
-   * setting the meta schema component in the HashMap
+   * Set the {@value META_KEY} schema component
    */
   public void setMeta(String meta) {
     _info.put(META_KEY, meta);
   }
 
   /**
-   * setting the Doc schema component in the HashMap
+   * Set the {@value DOC_KEY} schema component
    */
   public void setDoc(String doc) {
     _info.put(DOC_KEY, doc);
   }
 
   /**
-   * setting the Type schema component in the HashMap
+   * Set the {@value TYPE_KEY} schema component
    */
   public void setType(Object type) {
     _info.put(TYPE_KEY, type);
   }
 
   /**
-   * setting the ArrayItems schema component in the HashMap
+   * Set the {@value ARRAY_ITEMS_KEY} schema component
    */
   public void setArrayItems(Object items) {
     _info.put(ARRAY_ITEMS_KEY, items);
   }
 
   /**
-   * setting the Namespace schema component in the HashMap
+   * Set the {@value NAMESPACE_KEY} schema component
    */
   public void setNamespace(String namespace) {
     _info.put(NAMESPACE_KEY, namespace);
   }
 
   /**
-   * setting the default key to null in the HashMap
+   * Set the {@value DEFAULT_KEY} key to null
    */
   public void nullDefault() {
     _info.put(DEFAULT_KEY, null);
   }
 
   /**
-   * setting the the Fields in the HashMap
+   * Set the the {@value FIELD_KEY} schema component
    */
   public void setFields(List<Map<String, Object>> fields) {
     _info.put(FIELD_KEY, fields);
   }
 
   /**
-   * setting the  schema component in the HashMap
+   * Get schema components map
    */
   public Map<String, Object> info() {
     return _info;

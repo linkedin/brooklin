@@ -29,7 +29,7 @@ public class VerifiableProperties {
   private final Properties _props;
 
   /**
-   * Constructs an instance of VerifiableProperies given a set of Properties
+   * Construct an instance of VerifiableProperties given a set of {@link Properties}
    */
   public VerifiableProperties(Properties props) {
     this._props = props;
@@ -64,21 +64,21 @@ public class VerifiableProperties {
   }
 
   /**
-   * retrieves the properties of a certain domain (i.e., with a given prefix)
+   * Retrieve the properties of a certain domain (i.e. starting with a given prefix)
    */
   public Properties getDomainProperties(String prefix) {
     return getDomainProperties(prefix, false);
   }
 
   /**
-   * checks if given property is in this properties
+   * Check for the presence of a property with the specified name
    */
   public boolean containsKey(String name) {
     return _props.containsKey(name);
   }
 
   /**
-   * gets a property by its name
+   * Get a property by name
    */
   public String getProperty(String name) {
     String value = _props.getProperty(name);
@@ -94,9 +94,8 @@ public class VerifiableProperties {
   }
 
   /**
-   * get an integer property given its name, Throw an exception
-   * if the integer value is not in the given range (inclusive) 
-   * of if the property does not exist
+   * Read a required integer property or throw an exception if no such property is found or
+   * the value is not in the given range (inclusive)
    */
   public int getIntInRange(String name, int start, int end) {
     if (!containsKey(name)) {
@@ -116,9 +115,11 @@ public class VerifiableProperties {
   }
 
   /**
-   * Read a short property given its name. Returns the defaultVal if property
-   * not found
-   */  
+   * Read a short from the properties instance
+   * @param name The property name
+   * @param defaultVal The default value to use if the property is not found
+   * @return the short value
+   */
   public Short getShort(String name, Short defaultVal) {
     return getShortInRange(name, defaultVal, Short.MIN_VALUE, Short.MAX_VALUE);
   }
@@ -149,8 +150,14 @@ public class VerifiableProperties {
   }
 
   /**
-   * Read short value of a property given its name. Throw an exception if the short
-   * value is not within the given range (inclusive) or if the property not found
+   * Read a short from the properties instance. Throw an exception
+   * if the value is not within the given range (inclusive)
+   * @param name The property name
+   * @param defaultVal The default value to use if the property is not found
+   * @param start The start of the range in which the value must fall (inclusive)
+   * @param end The end of the range in which the value must fall
+   * @throws IllegalArgumentException If the value is not in the given range
+   * @return the short value
    */
   public Short getShortInRange(String name, Short defaultVal, Short start, Short end) {
     Short v = 0;
@@ -168,9 +175,14 @@ public class VerifiableProperties {
   }
 
   /**
-   * Read Double value of a property given its name. Use default vallue if property
-   * does not exist. Throw an exception if the Double value is not within the given 
-   * range (inclusive).
+   * Read a Double from the properties instance. Throw an exception
+   * if the value is not in the give range (inclusive)
+   * @param name The property name
+   * @param defaultVal The default value to use if the property is not found
+   * @param start The start of the range in which the value must fall (inclusive)
+   * @param end The end of the range in which the value must fall
+   * @throws IllegalArgumentException If the value is not in the given range
+   * @return the Double value
    */
   public Double getDoubleInRange(String name, Double defaultVal, Double start, Double end) {
     Double v = 0.0;
@@ -276,7 +288,7 @@ public class VerifiableProperties {
   }
 
   /**
-   * Get a boolean property given its name
+   * Get a boolean property or throw an exception if no such property is defined.
    */
   public boolean getBoolean(String name) {
     return Boolean.parseBoolean(getString(name));
@@ -294,7 +306,7 @@ public class VerifiableProperties {
   }
 
   /**
-   * Get a string property or throw and exception if no such property is defined.
+   * Get a string property or throw an exception if no such property is defined.
    */
   public String getString(String name) {
     if (!containsKey(name)) {
@@ -334,8 +346,9 @@ public class VerifiableProperties {
   }
 
   /**
-   * Verify that all property names in this instance of properties
-   * belong to a references set of property names.
+   * Verify that every property has been accessed/retrieved at least once.
+   * A warning is logged for every property that has never been retrieved as
+   * a defensive measure against cases of extraneous or misspelled properties.
    */
   public void verify() {
     LOG.info("Verifying properties");
@@ -350,9 +363,7 @@ public class VerifiableProperties {
     }
   }
 
-  /**
-   * get properties as String
-   */
+  @Override
   public String toString() {
     return _props.toString();
   }

@@ -29,13 +29,12 @@ public final class KafkaTestUtils {
 
 
   /**
-   * Interface for the callback used as reader ( ReaderCallback)
-   * used to make sure the callback implements onMessage API
+   * Interface for the callback invoked whenever messages are read
    */
   public interface ReaderCallback {
 
     /**
-     * API for the reader callback to consume an incoming message
+     * Callback invoked whenever a message is read to so it can be consumed
      */
     boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
@@ -44,7 +43,7 @@ public final class KafkaTestUtils {
   }
 
   /**
-   * Get a List of PartitionInfo for partitions of a given topic
+   * Get all topic-partition info of a given Kafka topic on a given set of Kafka brokers
    */
   public static List<PartitionInfo> getPartitionInfo(String topic, String brokerList) {
     KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
@@ -52,7 +51,7 @@ public final class KafkaTestUtils {
   }
 
   /**
-   * consume events from a given partition of a kafka topic, using given ReaderCallback
+   * Consume messages from a given partition of a Kafka topic, using given ReaderCallback
    */
   public static void readTopic(String topic, Integer partition, String brokerList, ReaderCallback callback)
       throws Exception {

@@ -9,7 +9,7 @@ import java.util.Objects;
 
 
 /**
- * Pair: class for a key and value pair
+ * Key-value pair
  * @param <K> type of key
  * @param <V> type of value
  */
@@ -34,9 +34,7 @@ public class Pair<K, V> {
     return _key;
   }
 
-  /**
-   * checks if two pairs are equal
-   */
+  @Override
   @SuppressWarnings("unchecked")
   public boolean equals(Object obj) {
     if (obj instanceof Pair) {
@@ -52,7 +50,7 @@ public class Pair<K, V> {
   }
 
   /**
-   * convenience method
+   * Convenience method for creating a pair given a key and a value
    */
   public static <S, T> Pair<S, T> of(S first, T second) {
     return new Pair<>(first, second);
