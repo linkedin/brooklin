@@ -19,6 +19,10 @@ import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 
+/**
+ * An in-memory implementation of {@link TransportProvider} that caches all the events passed to its
+ * {@link InMemoryTransportProvider#send(String, DatastreamProducerRecord, SendCallback)} method
+ */
 public class InMemoryTransportProvider implements TransportProvider {
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProvider.class);
 
@@ -27,10 +31,16 @@ public class InMemoryTransportProvider implements TransportProvider {
   // Map of destination connection string to the list of events.
   private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new ConcurrentHashMap<>();
 
+  /**
+   * Get the topic name corresponding to the provided destination
+   */
   public static String getTopicName(String destination) {
     return destination;
   }
 
+  /**
+   * Get all the topics added to this transport provider, along with their partition counts
+   */
   public HashMap<String, Integer> getTopics() {
     return _topics;
   }
@@ -61,10 +71,18 @@ public class InMemoryTransportProvider implements TransportProvider {
   public void flush() {
   }
 
+  /**
+   * Get all records passed to {@link InMemoryTransportProvider#send(String, DatastreamProducerRecord, SendCallback)}
+   * so far
+   */
   public Map<String, List<DatastreamProducerRecord>> getRecordsReceived() {
     return _recordsReceived;
   }
 
+  /**
+   * Get the number of events passed to {@link InMemoryTransportProvider#send(String, DatastreamProducerRecord, SendCallback)}
+   * so far, with the specified {@code connectionString}
+   */
   public long getTotalEventsReceived(String connectionString) {
     if (!_recordsReceived.containsKey(connectionString)) {
       return 0L;
@@ -77,10 +95,17 @@ public class InMemoryTransportProvider implements TransportProvider {
     return totalEventsReceived;
   }
 
+  /**
+   * Add the specified topic and its corresponding partition count to the list of topics recognized by this transport
+   * provider
+   */
   public void addTopic(String topicName, int numberOfPartitions) {
     _topics.put(topicName, numberOfPartitions);
   }
 
+  /**
+   * Remove a previously added topic from the set of topics recognized by this transport provider
+   */
   public void removeTopic(String topicName) {
     _topics.remove(topicName);
   }

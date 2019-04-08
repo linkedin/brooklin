@@ -81,18 +81,30 @@ public class KafkaDestination {
     return new KafkaDestination(zkAddress, topicName, isSecure);
   }
 
+  /**
+   * Get ZooKeeper address (and port)
+   */
   public String getZkAddress() {
     return _zkAddress;
   }
 
+  /**
+   * Get the Kafka topic name
+   */
   public String getTopicName() {
     return _topicName;
   }
 
+  /**
+   * Check if the destination Kafka cluster is secure (uses SSL)
+   */
   public boolean isSecure() {
     return _isSecure;
   }
 
+  /**
+   * Get the URI of this Kafka destination
+   */
   public String getDestinationURI() {
     return String.format(_isSecure ? DESTINATION_URI_SSL_FORMAT : DESTINATION_URI_FORMAT, _zkAddress, _topicName);
   }
