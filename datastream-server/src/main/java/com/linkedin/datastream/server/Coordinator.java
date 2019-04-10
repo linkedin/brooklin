@@ -845,7 +845,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private List<DatastreamGroup> fetchDatastreamGroups() {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
-    //  2) status is READY or PAUSED
+    //  2) status is READY or PAUSED, STOPPED or other datastream status will NOT get assigned
     //  3) TTL has not expired
     // Note: We do not need to flush the cache, because the datastreams should have been read as part of the
     //       handleDatastreamAddOrDelete event (that should occur before handleLeaderDoAssignment)

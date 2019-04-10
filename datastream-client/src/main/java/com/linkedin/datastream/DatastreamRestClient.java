@@ -426,8 +426,25 @@ public class DatastreamRestClient {
     pause(datastreamName, false);
   }
 
+  public void pause(String datastreamName, boolean force) throws RemoteInvocationException {
+    pauseOrStop(datastreamName, force, true);
+  }
+
   /**
-   * Pause a datastream, by changing its status to PAUSED. In case there are multiple datastreams
+   * Stop a datastream, by changing its status to Stopped. This is similar to pause but it is treated as
+   * unassigned and it won't generate any metric
+   * @param datastreamName
+   *    Name of the datastream to stop.
+   * @throws DatastreamRuntimeException in case of a communication issue or an error response from
+   * the server.
+   */
+  public void stop(String datastreamName) throws RemoteInvocationException {
+    pauseOrStop(datastreamName, false, false);
+  }
+
+
+  /**
+   * Pause/Stop a datastream, by changing its status to PAUSED. In case there are multiple datastreams
    * in a group, the group is PAUSED if ALL the datastreams are paused
    * @param datastreamName
    *    Name of the datastream to pause.
@@ -436,16 +453,18 @@ public class DatastreamRestClient {
    * @throws DatastreamRuntimeException in case of a communication issue or an error response from
    * the server.
    */
-  public void pause(String datastreamName, boolean force) {
+  private void pauseOrStop(String datastreamName, boolean force, boolean isPaused) {
     Instant startTime = Instant.now();
+    String action = isPaused ? "PAUSE" : "STOP";
     PollUtils.poll(() -> {
       try {
-        ActionRequest<Void> request = _builders.actionPause().id(datastreamName).forceParam(force).build();
+        ActionRequest<Void> request = isPaused ? _builders.actionPause().id(datastreamName).forceParam(force).build()
+            : _builders.actionStop().id(datastreamName).forceParam(force).build();
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {
         if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
-          LOG.warn("Timeout: pause. May retry...", e);
+          LOG.warn("Timeout: " + action + ". May retry...", e);
           return null;
         }
         if (isNotFoundHttpStatus(e)) {
@@ -458,7 +477,7 @@ public class DatastreamRestClient {
         return null; // not reachable
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
-    LOG.info("pause for datastream {} took {} ms", datastreamName,
+    LOG.info(action + " for datastream {} took {} ms", datastreamName,
         Duration.between(startTime, Instant.now()).toMillis());
   }
 

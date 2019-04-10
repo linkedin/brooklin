@@ -269,7 +269,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to resume datastream {}", datastream);
+    LOG.info("Received request to pause datastream {}", datastream);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -303,6 +303,46 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  @Action(name = "stop", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> stop(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("force") @Optional("false") boolean force) {
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+
+    LOG.info("Received request to stop datastream {}", datastream);
+
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream to stopped does not exist: " + datastreamName);
+    }
+
+    if (!DatastreamStatus.READY.equals(datastream.getStatus()) && !DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause a datastream in READY/PAUSED state: " + datastreamName);
+    }
+
+    List<Datastream> datastreamsToStop =
+        force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    LOG.info("Stop datastreams {}", datastreamsToStop);
+    for (Datastream d : datastreamsToStop) {
+      try {
+        if (DatastreamStatus.READY.equals(datastream.getStatus()) || DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+          d.setStatus(DatastreamStatus.STOPPED);
+          _store.updateDatastream(d.getName(), d, true);
+        } else {
+          LOG.warn("Cannot stop datastream {}, as it is not in READY/PAUSED state. State: {}", d, datastream.getStatus());
+        }
+      } catch (DatastreamException e) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+            "Could not update datastream to STOPPED state: " + d.getName(), e);
+      }
+    }
+
+    LOG.info("Completed request for pausing datastream {}", datastream);
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
   @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys,
       @ActionParam("force") @Optional("false") boolean force) {
@@ -316,7 +356,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to resume does not exist: " + datastreamName);
     }
 
-    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus()) &&
+        !DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
           "Datastream is not paused, cannot resume: " + datastreamName);
     }
@@ -326,11 +367,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     LOG.info("Resuming datastreams {}", datastreamsToResume);
     for (Datastream d : datastreamsToResume) {
       try {
-        if (DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+        if (DatastreamStatus.PAUSED.equals(datastream.getStatus()) ||
+            DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
         } else {
-          LOG.warn("Will not resume datastream {}, as it is already in paused state", d);
+          LOG.warn("Will not resume datastream {}, as it is already in PAUSED/STOPPED state", d);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
