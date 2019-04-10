@@ -338,7 +338,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
     }
 
-    LOG.info("Completed request for pausing datastream {}", datastream);
+    LOG.info("Completed request for stopping datastream {}", datastream);
 
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
@@ -359,7 +359,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     if (!DatastreamStatus.PAUSED.equals(datastream.getStatus()) &&
         !DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Datastream is not paused, cannot resume: " + datastreamName);
+          "Datastream is not paused or stopped, cannot resume: " + datastreamName);
     }
 
     List<Datastream> datastreamsToResume =
@@ -372,7 +372,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
         } else {
-          LOG.warn("Will not resume datastream {}, as it is already in PAUSED/STOPPED state", d);
+          LOG.warn("Will not resume datastream {}, as it is not already in PAUSED/STOPPED state", d);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,

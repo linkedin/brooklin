@@ -424,7 +424,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testNoAssignStoppedDatastream() throws Exception {
+  public void testStopAndResumeDatastream() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConnectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
@@ -447,11 +447,25 @@ public class TestCoordinator {
 
     Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+<<<<<<< HEAD
     Thread.sleep(3000);
+=======
+>>>>>>> add action stop command for datastream and stopped status. Different from paused,
     // check that datastream is not allocated anymore
     String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
     Assert.assertEquals(zkClient.getChildren(instance1Path).size(), 0);
     Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() == 0), 200, WAIT_TIMEOUT_MS));
+<<<<<<< HEAD
+=======
+
+    ds1.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() != 0), 200, WAIT_TIMEOUT_MS));
+
+>>>>>>> add action stop command for datastream and stopped status. Different from paused,
   }
 
     /**
