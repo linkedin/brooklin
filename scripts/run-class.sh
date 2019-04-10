@@ -8,48 +8,31 @@ fi
 
 base_dir=$(dirname $0)/..
 
-# run ./gradlew copyDependantLibs to get all dependant jars in a local dir
-shopt -s nullglob
+# run ./gradlew copyDependentLibs to get all dependent jars in a local dir
 
-for file in $base_dir/datastream-server/build/libs/datastream-server*.jar;
+module_dirs=("datastream-server"
+             "datastream-kafka"
+             "datastream-tools"
+             "datastream-file-connector"
+             "datastream-server-restli"
+             )
+
+for dir in "${module_dirs[@]}";
 do
-  CLASSPATH=$CLASSPATH:$file
-done
+  if [ -d "$base_dir/$dir/build/libs" ]; then
+    CLASSPATH=$CLASSPATH:"$base_dir/$dir/build/libs/*"
+  fi
 
-for file in $base_dir/datastream-server/build/dependant-libs/*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
-done
-
-for file in $base_dir/datastream-kafka/build/libs/datastream-kafka*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
-done
-
-for file in $base_dir/datastream-kafka/build/dependant-libs/*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
-done
-
-
-for file in $base_dir/datastream-tools/build/libs/datastream-tools*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
-done
-
-for file in $base_dir/datastream-file-connector/build/libs/datastream-file-connector*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
+  if [ -d "$base_dir/$dir/build/dependent-libs" ]; then
+    CLASSPATH=$CLASSPATH:"$base_dir/$dir/build/dependent-libs/*"
+  fi
 done
 
 # classpath addition for release
-CLASSPATH=$CLASSPATH:$base_dir/libs/*
+if [ -d "$base_dir/libs" ]; then
+  CLASSPATH=$CLASSPATH:"$base_dir/libs/*"
+fi
 
-for file in $base_dir/core/build/libs/${SCALA_BINARY_VERSION}*.jar;
-do
-  CLASSPATH=$CLASSPATH:$file
-done
-shopt -u nullglob
 
 # JMX settings
 if [ -z "$JMX_OPTS" ]; then

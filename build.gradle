@@ -12,6 +12,7 @@ buildscript {
 
 allprojects {
   group = "com.github.datastream"
+  version = "1.0.0-SNAPSHOT"
 
   apply plugin: 'eclipse'
   apply plugin: 'idea'
@@ -165,14 +166,14 @@ project(':datastream-kafka') {
     testCompile project(':datastream-testcommon');
     testCompile "org.mockito:mockito-core:$mockitoVersion"
 
-    tasks.create(name: "copyDependantLibs", type: Copy) {
+    tasks.create(name: "copyDependentLibs", type: Copy) {
       from (configurations.runtime) {
       }
-      into "$buildDir/dependant-libs"
+      into "$buildDir/dependent-libs"
     }
 
     jar {
-      dependsOn 'copyDependantLibs'
+      dependsOn 'copyDependentLibs'
     }
   }
 }
@@ -228,10 +229,13 @@ project(':datastream-tools') {
   }
 
   tasks.create(name: "releaseTarGz", dependsOn: configurations.archives.artifacts, type: Tar) {
-    into "datastream-${version}"
+    baseName = "${rootProject.name}"
+    into { "${rootProject.name}-${rootProject.version}" }
     compression = Compression.GZIP
-    from(project.file("../scripts")) { into "scripts/" }
-    from(project.file("../config")) { into "config/" }
+    from(rootProject.file("NOTICE"))
+    from(rootProject.file("LICENSE"))
+    from(rootProject.file("scripts")) { exclude "git" into "bin/" }
+    from(rootProject.file("config")) { into "config/" }
     from(configurations.runtime) { into("libs/") }
     from(configurations.archives.artifacts.files) { into("libs/") }
     from(project(':datastream-tools').jar) { into("libs/") }
@@ -250,7 +254,6 @@ project(':datastream-tools') {
     from(project(':datastream-kafka-connector').configurations.runtime) { into("libs/") }
     duplicatesStrategy 'exclude'
   }
-
 }
 
 project(':datastream-client') {
@@ -291,14 +294,14 @@ project(':datastream-server') {
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 
-  tasks.create(name: "copyDependantLibs", type: Copy) {
+  tasks.create(name: "copyDependentLibs", type: Copy) {
     from (configurations.runtime) {
     }
-    into "$buildDir/dependant-libs"
+    into "$buildDir/dependent-libs"
   }
 
   jar {
-    dependsOn 'copyDependantLibs'
+    dependsOn 'copyDependentLibs'
   }
 }
 
@@ -325,14 +328,14 @@ project(':datastream-server-restli') {
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 
-  tasks.create(name: "copyDependantLibs", type: Copy) {
+  tasks.create(name: "copyDependentLibs", type: Copy) {
     from (configurations.runtime) {
     }
-    into "$buildDir/dependant-libs"
+    into "$buildDir/dependent-libs"
   }
 
   jar {
-    dependsOn 'copyDependantLibs'
+    dependsOn 'copyDependentLibs'
   }
 
   // For test or experiment purpose

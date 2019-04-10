@@ -1,3 +1,5 @@
+rootProject.name = "brooklin"
+
 include 'datastream-common'
 include 'datastream-testcommon'
 include 'datastream-client'
