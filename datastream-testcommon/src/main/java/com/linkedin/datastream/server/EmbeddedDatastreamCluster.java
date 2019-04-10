@@ -92,7 +92,7 @@ public class EmbeddedDatastreamCluster {
 
   /**
    * Create a new test datastream cluster
-   * @param KafkaCluster Kafka cluster to be used by the datastream cluster
+   * @param kafkaCluster Kafka cluster to be used by the datastream cluster
    * @param connectorProperties a map of the connector configs with connector name as the keys
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster

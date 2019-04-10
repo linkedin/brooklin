@@ -31,7 +31,9 @@ public class DummyConnector implements Connector, DiagnosticsAware {
 
   /**
    * Constructor for DummyConnector
-   * This expects the property "dummyProperty" to be set to "dummyValue".
+   * @param properties Configuration properties
+   * @throws Exception if {@code properties} does not contain a property
+   *         whose name is "dummyProperty" and value is "dummyValue"
    */
   public DummyConnector(Properties properties) throws Exception {
     _properties = properties;

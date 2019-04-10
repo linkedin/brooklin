@@ -6,15 +6,17 @@
 package com.linkedin.datastream.common;
 
 /**
- * Exception when the datastream is not found.
+ * Exception when a datastream is not found.
  */
 public class DatastreamNotFoundException extends DatastreamRuntimeException {
   private static final long serialVersionUID = 1;
 
   /**
-   * Constructor for DatastreamNotFoundException
+   * Constructor
+   * @param datastreamName datastream name
+   * @param cause Exception cause
    */
-  public DatastreamNotFoundException(String datastreamName, Throwable e) {
-    super(String.format("Datastream %s is not found", datastreamName), e);
+  public DatastreamNotFoundException(String datastreamName, Throwable cause) {
+    super(String.format("Datastream %s is not found", datastreamName), cause);
   }
 }

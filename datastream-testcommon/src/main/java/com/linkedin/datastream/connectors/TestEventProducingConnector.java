@@ -65,7 +65,8 @@ public class TestEventProducingConnector implements Connector {
 
   /**
    * Constructor for TestEventProducingConnector
-   * @param props Properties for this connector. A valid hostname property is expected to be set.
+   * @param props Configuration properties for this connector
+   * @throws DatastreamRuntimeException if the local hostname cannot be determined
    */
   public TestEventProducingConnector(Properties props) {
     VerifiableProperties config = new VerifiableProperties(props);

@@ -35,7 +35,7 @@ public class RandomGenericRecordGenerator {
   }
 
   /*
-   * Generate random based on the avro schema
+   * Generate random based on the Avro schema
    * The schema must be of a record type to work
    *
    * @return returns the randomly generated record
