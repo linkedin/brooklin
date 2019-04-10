@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.testutil.event.generator;
 
+/**
+ * Exception class for unknown type related exceptions for events and schema.
+ */
 public class UnknownTypeException extends Exception {
   private static final long serialVersionUID = 1L;
 }

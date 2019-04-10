@@ -29,6 +29,10 @@ public class DummyConnector implements Connector, DiagnosticsAware {
 
   private Properties _properties;
 
+  /**
+   * Constructor for DummyConnector
+   * This expects the property "dummyProperty" to be set to "dummyValue".
+   */
   public DummyConnector(Properties properties) throws Exception {
     _properties = properties;
     String dummyConfigValue = _properties.getProperty("dummyProperty", "");

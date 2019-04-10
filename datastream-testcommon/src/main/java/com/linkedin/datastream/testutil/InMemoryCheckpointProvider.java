@@ -17,6 +17,9 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
+/**
+ * An in-memory implementation of {@link CheckpointProvider} for tracking progress made.
+ */
 public class InMemoryCheckpointProvider implements CheckpointProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryCheckpointProvider.class);

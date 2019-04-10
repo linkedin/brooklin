@@ -14,6 +14,10 @@ import com.linkedin.datastream.kafka.EmbeddedKafkaCluster;
 import com.linkedin.datastream.kafka.KafkaCluster;
 
 
+/**
+ * An implementation of {@link KafkaCluster} which uses the {@link EmbeddedZookeeper} within it for testing.
+ * This can be used by all tests that want to use a Zookeeper-Kafka cluster.
+ */
 public class DatastreamEmbeddedZookeeperKafkaCluster implements KafkaCluster {
   private EmbeddedZookeeper _embeddedZookeeper = null;
   private EmbeddedKafkaCluster _embeddedKafkaCluster = null;

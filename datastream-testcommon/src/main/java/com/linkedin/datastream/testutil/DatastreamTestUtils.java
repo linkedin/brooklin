@@ -158,6 +158,13 @@ public class DatastreamTestUtils {
     return datastreams;
   }
 
+  /**
+   * Returns a datastream found from ZooKeeper.
+   * @param zkClient ZooKeeper client
+   * @param cluster name of the datastream cluster
+   * @param datastreamName name of the datastream to look up
+   * @return datastream, or null if not found.
+   */
   public static Datastream getDatastream(ZkClient zkClient, String cluster, String datastreamName) {
     zkClient.ensurePath(KeyBuilder.datastreams(cluster));
     CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);

@@ -22,6 +22,9 @@ import org.apache.avro.specific.SpecificRecord;
 import org.apache.commons.lang.Validate;
 
 
+/**
+ * Utility class to simplify avro message encoding.
+ */
 public class AvroMessageEncoderUtil {
   public static final byte MAGIC_BYTE = 0x0;
 

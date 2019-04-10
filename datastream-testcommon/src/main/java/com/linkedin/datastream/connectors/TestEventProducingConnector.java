@@ -63,6 +63,10 @@ public class TestEventProducingConnector implements Connector {
   private int _messageSize;
   private long _sleepBetweenSendMs;
 
+  /**
+   * Constructor for TestEventProducingConnector
+   * @param props Properties for this connector. A valid hostname property is expected to be set.
+   */
   public TestEventProducingConnector(Properties props) {
     VerifiableProperties config = new VerifiableProperties(props);
     _messageSize = config.getInt(CFG_MESSAGE_SIZE_BYTES, DEFAULT_MESSAGE_SIZE_BYTES);
