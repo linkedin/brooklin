@@ -21,10 +21,19 @@ public class BrooklinGaugeInfo extends BrooklinMetricInfo {
 
   public static final Set<String> SUPPORTED_ATTRIBUTES = Stream.of(VALUE).collect(Collectors.toSet());
 
+  /**
+   * Construct an instance of BrooklinGaugeInfo
+   * @param nameOrRegex the name or regex of the gauge
+   */
   public BrooklinGaugeInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
   }
 
+  /**
+   * Construct an instance of BrooklinGaugeInfo
+   * @param nameOrRegex the name or regex of the gauge
+   * @param gaugeAttributes the attributes of the gauge. It is optional.
+   */
   public BrooklinGaugeInfo(String nameOrRegex, Optional<List<String>> gaugeAttributes) {
     super(nameOrRegex, gaugeAttributes);
   }

@@ -14,6 +14,10 @@ public class DatastreamRecordMetadata {
   private final int _partition;
   private final String _checkpoint;
 
+  /**
+   * Construct an instance of DatastreamRecordMetadata with the given checkpoint name, topic name
+   * and partition number.
+   */
   public DatastreamRecordMetadata(String checkpoint, String topic, int partition) {
     _checkpoint = checkpoint;
     _topic = topic;
@@ -41,6 +45,9 @@ public class DatastreamRecordMetadata {
     return _topic;
   }
 
+  /**
+   * Convert the record metadata to a string
+   */
   public String toString() {
     return String.format("Checkpoint: %s, Topic: %s, Partition: %d", _checkpoint, _topic, _partition);
   }

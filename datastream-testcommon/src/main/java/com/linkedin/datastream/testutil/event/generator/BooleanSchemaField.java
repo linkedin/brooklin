@@ -8,9 +8,14 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * Generate a record whose value is boolean
+ */
 public class BooleanSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of BooleanSchemaField using given {@link Field}
+   */
   public BooleanSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +30,9 @@ public class BooleanSchemaField extends SchemaField {
     return generateBoolean();
   }
 
+  /**
+   * Generate a boolean
+   */
   public boolean generateBoolean() {
     return _randGenerator.getNextBoolean();
   }

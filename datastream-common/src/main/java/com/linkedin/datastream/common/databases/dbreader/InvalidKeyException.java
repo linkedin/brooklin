@@ -13,10 +13,17 @@ public class InvalidKeyException extends Exception {
 
   private static final long serialVersionUID = 2132150605367432532L;
 
+  /**
+   * Construct an instance of InvalidKeyException
+   */
   public InvalidKeyException() {
     super();
   }
 
+  /**
+   * Construct an instance of InvalidKeyException with message
+   * @param message exception information
+   */
   public InvalidKeyException(String message) {
     super(message);
   }

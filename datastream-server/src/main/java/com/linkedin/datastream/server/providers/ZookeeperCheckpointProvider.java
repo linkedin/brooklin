@@ -28,7 +28,10 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
-
+ /**
+  * Zookeeper checkpoint provider maintaining information about the progress made
+  * in processing {@link DatastreamTask}s.
+  */
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   public static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
@@ -50,6 +53,9 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
   private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
 
+   /**
+    * Construct an instance of ZookeeperCheckpointProvider with the given Zookeeper adapter
+    */
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;
     // Initialize metrics

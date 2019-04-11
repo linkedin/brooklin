@@ -32,7 +32,9 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 
-
+/**
+ * Cli of Datastream rest client
+ */
 public class DatastreamRestClientCli {
 
   private DatastreamRestClientCli() {
@@ -68,6 +70,9 @@ public class DatastreamRestClientCli {
     });
   }
 
+  /**
+   * Entry point for the cli of Datastream rest client
+   */
   public static void main(String[] args) throws Exception {
     Options options = new Options();
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_OPERATION, OptionConstants.OPT_LONG_OPERATION,

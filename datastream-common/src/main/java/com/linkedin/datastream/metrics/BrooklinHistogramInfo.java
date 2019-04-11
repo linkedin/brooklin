@@ -33,10 +33,19 @@ public class BrooklinHistogramInfo extends BrooklinMetricInfo {
       Stream.of(COUNT, MIN, MAX, MEAN, STD_DEV, PERCENTILE_50, PERCENTILE_75, PERCENTILE_95, PERCENTILE_98, PERCENTILE_99,
           PERCENTILE_999).collect(Collectors.toSet());
 
+  /**
+   * Construct an instance of BrooklinHistogramInfo
+   * @param nameOrRegex the name or regex of the gauge
+   */
   public BrooklinHistogramInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
   }
 
+  /**
+   * Construct an instance of BrooklinHistogramInfo
+   * @param nameOrRegex the name or regex of the histogram
+   * @param histogramAttributes the attributes of the histogram. It is optional.
+   */
   public BrooklinHistogramInfo(String nameOrRegex, Optional<List<String>> histogramAttributes) {
     super(nameOrRegex, histogramAttributes);
   }

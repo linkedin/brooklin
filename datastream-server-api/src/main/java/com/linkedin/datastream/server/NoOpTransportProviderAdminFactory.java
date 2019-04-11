@@ -29,6 +29,9 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
     return new NoOpTransportProviderAdmin();
   }
 
+  /**
+   * A transport provider which doesn't do anything.
+   */
   public static class NoOpTransportProvider implements TransportProvider {
 
     @Override
@@ -47,6 +50,9 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
     }
   }
 
+  /**
+   * Transport provider admin for NoOpTransportProvider, which doesn't do anything.
+   */
   public static class NoOpTransportProviderAdmin implements TransportProviderAdmin {
     @Override
     public TransportProvider assignTransportProvider(DatastreamTask task) {

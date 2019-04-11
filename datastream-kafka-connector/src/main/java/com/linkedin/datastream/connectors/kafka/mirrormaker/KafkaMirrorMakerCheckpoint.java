@@ -17,12 +17,19 @@ public class KafkaMirrorMakerCheckpoint {
   private int _partition;
   private long _offset;
 
+  /**
+   * Construct an instance of KafkaMirrorMakerCheckpoint with the given topic name, partition
+   * number and offset
+   */
   public KafkaMirrorMakerCheckpoint(String topic, int partition, long offset) {
     _topic = topic;
     _partition = partition;
     _offset = offset;
   }
 
+  /**
+   * Construct an instance of KafkaMirrorMakerCheckpoint with the given topic name
+   */
   public KafkaMirrorMakerCheckpoint(String checkpoint) {
     Validate.notNull(checkpoint, "Checkpoint cannot be null");
     String[] parts = checkpoint.split(DELIMITER);

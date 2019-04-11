@@ -12,11 +12,16 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+/**
+ * Convenient utility class for retrying with static methods.
+ */
 public class RetryUtils {
 
   private static final Logger LOG = LoggerFactory.getLogger(RetryUtils.class.getName());
 
+  /**
+   * Utility method for clients to retry the given function
+   */
   public static <T> T retry(Supplier<T> func, Duration period, Duration timeout) {
     ExceptionTrackingMethodCaller<T> supplier = new ExceptionTrackingMethodCaller<>(func);
     boolean result = PollUtils.poll(supplier, period.toMillis(), timeout.toMillis());

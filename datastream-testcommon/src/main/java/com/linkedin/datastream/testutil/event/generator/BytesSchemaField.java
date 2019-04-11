@@ -8,9 +8,14 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * Generate a record whose value type is byte[]
+ */
 public class BytesSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of BytesSchemaField using given {@link Field}
+   */
   public BytesSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +30,9 @@ public class BytesSchemaField extends SchemaField {
     return generateBytes();
   }
 
+  /**
+   * Generate a byte array
+   */
   public byte[] generateBytes() {
     return _randGenerator.getNextBytes(_maxNumElements);
   }
