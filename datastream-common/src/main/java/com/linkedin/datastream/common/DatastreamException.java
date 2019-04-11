@@ -11,18 +11,30 @@ package com.linkedin.datastream.common;
 public class DatastreamException extends Exception {
   private static final long serialVersionUID = 1L;
 
+  /**
+   * Constructor for DatastreamException
+   */
   public DatastreamException() {
     super();
   }
 
+  /**
+   * Constructor for DatastreamException
+   */
   public DatastreamException(String message, Throwable cause) {
     super(message, cause);
   }
 
+  /**
+   * Constructor for DatastreamException
+   */
   public DatastreamException(String message) {
     super(message);
   }
 
+  /**
+   * Constructor for DatastreamException
+   */
   public DatastreamException(Throwable cause) {
     super(cause);
   }
