@@ -20,6 +20,8 @@ public class DatastreamTransientException extends DatastreamRuntimeException {
 
   /**
    * Constructor for DatastreamTransientException
+   * @param message Exception message
+   * @param cause Exception cause
    */
   public DatastreamTransientException(String message, Throwable cause) {
     super(message, cause);
@@ -27,6 +29,7 @@ public class DatastreamTransientException extends DatastreamRuntimeException {
 
   /**
    * Constructor for DatastreamTransientException
+   * @param message Exception message
    */
   public DatastreamTransientException(String message) {
     super(message);
@@ -34,6 +37,7 @@ public class DatastreamTransientException extends DatastreamRuntimeException {
 
   /**
    * Constructor for DatastreamTransientException
+   * @param cause Exception cause
    */
   public DatastreamTransientException(Throwable cause) {
     super(cause);

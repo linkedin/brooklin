@@ -34,14 +34,14 @@ public interface MetricsAware {
   }
 
   /**
-   * @return the metric name prepended with the caller's class name
+   * Get the metric name prepended with the caller's class name
    */
   default String buildMetricName(String metricName) {
     return MetricRegistry.name(this.getClass().getSimpleName(), metricName);
   }
 
   /**
-   * @return the metric name prepended with the caller's class name
+   * Get the metric name prepended with the caller's class name
    */
   default String buildMetricName(String classSimpleName, String metricName) {
     return MetricRegistry.name(classSimpleName, metricName);

@@ -41,7 +41,7 @@ public class ServerComponentHealthAggregator {
 
   /**
    * Constructor for ServerComponentHealthAggregator
-   * @param zkClient the zookeeper client to retrieve the list of servers in the cluster
+   * @param zkClient the ZooKeeper client to retrieve the list of servers in the cluster
    * @param cluster the cluster
    * @param endPointPort the REST endpoint port
    * @param endPointPath the REST endpoint path

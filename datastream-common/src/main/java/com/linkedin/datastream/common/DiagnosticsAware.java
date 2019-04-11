@@ -25,12 +25,13 @@ public interface DiagnosticsAware {
   String DATASTREAM_KEY = "datastream";
 
   /**
-   * @return process the query of a single host/instance, return response such as the status of the host
+   * Process the query of a single host/instance
+   * @return response such as the status of the host
    */
   String process(String query);
 
   /**
-   * @return reduce/merge the responses of a collection of host/instance into one response
+   * Reduce/Merge the responses of a collection of host/instance into one response
    */
   String reduce(String query, Map<String, String> responses);
 

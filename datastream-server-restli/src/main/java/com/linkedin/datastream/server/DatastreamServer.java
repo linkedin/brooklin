@@ -81,8 +81,8 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
- * DatastreamServer is the entry point for starting datastream services. It is a container
- * for all datastream services including the rest api service, the coordinator and so on.
+ * DatastreamServer is the entry point for Brooklin. It is a container for all
+ * datastream services including the REST API service, the coordinator and so on.
  */
 public class DatastreamServer {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamServer.class);
@@ -383,7 +383,7 @@ public class DatastreamServer {
       _coordinator.start();
     }
 
-    // Start the DMS rest endpoint.
+    // Start the DMS REST endpoint.
     try {
       _jettyLauncher.start();
       _httpPort = _jettyLauncher.getPort();

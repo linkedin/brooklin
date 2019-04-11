@@ -6,7 +6,7 @@
 package com.linkedin.datastream.common;
 
 /**
- * Common exception class for all Datastream errors.
+ * Common exception class for all Datastream errors
  */
 public class DatastreamException extends Exception {
   private static final long serialVersionUID = 1L;
@@ -20,6 +20,8 @@ public class DatastreamException extends Exception {
 
   /**
    * Constructor for DatastreamException
+   * @param message Exception message
+   * @param cause Exception cause
    */
   public DatastreamException(String message, Throwable cause) {
     super(message, cause);
@@ -27,6 +29,7 @@ public class DatastreamException extends Exception {
 
   /**
    * Constructor for DatastreamException
+   * @param message Exception message
    */
   public DatastreamException(String message) {
     super(message);
@@ -34,6 +37,7 @@ public class DatastreamException extends Exception {
 
   /**
    * Constructor for DatastreamException
+   * @param cause Exception cause
    */
   public DatastreamException(Throwable cause) {
     super(cause);

@@ -53,7 +53,7 @@ public class EmbeddedDatastreamCluster {
       KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts) throws IOException {
     _kafkaCluster = kafkaCluster;
 
-    // If the datastream cluster doesn't use the Kafka as transport, then we setup our own ZooKeeper; otherwise use
+    // If the datastream cluster doesn't use Kafka as transport, then we set up our own ZooKeeper; otherwise use
     // Kafka's ZooKeeper.
     if (_kafkaCluster != null) {
       _zkAddress = _kafkaCluster.getZkConnection();
@@ -74,7 +74,7 @@ public class EmbeddedDatastreamCluster {
 
   /**
    * Create a new test datastream cluster
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster
    * @return a datastream cluster
@@ -87,7 +87,7 @@ public class EmbeddedDatastreamCluster {
   /**
    * Create a new test datastream cluster
    * @param kafkaCluster the Kafka cluster to start up
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @return a datastream cluster
    */
@@ -98,7 +98,7 @@ public class EmbeddedDatastreamCluster {
 
   /**
    * Create a new test datastream cluster
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @return a datastream cluster
    */
@@ -110,7 +110,7 @@ public class EmbeddedDatastreamCluster {
   /**
    * Create a new test datastream cluster
    * @param kafkaCluster Kafka cluster to be used by the datastream cluster
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster
    * @return a datastream cluster
@@ -124,7 +124,7 @@ public class EmbeddedDatastreamCluster {
   /**
    * Create a new test datastream cluster
    * @param kafkaCluster Kafka cluster to be used by the datastream cluster
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster
    * @param dmsPorts the dms ports to be used; accept null if automatic assignment
@@ -194,14 +194,14 @@ public class EmbeddedDatastreamCluster {
   }
 
   /**
-   * Construct a datastream rest client for the primary datastream server
+   * Construct a datastream REST client for the primary datastream server
    */
   public DatastreamRestClient createDatastreamRestClient() {
     return createDatastreamRestClient(0);
   }
 
   /**
-   * Construct a datastream rest client for the specific datastream server
+   * Construct a datastream REST client for the specific datastream server
    */
   public DatastreamRestClient createDatastreamRestClient(int index) {
     return DatastreamRestClientFactory.getClient(String.format("http://localhost:%d/", _datastreamPorts.get(index)));
@@ -230,7 +230,7 @@ public class EmbeddedDatastreamCluster {
   }
 
   /**
-   * Start up the datastream server at the given index
+   * Start up the datastream server at the given {@code index}
    * @param index the index of the datastream server to start
    */
   public void startupServer(int index) throws IOException, DatastreamException {
@@ -266,7 +266,7 @@ public class EmbeddedDatastreamCluster {
   }
 
   /**
-   * Shut down the datastream server at the given index
+   * Shut down the datastream server at the given {@code index}
    * @param index the index of the datastream server to shut down
    */
   public void shutdownServer(int index) {

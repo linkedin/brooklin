@@ -74,7 +74,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   abstract protected T getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException;
 
   /**
-   * @return a generic event iterator
+   * Get a {@link GenericEventIterator}
    */
   public Iterator<T> genericEventIterator() {
     if (_schema != null && _schema.getType() != Schema.Type.RECORD) {

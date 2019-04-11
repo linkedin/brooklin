@@ -38,7 +38,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
 
 /**
- * EventProducer class uses the transport provider to send events to the destination.
+ * EventProducer class uses a {@link TransportProvider}to send events to the destination.
  */
 public class EventProducer implements DatastreamEventProducer {
 
@@ -163,7 +163,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   /**
    * Send the event onto the underlying transport.
-   * @param record DatastreamProducerRecord the datastream event
+   * @param record the datastream event
    * @param sendCallback the callback to be invoked after the event is sent to the destination
    */
   @Override
@@ -221,7 +221,7 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
    * per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
-   * to avoid over-counting.
+   * to avoid overcounting.
    */
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamProducerRecord record) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
@@ -368,7 +368,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   /**
-   * @return the list of metrics maintained by the event producer
+   * Get the list of metrics maintained by the event producer
    */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();

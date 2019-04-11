@@ -42,27 +42,27 @@ public interface FieldType {
   static final String SCALE = "numberScale";
 
   /**
-   * @return the Schema Name of the Field type
+   * Get the Schema Name of the Field type
    */
   String getSchemaName();
 
   /**
-   * @return The Field type name in the Database. For example this might be CHAR, VARCHAR or CUSTOM_TYPE
+   * Get the Field type name in the Database. For example this might be CHAR, VARCHAR or CUSTOM_TYPE
    */
   String getFieldTypeName();
 
   /**
-   * @return The associated Avro Field Name. For example "string", "long", "array"
+   * Get the associated Avro Field Name. For example "string", "long", "array"
    */
   String getAvroFieldName();
 
   /**
-   * @return An AvroJson which is a simple HashMap to represent type information for this specific FieldType
+   * Get an {@link AvroJson} which is a simple HashMap to represent type information for this specific FieldType
    */
   AvroJson toAvro();
 
   /**
-   * @return The metadata for this FieldType
+   * Get the metadata for this FieldType
    */
   String getMetadata();
 }

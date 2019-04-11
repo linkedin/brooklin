@@ -26,9 +26,11 @@ import org.slf4j.LoggerFactory;
 /**
  * ZKClient is a wrapper of {@link org.I0Itec.zkclient.ZkClient}. It provides the following
  * basic features:
- * (1) tolerate network reconnects so the caller doesn't have to handle the retries
- * (2) provide a String serializer since we only need to store JSON strings in ZooKeeper
- * (3) additional features like ensurePath to recursively create paths
+ * <ol>
+ *  <li>tolerate network reconnects so the caller doesn't have to handle the retries</li>
+ *  <li>provide a String serializer since we only need to store JSON strings in ZooKeeper</li>
+ *  <li>additional features like ensurePath to recursively create paths</li>
+ * </ol>
  */
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public static final String ZK_PATH_SEPARATOR = "/";
@@ -139,9 +141,9 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   /**
-   * Read the content of a znode and make sure to read a valid result. When znodes is in an inconsistent
+   * Read the content of a znode and make sure to read a valid result. When znode is in an inconsistent
    * state (e.g. being written to by a different process), the ZkClient.readData(path) will return
-   * null. This is a helper method to retry until the return value is non-null or until the provided timeout is reached
+   * null. This is a helper method to retry until the return value is non-null or until {@code timeout} is reached
    * @param path the path of the znode to read
    * @param timeout the timeout, in milliseonds, after which this method will return even if the value is null
    * @return the content of the znode at the given path
@@ -187,7 +189,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   /**
-   * Read the content of a znode and make sure to read a valid result. When znodes is in an inconsistent state (e.g.
+   * Read the content of a znode and make sure to read a valid result. When znode is in an inconsistent state (e.g.
    * being written to by a different process), the ZkClient.readData(path) will return null. This is a helper method to
    * retry until the return value is non-null or until the zk session timeout is reached
    * @param path the path of the znode to read
@@ -272,7 +274,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   /**
-   * Ensures that all the paths in the given full path String are created
+   * Ensure that all the paths in the given full path String are created
    * @param path the zk path
    */
   public void ensurePath(String path) {
@@ -315,14 +317,14 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   }
 
   /**
-   * Serializes the given data into a byte array using the ZkSerializer
+   * Serialize the given data into a byte array using the ZkSerializer
    */
   public byte[] serialize(Object data) {
     return _zkSerializer.serialize(data);
   }
 
   /**
-   * Deserializes the given data using the ZkSerializer
+   * Deserialize the given data using the ZkSerializer
    */
   @SuppressWarnings("unchecked")
   public <T extends Object> T deserialize(byte[] data) {

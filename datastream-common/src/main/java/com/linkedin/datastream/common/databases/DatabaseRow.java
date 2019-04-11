@@ -27,7 +27,7 @@ public class DatabaseRow {
   }
 
   /**
-   * @return Number of fields in the row
+   * Get the number of fields in the row
    */
   public int getColumnCount() {
     return _allFields.size();
@@ -50,7 +50,7 @@ public class DatabaseRow {
   }
 
   /**
-   * @return Field records in the row
+   * Get Field records in the row
    */
   public List<DatabaseColumnRecord> getRecords() {
     return _allFields;

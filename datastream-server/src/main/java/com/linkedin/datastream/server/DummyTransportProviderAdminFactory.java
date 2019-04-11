@@ -20,7 +20,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactor
 
 
 /**
- * Factory to create a dummy transport provider which simply drops the events on the floor.
+ * Factory to create a dummy {@link TransportProvider} which simply drops the events on the floor.
  */
 public class DummyTransportProviderAdminFactory implements TransportProviderAdminFactory, TransportProviderAdmin {
 

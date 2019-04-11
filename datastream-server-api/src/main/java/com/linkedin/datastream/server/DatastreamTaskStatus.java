@@ -92,7 +92,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return the timestamp of the status
+   * Get the timestamp of the status
    */
   public long getTimeStamp() {
     return _timeStamp;
@@ -107,7 +107,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return the hostname where the last status was written
+   * Get the hostname where the last status was written
    */
   public String getHostName() {
     return _hostName;
@@ -122,7 +122,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return kind of the status
+   * Get kind of the status
    */
   public Code getCode() {
     return _code;
@@ -137,7 +137,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return message associated with the status
+   * Get message associated with the status
    */
   public String getMessage() {
     return _message;

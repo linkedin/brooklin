@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * Wraps a DatasteramEventProducer and keeps track of the in-flight messages and the acknowledged checkpoints for each
- * source partition.
+ * Wraps a {@link DatastreamEventProducer} and keeps track of the in-flight messages and the acknowledged checkpoints
+ * for each source partition.
  *
  * The main assumption of this class is that: for each source/partition tuple, the send method should
  * be called with monotonically ascending UNIQUE checkpoints.
@@ -44,7 +44,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * Reset all the in-flight status counters, and metadata stored for the DatastreamEventProducer.
+   * Reset all the in-flight status counters, and metadata stored for the {@link DatastreamEventProducer}.
    * This should be used after calling flush and getting partition reassignments.
    */
   public void clear() {
@@ -74,7 +74,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the latest safe checkpoint acknowledged by a sourcePartition, or an empty optional if no event has been
+   * Get the latest safe checkpoint acknowledged by a sourcePartition, or an empty optional if no event has been
    * acknowledged.
    */
   public Optional<T> getAckCheckpoint(String source, int sourcePartition) {
@@ -83,7 +83,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the in-flight count of messages yet to be acknowledged for a given source and sourcePartition.
+   * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
    */
   public long getInFlightCount(String source, int sourcePartition) {
     CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
@@ -91,7 +91,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return a map of all source partitions to their in-flight message counts
+   * Get a map of all source partitions to their in-flight message counts
    */
   public Map<SourcePartition, Long> getInFlightMessagesCounts() {
     return _callbackStatusMap.entrySet()
@@ -100,11 +100,12 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
-   *         If all tasks are up to date, returns the passed {@code currentCheckpoint}
-   *         NOTE: This method assumes that the checkpoints are monotonically increasing across DestinationPartition.
-   *               For example, for a connector reading from a source with a global monotonic SCN this function will
-   *               work correctly.
+   * Get the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
+   * If all tasks are up to date, returns the passed {@code currentCheckpoint}
+   *
+   * NOTE: This method assumes that the checkpoints are monotonically increasing across DestinationPartition.
+   *       For example, for a connector reading from a source with a global monotonic SCN this function will
+   *       work correctly.
    */
   public Optional<T> getAckCheckpoint(T currentCheckpoint, Comparator<T> checkpointComparator) {
     T lowWaterMark = null;
