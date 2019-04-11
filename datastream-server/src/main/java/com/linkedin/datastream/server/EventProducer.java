@@ -37,9 +37,8 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
 
-
 /**
- * EventProducer class uses the transport to send events.
+ * EventProducer class uses a {@link TransportProvider}to send events to the destination.
  */
 public class EventProducer implements DatastreamEventProducer {
 
@@ -81,7 +80,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final CheckpointProvider _checkpointProvider;
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final int _availabilityThresholdSlaMs;
-  // Alternate SLA for comparision with the main
+  // Alternate SLA for comparison with the main SLA
   private final int _availabilityThresholdAlternateSlaMs;
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
@@ -91,10 +90,10 @@ public class EventProducer implements DatastreamEventProducer {
 
   /**
    * Construct an EventProducer instance.
-   * @param transportProvider event transport
-   * @param checkpointProvider checkpoint store
-   * @param config global config
-   * @param customCheckpointing decides whether Producer should use custom checkpointing or the datastream server
+   * @param transportProvider the transport provider
+   * @param checkpointProvider the checkpoint provider
+   * @param config the config options
+   * @param customCheckpointing decides whether producer should use custom checkpointing or the datastream server
    *                            provided checkpointing.
    */
   public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
@@ -142,10 +141,11 @@ public class EventProducer implements DatastreamEventProducer {
         DROPPED_SENT_FROM_SERIALIZATION_ERROR, 0);
   }
 
-  public int getProducerId() {
-    return _producerId;
-  }
-
+  /**
+   * Uses the checkpoint provider to retrieve the committed checkpoints for the given datastream task
+   * @param task the datastream task
+   * @return a map of partitions to their committed checkpoints
+   */
   public Map<Integer, String> loadCheckpoints(DatastreamTask task) {
     return _checkpointProvider.getCommitted(task);
   }
@@ -163,15 +163,15 @@ public class EventProducer implements DatastreamEventProducer {
 
   /**
    * Send the event onto the underlying transport.
-   * @param record DatastreamEvent envelope
+   * @param record the datastream event
+   * @param sendCallback the callback to be invoked after the event is sent to the destination
    */
   @Override
   public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
     try {
-      // Validate
       validateEventRecord(record);
+
       try {
-        // Serialize
         record.serializeEvents(_datastreamTask.getDestinationSerDes());
       } catch (Exception e) {
         if (_skipMessageOnSerializationErrors) {
@@ -184,7 +184,7 @@ public class EventProducer implements DatastreamEventProducer {
         throw e;
       }
 
-      // Send
+      // Send the event to the transport
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
       record.setEventsSendTimestamp(System.currentTimeMillis());
@@ -202,7 +202,7 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
-  // report sla metrics for aggregate, connector and task
+  // Report SLA metrics for aggregate, connector and task
   private void reportSLAMetrics(String topicOrDatastreamName, boolean isWithinSLA, String metricNameForWithinSLA,
       String metricNameForOutsideSLA) {
     int withinSLAValue = isWithinSLA ? 1 : 0;
@@ -218,9 +218,11 @@ public class EventProducer implements DatastreamEventProducer {
         outsideSLAValue);
   }
 
-  // Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
-  // per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
-  // to avoid over-counting.
+  /**
+   * Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
+   * per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
+   * to avoid overcounting.
+   */
   private void reportMetrics(DatastreamRecordMetadata metadata, DatastreamProducerRecord record) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = _datastreamTask.getDatastreams().get(0).getName();
@@ -352,6 +354,9 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
+  /**
+   * Shuts down the event producer by flushing the checkpoints and closing the transport provider
+   */
   public void shutdown() {
     _checkpointProvider.flush();
     _transportProvider.close();
@@ -362,6 +367,9 @@ public class EventProducer implements DatastreamEventProducer {
     return String.format("EventProducer producerId=%d", _producerId);
   }
 
+  /**
+   * Get the list of metrics maintained by the event producer
+   */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
 

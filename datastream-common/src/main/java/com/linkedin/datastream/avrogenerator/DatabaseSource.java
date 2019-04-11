@@ -233,7 +233,7 @@ public abstract class DatabaseSource {
     }
 
     /**
-     * @return a map of K,V pairs to include in the field metadata, besides the default fields included in this class
+     * Get a map of K,V pairs to include in the field metadata, besides the default fields included in this class
      */
     public Map<String, String> getMetadataMap() {
       return Collections.emptyMap();

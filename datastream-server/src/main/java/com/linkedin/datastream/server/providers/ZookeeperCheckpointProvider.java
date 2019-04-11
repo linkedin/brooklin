@@ -148,8 +148,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   /**
    * Read the checkpoints from the checkpoint store for the task
-   * @param datastreamTask datastream tasks whose checkpoints need to be read
-   * @return Map of the checkpoints associated with the datastream task.
+   * @param datastreamTask datastream task whose checkpoints need to be read
+   * @return Map of the checkpoints associated with {@code datastreamTask}
    */
   @Override
   public Map<Integer, String> getCommitted(DatastreamTask datastreamTask) {

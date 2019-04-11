@@ -5,17 +5,33 @@
  */
 package com.linkedin.datastream.common;
 
+/**
+ * Exception related to Avro encoding issues
+ */
 public class AvroEncodingException extends Exception {
   private static final long serialVersionUID = 1L;
 
-  public AvroEncodingException(Throwable t) {
-    super(t);
+  /**
+   * Constructor for AvroEncodingException
+   * @param cause Exception cause
+   */
+  public AvroEncodingException(Throwable cause) {
+    super(cause);
   }
 
-  public AvroEncodingException(String msg) {
-    super(msg);
+  /**
+   * Constructor for AvroEncodingException
+   * @param message Exception message
+   */
+  public AvroEncodingException(String message) {
+    super(message);
   }
 
+  /**
+   * Constructor for AvroEncodingException
+   * @param message Exception message
+   * @param cause Exception cause
+   */
   public AvroEncodingException(String message, Throwable cause) {
     super(message, cause);
   }

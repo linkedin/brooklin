@@ -380,7 +380,7 @@ public class ZkAdapter {
   }
 
   /**
-   * @return a list of instances including both dead and live ones.
+   * Get a list of instances including both dead and live ones.
    * Dead ones can be removed only after new assignments have
    * been fully populated by the leader Coordinator via strategies.
    */
