@@ -22,7 +22,7 @@ public class InvalidKeyException extends Exception {
 
   /**
    * Construct an instance of InvalidKeyException with message
-   * @param message exception information
+   * @param message Exception information
    */
   public InvalidKeyException(String message) {
     super(message);

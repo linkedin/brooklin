@@ -35,7 +35,7 @@ public class BrooklinHistogramInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinHistogramInfo
-   * @param nameOrRegex the name or regex of the gauge
+   * @param nameOrRegex Name or regex of the histogram
    */
   public BrooklinHistogramInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
@@ -43,8 +43,8 @@ public class BrooklinHistogramInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinHistogramInfo
-   * @param nameOrRegex the name or regex of the histogram
-   * @param histogramAttributes the attributes of the histogram. It is optional.
+   * @param nameOrRegex Name or regex of the histogram
+   * @param histogramAttributes Attributes of the histogram. It is optional.
    */
   public BrooklinHistogramInfo(String nameOrRegex, Optional<List<String>> histogramAttributes) {
     super(nameOrRegex, histogramAttributes);

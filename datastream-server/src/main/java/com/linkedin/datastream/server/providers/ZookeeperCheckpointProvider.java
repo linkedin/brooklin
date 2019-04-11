@@ -54,7 +54,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
 
    /**
-    * Construct an instance of ZookeeperCheckpointProvider with the given Zookeeper adapter
+    * Construct an instance of ZookeeperCheckpointProvider using the given {@link ZkAdapter}
     */
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;

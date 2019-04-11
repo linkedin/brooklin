@@ -53,7 +53,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   }
 
   /**
-   * Construct an instance of LoadbalancingStrategy with given properties
+   * Construct an instance of LoadbalancingStrategy using given {@link Properties}
    */
   public LoadbalancingStrategy(Properties properties) {
     VerifiableProperties props = new VerifiableProperties(properties);

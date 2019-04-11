@@ -17,7 +17,7 @@ public class SerDeSet {
   private final Optional<SerDe> _valueSerDe;
 
   /**
-   * Construct an instance of SerDeSet given the key, value, and envelope SerDes, all of which could be Null.
+   * Construct an instance of SerDeSet using the given key, value, and envelope SerDes, all of which could be Null.
    */
   public SerDeSet(SerDe keySerDe, SerDe valueSerDe, SerDe envelopeSerDe) {
     _keySerDe = Optional.ofNullable(keySerDe);

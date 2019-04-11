@@ -25,7 +25,7 @@ import com.linkedin.restli.server.annotations.RestLiSimpleResource;
 import com.linkedin.restli.server.resources.SimpleResourceTemplate;
 
 /**
- * The Restli resource endpoint building {@link ServerHealth}
+ * The Restli resource of {@link ServerHealth}
  */
 @RestLiSimpleResource(name = "health", namespace = "com.linkedin.datastream.server.diagnostics")
 public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> {

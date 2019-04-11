@@ -9,7 +9,7 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 /**
- * Generate a record whose value is boolean
+ * Generate a record whose value is a boolean
  */
 public class BooleanSchemaField extends SchemaField {
 

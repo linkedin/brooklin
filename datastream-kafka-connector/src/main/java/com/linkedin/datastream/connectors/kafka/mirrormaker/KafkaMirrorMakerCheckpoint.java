@@ -18,7 +18,7 @@ public class KafkaMirrorMakerCheckpoint {
   private long _offset;
 
   /**
-   * Construct an instance of KafkaMirrorMakerCheckpoint with the given topic name, partition
+   * Construct an instance of KafkaMirrorMakerCheckpoint using the given topic name, partition
    * number and offset
    */
   public KafkaMirrorMakerCheckpoint(String topic, int partition, long offset) {
@@ -28,7 +28,7 @@ public class KafkaMirrorMakerCheckpoint {
   }
 
   /**
-   * Construct an instance of KafkaMirrorMakerCheckpoint with the given topic name
+   * Construct an instance of KafkaMirrorMakerCheckpoint using the given topic name
    */
   public KafkaMirrorMakerCheckpoint(String checkpoint) {
     Validate.notNull(checkpoint, "Checkpoint cannot be null");

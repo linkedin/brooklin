@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Convenient utility class for retrying with static methods.
+ * Convenient utility class for retrying
  */
 public class RetryUtils {
 

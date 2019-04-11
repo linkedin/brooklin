@@ -14,7 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 public class OptionUtils {
 
   /**
-   * Create an 'Option' using the specified parameters
+   * Create an 'Option'
    */
   public static Option createOption(String shortOpt, String longOpt, String argName, boolean required,
       String description) {

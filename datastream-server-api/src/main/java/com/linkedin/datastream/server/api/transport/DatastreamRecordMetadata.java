@@ -15,7 +15,7 @@ public class DatastreamRecordMetadata {
   private final String _checkpoint;
 
   /**
-   * Construct an instance of DatastreamRecordMetadata with the given checkpoint name, topic name
+   * Construct an instance of DatastreamRecordMetadata using the given checkpoint name, topic name
    * and partition number.
    */
   public DatastreamRecordMetadata(String checkpoint, String topic, int partition) {

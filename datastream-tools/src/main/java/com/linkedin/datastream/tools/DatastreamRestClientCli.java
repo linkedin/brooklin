@@ -71,7 +71,7 @@ public class DatastreamRestClientCli {
   }
 
   /**
-   * Entry point for the cli of Datastream rest client
+   * The entry point of the cli of Datastream rest client
    */
   public static void main(String[] args) throws Exception {
     Options options = new Options();

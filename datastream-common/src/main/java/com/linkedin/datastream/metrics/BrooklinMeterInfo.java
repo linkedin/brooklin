@@ -26,7 +26,7 @@ public class BrooklinMeterInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinMeterInfo
-   * @param nameOrRegex the name or regex of the meter
+   * @param nameOrRegex Name or regex of the meter
    */
   public BrooklinMeterInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
@@ -34,8 +34,8 @@ public class BrooklinMeterInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinMeterInfo
-   * @param nameOrRegex the name or regex of the meter
-   * @param meterAttributes the attributes of the meter. It is optional.
+   * @param nameOrRegex Name or regex of the meter
+   * @param meterAttributes Attributes of the meter. It is optional.
    */
   public BrooklinMeterInfo(String nameOrRegex, Optional<List<String>> meterAttributes) {
     super(nameOrRegex, meterAttributes);

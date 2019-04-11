@@ -11,7 +11,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 
 /**
- * Generate a record whose value is array
+ * Generate a record whose value is an array
  */
 public class ArraySchemaField extends SchemaField {
 
