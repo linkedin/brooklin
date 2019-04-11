@@ -28,7 +28,7 @@ public class KafkaMirrorMakerCheckpoint {
   }
 
   /**
-   * Construct an instance of KafkaMirrorMakerCheckpoint using the given topic name
+   * Construct an instance of KafkaMirrorMakerCheckpoint using the given checkpoint name
    */
   public KafkaMirrorMakerCheckpoint(String checkpoint) {
     Validate.notNull(checkpoint, "Checkpoint cannot be null");
