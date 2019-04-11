@@ -18,7 +18,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
- * An in-memory implementation of {@link CheckpointProvider} for tracking progress made.
+ * An in-memory implementation of {@link CheckpointProvider}
  */
 public class InMemoryCheckpointProvider implements CheckpointProvider {
 

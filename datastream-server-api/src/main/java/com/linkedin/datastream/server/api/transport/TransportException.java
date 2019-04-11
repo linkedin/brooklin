@@ -6,34 +6,38 @@
 package com.linkedin.datastream.server.api.transport;
 
 /**
- * Exception class for all the transport-related exceptions.
+ * Exception class for all transport-related errors
  */
 public class TransportException extends Exception {
   private static final long serialVersionUID = 1;
 
   /**
-   * Constructor for TransportException
+   * Constructor
    */
   public TransportException() {
     super();
   }
 
   /**
-   * Constructor for TransportException which takes a custom message and Throwable as input.
+   * Constructor
+   * @param message Exception message
+   * @param cause Exception cause
    */
   public TransportException(String message, Throwable cause) {
     super(message, cause);
   }
 
   /**
-   * Constructor for TransportException which takes a custom message as input.
+   * Constructor
+   * @param message Exception message
    */
   public TransportException(String message) {
     super(message);
   }
 
   /**
-   * Constructor for TransportException which takes a Throwable as input.
+   * Constructor
+   * @param cause Exception cause
    */
   public TransportException(Throwable cause) {
     super(cause);

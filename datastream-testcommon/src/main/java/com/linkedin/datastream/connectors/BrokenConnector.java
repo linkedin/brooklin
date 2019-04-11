@@ -31,7 +31,9 @@ public class BrokenConnector implements Connector, DiagnosticsAware {
 
   /**
    * Constructor for BrokenConnector
-   * This expects the property "dummyProperty" to be set to "dummyValue".
+   * @param properties Configuration properties
+   * @throws Exception if {@code properties} does not contain a property
+   *         whose name is "dummyProperty" and value is "dummyValue"
    */
   public BrokenConnector(Properties properties) throws Exception {
     _properties = properties;

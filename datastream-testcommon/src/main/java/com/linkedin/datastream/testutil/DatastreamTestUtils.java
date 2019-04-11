@@ -159,9 +159,9 @@ public class DatastreamTestUtils {
   }
 
   /**
-   * Returns a datastream found from ZooKeeper.
+   * Get a datastream by name from ZooKeeper
    * @param zkClient ZooKeeper client
-   * @param cluster name of the datastream cluster
+   * @param cluster Brooklin cluster name
    * @param datastreamName name of the datastream to look up
    * @return datastream, or null if not found.
    */
