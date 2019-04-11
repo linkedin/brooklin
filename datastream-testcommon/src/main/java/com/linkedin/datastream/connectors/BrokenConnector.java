@@ -29,6 +29,12 @@ public class BrokenConnector implements Connector, DiagnosticsAware {
 
   private Properties _properties;
 
+  /**
+   * Constructor for BrokenConnector
+   * @param properties Configuration properties
+   * @throws Exception if {@code properties} does not contain a property
+   *         whose name is "dummyProperty" and value is "dummyValue"
+   */
   public BrokenConnector(Properties properties) throws Exception {
     _properties = properties;
     String dummyConfigValue = _properties.getProperty("dummyProperty", "");

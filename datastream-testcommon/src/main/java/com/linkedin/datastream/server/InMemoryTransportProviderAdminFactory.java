@@ -10,7 +10,9 @@ import java.util.Properties;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
 
-
+/**
+ * Factory class for creating instances of {@link TransportProviderAdmin}
+ */
 public class InMemoryTransportProviderAdminFactory implements TransportProviderAdminFactory {
 
   @Override

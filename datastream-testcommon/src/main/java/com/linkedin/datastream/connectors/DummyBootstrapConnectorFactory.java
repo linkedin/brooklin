@@ -9,7 +9,9 @@ import java.util.Properties;
 
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
-
+/**
+ * Factory class for creating instances of {@link DummyBootstrapConnector}
+ */
 public class DummyBootstrapConnectorFactory implements ConnectorFactory<DummyBootstrapConnector> {
   @Override
   public DummyBootstrapConnector createConnector(String connectorName, Properties config, String clusterName) {

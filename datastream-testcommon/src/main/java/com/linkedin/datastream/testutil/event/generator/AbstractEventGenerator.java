@@ -78,7 +78,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   }
 
   /*
-   * Generate random Espresso Events based on the avro schema
+   * Generate random Espresso Events based on the Avro schema
    * The schema must be of a record type to work as well as GenericEvent type
    *
    * @return returns the list of generated records
