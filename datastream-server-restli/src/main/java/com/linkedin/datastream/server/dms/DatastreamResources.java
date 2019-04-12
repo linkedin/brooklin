@@ -124,12 +124,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   /**
    * Update multiple datastreams. Throw exception if any of the updates is not valid:
-   * 1. datastream doesn't exist
-   * 2. datastream connector, transport provider, destination or status is not present or gets modified
-   * 3. all datastreams don't form part of same datastream group
-   * 4. list of updated datastreams don't share the same destination and source
-   * 5. list of updated datastreams don't form the same datastream group as existing datastreams
-   * 6. connector type doesn't support datastream updates or fails to validate the update
+   * <ol>
+   *  <li>Datastream doesn't exist</li>
+   *  <li>Datastream connector, transport provider, destination or status is not present or gets modified</li>
+   *  <li>All datastreams don't form part of same datastream group</li>
+   *  <li>List of updated datastreams don't share the same destination and source</li>
+   *  <li>List of updated datastreams don't form the same datastream group as existing datastreams</li>
+   *  <li>Connector type doesn't support datastream updates or fails to validate the update</li>
+   * </ol>
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
     LOG.info("Update datastream call with request: ", datastreamMap);
@@ -364,10 +366,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
+   * Given datastream and a map representing &lt;source, list of partitions to pause&gt;, pauses the partitions.
    * @param pathKeys Datastream resource key
-   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">.
-   *                         Example: <"FooTopic", "0,13,2"> or <"FooTopic","*">
+   * @param sourcePartitions StringMap of format &lt;source, comma separated list of partitions or "*"&gt;.
+   *                         <pre>Example: <"FooTopic", "0,13,2"> or <"FooTopic","*"></pre>
    */
   @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -703,7 +705,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   /**
    * Get the list of metrics emitted by this class
-   * @return
    */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
