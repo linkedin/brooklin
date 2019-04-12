@@ -48,7 +48,7 @@ public final class PollUtils {
      * Evaluates this predicate on the given argument.
      *
      * @param t the input argument
-     * @return true if the input argument matches the predicate,
+     * @return true if the input argument matches the predicate
      * @throws InterruptedException if the executing thread is interrupted
      */
     boolean test(T t) throws InterruptedException;
