@@ -42,7 +42,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
   /**
    * Constructor
-   * @param schema Schema for the Avro IndexedRecord that this event generator will be used to generate
+   * @param schema Schema of the Avro IndexedRecord to generate
    * @param cfg Configuration options for the event generator
    */
   public AbstractEventGenerator(Schema schema, EventGeneratorConfig cfg) {

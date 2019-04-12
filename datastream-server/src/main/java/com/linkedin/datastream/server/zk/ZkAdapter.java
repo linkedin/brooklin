@@ -88,7 +88,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  *     </li>
  * </ul>
  *
- * <p>The ZK-backed data providers cache the data read from the corresponding ZooKeeper nodes so they can be accessed
+ * <p>The ZK-backed data providers cache the data read from the corresponding ZooKeeper znodes so they can be accessed
  * without reading ZooKeeper frequently. These providers also set up the watch on these nodes so it can be notified
  * when the data changes. For example, {@link com.linkedin.datastream.server.zk.ZkAdapter.ZkBackedTaskListProvider}
  * provides the list of DatastreamTask objects that are assigned to this instance. This provider also watches the
@@ -132,12 +132,12 @@ public class ZkAdapter {
 
   /**
    * Constructor
-   * @param zkServers ZooKeeper server to connect to
+   * @param zkServers ZooKeeper server address to connect to
    * @param cluster Brooklin cluster this instance belongs to
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
    * @param sessionTimeout Session timeout to use for the connection with the ZooKeeper server
    * @param connectionTimeout Connection timeout to use for the connection with the ZooKeeper server
-   * @param listener Implementation of the ZKAdapterListener interface to receive callbacks based on various znode changes
+   * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
       int connectionTimeout, ZkAdapterListener listener) {
@@ -149,6 +149,9 @@ public class ZkAdapter {
     _defaultTransportProviderName = defaultTransportProviderName;
   }
 
+  /**
+   * Indicate whether this instance is the leader
+   */
   public synchronized boolean isLeader() {
     return _isLeader;
   }
@@ -158,7 +161,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Gracefully disconnect from ZooKeeper. Clean up associated ephemeral znodes for this instance.
+   * Gracefully disconnect from ZooKeeper
    */
   public void disconnect() {
 
@@ -330,9 +333,9 @@ public class ZkAdapter {
   }
 
   /**
-   * Update ZooKeeper node for a datastream.
-   * @param datastream Datastream being updated
-   * @return Status of the update operation: true if successful and false otherwise
+   * Update ZooKeeper znode of a datastream
+   * @param datastream Datastream name
+   * @return true if the update is successful
    */
   public boolean updateDatastream(Datastream datastream) {
     String path = KeyBuilder.datastream(_cluster, datastream.getName());
@@ -347,8 +350,8 @@ public class ZkAdapter {
   }
 
   /**
-   * Delete ZooKeeper nodes for all datastream tasks belonging to a group with a specified task prefix
-   * @param connectors List of connectors to look under for datastream tasks to delete
+   * Delete ZooKeeper znodes for all datastream tasks belonging to a group with a specified task prefix
+   * @param connectors Connectors to look under for datastream tasks to delete
    * @param taskPrefix Task prefix of the datastream tasks to be deleted
    */
   public void deleteTasksWithPrefix(Set<String> connectors, String taskPrefix) {
@@ -382,8 +385,8 @@ public class ZkAdapter {
   }
 
   /**
-   * Delete the ZooKeeper node for a datatsream and all sub-znodes under it recursively.
-   * @param datastreamName Datastream to be deleted
+   * Delete the ZooKeeper znode of a datatsream and all sub-znodes underneath it recursively
+   * @param datastreamName Datastream name
    */
   public void deleteDatastream(String datastreamName) {
     String path = KeyBuilder.datastream(_cluster, datastreamName);
@@ -399,7 +402,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Get list of all instances including dead and live ones in the cluster.
+   * Get all instances including dead and live ones in the cluster.
    * Dead ones can be removed only after new assignments have been fully populated by the leader Coordinator
    * via strategies.
    */
@@ -434,14 +437,14 @@ public class ZkAdapter {
   }
 
   /**
-   * Get list of all live instances for the cluster
+   * Get all live instances in the cluster
    */
   public List<String> getLiveInstances() {
     return _liveInstancesProvider.getLiveInstances();
   }
 
   /**
-   * Get list of all datastream tasks assigned to this instance
+   * Get all datastream tasks assigned to this instance
    */
   public List<String> getInstanceAssignment(String instance) {
     String path = KeyBuilder.instanceAssignments(_cluster, instance);
@@ -474,7 +477,8 @@ public class ZkAdapter {
   }
 
   /**
-   * Get a map of all instances to their currently assigned datastream tasks.
+   * Get a map of all instances to their currently assigned datastream tasks
+   *
    * NOTE: this might include the tasks assigned to dead instances because
    * in some strategies tasks from dead instances need to be handed off to another
    * live instance without creating a new task as the existing task still holds the
@@ -490,8 +494,8 @@ public class ZkAdapter {
   /**
    * Given an instance name and a datastream task name assigned to this instance, return
    * a desrialized DatastreamTask object from its JSON serialized definition in ZooKeeper.
-   * @return DatastreamTask instance for the specificed task name OR null if task node
-   * does not exist or is inaccessible
+   * @return DatastreamTask instance for the specified task name OR null if task node
+   *         does not exist or is inaccessible
    */
   public DatastreamTaskImpl getAssignedDatastreamTask(String instance, String taskName) {
     try {
@@ -524,11 +528,11 @@ public class ZkAdapter {
 
   /**
    * Three directories need to be created for a new task:
-   *
-   *  - /<cluster>/instances/<instance>/<task>[JSON]
-   *  - /<cluster>/connectors/<connectorType>/<task>/<config>
-   *  - /<cluster>/connectors/<connectorType>/<task>/<state>
-   *
+   * <ol>
+   *   <li>{@code /<cluster>/instances/<instance>/<task>[JSON]}</li>
+   *   <li>{@code /<cluster>/connectors/<connectorType>/<task>/<config>}</li>
+   *   <li>{@code /<cluster>/connectors/<connectorType>/<task>/<state>}</li>
+   * </ol>
    *  If any one failed, RuntimeException will be thrown.
    */
   private void addTaskNodes(String instance, DatastreamTaskImpl task) {
@@ -575,11 +579,11 @@ public class ZkAdapter {
 
   /**
    * Two nodes need to be removed for a removed task:
-   *
-   *  - /<cluster>/instances/<instance>/<task>[JSON]
-   *  - /<cluster>/connectors/<connectorType>/<task>
-   *
-   *  If either failed, RuntimeException will be thrown.
+   * <ol>
+   *  <li>{@code /<cluster>/instances/<instance>/<task>[JSON]}</li>
+   *  <li>{@code /<cluster>/connectors/<connectorType>/<task>}</li>
+   * </ol>
+   *  If either failed, a RuntimeException will be thrown.
    */
   private void removeTaskNodes(String instance, String name) {
     LOG.info("Removing Task Node: " + instance + ", task: " + name);
@@ -594,13 +598,18 @@ public class ZkAdapter {
   }
 
   /**
-   * Update the task assignment of a given instance. This method is only called by the
-   * Coordinator leader. To execute the update, first retrieve the existing assignment,
-   * then capture the difference, and only act on the differences. That is, add new
-   * assignments, remove old assignments. For ones that didn't change, do nothing.
+   * Update the task assignment of a given instance
+   *
+   * This method is only called by the leader Coordinator. To execute the update,
+   * first retrieve the existing assignment, then capture the difference, and only
+   * act on the differences — that is: add new assignments, remove old assignments.
+   * For ones that didn't change, do nothing.
+   *
    * Two places will be written to:
-   *  - /<cluster>/instances/<instance>/<task1>,<task2>...
-   *  - /<cluster>/connectors/<connectorType>/<task-name1>,<task-name2>...
+   * <ol>
+   *  <li>{@code /<cluster>/instances/<instance>/<task1>,<task2>...}</li>
+   *  <li>{@code /<cluster>/connectors/<connectorType>/<task-name1>,<task-name2>...}</li>
+   * </ol>
    */
   public void updateAllAssignments(Map<String, List<DatastreamTask>> assignmentsByInstance) {
     // map of task name to DatastreamTask for future reference
@@ -720,8 +729,8 @@ public class ZkAdapter {
   }
 
   /**
-   * Recursively create the nodes in ZooKeeper for the /{cluster}/{connectorType} node if it doesn't exist
-   * @param connectorType Connector type of interest
+   * Recursively create the znodes in ZooKeeper for the {@code /{cluster}/{connectorType}} node if it doesn't exist
+   * @param connectorType Connector type
    */
   public void ensureConnectorZNode(String connectorType) {
     String path = KeyBuilder.connector(_cluster, connectorType);
@@ -729,7 +738,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Save the error message for an instance in ZooKeeper under /{cluster}/instances/{instanceName}/errors
+   * Save the error message for an instance in ZooKeeper under {@code /{cluster}/instances/{instanceName}/errors}
    */
   public void zkSaveInstanceError(String message) {
     String path = KeyBuilder.instanceErrors(_cluster, _instanceName);
@@ -756,7 +765,7 @@ public class ZkAdapter {
 
   /**
    * For a given datastream task, return a specific category of state information persisted in ZooKeeper
-   * @param  datastreamTask Name of the datastream task of interest
+   * @param  datastreamTask Datastream task name
    * @param  key Specific category of state information to fetch
    */
   public String getDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key) {
@@ -766,8 +775,8 @@ public class ZkAdapter {
   }
 
   /**
-   * Persist a specific category of state information for a datastream task in ZooKeeper.
-   * @param datastreamTask Name of the datastream task of interest
+   * Persist a specific category of state information for a datastream task in ZooKeeper
+   * @param datastreamTask Datastream task name
    * @param key Name for the category of state information to persist
    * @param value Serialized state information to persist
    */
@@ -779,9 +788,10 @@ public class ZkAdapter {
   }
 
   /**
-   * Remove instance assignment nodes whose instances are dead.
+   * Remove instance assignment nodes whose instances are dead
+   *
    * NOTE: this should only be called after the valid tasks have been
-   * reassigned or safe to discard per strategy requirement.
+   * reassigned or become safe to discard per strategy requirement.
    * Coordinator is expected to cache the "current" assignment before
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
@@ -856,7 +866,9 @@ public class ZkAdapter {
   }
 
   /**
-   * Lock the datastream task for exclusive access. A connector must lock a task before starting to
+   * Lock a datastream task for exclusive access
+   *
+   * A connector must lock a task before starting to
    * process it to ensure no two instances will work on the same task concurrently.
    * @param task Datastream task to get exclusive access on
    * @param timeout Time to wait to acquire the lock
@@ -920,42 +932,42 @@ public class ZkAdapter {
     void onBecomeLeader();
 
     /**
-     * onLiveInstancesChange is called when the list of live instances changes. That is, any
-     * change under ZooKeeper node /{cluster}/liveinstances. This method is called only when this
-     * Coordinator is the leader.
+     * onLiveInstancesChange is called when the list of live instances changes, i.e. any
+     * change under ZooKeeper znode {@code /{cluster}/liveinstances}. This method is called
+     * only when this Coordinator is the leader.
      */
     void onLiveInstancesChange();
 
     /**
-     * onAssignmentChange is a called when the task assignment for an instance changes. That is, any
-     * change under ZooKeeper node /{cluster}/instances/{instance-name}.
+     * onAssignmentChange is a called when the task assignment for an instance changes, i.e. any
+     * change under ZooKeeper znode {@code /{cluster}/instances/{instance-name}}.
      */
     void onAssignmentChange();
 
     /**
-     * onDatastreamAddOrDrop is called when there is any new datastream created or existing, deleted.
-     * That is, any changes under ZooKeeper node /{cluster}/dms. This method is called only when the
+     * onDatastreamAddOrDrop is called when there is any new datastream created or existing, deleted,
+     * i.e. any changes under ZooKeeper znode {@code /{cluster}/dms}. This method is called only when the
      * Coordinator is the leader.
      */
     void onDatastreamAddOrDrop();
 
     /**
-     * onDatastreamUpdate is called when a datastream gets updated. That is, any changes under
-     * ZooKeeper node /{cluster}/instances/{instance-name}/assignments which will happen after a
-     * datastream update.
+     * onDatastreamUpdate is called when a datastream gets updated, i.e. any changes under
+     * ZooKeeper znode {@code /{cluster}/instances/{instance-name}/assignments} which will
+     * happen after a datastream update.
      */
     void onDatastreamUpdate();
   }
 
   /**
-   * Data provider class to provide an updated list of datastreams for the cluster by watching data and child
-   * ZooKeeper nodes under <i>/{cluster}/dms/</i>.
+   * Data provider class to provide an updated list of datastreams for the cluster by watching
+   * ZooKeeper znodes under <i>/{cluster}/dms/</i>.
    */
   public class ZkBackedDMSDatastreamList implements IZkChildListener, IZkDataListener {
     private String _path;
 
     /**
-     * Default constructor; Sets up a watch on the /{cluster}/dms tree, so it can be notified of future changes.
+     * Sets up a watch on the {@code /{cluster}/dms} tree, so it can be notified of future changes.
      */
     public ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
@@ -966,7 +978,7 @@ public class ZkAdapter {
     }
 
     /**
-     * Unsubscribe from all datastream changes for the cluster
+     * Unsubscribe from all datastream changes in the cluster
      */
     public void close() {
       LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
@@ -1022,7 +1034,7 @@ public class ZkAdapter {
     private String _path;
 
     /**
-     * Default constructor; Sets up a watch on the /{cluster}/liveinstances tree, so it can be notified
+     * Sets up a watch on the {@code /{cluster}/liveinstances} tree, so it can be notified
      * of future changes.
      */
     public ZkBackedLiveInstanceListProvider() {
@@ -1049,7 +1061,7 @@ public class ZkAdapter {
     }
 
     /**
-     * Unsubscribe from all live instance changes for the cluster
+     * Unsubscribe from all live instance changes in the cluster
      */
     public void close() {
       LOG.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
