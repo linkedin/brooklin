@@ -20,7 +20,9 @@ import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
-
+/**
+ * Encapsulates common metrics for Kafka-based connectors
+ */
 public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of paused partitions that are manually paused
   public static final String NUM_CONFIG_PAUSED_PARTITIONS = "numConfigPausedPartitions";
@@ -159,6 +161,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     }
   }
 
+  /**
+   * Utility method for creating task-specific metrics of a Kafka-based connector
+   * @param prefix string to prepend to every metric
+   */
   public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     prefix = Strings.nullToEmpty(prefix);

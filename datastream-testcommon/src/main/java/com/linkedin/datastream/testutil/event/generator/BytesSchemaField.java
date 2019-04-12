@@ -8,9 +8,14 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * A random bytes generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class BytesSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of BytesSchemaField using given {@link Field}
+   */
   public BytesSchemaField(Field field) {
     super(field);
   }
@@ -21,10 +26,13 @@ public class BytesSchemaField extends SchemaField {
   }
 
   @Override
-  public Object generateRandomObject() throws UnknownTypeException {
+  public Object generateRandomObject() {
     return generateBytes();
   }
 
+  /**
+   * Generate random bytes
+   */
   public byte[] generateBytes() {
     return _randGenerator.getNextBytes(_maxNumElements);
   }

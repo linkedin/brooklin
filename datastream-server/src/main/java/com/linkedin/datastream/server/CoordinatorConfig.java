@@ -11,7 +11,9 @@ import java.util.Properties;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 
-
+/**
+ * Brooklin {@link Coordinator} configuration properties
+ */
 public final class CoordinatorConfig {
   private static final String PREFIX = "brooklin.server.coordinator.";
   public static final String CONFIG_DEFAULT_TRANSPORT_PROVIDER = PREFIX + "defaultTransportProviderName";
@@ -34,6 +36,11 @@ public final class CoordinatorConfig {
 
   private int _assignmentChangeThreadPoolThreadCount = 3;
 
+  /**
+   * Construct an instance of CoordinatorConfig
+   * @param config configuration properties to load
+   * @throws IllegalArgumentException if any required config property is missing
+   */
   public CoordinatorConfig(Properties config) {
     _config = config;
     _properties = new VerifiableProperties(config);
