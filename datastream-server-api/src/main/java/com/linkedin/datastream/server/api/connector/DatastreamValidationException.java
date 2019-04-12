@@ -8,7 +8,7 @@ package com.linkedin.datastream.server.api.connector;
 import com.linkedin.datastream.common.DatastreamException;
 
 /**
- * Represents errors where validating datastream configuration options fails
+ * Represents datastream config validation errors
  */
 public class DatastreamValidationException extends DatastreamException {
   private static final long serialVersionUID = 1;
