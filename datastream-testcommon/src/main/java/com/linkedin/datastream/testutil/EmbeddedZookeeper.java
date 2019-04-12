@@ -66,7 +66,7 @@ public class EmbeddedZookeeper {
   }
 
   /**
-   * Construct and EmbeddedZookeeper
+   * Construct an EmbeddedZookeeper
    * @param port the port to bind to
    * @param snapshotDirPath snapshot directory path
    * @param logDirPath log directory path
