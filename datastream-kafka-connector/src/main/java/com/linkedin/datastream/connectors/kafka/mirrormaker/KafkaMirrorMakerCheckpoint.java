@@ -18,8 +18,10 @@ public class KafkaMirrorMakerCheckpoint {
   private long _offset;
 
   /**
-   * Construct an instance of KafkaMirrorMakerCheckpoint using the given topic name, partition
-   * number and offset
+   * Construct an instance of KafkaMirrorMakerCheckpoint
+   * @param topic Kafka topic name
+   * @param partition Kafka topic partition
+   * @param offset Offset within Kafka topic
    */
   public KafkaMirrorMakerCheckpoint(String topic, int partition, long offset) {
     _topic = topic;
@@ -28,14 +30,15 @@ public class KafkaMirrorMakerCheckpoint {
   }
 
   /**
-   * Construct an instance of KafkaMirrorMakerCheckpoint using the given checkpoint name
+   * Construct an instance of KafkaMirrorMakerCheckpoint
+   * @param checkpoint checkpoint string formatted as topic/partition/offset
    */
   public KafkaMirrorMakerCheckpoint(String checkpoint) {
     Validate.notNull(checkpoint, "Checkpoint cannot be null");
     String[] parts = checkpoint.split(DELIMITER);
     if (parts.length != 3) {
       throw new IllegalArgumentException(
-          "Checkpoint should be in format: topic-partition-offset, but found: " + checkpoint);
+          "Checkpoint should be in format: topic/partition/offset, but found: " + checkpoint);
     }
 
     _topic = parts[0];

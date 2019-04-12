@@ -22,7 +22,7 @@ import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 /**
- * Zookeeper backed {@link DatastreamStore}
+ * ZooKeeper-backed {@link DatastreamStore}
  */
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
@@ -33,8 +33,10 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   private final CachedDatastreamReader _datastreamCache;
 
   /**
-   * Construct an instance of ServerHealthResources using {@link CachedDatastreamReader},
-   * {@link ZkClient} and cluster
+   * Construct an instance of ZookeeperBackedDatastreamStore
+   * @param datastreamCache cache for datastream data
+   * @param zkClient ZooKeeper client to use
+   * @param cluster Brooklin cluster name
    */
   public ZookeeperBackedDatastreamStore(CachedDatastreamReader datastreamCache, ZkClient zkClient, String cluster) {
     Validate.notNull(datastreamCache);

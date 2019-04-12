@@ -10,7 +10,7 @@ import java.util.Properties;
 import org.apache.kafka.clients.consumer.Consumer;
 
 /**
- * Interface for Kafka consumers
+ * Interface for Kafka consumer factories
  * @param <K> The type that the key is deserialized into
  * @param <V> The type that the value is deserialized into
  */

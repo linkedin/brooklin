@@ -13,9 +13,9 @@ import com.linkedin.kafka.clients.auditing.Auditor;
 
 
 /**
- * The default no-op auditor class
- * @param <K> Type of the key
- * @param <V> Type of the value
+ * An {@link Auditor} implementation that does nothing
+ * @param <K> Record key type
+ * @param <V> Record value type
  */
 public class NoOpAuditor<K, V> implements Auditor<K, V> {
 

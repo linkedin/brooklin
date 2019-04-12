@@ -12,7 +12,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 
 /**
- * Coordinator config class
+ * Brooklin {@link Coordinator} configuration properties
  */
 public final class CoordinatorConfig {
   private static final String PREFIX = "brooklin.server.coordinator.";
@@ -37,7 +37,9 @@ public final class CoordinatorConfig {
   private int _assignmentChangeThreadPoolThreadCount = 3;
 
   /**
-   * Construct an instance of CoordinatorConfig using given {@link Properties}
+   * Construct an instance of CoordinatorConfig
+   * @param config configuration properties to load
+   * @throws IllegalArgumentException if any required config property is missing
    */
   public CoordinatorConfig(Properties config) {
     _config = config;

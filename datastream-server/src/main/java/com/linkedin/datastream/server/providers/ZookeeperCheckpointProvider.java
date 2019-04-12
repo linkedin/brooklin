@@ -29,8 +29,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
  /**
-  * Zookeeper checkpoint provider maintaining information about the progress made
-  * in processing {@link DatastreamTask}s.
+  * ZooKeeper-backed {@link CheckpointProvider} that maintains {@link DatastreamTask}
+  * processing state information, e.g. offsets/checkpoints, errors.
   */
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
@@ -54,7 +54,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
   private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
 
    /**
-    * Construct an instance of ZookeeperCheckpointProvider using the given {@link ZkAdapter}
+    * Construct an instance of ZookeeperCheckpointProvider
+    * @param zkAdapter ZooKeeper client adapter to use
     */
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;

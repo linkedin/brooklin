@@ -21,7 +21,7 @@ import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
 /**
- * Define task metrics of Kafka based connector
+ * Encapsulates common metrics for Kafka-based connectors
  */
 public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of paused partitions that are manually paused
@@ -52,12 +52,6 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
   private final AtomicLong _numTopics = new AtomicLong(0);
 
-  /**
-   * Construct an instance of KafkaBasedConnectorTaskMetrics
-   * @param className The class name
-   * @param metricsKey The metrics key
-   * @param errorLogger The logger used to log errors
-   */
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger) {
     super(className, metricsKey, errorLogger);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS,
@@ -168,8 +162,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   }
 
   /**
-   * Utility method to get task specific metrics of the Kafka based connector
-   * @param prefix The prefix string
+   * Utility method for creating task-specific metrics of a Kafka-based connector
+   * @param prefix string to prepend to every metric
    */
   public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();

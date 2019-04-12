@@ -284,7 +284,7 @@ public class EventProducer implements DatastreamEventProducer {
     SendFailedException sendFailedException = null;
 
     if (exception != null) {
-      // If it is custom checkpointing it is upto the connector to keep track of the safe checkpoints.
+      // If it is custom checkpointing it is up to the connector to keep track of the safe checkpoints.
       Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
       sendFailedException = new SendFailedException(_datastreamTask, safeCheckpoints, exception);
     } else {

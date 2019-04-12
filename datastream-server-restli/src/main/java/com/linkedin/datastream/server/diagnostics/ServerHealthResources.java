@@ -25,7 +25,8 @@ import com.linkedin.restli.server.annotations.RestLiSimpleResource;
 import com.linkedin.restli.server.resources.SimpleResourceTemplate;
 
 /**
- * The Restli resource of {@link ServerHealth}
+ * The Restli resource of {@link ServerHealth}. Used for collecting health-related info
+ * about a {@link DatastreamServer}.
  */
 @RestLiSimpleResource(name = "health", namespace = "com.linkedin.datastream.server.diagnostics")
 public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> {
@@ -36,7 +37,8 @@ public class ServerHealthResources extends SimpleResourceTemplate<ServerHealth> 
   private final Coordinator _coordinator;
 
   /**
-   * Construct an instance of ServerHealthResources using {@link DatastreamServer}
+   * Construct an instance of ServerHealthResources
+   * @param datastreamServer Datastream server for which health data is retrieved
    */
   public ServerHealthResources(DatastreamServer datastreamServer) {
     _server = datastreamServer;

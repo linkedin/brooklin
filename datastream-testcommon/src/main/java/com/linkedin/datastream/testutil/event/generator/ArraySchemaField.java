@@ -11,14 +11,15 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 
 /**
- * Generate a record whose value is an array
+ * A generator of arrays with random values for a specific {@link Schema.Field}
  */
 public class ArraySchemaField extends SchemaField {
 
   private static int maxArrayLength = 10;
 
   /**
-   * Construct an instance of ArraySchemaField using given {@link Field}
+   * Construct an instance of ArraySchemaField
+   * @param  field the schema field for which data is generated
    */
   public ArraySchemaField(Field field) {
     super(field);
@@ -35,8 +36,8 @@ public class ArraySchemaField extends SchemaField {
   }
 
   /**
-   * Generate an array by the filed
-   * @throws UnknownTypeException the unknown type exception
+   * Generate an array of random size using the schema of the encapsulated field
+   * @throws UnknownTypeException if an unknown type is encountered in the field schema
    */
   public GenericData.Array<Object> generateArray() throws UnknownTypeException {
     Schema innerElementSchema = _field.schema().getElementType();

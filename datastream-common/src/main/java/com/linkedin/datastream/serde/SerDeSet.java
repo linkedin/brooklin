@@ -7,8 +7,13 @@ package com.linkedin.datastream.serde;
 
 import java.util.Optional;
 
+import com.linkedin.datastream.common.DatastreamDestination;
+
 /**
- * Generate a {@link SerDe} set
+ * Encapsulates key, value, and envelope {@link SerDe}s
+ * @see DatastreamDestination#getKeySerDe()
+ * @see DatastreamDestination#getPayloadSerDe()
+ * @see DatastreamDestination#getEnvelopeSerDe()
  */
 public class SerDeSet {
 
@@ -17,7 +22,10 @@ public class SerDeSet {
   private final Optional<SerDe> _valueSerDe;
 
   /**
-   * Construct an instance of SerDeSet using the given key, value, and envelope SerDes, all of which could be Null.
+   * Construct an instance of SerDeSet
+   * @param keySerDe key SerDe
+   * @param valueSerDe value SerDe
+   * @param envelopeSerDe Enveloper SerDe
    */
   public SerDeSet(SerDe keySerDe, SerDe valueSerDe, SerDe envelopeSerDe) {
     _keySerDe = Optional.ofNullable(keySerDe);

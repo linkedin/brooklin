@@ -23,7 +23,7 @@ public class BrooklinGaugeInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinGaugeInfo
-   * @param nameOrRegex The name or regex of the gauge
+   * @param nameOrRegex Gauge name or regex
    */
   public BrooklinGaugeInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
@@ -31,8 +31,8 @@ public class BrooklinGaugeInfo extends BrooklinMetricInfo {
 
   /**
    * Construct an instance of BrooklinGaugeInfo
-   * @param nameOrRegex Name or regex of the Brooklin gauge
-   * @param gaugeAttributes Attributes of the Brooklin gauge. It is optional.
+   * @param nameOrRegex Gauge name or regex
+   * @param gaugeAttributes Gauge attributes
    */
   public BrooklinGaugeInfo(String nameOrRegex, Optional<List<String>> gaugeAttributes) {
     super(nameOrRegex, gaugeAttributes);

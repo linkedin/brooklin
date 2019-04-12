@@ -30,7 +30,7 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
   }
 
   /**
-   * A transport provider which doesn't do anything.
+   * A {@link TransportProvider} implementation that does nothing
    */
   public static class NoOpTransportProvider implements TransportProvider {
 
@@ -51,7 +51,7 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
   }
 
   /**
-   * Transport provider admin for NoOpTransportProvider, which doesn't do anything.
+   * A {@link TransportProviderAdmin} implementation that does nothing
    */
   public static class NoOpTransportProviderAdmin implements TransportProviderAdmin {
     @Override

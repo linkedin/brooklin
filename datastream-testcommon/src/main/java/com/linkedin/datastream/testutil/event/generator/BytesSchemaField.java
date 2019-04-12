@@ -9,7 +9,7 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 /**
- * Generate a record whose value type is byte[]
+ * A random bytes generator for a specific {@link org.apache.avro.Schema.Field}
  */
 public class BytesSchemaField extends SchemaField {
 
@@ -26,12 +26,12 @@ public class BytesSchemaField extends SchemaField {
   }
 
   @Override
-  public Object generateRandomObject() throws UnknownTypeException {
+  public Object generateRandomObject() {
     return generateBytes();
   }
 
   /**
-   * Generate a byte array
+   * Generate random bytes
    */
   public byte[] generateBytes() {
     return _randGenerator.getNextBytes(_maxNumElements);

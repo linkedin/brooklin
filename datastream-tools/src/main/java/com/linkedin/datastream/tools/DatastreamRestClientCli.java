@@ -33,7 +33,7 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 
 /**
- * Cli of Datastream rest client
+ * The main class containing the entry point of the Datastream REST client command line utility
  */
 public class DatastreamRestClientCli {
 
@@ -71,7 +71,7 @@ public class DatastreamRestClientCli {
   }
 
   /**
-   * The entry point of the cli of Datastream rest client
+   * The entry point of the Datastream REST client command line utility
    */
   public static void main(String[] args) throws Exception {
     Options options = new Options();

@@ -21,8 +21,8 @@ public class InvalidKeyException extends Exception {
   }
 
   /**
-   * Construct an instance of InvalidKeyException with message
-   * @param message Exception information
+   * Construct an instance of InvalidKeyException
+   * @param message Exception message
    */
   public InvalidKeyException(String message) {
     super(message);

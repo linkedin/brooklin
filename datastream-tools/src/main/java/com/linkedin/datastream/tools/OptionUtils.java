@@ -9,12 +9,17 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Utility class to create an 'Option'
+ * Utility class for creating command line {@link Option}s
  */
 public class OptionUtils {
 
   /**
-   * Create an 'Option'
+   * Create a command line option
+   * @param shortOpt short representation of the option
+   * @param longOpt long representation of the option
+   * @param argName display name for argument value
+   * @param required indicates whether option is required
+   * @param description describes the function of the option
    */
   public static Option createOption(String shortOpt, String longOpt, String argName, boolean required,
       String description) {

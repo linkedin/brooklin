@@ -10,7 +10,7 @@ import java.util.Map;
 import com.linkedin.datastream.server.DatastreamTask;
 
 /**
- * Exception used when failing to send data
+ * Exception used when sending data fails
  */
 public class SendFailedException extends Exception {
   private static final long serialVersionUID = 1;
@@ -20,9 +20,12 @@ public class SendFailedException extends Exception {
 
   /**
    * Construct an instance of SendFailedException
+   * @param datastreamTask Datastream task associated with the data sending failure
+   * @param checkpoints Safe checkpoints at the time the error occurred
+   * @param cause Exception cause
    */
-  public SendFailedException(DatastreamTask datastreamTask, Map<Integer, String> checkpoints, Exception exception) {
-    super(exception);
+  public SendFailedException(DatastreamTask datastreamTask, Map<Integer, String> checkpoints, Exception cause) {
+    super(cause);
     _datastreamTask = datastreamTask;
     _checkpoints = checkpoints;
   }
