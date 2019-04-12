@@ -23,7 +23,8 @@ public final class KeyBuilder {
   private static final String CONNECTOR = "/%s/connectors/%s";
 
   // Suppresses default constructor, ensuring non-instantiability.
-  private KeyBuilder() {}
+  private KeyBuilder() {
+  }
 
   /**
    * There are two ZK nodes for any given DatastreamTask, one under "instances"

@@ -949,7 +949,7 @@ public class ZkAdapter {
 
   /**
    * Data provider class to provide an updated list of datastreams for the cluster by watching data and child
-   * ZooKeeper nodes under <i>/{cluster}/dms<i>/.
+   * ZooKeeper nodes under <i>/{cluster}/dms/</i>.
    */
   public class ZkBackedDMSDatastreamList implements IZkChildListener, IZkDataListener {
     private String _path;
