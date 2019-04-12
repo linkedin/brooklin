@@ -22,7 +22,8 @@ import org.apache.avro.io.EncoderFactory;
 
 
 /**
- * Generator for generic events based on input schema.
+ * Generator for generic change-capture events based on input schema. It allows for customization
+ * by overriding {@link AbstractEventGenerator#getNextEvent(EventType, int)}.
  * @param <T> the type of record to generate
  */
 public abstract class AbstractEventGenerator<T extends IndexedRecord> {
@@ -40,9 +41,9 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   protected long _scn;
 
   /**
-   * Constructor for AbstractEventGenerator
-   * @param schema the schema of the events to generate
-   * @param cfg the event generator config
+   * Constructor
+   * @param schema Schema for the Avro IndexedRecord that this event generator will be used to generate
+   * @param cfg Configuration options for the event generator
    */
   public AbstractEventGenerator(Schema schema, EventGeneratorConfig cfg) {
     _schema = schema;
@@ -74,7 +75,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   abstract protected T getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException;
 
   /**
-   * Get a {@link GenericEventIterator}
+   * Get an iterator over the events that the event generator produces.
    */
   public Iterator<T> genericEventIterator() {
     if (_schema != null && _schema.getType() != Schema.Type.RECORD) {
@@ -169,7 +170,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   }
 
   /**
-   * Holds configuration options for EventGenerators.
+   * Configuration options for the AbstractEventGenerator
    */
   public static class EventGeneratorConfig {
     // db name and partition name
@@ -249,9 +250,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageUpdates;
     }
 
-    /**
-     * Set the percentage of events that should be updates.
-     */
     public void setPercentageUpdates(int percentageUpdates) {
       if ((percentageUpdates < 0) || ((percentageUpdates + _percentageDeletes) > 50)) {
         return;
@@ -263,9 +261,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageDeletes;
     }
 
-    /**
-     * Set the percentage of events that should be deletes.
-     */
     public void setPercentageDeletes(int percentageDeletes) {
       if ((percentageDeletes < 0) || ((_percentageUpdates + percentageDeletes) > 50)) {
         // log the error and not set it
@@ -278,9 +273,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageControls;
     }
 
-    /**
-     * Set the percentage of events that should be control events.
-     */
     public void setPercentageControls(int percentageControls) {
       if ((percentageControls < 0) || (percentageControls > 50)) {
         return;
@@ -288,7 +280,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       _percentageControls = percentageControls;
     }
 
-    public boolean isGenerateEventFile() {
+    public boolean getGenerateEventFile() {
       return _generateEventFile;
     }
   }
