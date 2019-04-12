@@ -7,13 +7,11 @@ package com.linkedin.datastream.serde;
 
 import java.util.Optional;
 
-import com.linkedin.datastream.common.DatastreamDestination;
-
 /**
  * Encapsulates key, value, and envelope {@link SerDe}s
- * @see DatastreamDestination#getKeySerDe()
- * @see DatastreamDestination#getPayloadSerDe()
- * @see DatastreamDestination#getEnvelopeSerDe()
+ * @see com.linkedin.datastream.common.DatastreamDestination#getKeySerDe()
+ * @see com.linkedin.datastream.common.DatastreamDestination#getPayloadSerDe()
+ * @see com.linkedin.datastream.common.DatastreamDestination#getEnvelopeSerDe()
  */
 public class SerDeSet {
 

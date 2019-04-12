@@ -3,7 +3,7 @@
   "namespace" : "com.linkedin.datastream.server.diagnostics",
   "path" : "/health",
   "schema" : "com.linkedin.datastream.diagnostics.ServerHealth",
-  "doc" : "The Restli resource of {@link ServerHealth}\n\ngenerated from: com.linkedin.datastream.server.diagnostics.ServerHealthResources",
+  "doc" : "The Restli resource of {@link ServerHealth}. Used for collecting health-related info\n about a {@link DatastreamServer}.\n\ngenerated from: com.linkedin.datastream.server.diagnostics.ServerHealthResources",
   "simple" : {
     "supports" : [ "get" ],
     "methods" : [ {
