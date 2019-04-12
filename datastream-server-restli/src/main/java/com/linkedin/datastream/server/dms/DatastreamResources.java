@@ -68,7 +68,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
 /**
- * Resources classes are used by rest.li to process corresponding http request.
+ * Resources classes are used by rest.li to process corresponding HTTP request.
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
@@ -99,10 +99,19 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   private final DynamicMetricsManager _dynamicMetricsManager;
 
+  /**
+   * Constructor for DatastreamResources
+   * @param datastreamServer the datastream server
+   */
   public DatastreamResources(DatastreamServer datastreamServer) {
     this(datastreamServer.getDatastreamStore(), datastreamServer.getCoordinator());
   }
 
+  /**
+   * Constructor for DatastreamResources
+   * @param store the datastream store
+   * @param coordinator the server coordinator
+   */
   public DatastreamResources(DatastreamStore store, Coordinator coordinator) {
     _store = store;
     _coordinator = coordinator;
@@ -113,7 +122,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _dynamicMetricsManager.registerGauge(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
   }
 
-  /*
+  /**
    * Update multiple datastreams. Throw exception if any of the updates is not valid:
    * 1. datastream doesn't exist
    * 2. datastream connector, transport provider, destination or status is not present or gets modified
@@ -263,6 +272,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new UpdateResponse(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Pause a datastream
+   * @param pathKeys resource key containing the datastream name
+   * @param force whether or not to pause all datastreams within the given datastream's group
+   * @return result HTTP status
+   */
   @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pause(@PathKeysParam PathKeys pathKeys,
       @ActionParam("force") @Optional("false") boolean force) {
@@ -303,6 +318,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Resume a datastream
+   * @param pathKeys resource key containing the datastream name
+   * @param force whether or not to resume all datastreams within the given datastream's group
+   * @return result HTTP status
+   */
   @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys,
       @ActionParam("force") @Optional("false") boolean force) {
@@ -345,8 +366,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   /**
    * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
    * @param pathKeys Datastream resource key
-   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
-   *                         or <"FooTopic","*">
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">.
+   *                         Example: <"FooTopic", "0,13,2"> or <"FooTopic","*">
    */
   @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -423,8 +444,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   /**
    * Given a datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
    * @param pathKeys Datastream resource key
-   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
-   *                         or <"FooTopic","*">
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">.
+   *                         Example: <"FooTopic", "0,13,2"> or <"FooTopic","*">
    */
   @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -536,7 +557,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return null;
   }
 
-  // Returning null will automatically trigger a 404 Not Found response
   @Override
   public Datastream get(String name) {
     try {
@@ -552,6 +572,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Get datastream failed for datastream: " + name, e);
     }
 
+    // Returning null will automatically trigger a 404 Not Found response
     return null;
   }
 
@@ -579,7 +600,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * You can access this FINDER method via /resources/datastream?q=findDuplicates&datastreamName=name
+   * Find all the datastreams in the same group as the provided {@code datastreamName}
+   * This finder method can be invoked via /resources/datastream?q=findDuplicates&datastreamName=name
    */
   @SuppressWarnings("deprecated")
   @Finder("findGroup")
@@ -679,6 +701,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return null;
   }
 
+  /**
+   * Get the list of metrics emitted by this class
+   * @return
+   */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
 
