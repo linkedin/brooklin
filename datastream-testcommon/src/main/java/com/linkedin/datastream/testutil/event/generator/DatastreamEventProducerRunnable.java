@@ -17,13 +17,16 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.DatastreamEvent;
 
 
+/**
+ * A utility for generating files containing random Espresso events
+ * based on the settings specified in a {@link GlobalSettings} object
+ */
 public class DatastreamEventProducerRunnable implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventProducerRunnable.class.getName());
   private final GlobalSettings _globalSettings;
 
   /**
-   * This producer basically ignores the type of request for now
-   * It will produce
+   * Constructs an instance given a {@link GlobalSettings} object
    */
   public DatastreamEventProducerRunnable(GlobalSettings globalSettings) {
     _globalSettings = globalSettings;

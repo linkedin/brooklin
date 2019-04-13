@@ -26,6 +26,9 @@ public class DummyBootstrapConnector implements Connector {
 
   private final HashMap<String, String> _config;
 
+  /**
+   * Constructor for DummyBootstrapConnector
+   */
   public DummyBootstrapConnector(Properties properties) throws Exception {
 
     _config = new HashMap<>();

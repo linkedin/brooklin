@@ -997,7 +997,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * @Return tasks assigned to paused groups
+   * Get tasks assigned to paused groups
    */
   private List<DatastreamTask> pausedTasks(Collection<DatastreamGroup> pausedDatastreamGroups,
       Map<String, Set<DatastreamTask>> currentlyAssignedDatastream) {
@@ -1054,14 +1054,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _connectors.put(connectorName, connectorInfo);
 
     // Register common connector metrics
-    String className = connector.getClass().getSimpleName();
-    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAMS,
+    // Use connector name for the metrics, as there can be multiple connectors specified in the config that use
+    // same connector class.
+    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAMS,
         () -> connectorInfo.getConnector().getNumDatastreams());
-    _dynamicMetricsManager.registerGauge(className, NUM_DATASTREAM_TASKS,
+    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
         () -> connectorInfo.getConnector().getNumDatastreamTasks());
 
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAMS)));
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(className, NUM_DATASTREAM_TASKS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAMS)));
+    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
   }
 
   /**
@@ -1274,7 +1275,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * @return the datastream clusterName
+   * Get the datastream clusterName
    */
   public String getClusterName() {
     return _clusterName;
@@ -1302,7 +1303,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * @return a boolean supplier which can be queried to check if the current
+   * Get a boolean supplier which can be queried to check if the current
    * Coordinator instance is a leader in the Brooklin server cluster. This
    * allows other part of the server to perform cluster level operations only
    * on the leader.

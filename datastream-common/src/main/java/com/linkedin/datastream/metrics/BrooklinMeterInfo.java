@@ -24,10 +24,19 @@ public class BrooklinMeterInfo extends BrooklinMetricInfo {
   public static final Set<String> SUPPORTED_ATTRIBUTES =
       Stream.of(COUNT, MEAN_RATE, ONE_MINUTE_RATE).collect(Collectors.toSet());
 
+  /**
+   * Construct an instance of BrooklinMeterInfo
+   * @param nameOrRegex Meter name or regex
+   */
   public BrooklinMeterInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
   }
 
+  /**
+   * Construct an instance of BrooklinMeterInfo
+   * @param nameOrRegex Meter name or regex
+   * @param meterAttributes Meter attributes
+   */
   public BrooklinMeterInfo(String nameOrRegex, Optional<List<String>> meterAttributes) {
     super(nameOrRegex, meterAttributes);
   }

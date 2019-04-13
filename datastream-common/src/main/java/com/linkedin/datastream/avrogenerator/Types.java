@@ -6,7 +6,7 @@
 package com.linkedin.datastream.avrogenerator;
 
 /**
- * This public enum which allows us to map Oracle Database Primitive Types to Avro Primitive Types.
+ * This public enum which allows us to map database primitive types to Avro Primitive Types.
  * We classify all INTs, FLOATs, DOUBLEs, and LONGs as "string" under NUMBER. The metadata of will
  * contain Scale and Precision information
  */

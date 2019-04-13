@@ -104,7 +104,7 @@ public abstract class DatabaseSource {
   public abstract List<String> getAllFields(String tableName, String dbName) throws SQLException;
 
   /**
-   * Get the avro schema for the table
+   * Get the Avro schema for the table
    * @return Schema for the table or null if operation not supported
    */
   public Schema getTableSchema(String tableName) {
@@ -233,7 +233,7 @@ public abstract class DatabaseSource {
     }
 
     /**
-     * @return a map of K,V pairs to include in the field metadata, besides the default fields included in this class
+     * Get a map of K,V pairs to include in the field metadata, besides the default fields included in this class
      */
     public Map<String, String> getMetadataMap() {
       return Collections.emptyMap();

@@ -90,26 +90,51 @@ public final class DatastreamUtils {
     return new String(jsonBytes, Charset.defaultCharset());
   }
 
+  /**
+   * Get the task prefix of a Datastream object
+   */
   public static String getTaskPrefix(Datastream datastream) {
     return datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
   }
 
+  /**
+   * Check if the task prefix of a Datastream object is set
+   */
   public static boolean containsTaskPrefix(Datastream datastream) {
     return datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX);
   }
 
+  /**
+   * Get the payload SerDe of a Datastream object, if present
+   */
   public static Optional<String> getPayloadSerDe(Datastream datastream) {
     return Optional.ofNullable(datastream.getDestination()).map(d -> d.getPayloadSerDe(GetMode.NULL));
   }
 
+  /**
+   * Get the key SerDe of a Datastream object, if present
+   */
   public static Optional<String> getKeySerDe(Datastream datastream) {
     return Optional.ofNullable(datastream.getDestination()).map(d -> d.getKeySerDe(GetMode.NULL));
   }
 
+  /**
+   * Get the envelope SerDe of a Datastream object, if present
+   */
   public static Optional<String> getEnvelopeSerDe(Datastream datastream) {
     return Optional.ofNullable(datastream.getDestination()).map(d -> d.getEnvelopeSerDe(GetMode.NULL));
   }
 
+  /**
+   * Check if a Datastream object has a valid source
+   *
+   * @param stream the datastream to validate source for
+   * @return true if
+   * <ol type="a">
+   *  <li>a source is specified in the datastream metadata</li>
+   *  <li>the specified source contains a non-empty and valid connection string</li>
+   * </ol>
+   */
   public static boolean hasValidSource(Datastream stream) {
     return stream.hasSource()
         && stream.getSource().hasConnectionString()
@@ -117,11 +142,16 @@ public final class DatastreamUtils {
   }
 
   /**
-   * A stream has a valid destination if:
-   * a) the metadata denotes that the stream has a connector-managed destination (so destination info is not required)
-   * b) the stream contains non-empty destination connection string and partition count greater than zero
+   * Check if a Datastream object has a valid destination
+   *
    * @param stream the datastream to validate destination for
-   * @return true if the condition above applies; false otherwise
+   * @return true if
+   * <ol type="a">
+   *   <li>A connector-managed destination is specified in datastream metadata (destination info is not required)</li>
+   *   — OR —
+   *   <li>a non-empty connection string is set for destination in datastream metadata</li>
+   *   <li>a positive non-zero value is provided for the number of partitions of the specified destination</li>
+   * </ol>
    */
   public static boolean hasValidDestination(Datastream stream) {
     return isConnectorManagedDestination(stream)
@@ -132,12 +162,28 @@ public final class DatastreamUtils {
         && stream.getDestination().getPartitions() > 0);
   }
 
+  /**
+   * Check if a Datastream object has a valid owner
+   *
+   * @param stream the datastream to validate owner for
+   * @return true if
+   * <ol type="a">
+   *  <li>the datastream has non-empty metadata</li>
+   *  <li>a non-empty value is specified for the owner field in datastream metadata</li>
+   * </ol>
+   */
   public static boolean hasValidOwner(Datastream stream) {
     return stream.hasMetadata()
         && stream.getMetadata().containsKey(DatastreamMetadataConstants.OWNER_KEY)
         && !stream.getMetadata().get(DatastreamMetadataConstants.OWNER_KEY).isEmpty();
   }
 
+  /**
+   * Check if reusing an existing destination is allowed for a Datastream object
+   *
+   * @param stream the datastream to check for reuse
+   * @return true if datastream has no metadata, or destination reuse is allowed
+   */
   public static boolean isReuseAllowed(Datastream stream) {
     if (!stream.hasMetadata()) {
       return Boolean.parseBoolean(DEFAULT_TOPIC_REUSE);
@@ -147,11 +193,17 @@ public final class DatastreamUtils {
     }
   }
 
+  /**
+   * Check if a Datastream object has a user-managed destination (a.k.a BYOT - Bring your own topic)
+   */
   public static boolean isUserManagedDestination(Datastream stream) {
     return StringUtils.equals(stream.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY),
         Boolean.TRUE.toString());
   }
 
+  /**
+   * Check if a Datastream object has a connector-managed destination
+   */
   public static boolean isConnectorManagedDestination(Datastream stream) {
     return StringUtils.equals(stream.getMetadata().get(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY),
         Boolean.TRUE.toString());

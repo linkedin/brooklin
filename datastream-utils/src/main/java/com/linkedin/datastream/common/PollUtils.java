@@ -37,30 +37,62 @@ public final class PollUtils {
    *
    * <p>This is a <a href="package-summary.html">functional interface</a>
    * whose functional method is {@link #test(Object)} which can throw
-   * InterruptedException
+   * {@link InterruptedException}
    *
    * @param <T> the type of the input to the predicate
    */
   @FunctionalInterface
   public interface InterruptablePredicate<T> {
 
+    /**
+     * Evaluates this predicate on the given argument.
+     *
+     * @param t the input argument
+     * @return true if the input argument matches the predicate
+     * @throws InterruptedException if the executing thread is interrupted
+     */
     boolean test(T t) throws InterruptedException;
 
+    /**
+     * Returns a composed predicate that represents a short-circuiting logical
+     * AND of this predicate and another. When evaluating the composed
+     * predicate, if this predicate is false then the other predicate is not evaluated.
+     *
+     * @param other a predicate that will be logically-ANDed with this predicate
+     */
     default InterruptablePredicate<T> and(InterruptablePredicate<? super T> other) {
       Objects.requireNonNull(other);
       return (t) -> test(t) && other.test(t);
     }
 
+    /**
+     * Returns a predicate that represents the logical negation of this
+     * predicate.
+     */
     default InterruptablePredicate<T> negate() {
       return (t) -> !test(t);
     }
 
-
+    /**
+     * Returns a composed predicate that represents a short-circuiting logical
+     * OR of this predicate and another. When evaluating the composed
+     * predicate, if this predicate is true, then the other predicate is not evaluated.
+     *
+     * @param other a predicate that will be logically-ORed with this predicate
+     */
     default InterruptablePredicate<T> or(InterruptablePredicate<? super T> other) {
       Objects.requireNonNull(other);
       return (t) -> test(t) || other.test(t);
     }
 
+    /**
+     * Returns a predicate that tests if two arguments are equal according
+     * to {@link Objects#equals(Object, Object)}.
+     *
+     * @param <T> the type of arguments to the predicate
+     * @param targetRef the object reference with which to compare for equality,
+     *                  which may be {@code null}
+     */
     static <T> InterruptablePredicate<T> isEqual(Object targetRef) {
       return (null == targetRef) ? Objects::isNull : object -> targetRef.equals(object);
     }

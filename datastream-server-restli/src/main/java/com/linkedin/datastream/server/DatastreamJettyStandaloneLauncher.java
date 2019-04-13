@@ -39,10 +39,19 @@ public class DatastreamJettyStandaloneLauncher {
   private final HttpJettyServer _httpJettyServer;
   private int _port;
 
+  /**
+   * Creates a new instance of DatastreamJettyStandaloneLauncher
+   * given httpPort, resourceFactory and list of packages using default
+   * parseqThreadPoolSize
+   */
   public DatastreamJettyStandaloneLauncher(int httpPort, ResourceFactory resourceFactory, String... packages) {
     this(httpPort, Runtime.getRuntime().availableProcessors() + 1, resourceFactory, packages);
   }
 
+  /**
+   * Creates a new instance of DatastreamJettyStandaloneLauncher given
+   * port, parseqThreadPoolSize, resourceFactory and list of packages
+   */
   public DatastreamJettyStandaloneLauncher(int port, int parseqThreadPoolSize, ResourceFactory resourceFactory,
       String... packages) {
     _port = port;

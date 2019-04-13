@@ -309,8 +309,8 @@ public class TestDatastreamServer {
 
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
-    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreams"));
-    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreamTasks"));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(FILE_CONNECTOR + ".numDatastreams"));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(FILE_CONNECTOR + ".numDatastreamTasks"));
 
     _datastreamCluster.shutdown();
   }

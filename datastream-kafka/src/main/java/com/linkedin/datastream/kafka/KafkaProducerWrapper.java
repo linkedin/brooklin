@@ -47,10 +47,11 @@ import static com.linkedin.datastream.connectors.CommonConnectorMetrics.AGGREGAT
 import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_PRODUCER;
 
 
-public class KafkaProducerWrapper<K, V> {
+class KafkaProducerWrapper<K, V> {
   private static final String CLASS_NAME = KafkaProducerWrapper.class.getSimpleName();
-  public static final String PRODUCER_ERROR = "producerError";
-  public static final String PRODUCER_COUNT = "producerCount";
+  private static final String PRODUCER_ERROR = "producerError";
+  @VisibleForTesting
+  static final String PRODUCER_COUNT = "producerCount";
 
   private static AtomicInteger _producerCount = new AtomicInteger();
   private static final Supplier<Integer> PRODUCER_GAUGE = () -> _producerCount.get();
@@ -91,18 +92,18 @@ public class KafkaProducerWrapper<K, V> {
 
   private static final long DEFAULT_SEND_FAILURE_RETRY_WAIT_MS = Duration.ofSeconds(5).toMillis();
 
-  public static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
-  public static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
+  private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
+  private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
   private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
 
-  public KafkaProducerWrapper(String logSuffix, Properties props) {
+  KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
   }
 
-  public KafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
+  KafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
     _log = LoggerFactory.getLogger(String.format("%s:%s", KafkaTransportProvider.class, logSuffix));
 
     if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
@@ -150,16 +151,16 @@ public class KafkaProducerWrapper<K, V> {
     return Optional.ofNullable(producer);
   }
 
-  public void assignTask(DatastreamTask task) {
+  void assignTask(DatastreamTask task) {
     _tasks.add(task);
   }
 
-  public void unassignTask(DatastreamTask task) {
+  void unassignTask(DatastreamTask task) {
     _tasks.remove(task);
     _lastExceptionForTasks.remove(task);
   }
 
-  public int getTasksSize() {
+  int getTasksSize() {
     return _tasks.size();
   }
 
@@ -177,7 +178,7 @@ public class KafkaProducerWrapper<K, V> {
    */
   private synchronized Producer<K, V> initializeProducer(DatastreamTask task) {
     if (!_tasks.contains(task)) {
-      _log.warn("Task {} has been unassigned for for producer, abort the sending ", task);
+      _log.warn("Task {} has been unassigned for producer, abort the sending ", task);
       return null;
     } else {
       if (_kafkaProducer == null) {
@@ -189,7 +190,7 @@ public class KafkaProducerWrapper<K, V> {
     return _kafkaProducer;
   }
 
-  public void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
+  void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
       throws InterruptedException {
     notifyTaskForException(task);
 
@@ -263,7 +264,7 @@ public class KafkaProducerWrapper<K, V> {
     }
   }
 
-  public synchronized void flush(DatastreamTask task) {
+  synchronized void flush(DatastreamTask task) {
     notifyTaskForException(task);
 
     if (_kafkaProducer != null) {
@@ -271,7 +272,7 @@ public class KafkaProducerWrapper<K, V> {
     }
   }
 
-  public synchronized void close(DatastreamTask task) {
+  synchronized void close(DatastreamTask task) {
     _tasks.remove(task);
     _lastExceptionForTasks.remove(task);
     if (_kafkaProducer != null && _tasks.isEmpty()) {
@@ -279,7 +280,7 @@ public class KafkaProducerWrapper<K, V> {
     }
   }
 
-  public static List<BrooklinMetricInfo> getMetricDetails(String metricsNamesPrefix) {
+  static List<BrooklinMetricInfo> getMetricDetails(String metricsNamesPrefix) {
     String prefix = metricsNamesPrefix == null ? CLASS_NAME + MetricsAware.KEY_REGEX
         : metricsNamesPrefix + CLASS_NAME + MetricsAware.KEY_REGEX;
 
@@ -290,7 +291,7 @@ public class KafkaProducerWrapper<K, V> {
   }
 
   @VisibleForTesting
-  public Properties getProperties() {
+  Properties getProperties() {
     Properties props = new Properties();
     props.putAll(_props);
     return props;

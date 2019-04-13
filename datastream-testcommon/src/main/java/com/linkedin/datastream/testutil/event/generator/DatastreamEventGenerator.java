@@ -25,6 +25,11 @@ public class DatastreamEventGenerator extends AbstractEventGenerator<DatastreamE
   private DatastreamEvent _lastInsertedEvent = null;
   private DatastreamEvent _lastUpdatedEvent = null;
 
+  /**
+   * Constructor for DatastreamEventGenerator
+   * @param schema schema of type record to be used for generating events
+   * @param cfg Event generator config
+   */
   public DatastreamEventGenerator(Schema schema, EventGeneratorConfig cfg) {
     super(schema, cfg);
 

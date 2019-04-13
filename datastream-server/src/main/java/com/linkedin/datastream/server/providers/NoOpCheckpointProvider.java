@@ -11,10 +11,12 @@ import java.util.Map;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
+/**
+ * A dummy implementation of {@link CheckpointProvider} that does nothing
+ */
 public class NoOpCheckpointProvider implements CheckpointProvider {
   @Override
   public void unassignDatastreamTask(DatastreamTask task) {
-
   }
 
   @Override

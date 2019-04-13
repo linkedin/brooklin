@@ -23,6 +23,9 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.FileUtils;
 
 
+/**
+ * Encapsulates a simple standalone ZooKeeper server
+ */
 public class EmbeddedZookeeper {
   private static final Logger LOG = LoggerFactory.getLogger(EmbeddedZookeeper.class);
 
@@ -37,26 +40,46 @@ public class EmbeddedZookeeper {
 
   private boolean _started;
 
+  /**
+   * Construct an EmbeddedZookeeper bound to a random port
+   */
   public EmbeddedZookeeper() throws IOException {
     this(0);
   }
 
+  /**
+   * Construct an EmbeddedZookeeper bound to the specified {@code port}
+   */
   public EmbeddedZookeeper(int port) throws IOException {
     this(port, 500);
   }
 
+  /**
+   * Construct an EmbeddedZookeeper
+   * @param port the port to bind to
+   * @param tickTime ZooKeeper tick time, used to regulate heartbeats and timeouts
+   */
   public EmbeddedZookeeper(int port, int tickTime) throws IOException {
     this._factory = NIOServerCnxnFactory.createFactory(port, 1024);
     this._port = _factory.getLocalPort();
     this._tickTime = tickTime;
   }
 
+  /**
+   * Construct an EmbeddedZookeeper
+   * @param port the port to bind to
+   * @param snapshotDirPath snapshot directory path
+   * @param logDirPath log directory path
+   */
   public EmbeddedZookeeper(int port, String snapshotDirPath, String logDirPath) throws IOException {
     this(port);
     this._snapshotDirPath = snapshotDirPath;
     this._logDirPath = logDirPath;
   }
 
+  /**
+   * Start up EmbeddedZookeeper
+   */
   public void startup() throws IOException {
     Validate.isTrue(this._port > 0, "Failed to reserve port for zookeeper server.");
     LOG.info("Starting Zookeeper Cluster");
@@ -84,6 +107,9 @@ public class EmbeddedZookeeper {
         "\n  Log Dir Path: " + this._logDirPath);
   }
 
+  /**
+   * Shut down EmbeddedZookeeper
+   */
   public void shutdown() {
     if (!_started) {
       return;
@@ -103,6 +129,9 @@ public class EmbeddedZookeeper {
     _started = false;
   }
 
+  /**
+   * Get connection URI
+   */
   public String getConnection() {
     return "localhost:" + _port;
   }
@@ -123,6 +152,10 @@ public class EmbeddedZookeeper {
     this._tickTime = tickTime;
   }
 
+  /**
+   * Return true if EmbeddedZookeeper has been started up
+   * @see #startup()
+   */
   public boolean isStarted() {
     return _started;
   }
@@ -162,6 +195,9 @@ public class EmbeddedZookeeper {
     return commandLine;
   }
 
+  /**
+   * Main entry point for starting an EmbeddedZookeeper from command line.
+   */
   public static void main(String[] args) throws Exception {
     CommandLine commandLine = parseArgs(args);
     if (commandLine != null) {

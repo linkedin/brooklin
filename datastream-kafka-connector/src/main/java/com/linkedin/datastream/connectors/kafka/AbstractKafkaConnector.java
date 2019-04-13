@@ -8,6 +8,9 @@ package com.linkedin.datastream.connectors.kafka;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,6 +27,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -49,6 +53,14 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 /**
  * Base class for connectors that consume from Kafka.
+ *
+ * This class abstracts out common logic needed for all Kafka connectors such as:
+ * <ul>
+ *  <li>Creating and spawning threads to handle {@link DatastreamTask}s assigned to this connector instance</li>
+ *  <li>Tracking all currently running tasks and listening for changes in task assignment</li>
+ *  <li>Updating the new task assignment (starting/stopping tasks as needed)</li>
+ *  <li>Restarting stalled {@link DatastreamTask}s</li>
+ * </ul>
  */
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
@@ -57,6 +69,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   private static final String TOPIC_KEY = "topic";
   private static final String OFFSETS_KEY = "offsets";
+  private static final long MIN_INITIAL_DELAY = 120L;
+
 
   protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
@@ -68,6 +82,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private final Logger _logger;
   private final AtomicInteger threadCounter = new AtomicInteger(0);
   private final ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
+
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private ScheduledExecutorService _daemonThreadExecutorService =
@@ -86,6 +101,14 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     POSITION
   }
 
+  /**
+   * Constructor for AbstractKafkaConnector.
+   * @param connectorName the connector name
+   * @param config Kafka-based connector configuration options
+   * @param groupIdConstructor Consumer group ID constructor for the Kafka Consumer
+   * @param clusterName Brooklin cluster name
+   * @see KafkaBasedConnectorConfig
+   */
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
       String clusterName, Logger logger) {
     _connectorName = connectorName;
@@ -123,6 +146,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     }
   }
 
+  /**
+   * Create a thread to run the provided {@link AbstractKafkaBasedConnectorTask} without starting it.
+   */
   public Thread createTaskThread(AbstractKafkaBasedConnectorTask task) {
     Thread t = new Thread(task);
     t.setDaemon(true);
@@ -157,7 +183,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         // see java doc of scheduleAtFixedRate
         _logger.warn("Failed to check status of kafka connector tasks.", e);
       }
-    }, _config.getDaemonThreadIntervalSeconds(), _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
+    }, getThreadDelayTimeInSecond(_config.getDaemonThreadIntervalSeconds()),
+        _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
   }
 
   /**
@@ -219,6 +246,24 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _runningTasks.clear();
     _taskThreads.clear();
     _logger.info("Connector stopped.");
+  }
+
+  /**
+   *  This will make the thread delay and fire until a certain timestamp, ex. 6:00, 6:05, 6:10..etc so that threads
+   *  in different hosts are firing roughly at the same time. The initial delays will be larger than min_initial_delay
+   *  unless the threads interval is too small, so that a 5:99 task, will not fire at 6:00 but 6:05.
+   * @param daemonThreadIntervalSeconds
+   * @return the time thread need to be delayed in second
+   */
+  @VisibleForTesting
+  long getThreadDelayTimeInSecond(int daemonThreadIntervalSeconds) {
+    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+    long truncatedTimestamp = now.truncatedTo(ChronoUnit.HOURS).toEpochSecond();
+    long minDelay = Math.min(MIN_INITIAL_DELAY, daemonThreadIntervalSeconds);
+    while ((truncatedTimestamp - now.toEpochSecond()) < minDelay) {
+      truncatedTimestamp += daemonThreadIntervalSeconds;
+    }
+    return truncatedTimestamp - now.toEpochSecond();
   }
 
   @Override

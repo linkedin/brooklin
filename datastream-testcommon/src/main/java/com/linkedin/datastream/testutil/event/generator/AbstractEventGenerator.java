@@ -22,8 +22,9 @@ import org.apache.avro.io.EncoderFactory;
 
 
 /**
- * Generator for generic events based on input schema. It allows for customization
- * by overriding {@link AbstractEventGenerator#getNextEvent()}.
+ * Generator for generic change-capture events based on input schema. It allows for customization
+ * by overriding {@link AbstractEventGenerator#getNextEvent(EventType, int)}.
+ * @param <T> the type of record to generate
  */
 public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
@@ -39,6 +40,11 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   protected final EventGeneratorConfig _cfg;
   protected long _scn;
 
+  /**
+   * Constructor
+   * @param schema Schema of the Avro IndexedRecord to generate
+   * @param cfg Configuration options for the event generator
+   */
   public AbstractEventGenerator(Schema schema, EventGeneratorConfig cfg) {
     _schema = schema;
     _cfg = cfg;
@@ -68,6 +74,9 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
   abstract protected T getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException;
 
+  /**
+   * Get an iterator over the events that the event generator produces.
+   */
   public Iterator<T> genericEventIterator() {
     if (_schema != null && _schema.getType() != Schema.Type.RECORD) {
       // The schema first level must be record.
@@ -78,9 +87,8 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
   }
 
   /*
-   * Generate random Espresso Events based on the avro schema
-   * The schema must be of a record type to work as well as GenericEvent type
-   *
+   * Generate random events based on the Avro schema. The schema must be of a record type to work as well as
+   * GenericEvent type
    * @return returns the list of generated records
    */
   public List<T> generateGenericEventList(int numEvents) throws UnknownTypeException, IOException {
@@ -141,18 +149,29 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
     return eventList;
   }
 
+  /**
+   * Generates random events based on the given Schema and configuration options.
+   */
   public static class GenericEventGenerator extends AbstractEventGenerator<GenericRecord> {
+
+    /**
+     * Constructor for GenericEventGenerator
+     */
     public GenericEventGenerator(Schema schema, EventGeneratorConfig cfg) {
       super(schema, cfg);
     }
 
     @Override
-    protected GenericRecord getNextEvent(EventType eventType, int partNum) throws UnknownTypeException, IOException {
-      // at this level, we don't have any wrapper on top of data event. So, just create a random event based on the given schema and return it
+    protected GenericRecord getNextEvent(EventType eventType, int partNum) throws UnknownTypeException {
+      // at this level, we don't have any wrapper on top of data event. So, just create a random event based on the
+      // given schema and return it
       return getNextGenericRecord();
     }
   }
 
+  /**
+   * Configuration options for the AbstractEventGenerator
+   */
   public static class EventGeneratorConfig {
     // db name and partition name
     protected String _dbName = "test_db"; // for the time, take them as input (could take their schemas at some point)
@@ -165,8 +184,10 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
     protected int _percentageControls = 0; // percentage of numOfEvents that will be controls - should be 0 - 50
     protected boolean _generateEventFile = false;
 
-    // set seed for random generator - actual setting happens only once before calling any event generation
-    // this is useful to reproduce the test data for debugging.
+    /**
+     * Set seed for random generator - actual setting happens only once before calling any event generation. This is
+     * useful to reproduce the test data for debugging.
+     */
     public void setSeed(long seed) {
       if (!SchemaField.isSeedSet()) { // seed not set
         SchemaField.setSeed(seed);
@@ -231,7 +252,6 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
     public void setPercentageUpdates(int percentageUpdates) {
       if ((percentageUpdates < 0) || ((percentageUpdates + _percentageDeletes) > 50)) {
-        // log the error and not set it
         return;
       }
       _percentageUpdates = percentageUpdates;
@@ -255,13 +275,12 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
 
     public void setPercentageControls(int percentageControls) {
       if ((percentageControls < 0) || (percentageControls > 50)) {
-        // log the error that it needs to be between 0 - 50
         return;
       }
       _percentageControls = percentageControls;
     }
 
-    public boolean isGenerateEventFile() {
+    public boolean getGenerateEventFile() {
       return _generateEventFile;
     }
   }

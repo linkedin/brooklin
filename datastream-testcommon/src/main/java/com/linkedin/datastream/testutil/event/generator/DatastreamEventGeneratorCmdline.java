@@ -15,20 +15,37 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+/**
+ * Command-line options parser and main driver of {@link StandaloneDatastreamEventGenerator} utility
+ */
 public class DatastreamEventGeneratorCmdline {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamEventGeneratorCmdline.class.getName());
   private AtomicReference<Thread> operationRequestThread = new AtomicReference<Thread>(null);
   private boolean isMainThreadDone = true;
   private GlobalSettings globalSettings = new GlobalSettings();
 
+  /**
+   * Constructor
+   */
   public DatastreamEventGeneratorCmdline() {
     // nothing for now
   }
 
+  /**
+   * Run command-line parsing and main program flow, registering a shutdown hook to be invoked upon
+   * program termination to ensure the datastream event generation code shuts down gracefully before exit
+   * @param args command-line arguments
+   * @return true if program exits without errors
+   */
   public boolean runWithShutdownHook(String[] args) {
     return run(true, args);
   }
 
+  /**
+   * Run command-line parsing and main program flow
+   * @param args command-line arguments
+   * @return true if program exits without errors
+   */
   public boolean run(String[] args) {
     return run(false, args);
   }
@@ -72,6 +89,10 @@ public class DatastreamEventGeneratorCmdline {
     return true;
   }
 
+  /**
+   * Stop the datastream event generation utility, waiting for datastream event generation code to finish
+   * and exit gracefully
+   */
   public void stop() {
     if (isMainThreadDone) {
       return;

@@ -34,7 +34,7 @@ import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 final class KafkaMirrorMakerConnectorTestUtils {
 
   static final long POLL_PERIOD_MS = Duration.ofMillis(100).toMillis();
-  static final long POLL_TIMEOUT_MS = Duration.ofSeconds(25).toMillis();
+  static final long POLL_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
 
   static Properties getKafkaProducerProperties(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();

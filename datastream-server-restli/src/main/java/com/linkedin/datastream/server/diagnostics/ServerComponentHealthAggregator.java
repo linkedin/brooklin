@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +26,8 @@ import com.linkedin.diagnostics.ServerComponentHealthRestClientFactory;
 
 
 /**
- * Server Component Health reader is to get the restli response from all server instances, do the merge, and return
- * the overall status of the server.
+ * ServerComponentHealthAggregator makes REST calls to all servers in the cluster to get their health statuses, merges
+ * the results, and returns the overall status of the server component.
  */
 public class ServerComponentHealthAggregator {
 
@@ -38,9 +39,16 @@ public class ServerComponentHealthAggregator {
 
   private int _restEndPointPort;
 
+  /**
+   * Constructor for ServerComponentHealthAggregator
+   * @param zkClient the ZooKeeper client to retrieve the list of servers in the cluster
+   * @param cluster the cluster
+   * @param endPointPort the REST endpoint port
+   * @param endPointPath the REST endpoint path
+   */
   public ServerComponentHealthAggregator(ZkClient zkClient, String cluster, int endPointPort, String endPointPath) {
-    assert zkClient != null;
-    assert cluster != null;
+    Validate.notNull(zkClient);
+    Validate.notNull(cluster);
 
     _zkClient = zkClient;
     _cluster = cluster;
@@ -48,6 +56,14 @@ public class ServerComponentHealthAggregator {
     _restEndPointPath = endPointPath;
   }
 
+  /**
+   * Makes a REST call to each of the servers in the cluster (in parallel) and aggregates their responses.
+   * @param componentType the server component to query
+   * @param componentScope the scope of the component to query
+   * @param componentInputs the request to the specific component
+   * @param component the diagnostics-aware component
+   * @return a list of aggregated responses from all the servers
+   */
   public List<ServerComponentHealth> getResponses(String componentType, String componentScope, String componentInputs,
       DiagnosticsAware component) {
     List<String> hosts = getLiveInstances();
@@ -132,6 +148,9 @@ public class ServerComponentHealthAggregator {
     return dmsUri;
   }
 
+  /**
+   * Set the port for the REST endpoint.
+   */
   public void setPort(int port) {
     if (_restEndPointPort == 0) {
       _restEndPointPort = port;

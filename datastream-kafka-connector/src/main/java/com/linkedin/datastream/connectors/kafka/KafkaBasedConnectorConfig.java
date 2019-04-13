@@ -33,7 +33,7 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
-  public static final String CONFIG_ENABLE_LATEST_BROKER_OFFSETS_FETCHER = "enableLatestBrokerOffsetsFetcher";
+  public static final String CONFIG_ENABLE_KAFKA_POSITION_TRACKER = "enableKafkaPositionTracker";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
@@ -60,7 +60,7 @@ public class KafkaBasedConnectorConfig {
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMs;
-  private final boolean _enableLatestBrokerOffsetsFetcher;
+  private final boolean _enableKafkaPositionTracker;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -90,8 +90,8 @@ public class KafkaBasedConnectorConfig {
             MIN_NON_GOOD_STATE_THRESHOLD_MS, Long.MAX_VALUE);
     _processingDelayLogThresholdMs =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MS, DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS);
-    _enableLatestBrokerOffsetsFetcher =
-        verifiableProperties.getBoolean(CONFIG_ENABLE_LATEST_BROKER_OFFSETS_FETCHER, Boolean.FALSE);
+    _enableKafkaPositionTracker =
+        verifiableProperties.getBoolean(CONFIG_ENABLE_KAFKA_POSITION_TRACKER, Boolean.FALSE);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -137,7 +137,7 @@ public class KafkaBasedConnectorConfig {
     _daemonThreadIntervalSeconds = DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS;
     _nonGoodStateThresholdMs = DEFAULT_NON_GOOD_STATE_THRESHOLD_MS;
     _processingDelayLogThresholdMs = DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
-    _enableLatestBrokerOffsetsFetcher = false;
+    _enableKafkaPositionTracker = true;
   }
 
   public String getDefaultKeySerde() {
@@ -201,7 +201,7 @@ public class KafkaBasedConnectorConfig {
     return _processingDelayLogThresholdMs;
   }
 
-  public boolean getEnableLatestBrokerOffsetsFetcher() {
-    return _enableLatestBrokerOffsetsFetcher;
+  public boolean getEnableKafkaPositionTracker() {
+    return _enableKafkaPositionTracker;
   }
 }

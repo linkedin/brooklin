@@ -133,7 +133,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * @return the prefix of the task names that will be created for this datastream.
+   * Get the prefix of the task names that will be created for this datastream.
    */
   public static String getTaskPrefix(Datastream datastream) {
     return datastream.getName();
@@ -150,7 +150,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * @return DatastreamTask serialized as JSON
+   * Get DatastreamTask serialized as JSON
    */
   public String toJson() throws IOException {
     return JsonUtils.toJson(this);

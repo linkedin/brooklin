@@ -21,6 +21,8 @@ public class FieldMetadata {
 
   private static final String META_LIST_DELIMITER = ";";
   private static final String META_VALUE_DELIMITER = "=";
+  private static final String COL_NAME = "dbFieldName";
+  private static final String COL_POSITION = "dbFieldPosition";
 
   private final String _dbFieldName;
   private final String _nullable;
@@ -76,10 +78,10 @@ public class FieldMetadata {
     Map<String, String> metas = parseMetadata(meta);
 
     // field name, field position, and field type are mandatory
-    String fieldName = Preconditions.checkNotNull(metas.get(OracleColumn.COL_NAME),
-        String.format("Missing metadata %s from meta string %s", OracleColumn.COL_NAME, meta));
-    int fieldPosition = Integer.valueOf(Preconditions.checkNotNull(metas.get(OracleColumn.COL_POSITION),
-        String.format("Missing metadata %s from meta string %s", OracleColumn.COL_POSITION, meta)));
+    String fieldName = Preconditions.checkNotNull(metas.get(COL_NAME),
+        String.format("Missing metadata %s from meta string %s", COL_NAME, meta));
+    int fieldPosition = Integer.valueOf(Preconditions.checkNotNull(metas.get(COL_POSITION),
+        String.format("Missing metadata %s from meta string %s", COL_POSITION, meta)));
     Types fieldType = Types.fromString(Preconditions.checkNotNull(metas.get(FieldType.FIELD_TYPE_NAME),
         String.format("Missing metadata %s from meta string %s", FieldType.FIELD_TYPE_NAME, meta)));
     String nullable = Optional.ofNullable(metas.get(FieldType.NULLABLE)).orElse("");

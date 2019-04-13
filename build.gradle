@@ -1,6 +1,7 @@
 apply from: file('gradle/license.gradle')
 apply from: file('gradle/environment.gradle')
 apply from: file("gradle/dependency-versions.gradle")
+apply from: file("gradle/install-git-hooks.gradle")
 
 buildscript {
   repositories {
@@ -312,6 +313,7 @@ project(':datastream-server-restli') {
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+    compile "org.apache.commons:commons-lang3:$commonslang3Version"
 
     compile project(':datastream-server')
 

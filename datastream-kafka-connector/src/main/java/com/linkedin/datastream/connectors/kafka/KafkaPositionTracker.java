@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -42,7 +43,7 @@ import com.linkedin.datastream.common.diag.PhysicalSources;
  * This information can then be used to provide diagnostic and analytic information about our position on the Kafka
  * topic (e.g. Do we have more messages to consume? Are we stuck or are we making progress?).
  */
-public class  KafkaPositionTracker {
+public class KafkaPositionTracker {
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaPositionTracker.class);
 
@@ -50,11 +51,6 @@ public class  KafkaPositionTracker {
    * The task name of the connector this class is for.
    */
   private final String _connectorTaskName;
-
-  /**
-   * The list of assigned partitions for the connector this task is for.
-   */
-  private final Set<TopicPartition> _assignedPartitions;
 
   /**
    * A store of position data for each TopicPartition. This position data is what will be returned to this task's
@@ -97,84 +93,89 @@ public class  KafkaPositionTracker {
   // dump or are in a debugger)
 
   /**
+   * define if the positions tracker need to be initialize
+   */
+  private volatile boolean _positionsInitialized;
+
+  /**
+   * The list of assigned partitions for the connector this task is for
+   */
+  private final Set<TopicPartition> _assignedPartitions = Sets.newConcurrentHashSet();
+
+  /**
    * Constructor for a KafkaPositionTracker.
    *
    * @param connectorTaskName the name of the connector task this task is for
-   * @param enableBrokerOffsetFetcher If true, then we will periodically fetch query Kafka via RPC for its latest
-   *                                  available offsets. If false, then this feature will not operate.
    * @param isConnectorTaskAlive A supplier that determines if the connector task this task is for is alive. If it is
    *                             not, then we should stop.
    * @param consumerSupplier a consumer supplier that is suitable for querying the brokers that the connector task is
    *                         talking to
-   * @param assignedPartitions the list of assigned partitions to the connector task this task is for
    */
-  public KafkaPositionTracker(final String connectorTaskName, final boolean enableBrokerOffsetFetcher,
-      final Supplier<Boolean> isConnectorTaskAlive, final Supplier<Consumer<?, ?>> consumerSupplier,
-      final Set<TopicPartition> assignedPartitions) {
-    LOG.info("Creating KafkaPositionTracker for {} with offset fetching set to {}", connectorTaskName,
-        enableBrokerOffsetFetcher);
+  public KafkaPositionTracker(final String connectorTaskName, final Supplier<Boolean> isConnectorTaskAlive,
+      final Supplier<Consumer<?, ?>> consumerSupplier) {
+    LOG.info("Creating KafkaPositionTracker for {}", connectorTaskName);
     _connectorTaskName = connectorTaskName;
-    _assignedPartitions = assignedPartitions;
-    if (enableBrokerOffsetFetcher) {
-      _offsetsFetcherService = new DurableScheduledService(_connectorTaskName, OFFSETS_FETCH_INTERVAL,
-          LAST_CONSUMER_RPC_TERMINATED_TIMEOUT) {
-        private Consumer<?, ?> _consumer;
+    _positionsInitialized = false;
+    _offsetsFetcherService = new DurableScheduledService(_connectorTaskName, OFFSETS_FETCH_INTERVAL,
+        LAST_CONSUMER_RPC_TERMINATED_TIMEOUT) {
+      private Consumer<?, ?> _consumer;
 
-        @Override
-        protected void startUp() {
-          _consumer = consumerSupplier.get();
+      @Override
+      protected void startUp() {
+        _consumer = consumerSupplier.get();
+      }
+
+      @Override
+      protected void runOneIteration() {
+        if (!_positionsInitialized) {
+          _positionsInitialized = initializePositions(_consumer, _assignedPartitions);
+          return;
         }
 
-        @Override
-        protected void runOneIteration() {
-          final Instant currentTime = Instant.now();
+        final Instant currentTime = Instant.now();
 
-          // Make a quick copy of our assigned partitions (we share it with the KafkaConnectorTask thread, so it isn't
-          // thread-safe).
-          final Set<TopicPartition> assignedPartitions = ImmutableSet.copyOf(_assignedPartitions);
+        // We want to update only those partitions which are assigned to us and haven't been updated in our fetch
+        // interval.
+        final Set<TopicPartition> partitionsNeedingUpdate = _assignedPartitions.stream()
+            .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
+                .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
+                .map(Instant::ofEpochMilli)
+                .orElse(Instant.EPOCH)
+                .isBefore(currentTime.minus(OFFSETS_FETCH_INTERVAL)))
+            .collect(Collectors.toSet());
 
-          // We want to update only those partitions which are assigned to us and haven't been updated in our fetch
-          // interval.
-          final Set<TopicPartition> partitionsNeedingUpdate = assignedPartitions.stream()
-              .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
-                  .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
-                  .map(Instant::ofEpochMilli)
-                  .orElse(Instant.EPOCH)
-                  .isBefore(currentTime.minus(OFFSETS_FETCH_INTERVAL)))
-              .collect(Collectors.toSet());
-
-          // If we are caught up on all partitions, there is no need to make any RPC calls.
-          if (partitionsNeedingUpdate.isEmpty()) {
-            return;
-          }
-
-          LOG.debug("Detected that the following partitions would benefit from broker endOffsets RPC: {}",
-              partitionsNeedingUpdate);
-
-          try {
-            updateLatestBrokerOffsetsByRpc(_consumer, partitionsNeedingUpdate, currentTime.toEpochMilli());
-          } catch (Exception e) {
-            // If we run into an exception, we should crash and allow ourselves to be revived by the
-            // DurableScheduledService
-            LOG.warn("Failed to update broker end offsets via RPC.", e);
-            throw e;
-          }
+        // If we are caught up on all partitions, there is no need to make any RPC calls.
+        if (partitionsNeedingUpdate.isEmpty()) {
+          return;
         }
 
-        @Override
-        protected void shutDown() {
-          if (_consumer != null) {
-            _consumer.close();
-          }
-        }
+        LOG.debug("Detected that the following partitions would benefit from broker endOffsets RPC: {}",
+            partitionsNeedingUpdate);
 
-        @Override
-        protected boolean hasLeaked() {
-          return !isConnectorTaskAlive.get();
+        try {
+          updateLatestBrokerOffsetsByRpc(_consumer, partitionsNeedingUpdate, currentTime.toEpochMilli());
+        } catch (Exception e) {
+          // If we run into an exception, we should crash and allow ourselves to be revived by the
+          // DurableScheduledService
+          LOG.warn("Failed to update broker end offsets via RPC.", e);
+          throw e;
         }
-      };
-      _offsetsFetcherService.startAsync();
-    }
+      }
+
+      @Override
+      protected void shutDown() {
+        if (_consumer != null) {
+          _consumer.close();
+        }
+      }
+
+      @Override
+      protected boolean hasLeaked() {
+        return !isConnectorTaskAlive.get();
+      }
+    };
+
+    _offsetsFetcherService.startAsync();
   }
 
   /**
@@ -215,14 +216,25 @@ public class  KafkaPositionTracker {
     });
   }
 
+  public synchronized void onPartitionsAssigned(final Collection<TopicPartition> assignedPartitions) {
+    _positionsInitialized = false;
+    _assignedPartitions.clear();
+    _assignedPartitions.addAll(assignedPartitions);
+  }
+
   /**
    * Updates the initial positions with offset data from the consumer and broker.
    * @param consumer the consumer to use for fetching the consumer and broker positions for all assignments
    * @return true if the initialization was successful, false if it should be retried
    */
-  public boolean initializePositions(final Consumer<?, ?> consumer) {
+  public boolean initializePositions(final Consumer<?, ?> consumer, final Set<TopicPartition> assignedPartitions) {
+    if (assignedPartitions == null || assignedPartitions.isEmpty()) {
+      LOG.info("partitions are not assigned yet");
+      return false;
+    }
+
     // Get list of partitions needing position init
-    final List<TopicPartition> partitionsNeedingInit = consumer.assignment()
+    final List<TopicPartition> partitionsNeedingInit = assignedPartitions
         .stream()
         .filter(tp -> getPositions().get(tp.toString()) == null)
         .collect(Collectors.toList());
@@ -489,10 +501,12 @@ public class  KafkaPositionTracker {
   }
 
   /**
-   * Removes data for all but the specified topic partitions.
+   * Removes data for all but the specified topic partitions, called if partition get revoked
    * @param topicPartitions the specified topic partitions
    */
-  public void retainAll(final Set<TopicPartition> topicPartitions) {
+  public synchronized void onPartitionsRevoked(final Collection<TopicPartition> topicPartitions) {
+    _assignedPartitions.clear();
+    _assignedPartitions.addAll(topicPartitions);
     LOG.debug("Removing all topic partitions besides {} from positions and offsetPositions", topicPartitions);
     _positions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));
     _offsetPositions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));

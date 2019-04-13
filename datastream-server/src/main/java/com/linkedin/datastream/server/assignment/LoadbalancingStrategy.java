@@ -45,10 +45,17 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
   private final int minTasks;
   private final int overPartitioningFactor;
 
+  /**
+   * Construct an instance of LoadbalancingStrategy
+   */
   public LoadbalancingStrategy() {
     this(new Properties());
   }
 
+  /**
+   * Construct an instance of LoadbalancingStrategy
+   * @param properties Configuration properties to load
+   */
   public LoadbalancingStrategy(Properties properties) {
     VerifiableProperties props = new VerifiableProperties(properties);
     overPartitioningFactor = props.getInt(CFG_OVER_PARTITIONING_FACTOR, DEFAULT_OVER_PARTITIONING_FACTOR);

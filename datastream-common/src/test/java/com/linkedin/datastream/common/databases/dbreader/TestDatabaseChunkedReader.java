@@ -88,7 +88,7 @@ public class TestDatabaseChunkedReader {
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + ROW_COUNT_LIMIT, chunkSize.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,
-        "com.linkedin.datastream.common.databases.dbreader.OracleChunkedQueryManager");
+        "com.linkedin.datastream.common.databases.dbreader.MySqlChunkedQueryManager");
 
     return props;
   }
