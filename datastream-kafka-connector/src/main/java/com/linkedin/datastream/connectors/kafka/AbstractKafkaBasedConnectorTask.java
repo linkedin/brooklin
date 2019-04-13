@@ -854,10 +854,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Retrieve information about the metrics, which will be created dynamically. All metrics will be captured by
-   * regular expression.
-   * @param prefix Prefix to use while creating metric name.
-   * @return list of metric information.
+   * Get Brooklin metrics info
+   * @param prefix Prefix to prepend to metrics
    */
   public static List<BrooklinMetricInfo> getMetricInfos(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();

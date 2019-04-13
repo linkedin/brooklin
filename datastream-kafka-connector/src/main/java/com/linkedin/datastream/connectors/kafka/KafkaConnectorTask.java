@@ -114,10 +114,8 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   }
 
   /**
-   * Retrieve information about the metrics, which will be created dynamically. All metrics will be captured by
-   * regular expression.
-   * @param connectorName Connector name to use while creating metric name.
-   * @return list of metric information.
+   * Get Brooklin metrics info
+   * @param connectorName Connector name to use
    */
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
     return AbstractKafkaBasedConnectorTask.getMetricInfos(
