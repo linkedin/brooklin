@@ -93,7 +93,7 @@
     "namespace" : "com.linkedin.datastream.server.dms",
     "path" : "/datastream",
     "schema" : "com.linkedin.datastream.common.Datastream",
-    "doc" : "Resources classes are used by rest.li to process corresponding http request.\n Note that rest.li will instantiate an object each time it processes a request.\n So do make it thread-safe when implementing the resources.\n\ngenerated from: com.linkedin.datastream.server.dms.DatastreamResources",
+    "doc" : "Resources classes are used by rest.li to process corresponding HTTP request.\n Note that rest.li will instantiate an object each time it processes a request.\n So do make it thread-safe when implementing the resources.\n\ngenerated from: com.linkedin.datastream.server.dms.DatastreamResources",
     "collection" : {
       "identifier" : {
         "name" : "datastreamId",
@@ -115,7 +115,7 @@
       } ],
       "finders" : [ {
         "name" : "findGroup",
-        "doc" : "You can access this FINDER method via /resources/datastream?q=findDuplicates&datastreamName=name",
+        "doc" : "Find all the datastreams in the same group as the provided {@code datastreamName}\n This finder method can be invoked via /resources/datastream?q=findDuplicates&datastreamName=name",
         "parameters" : [ {
           "name" : "datastreamName",
           "type" : "string"
@@ -125,25 +125,29 @@
         "path" : "/datastream/{datastreamId}",
         "actions" : [ {
           "name" : "pause",
+          "doc" : "Pause a datastream\nService Returns: Result HTTP status",
           "parameters" : [ {
             "name" : "force",
             "type" : "boolean",
-            "default" : "false"
+            "default" : "false",
+            "doc" : "whether or not to pause all datastreams within the given datastream's group"
           } ]
         }, {
           "name" : "pauseSourcePartitions",
-          "doc" : "Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.",
+          "doc" : "Given datastream and a map representing &lt;source, list of partitions to pause&gt;, pauses the partitions.",
           "parameters" : [ {
             "name" : "sourcePartitions",
             "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
-            "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">. Example: <\"FooTopic\", \"0,13,2\">\n                         or <\"FooTopic\",\"*\">"
+            "doc" : "StringMap of format &lt;source, comma separated list of partitions or \"*\"&gt;.\n                         <pre>Example: <\"FooTopic\", \"0,13,2\"> or <\"FooTopic\",\"*\"></pre>"
           } ]
         }, {
           "name" : "resume",
+          "doc" : "Resume a datastream\nService Returns: Result HTTP status",
           "parameters" : [ {
             "name" : "force",
             "type" : "boolean",
-            "default" : "false"
+            "default" : "false",
+            "doc" : "whether or not to resume all datastreams within the given datastream's group"
           } ]
         }, {
           "name" : "resumeSourcePartitions",
@@ -151,7 +155,7 @@
           "parameters" : [ {
             "name" : "sourcePartitions",
             "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
-            "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">. Example: <\"FooTopic\", \"0,13,2\">\n                         or <\"FooTopic\",\"*\">"
+            "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">.\n                         Example: <\"FooTopic\", \"0,13,2\"> or <\"FooTopic\",\"*\">"
           } ]
         } ]
       }

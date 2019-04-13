@@ -19,6 +19,9 @@ import org.codehaus.jackson.annotate.JsonPropertyOrder;
 @JsonPropertyOrder({"reason", "description"})
 public class PausedSourcePartitionMetadata {
 
+  /**
+   * Enum representing reason for which a partition is paused.
+   */
   public enum Reason {
     EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD("Number of in-flight messages for partition exceeded threshold"),
     SEND_ERROR("Failed to produce messages from this partition"),
@@ -39,16 +42,29 @@ public class PausedSourcePartitionMetadata {
   private Reason _reason = null;
   private String _description = null;
 
+  /**
+   * Empty constructor.
+   */
   public PausedSourcePartitionMetadata() {
 
   }
 
+  /**
+   * Constructor for PausedSourcePartitionMetadata.
+   * @param resumeCondition BooleanSupplier that is used to evaluate if the partition that PausedSourcePartitionMetadata
+   *                        represents should now resume.
+   * @param reason Reason for which partition that PausedSourcePartitionMetadata represents is being paused.
+   */
   public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason) {
     _resumeCondition = resumeCondition;
     _reason = reason;
     _description = reason.getDescription();
   }
 
+  /**
+   * Evaluates if the partition that PausedSourcePartitionMetadata represents should now resume.
+   * @return true if the partition should resume
+   */
   public boolean shouldResume() {
     return _resumeCondition.getAsBoolean();
   }
@@ -95,6 +111,13 @@ public class PausedSourcePartitionMetadata {
     return _description == null ? "" : _description.toString();
   }
 
+  /**
+   * Creates a PausedSourcePartitionMetadata with {@link Reason#SEND_ERROR} as reason. It represents a partition that
+   * has been paused due to errors encountered while sending data to it.
+   * @param start Start time when the partition was paused.
+   * @param pauseDuration Duration for which the partition should be paused. The duration is used to check if partition
+   *                      should be resumed.
+   */
   public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
     return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
         Reason.SEND_ERROR);
