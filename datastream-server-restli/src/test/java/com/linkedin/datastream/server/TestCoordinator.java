@@ -439,25 +439,20 @@ public class TestCoordinator {
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
     //verify the assignment
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1);
+    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
+    Assert.assertNotEquals(zkClient.getChildren(instance1Path).size(), 0);
 
-    // Stop the First Datastream.
+    // Stop the datastream.
     Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
     ds1.setStatus(DatastreamStatus.STOPPED);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
 
     Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
-<<<<<<< HEAD
-    Thread.sleep(3000);
-=======
->>>>>>> add action stop command for datastream and stopped status. Different from paused,
-    // check that datastream is not allocated anymore
-    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
-    Assert.assertEquals(zkClient.getChildren(instance1Path).size(), 0);
-    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() == 0), 200, WAIT_TIMEOUT_MS));
-<<<<<<< HEAD
-=======
 
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() == 0), 200, WAIT_TIMEOUT_MS));
+
+    // Resume the datastream
     ds1.setStatus(DatastreamStatus.READY);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
 
@@ -465,7 +460,6 @@ public class TestCoordinator {
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
     Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() != 0), 200, WAIT_TIMEOUT_MS));
 
->>>>>>> add action stop command for datastream and stopped status. Different from paused,
   }
 
     /**
