@@ -12,8 +12,14 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A union generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class UnionSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of UnionSchemaField using given {@link Field}
+   */
   public UnionSchemaField(Field field) {
     super(field);
   }
@@ -28,6 +34,9 @@ public class UnionSchemaField extends SchemaField {
     return getUnionFieldField().generateRandomObject();
   }
 
+  /**
+   * generate a union field
+   */
   public SchemaField getUnionFieldField() throws UnknownTypeException {
     Optional<Schema> schema =
         _field.schema().getTypes().stream().filter(s -> s.getType() != Schema.Type.NULL).findFirst();

@@ -9,8 +9,14 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A random string generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class StringSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of StringSchemaField using given {@link Field}
+   */
   public StringSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class StringSchemaField extends SchemaField {
     return generateString();
   }
 
+  /**
+   * generate a random string
+   */
   public String generateString() {
     return _randGenerator.getNextString(1, _maxNumElements);
   }

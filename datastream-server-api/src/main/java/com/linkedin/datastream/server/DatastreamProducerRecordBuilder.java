@@ -26,7 +26,6 @@ public class DatastreamProducerRecordBuilder {
 
   private Optional<Integer> _partition = Optional.empty();
   private String _sourceCheckpoint = "";
-
   private List<BrooklinEnvelope> _events = new ArrayList<>();
   private long _eventsSourceTimestamp;
   private Optional<String> _partitionKey = Optional.empty();
@@ -52,9 +51,6 @@ public class DatastreamProducerRecordBuilder {
     _destination = Optional.of(destination);
   }
 
-  /**
-   * Set the sourcecheckpoint for the datastream record.
-   */
   public void setSourceCheckpoint(String sourceCheckpoint) {
     _sourceCheckpoint = sourceCheckpoint;
   }

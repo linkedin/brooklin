@@ -26,6 +26,15 @@ public class KafkaConnectionString {
   private final String _topicName;
   private final boolean _isSecure;
 
+  /**
+   * create a KafkaConnectionString
+   * @param brokers
+   *  the brokers addresses associated with KafkaConnection, it should contain host:port
+   * @param topicName
+   *  the topicName for this connection
+   * @param isSecure
+   *  if this Kafka connection is using SSL
+   */
   public KafkaConnectionString(List<KafkaBrokerAddress> brokers, String topicName, boolean isSecure) {
     ArrayList<KafkaBrokerAddress> brokersCopy = new ArrayList<>(brokers);
     Collections.sort(brokersCopy, KafkaBrokerAddress.BY_URL);
@@ -72,6 +81,11 @@ public class KafkaConnectionString {
     return Objects.hash(_brokers, _topicName, _isSecure);
   }
 
+  /**
+   * convert a connection String into a KafkaConnectionString object
+   * @param connectionString
+   *  connection string in the form kafka://[host1:port1,host2:port2...]/topicName
+   */
   public static KafkaConnectionString valueOf(String connectionString) throws IllegalArgumentException {
     if (connectionString == null) {
       //noinspection ConstantConditions
@@ -101,8 +115,13 @@ public class KafkaConnectionString {
     return new KafkaConnectionString(brokers, topicName, isSecure);
   }
 
+  /**
+   * parse a broker string into a list of KafkaBrokerAddresses
+   * @param brokersValue
+   *  example: [host1:port1,host2,port2]
+   * @return
+   */
   public static List<KafkaBrokerAddress> parseBrokers(String brokersValue) {
-
     String[] hosts = brokersValue.split("\\s*,\\s*");
     if (hosts.length < 1) {
       badArg(brokersValue);

@@ -9,8 +9,14 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A random float generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class FloatSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of FloatSchemaField using given {@link Field}
+   */
   public FloatSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class FloatSchemaField extends SchemaField {
     return generateFloat();
   }
 
+  /**
+   * generate a random float number
+   */
   public Float generateFloat() {
     return _randGenerator.getNextFloat();
   }

@@ -11,9 +11,15 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A random enum generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class EnumSchemaField extends SchemaField {
   List<String> enumStrings;
 
+  /**
+   * Construct an instance of EnumSchemaField using given {@link Field}
+   */
   public EnumSchemaField(Field field) {
     super(field);
     enumStrings = field.schema().getEnumSymbols();
@@ -29,6 +35,9 @@ public class EnumSchemaField extends SchemaField {
     return generateEnum();
   }
 
+  /**
+   * generate a random enum
+   */
   public String generateEnum() {
     return enumStrings.get(_randGenerator.getNextInt(0, enumStrings.size()));
   }

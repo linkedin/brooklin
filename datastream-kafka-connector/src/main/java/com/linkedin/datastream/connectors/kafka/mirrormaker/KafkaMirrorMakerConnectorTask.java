@@ -92,9 +92,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
-  // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
-  // and also before every poll call.
+  /** Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
+   * It is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
+   * and also before every poll call.
+   */
   private final TopicManager _topicManager;
 
   // variables for flushless mode and flow control
@@ -108,6 +109,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   private GroupIdConstructor _groupIdConstructor;
 
+  /**
+   * Construct a KafkaMirrorMakerConnectorTask
+   */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
@@ -131,7 +135,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
 
     // create topic manager
-    // by default it creates a NoOpTopicManager.
     VerifiableProperties connectorProperties = config.getConnectorProps();
     Properties topicManagerProperties = new Properties();
     String topicManagerFactoryName = DEFAULT_TOPIC_MANAGER_FACTORY;

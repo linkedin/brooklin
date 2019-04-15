@@ -9,8 +9,14 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A random integer generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class IntegerSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of IntegerSchemaField using given {@link Field}
+   */
   public IntegerSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class IntegerSchemaField extends SchemaField {
     return generateInteger();
   }
 
+  /**
+   * generate a random integer
+   */
   public Integer generateInteger() {
     return _randGenerator.getNextInt(_minValue, _maxValue);
   }

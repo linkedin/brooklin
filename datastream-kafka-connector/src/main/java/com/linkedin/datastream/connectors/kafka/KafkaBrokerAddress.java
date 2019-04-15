@@ -12,6 +12,9 @@ import org.apache.commons.validator.routines.DomainValidator;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 
+/**
+ * the object representation of a Kafka Broker
+ */
 public class KafkaBrokerAddress {
   public static final Comparator<KafkaBrokerAddress> BY_URL = (o1, o2) -> {
     int nameComparison = o1._hostName.compareTo(o2._hostName);
@@ -24,6 +27,11 @@ public class KafkaBrokerAddress {
   private final String _hostName;
   private final int _portNumber;
 
+  /**
+   * create a KafkaBrokerAddress
+   * @param hostName
+   * @param portNumber
+   */
   public KafkaBrokerAddress(String hostName, int portNumber) {
     validatePortNumber(portNumber);
     this._hostName = validateHostname(hostName);
@@ -60,6 +68,11 @@ public class KafkaBrokerAddress {
     return Objects.hash(_hostName, _portNumber);
   }
 
+  /**
+   * convert a brokerAddress String into a KafkaConnectionString object
+   * @param brokerAddress
+   *  brokerAddress in the form host1:port1
+   */
   public static KafkaBrokerAddress valueOf(String brokerAddress) throws IllegalArgumentException {
     if (brokerAddress == null) {
       //noinspection ConstantConditions
