@@ -1,16 +1,12 @@
-<p align="center">
-  <img src="images/brooklin-logo.svg" width="300">
-</p>
- 
+# Brooklin
 ![License](https://img.shields.io/github/license/linkedin/brooklin.svg?style=popout)
 ![Last Commit](https://img.shields.io/github/last-commit/linkedin/brooklin.svg?style=popout)
 ![Bugs](https://img.shields.io/github/issues/linkedin/brooklin/bug.svg?color=orange?style=popout)
 ![Gitter](https://img.shields.io/gitter/room/linkedin/kafka.svg?style=popout)
 
-## Overview
-- Brooklin is a distributed system intended for streaming data between various hetergenous source and destination systems with high reliability and throughput at scale. It features an extensible API that enables writing extensions to support consuming/producing data from/to new systems.
+Brooklin is a distributed system intended for streaming data between various hetergenous source and destination systems with high reliability and throughput at scale. It features an extensible API that enables writing extensions to support consuming/producing data from/to new systems.
 
-- Brooklin offers a framework that enables creating data pipes, [`Datastreams`](https://github.com/linkedin/Brooklin/wiki/Brooklin-Architecture#datastream), that carry descriptions of source and destination systems to stream data across. These data pipes are then processed by [`Connectors`](https://github.com/linkedin/Brooklin/wiki/Brooklin-Architecture#connector) and [`TransportProviders`](https://github.com/linkedin/brooklin/blob/master/datastream-server-api/src/main/java/com/linkedin/datastream/server/api/transport/TransportProvider.java), modules that carry out the actual data consumption/production from/to the source/destination systems.
+Brooklin also offers a framework that enables creating data pipes, [`Datastreams`](https://github.com/linkedin/Brooklin/wiki/Brooklin-Architecture#datastream), that carry descriptions of source and destination systems to stream data across. These data pipes are then processed by [`Connectors`](https://github.com/linkedin/Brooklin/wiki/Brooklin-Architecture#connector) and [`TransportProviders`](https://github.com/linkedin/brooklin/blob/master/datastream-server-api/src/main/java/com/linkedin/datastream/server/api/transport/TransportProvider.java), modules that carry out the actual data consumption/production from/to the source/destination systems.
 
 ![Brooklin Overview](images/brooklin-overview.svg)
 
