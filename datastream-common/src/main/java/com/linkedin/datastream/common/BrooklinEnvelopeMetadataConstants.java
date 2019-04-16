@@ -5,8 +5,14 @@
  */
 package com.linkedin.datastream.common;
 
+/**
+ * Constants used in the metadata field of {@link BrooklinEnvelope}
+ */
 public class BrooklinEnvelopeMetadataConstants {
 
+  /**
+   * Codes to identify the different data change operations
+   */
   public enum OpCode {
     INSERT,
     UPDATE,

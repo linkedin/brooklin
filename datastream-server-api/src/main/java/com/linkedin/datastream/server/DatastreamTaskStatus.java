@@ -20,6 +20,9 @@ import org.slf4j.LoggerFactory;
 public class DatastreamTaskStatus {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTaskStatus.class);
 
+  /**
+   * DatastreamTask status code
+   */
   public enum Code { OK, ERROR, COMPLETE, PAUSED }
 
   private Code _code;
@@ -27,7 +30,9 @@ public class DatastreamTaskStatus {
   private long _timeStamp = System.currentTimeMillis();
   private String _hostName;
 
-  // Needed for JSON deserialization
+  /**
+   * Constructor for DatastreamTaskStatus (needed for JSON deserialization)
+   */
   public DatastreamTaskStatus() {
     _hostName = "";
   }

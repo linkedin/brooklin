@@ -30,7 +30,7 @@ import com.linkedin.restli.server.resources.ResourceFactory;
 
 /**
  * Datastream specific Jetty standalone launcher which uses the DatastreamResourceFactory for instantiating
- * the datastream restli resources.
+ * the datastream Rest.li resources.
  */
 public class DatastreamJettyStandaloneLauncher {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamJettyStandaloneLauncher.class.getName());

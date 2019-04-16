@@ -111,12 +111,18 @@ public abstract class DatabaseSource {
     return null;
   }
 
+  /**
+   * Metadata of a Collection
+   */
   public static class CollectionMetadata {
     private String _fieldName;
     private String _schemaName;
     private int _precision;
     private int _scale;
 
+    /**
+     * Constructor for CollectionMetadata
+     */
     public CollectionMetadata(@NotNull String schemaName, @NotNull String fieldName, int precision, int scale) {
       _fieldName = fieldName;
       _schemaName = schemaName;
@@ -141,6 +147,9 @@ public abstract class DatabaseSource {
     }
   }
 
+  /**
+   * Metadata of a Struct
+   */
   public static class StructMetadata {
     private String _fieldTypeName;
     private String _schemaName;
@@ -148,7 +157,9 @@ public abstract class DatabaseSource {
     private int _precision;
     private int _scale;
 
-
+    /**
+     * Constructor for StructMetadata
+     */
     public StructMetadata(String schemaName, @NotNull String fieldTypeName, @NotNull String colName, int precision, int scale) {
       _fieldTypeName = fieldTypeName;
       _schemaName = schemaName;
@@ -178,6 +189,9 @@ public abstract class DatabaseSource {
     }
   }
 
+  /**
+   * Metadata of a Table
+   */
   public static class TableMetadata {
 
     public static final String NULLABLE = "Y";
@@ -190,6 +204,9 @@ public abstract class DatabaseSource {
     private int _scale;
     private String _nullable;
 
+    /**
+     * Constructor for TableMetadata
+     */
     public TableMetadata(@NotNull String colTypeName, @NotNull String colName, @NotNull String nullable, int precision,
         int scale) {
       String[] columnTypeParts = colTypeName.split("\\.");

@@ -15,6 +15,12 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.serde.SerDeSet;
 
 
+/**
+ * Describes a unit of work generated from a {@link Datastream}. Every {@link Datastream} is broken
+ * down into smaller units of work, DatastreamTasks, that are assigned to one or more
+ * {@link com.linkedin.datastream.server.api.connector.Connector} instances and processed concurrently.
+ * @see com.linkedin.datastream.server.api.strategy.AssignmentStrategy
+ */
 public interface DatastreamTask {
 
   /**

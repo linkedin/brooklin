@@ -14,6 +14,9 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 
+/**
+ * Mock implementation of {@link Driver} for testing purposes.
+ */
 public class MockJDBCDriver implements Driver {
 
   @Override

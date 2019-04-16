@@ -84,6 +84,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link Coordinator}
+ */
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
@@ -2167,6 +2170,9 @@ public class TestCoordinator {
     zkClient.deleteRecursive(path);
   }
 
+  /**
+   * Base class of test Connector implementations
+   */
   public class TestHookConnector implements Connector {
     boolean _isStarted = false;
     boolean _allowDatastreamUpdate = true;
@@ -2175,11 +2181,20 @@ public class TestCoordinator {
     String _instance = "";
     String _name;
 
+    /**
+     * Constructor for TestHookConnector
+     * @param name Connector name
+     * @param connectorType Connector type
+     */
     public TestHookConnector(String name, String connectorType) {
       _name = name;
       _connectorType = connectorType;
     }
 
+    /**
+     * Constructor for TestHookConnector
+     * @param connectorType Connector type
+     */
     public TestHookConnector(String connectorType) {
       _connectorType = connectorType;
     }
@@ -2188,6 +2203,9 @@ public class TestCoordinator {
       return _name;
     }
 
+    /**
+     * Get all datastream tasks
+     */
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
@@ -2243,7 +2261,9 @@ public class TestCoordinator {
     }
   }
 
-  // Test hook connector for mirror maker
+  /**
+   * Test hook connector for mirror maker
+   */
   class MMTestHookConnector extends TestHookConnector implements Connector {
 
     public MMTestHookConnector(String connectorName, String connectorType) {
@@ -2274,6 +2294,9 @@ public class TestCoordinator {
     }
   }
 
+  /**
+   * A {@link Connector} implementation that fails on assignment.
+   */
   class BadConnector implements Connector {
     private int assignmentCount;
 

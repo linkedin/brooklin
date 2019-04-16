@@ -12,6 +12,9 @@ import org.apache.kafka.common.serialization.Deserializer;
 import com.linkedin.kafka.clients.largemessage.LargeMessageSegment;
 
 
+/**
+ * A {@link Deserializer} implementation that does nothing.
+ */
 public class NoOpSegmentDeserializer implements Deserializer<LargeMessageSegment> {
   @Override
   public void configure(Map<String, ?> configs, boolean isKey) {

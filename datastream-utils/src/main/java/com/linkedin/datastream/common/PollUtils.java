@@ -29,6 +29,9 @@ public final class PollUtils {
    */
   @FunctionalInterface
   public interface InterruptableSupplier<T> {
+    /**
+     * Gets a result.
+     */
     T get() throws InterruptedException;
   }
 

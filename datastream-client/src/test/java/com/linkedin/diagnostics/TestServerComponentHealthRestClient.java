@@ -17,6 +17,9 @@ import com.linkedin.TestRestliClientBase;
 import com.linkedin.datastream.diagnostics.ServerComponentHealth;
 
 
+/**
+ * Tests for {@link ServerComponentHealthRestClient}
+ */
 @Test(singleThreaded = true)
 public class TestServerComponentHealthRestClient extends TestRestliClientBase {
 

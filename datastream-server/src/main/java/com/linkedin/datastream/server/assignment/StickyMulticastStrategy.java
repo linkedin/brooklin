@@ -32,22 +32,31 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
 
 /**
  * This Assignment Strategy follows the following rules:
- * a) The number of tasks for each datastream can be different. There will be a default value in case the datastream
- *    does not have one defined.
- * b) For each datastream the number of tasks might be greater than the number of instances, but only as many as
- *    dsTaskLimitPerInstance. The default is 1.
- * c) The differences in the number of tasks assigned between any two instances should be less than or equal to
- *    the imbalance threshold, otherwise, it will trigger a rebalance
- * d) Try to preserve previous tasks assignment, in order to minimize the number of task movements.
- * e) The tasks for a datastream might not be balanced across the instances; however, the tasks across all datastreams
- *    will be balanced such that condition (c) above is held.
+ * <ol type="a">
+ *   <li>
+ *    The number of tasks for each datastream can be different. There will be a default value in case the datastream
+ *    does not have one defined.</li>
+ *   <li>
+ *    For each datastream the number of tasks might be greater than the number of instances. The default is 1.</li>
+ *   <li>
+ *    The differences in the number of tasks assigned between any two instances should be less than or equal to
+ *    the imbalance threshold, otherwise, it will trigger a rebalance.</li>
+ *   <li>
+ *    Try to preserve previous tasks assignment, in order to minimize the number of task movements.</li>
+ *   <li>
+ *    The tasks for a datastream might not be balanced across the instances; however, the tasks across all datastreams
+ *    will be balanced such that condition (c) above is held.</li>
+ * </ol>
  *
  * How this strategy works?
  * It does the assignment in three steps:
- * Step 1: Copy tasks assignments from previous instances, if possible.
- * Step 2: Distribute the unallocated tasks, trying to fill up the instances with the lowest number of tasks.
- * Step 3: Move tasks from the instances with high tasks counts, to instances with low task count, in order
- *         to re-balance the cluster.
+ * <ul>
+ *  <li>
+ *  Step 1: Copy tasks assignments from previous instances, if possible.</li><li>
+ *  Step 2: Distribute the unallocated tasks, trying to fill up the instances with the lowest number of tasks.</li><li>
+ *  Step 3: Move tasks from the instances with high tasks counts, to instances with low task count, in order
+ *          to re-balance the cluster.</li>
+ * </ul>
  */
 public class StickyMulticastStrategy implements AssignmentStrategy {
 
@@ -57,6 +66,17 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   private final Optional<Integer> _maxTasks;
   private final Integer _imbalanceThreshold;
 
+  /**
+   * Constructor for StickyMulticastStrategy
+   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
+   *                 of any {@link com.linkedin.datastream.common.Datastream}
+   *                 if no value is specified for the "maxTasks" config property
+   *                 at an individual datastream level.
+   * @param imbalanceThreshold The maximum allowable difference in the number of tasks assigned
+   *                           between any two {@link com.linkedin.datastream.server.Coordinator}
+   *                           instances, before triggering a rebalance. The default is
+   *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
+   */
   public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
     _maxTasks = maxTasks;
     _imbalanceThreshold = imbalanceThreshold.orElse(DEFAULT_IMBALANCE_THRESHOLD);

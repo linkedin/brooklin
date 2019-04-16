@@ -12,6 +12,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link LogUtils}
+ */
 public class TestLogUtils {
   @Test
   public void testLogNumberArrayInRange() throws Exception {

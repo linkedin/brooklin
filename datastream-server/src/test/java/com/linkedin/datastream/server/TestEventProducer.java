@@ -31,6 +31,9 @@ import com.linkedin.datastream.server.providers.NoOpCheckpointProvider;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
+/**
+ * Tests for {@link EventProducer}
+ */
 public class TestEventProducer {
 
   @BeforeMethod

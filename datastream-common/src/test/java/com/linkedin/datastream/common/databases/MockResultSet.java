@@ -39,6 +39,10 @@ public class MockResultSet implements ResultSet {
   Iterator<DatabaseRow> _rowIter;
   DatabaseRow _currentRow;
 
+  /**
+   * Constructor for MockResultSet
+   * @param rows records to return when {@link #next()} is invoked
+   */
   public MockResultSet(List<DatabaseRow> rows) {
     _databaseRows = rows;
   }

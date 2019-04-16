@@ -12,6 +12,9 @@ import org.testng.annotations.Test;
 import com.codahale.metrics.Meter;
 
 
+/**
+ * Tests for {@link ThreadTerminationMonitor}
+ */
 public class TestThreadTerminationMonitor {
 
   private Meter meter;

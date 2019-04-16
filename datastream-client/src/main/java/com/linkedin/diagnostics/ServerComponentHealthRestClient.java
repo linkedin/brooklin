@@ -44,11 +44,11 @@ public class ServerComponentHealthRestClient {
    * @param type
    *    Type of the component such as connector.
    * @param scope
-   *    Scope of the component such as Espresso and Kafka.
+   *    Scope of the component such as MySQL and Kafka.
    * @param content
    *    Request content should be passed to the component.
    * @return
-   *    List of ServerComponentHealth object corresponding to the component.
+   *    ServerComponentHealth object corresponding to the component.
    */
   public ServerComponentHealth getStatus(String type, String scope, String content) {
     List<ServerComponentHealth> response = getServerComponentHealthStatues(type, scope, content);
@@ -60,6 +60,17 @@ public class ServerComponentHealthRestClient {
     }
   }
 
+  /**
+   * Get the ServerComponentHealth statuses from all server instances.
+   * @param type
+   *    Type of the component such as connector.
+   * @param scope
+   *    Scope of the component such as MySQL and Kafka.
+   * @param content
+   *    Request content should be passed to the component.
+   * @return
+   *    List of ServerComponentHealth objects.
+   */
   public List<ServerComponentHealth> getServerComponentHealthStatues(String type, String scope, String content) {
     try {
       FindRequest<ServerComponentHealth> request = _builders.findByStatus().typeParam(type).scopeParam(scope).contentParam(content).build();
@@ -71,16 +82,16 @@ public class ServerComponentHealthRestClient {
   }
 
   /**
-   * Get the ServerComponentHealth statuses from all server instances. This method makes a FIND REST call
+   * Get the ServerComponentHealth statuses from one server instance. This method makes a FIND REST call
    * to the ServerComponentHealth management service which in turn fetches this status from the component.
    * @param type
    *    Type of the component such as connector.
    * @param scope
-   *    Scope of the component such as Espresso and Kafka.
+   *    Scope of the component such as MySQL and Kafka.
    * @param content
    *    Request content should be passed to the component.
    * @return
-   *    List of ServerComponentHealth object corresponding to the component.
+   *    ServerComponentHealth object corresponding to the component.
    */
   public ServerComponentHealth getAllStatus(String type, String scope, String content) {
     List<ServerComponentHealth> response = getServerComponentHealthAllStatus(type, scope, content);
@@ -92,6 +103,17 @@ public class ServerComponentHealthRestClient {
     }
   }
 
+  /**
+   * Get the ServerComponentHealth statuses from all server instances.
+   * @param type
+   *    Type of the component such as connector.
+   * @param scope
+   *    Scope of the component such as MySQL and Kafka.
+   * @param content
+   *    Request content should be passed to the component.
+   * @return
+   *    List of ServerComponentHealth objects.
+   */
   public List<ServerComponentHealth> getServerComponentHealthAllStatus(String type, String scope, String content) {
     try {
       FindRequest<ServerComponentHealth> request = _builders.findByAllStatus().typeParam(type).scopeParam(scope).contentParam(content).build();

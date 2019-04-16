@@ -24,6 +24,9 @@ import com.linkedin.datastream.server.api.transport.SendCallback;
 import static com.linkedin.datastream.server.FlushlessEventProducerHandler.SourcePartition;
 
 
+/**
+ * Tests for {@link FlushlessEventProducerHandler}
+ */
 public class TestFlushlessEventProducerHandler {
   private static final Long BIG_CHECKPOINT = Long.MAX_VALUE;
   private static final String TOPIC = "MyTopic";

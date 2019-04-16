@@ -8,14 +8,14 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
 /**
- * A random string generator for a specific {@link org.apache.avro.Schema.Field}
+ * A generator of random strings for a specific {@link Field}
  */
 public class StringSchemaField extends SchemaField {
 
   /**
-   * Construct an instance of StringSchemaField using given {@link Field}
+   * Constructor for StringSchemaField
+   * @param field the schema field to generate values for
    */
   public StringSchemaField(Field field) {
     super(field);
@@ -32,7 +32,7 @@ public class StringSchemaField extends SchemaField {
   }
 
   /**
-   * generate a random string
+   * Generate a random string of length between {@code 1} and {@value SchemaField#_maxNumElements}, inclusive
    */
   public String generateString() {
     return _randGenerator.getNextString(1, _maxNumElements);

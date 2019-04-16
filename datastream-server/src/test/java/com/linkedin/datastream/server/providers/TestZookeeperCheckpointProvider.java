@@ -31,6 +31,9 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
+/**
+ * Tests for {@link ZookeeperCheckpointProvider}
+ */
 public class TestZookeeperCheckpointProvider {
 
   private EmbeddedZookeeper _zookeeper;
@@ -101,6 +104,9 @@ public class TestZookeeperCheckpointProvider {
     Assert.assertEquals(committedCheckpoints2.get(0), "checkpoint2");
   }
 
+  /**
+   * Generate a datastream
+   */
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);

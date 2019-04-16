@@ -38,6 +38,13 @@ public class BroadcastStrategy implements AssignmentStrategy {
 
   private final Optional<Integer> _maxTasks;
 
+  /**
+   * Constructor for BroadcastStrategy
+   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
+   *                 of any {@link com.linkedin.datastream.common.Datastream}
+   *                 if no value is specified for the "maxTasks" config property
+   *                 at an individual datastream level.
+   */
   public BroadcastStrategy(Optional<Integer> maxTasks) {
     _maxTasks = maxTasks;
   }

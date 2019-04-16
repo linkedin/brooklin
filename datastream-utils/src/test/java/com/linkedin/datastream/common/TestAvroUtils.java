@@ -14,6 +14,9 @@ import org.testng.annotations.Test;
 import static com.linkedin.datastream.common.AvroUtils.encodeAvroIndexedRecordAsJson;
 
 
+/**
+ * Tests for {@link AvroUtils}
+ */
 public class TestAvroUtils {
 
   final static public String SCHEMA_STRING =

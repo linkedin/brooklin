@@ -62,6 +62,10 @@ public interface MetricsAware {
     return this.getClass().getSimpleName() + KEY_REGEX;
   }
 
+  /**
+   * Get a regular expression for all dynamic metrics created with the class whose name is {@code classSimpleName}
+   * @see #getDynamicMetricPrefixRegex()
+   */
   default String getDynamicMetricPrefixRegex(String classSimpleName) {
     return classSimpleName + KEY_REGEX;
   }

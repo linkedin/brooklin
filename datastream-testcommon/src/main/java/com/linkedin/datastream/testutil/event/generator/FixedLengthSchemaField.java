@@ -9,14 +9,15 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 /**
- * A random fixed length string generator for a specific {@link org.apache.avro.Schema.Field}
+ * A generator of random string values for a specific {@link Field}
  */
 public class FixedLengthSchemaField extends SchemaField {
 
   int fixedSize;
 
   /**
-   * Construct an instance of FixedLengthSchemaField using given {@link Field}
+   * Constructor for FixedLengthSchemaField
+   * @param field the schema field to generate values for
    */
   public FixedLengthSchemaField(Field field) {
     super(field);
@@ -34,7 +35,7 @@ public class FixedLengthSchemaField extends SchemaField {
   }
 
   /**
-   * generate a random fixed length string
+   * Generate a random string of fixed size
    */
   public String generateFixedLengthString() {
     return _randGenerator.getNextString(0, fixedSize);

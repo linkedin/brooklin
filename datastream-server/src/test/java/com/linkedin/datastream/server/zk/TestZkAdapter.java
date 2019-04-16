@@ -29,6 +29,9 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
+/**
+ * Tests for {@link ZkAdapter}
+ */
 public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
@@ -559,7 +562,12 @@ public class TestZkAdapter {
     Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
   }
 
-
+  /**
+   * Update all datastream task assignments of a particular Brooklin instance
+   * @param adapter ZooKeeper adapter to use
+   * @param instance Brooklin/Coordinator instance name
+   * @param assignments new datasteam tasks to assign to the Brooklin instance
+   */
   public static void updateInstanceAssignment(ZkAdapter adapter, String instance, List<DatastreamTask> assignments) {
     Map<String, List<DatastreamTask>> allAssignments = new HashMap<>();
     allAssignments.put(instance, assignments);

@@ -22,6 +22,11 @@ public abstract class BrooklinMetrics {
   protected String _key;
   protected String _className;
 
+  /**
+   * Constructor for BrooklinMetrics
+   * @param className The class implementation that is instantiating the metrics class
+   * @param key The key to use for creating the full metric names
+   */
   public BrooklinMetrics(String className, String key) {
     _className = className;
     _key = key;

@@ -20,6 +20,9 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 
 
+/**
+ * Tests for {@link KafkaDatastreamStatesResponse}
+ */
 @Test
 public class TestKafkaDatastreamStatesResponse {
 

@@ -86,7 +86,7 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
     return new GenericEventIterator();
   }
 
-  /*
+  /**
    * Generate random events based on the Avro schema. The schema must be of a record type to work as well as
    * GenericEvent type
    * @return returns the list of generated records
@@ -250,6 +250,9 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageUpdates;
     }
 
+    /**
+     * Set the percentage of generated events that should be updates.
+     */
     public void setPercentageUpdates(int percentageUpdates) {
       if ((percentageUpdates < 0) || ((percentageUpdates + _percentageDeletes) > 50)) {
         return;
@@ -261,6 +264,9 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageDeletes;
     }
 
+    /**
+     * Set the percentage of generated events that should be deletes.
+     */
     public void setPercentageDeletes(int percentageDeletes) {
       if ((percentageDeletes < 0) || ((_percentageUpdates + percentageDeletes) > 50)) {
         // log the error and not set it
@@ -273,6 +279,9 @@ public abstract class AbstractEventGenerator<T extends IndexedRecord> {
       return _percentageControls;
     }
 
+    /**
+     * Set the percentage of generated events that should be control events.
+     */
     public void setPercentageControls(int percentageControls) {
       if ((percentageControls < 0) || (percentageControls > 50)) {
         return;

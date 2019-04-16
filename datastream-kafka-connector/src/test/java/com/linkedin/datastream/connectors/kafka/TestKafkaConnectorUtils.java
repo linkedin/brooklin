@@ -16,11 +16,25 @@ import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 
+/**
+ * Utility methods for {@link KafkaConnector} tests
+ */
 public class TestKafkaConnectorUtils {
+  /**
+   * Create a Coordinator
+   * @param zkAddr ZooKeeper server address
+   * @param cluster Brooklin cluster name
+   */
   public static Coordinator createCoordinator(String zkAddr, String cluster) throws Exception {
     return createCoordinator(zkAddr, cluster, new Properties());
   }
 
+  /**
+   * Create a Coordinator
+   * @param zkAddr ZooKeeper server address
+   * @param cluster Brooklin cluster name
+   * @param override Config properties to use
+   */
   public static Coordinator createCoordinator(String zkAddr, String cluster, Properties override) throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
@@ -37,7 +51,10 @@ public class TestKafkaConnectorUtils {
     return coordinator;
   }
 
-  public static KafkaTransportProviderAdmin getKafkaTransportProviderAdmin(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+  /**
+   * Create a Kafka transport provider admin for an embedded Kafka cluster
+   */
+  public static KafkaTransportProviderAdmin createKafkaTransportProviderAdmin(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();
     props.put("zookeeper.connect", kafkaCluster.getZkConnection());
     props.put("bootstrap.servers", kafkaCluster.getBrokers());

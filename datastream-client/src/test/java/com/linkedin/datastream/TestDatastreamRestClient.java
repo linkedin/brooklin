@@ -54,10 +54,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link DatastreamRestClient}
+ */
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient extends TestRestliClientBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
+  /**
+   * Generate a datastream
+   */
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);

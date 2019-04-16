@@ -8,9 +8,15 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * An implementation of {@link SchemaField} for generating null fields.
+ */
 public class NullSchemaField extends SchemaField {
 
+  /**
+   * Constructor for NullSchemaField
+   * @param field the schema field for which value {@code null} is generated
+   */
   public NullSchemaField(Field field) {
     super(field);
   }

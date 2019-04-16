@@ -50,6 +50,9 @@ public class DatastreamProducerRecord {
     _destination = destination;
   }
 
+  /**
+   * Serialize events in the DatastreamProducerRecord using the serializers/deserializers in {@code serDes}
+   */
   public synchronized void serializeEvents(SerDeSet serDes) {
     _events.forEach(event -> serializeEvent(event, serDes));
   }

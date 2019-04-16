@@ -35,6 +35,16 @@ public class ConnectorInfo {
    */
   private Optional<String> _authorizerName;
 
+  /**
+   * Constructor for ConnectorInfo
+   * @param name Connector name
+   * @param connector Connector object
+   * @param strategy Assignment strategy associated with {@code connector}
+   * @param customCheckpointing true if {@code connector} uses custom checkpointing
+   * @param checkpointProvider Checkpoint provider associated with {@code connector}
+   * @param deduper Datastream deduper associated with {@code connector}
+   * @param authorizerName Name of the authorizer configured by {@code connector} (if any)
+   */
   public ConnectorInfo(String name, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing,
       CheckpointProvider checkpointProvider, DatastreamDeduper deduper, String authorizerName) {
     _connector = new ConnectorWrapper(name, connector);
