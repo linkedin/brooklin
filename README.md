@@ -36,17 +36,20 @@ While it is not limited to any particular system, Brooklin offers first class an
 ### 1. Mirroring Kafka Clusters
 Brooklin offers various advantages when used for mirroring data across Kafka clusters:
 
-#### Multitenancy
-A single Brooklin cluster can be used to mirror data across several Kafka clusters.
-
-#### Fault Isolation Across Topic Partitions
-One bad partition will not affect an entire Kafka topic. Mirroring will continue for all the other healthy partitions.
-
-#### Automatic Topic Creation
-The mirrored topics do not have to exist in the destination Kafka cluster in advance. Brooklin can auto-create them for you.
-
-#### Whitelisting Topics Using Regex
-Select the topics to mirror using regex patterns against their names.
+<ol type="a">
+    <li><h4>
+    Multitenancy</h4>
+    A single Brooklin cluster can be used to mirror data across several Kafka clusters.</li>
+    <li><h4>
+    Fault Isolation Across Topic Partitions</h4>
+    One bad partition will not affect an entire Kafka topic. Mirroring will continue for all the other healthy partitions.</li>
+    <li><h4>
+    Automatic Topic Creation</h4>
+    The mirrored topics do not have to exist in the destination Kafka cluster in advance. Brooklin can auto-create them for you.</li>
+    <li><h4>
+    Whitelisting Topics Using Regex</h4>
+    Select the topics to mirror using regex patterns against their names.</li>
+</ol>
 
 Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) wiki page to learn more about using Brooklin to mirror Kafka clusters
 
