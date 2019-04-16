@@ -55,10 +55,18 @@ public class TestDatastreamResources {
 
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
+  /**
+   * Generate a datastream
+   */
   public static Datastream generateDatastream(int seed) {
     return generateDatastream(seed, new HashSet<>());
   }
 
+  /**
+   * Generate a datastream
+   * @param seed value to use in datastream properties
+   * @param missingFields datastream properties to not set
+   */
   public static Datastream generateDatastream(int seed, Set<String> missingFields) {
     Datastream ds = new Datastream();
     if (!missingFields.contains("name")) {
@@ -83,6 +91,14 @@ public class TestDatastreamResources {
     return ds;
   }
 
+  /**
+   * Generate a datastream
+   * @param seed value to use in datastream properties
+   * @param setEncryptedMetadata Indicates whether {@value DatastreamMetadataConstants#DESTINATION_ENCRYPTION_REQUIRED}
+   *                             should be set to {@code true} in the metadata of the returned datastream
+   * @param setByotMetadata Indicates whether {@value DatastreamMetadataConstants#IS_USER_MANAGED_DESTINATION_KEY}
+   *                        should be set to {@code true} in the metadata of the returned datastream
+   */
   public static Datastream generateEncryptedDatastream(int seed, boolean setEncryptedMetadata, boolean setByotMetadata) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);

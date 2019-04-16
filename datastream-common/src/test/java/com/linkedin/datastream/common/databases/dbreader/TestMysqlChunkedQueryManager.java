@@ -8,6 +8,9 @@ package com.linkedin.datastream.common.databases.dbreader;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link MySqlChunkedQueryManager}.
+ */
 public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
   private static final ChunkedQueryManager MANAGER = new MySqlChunkedQueryManager();
 

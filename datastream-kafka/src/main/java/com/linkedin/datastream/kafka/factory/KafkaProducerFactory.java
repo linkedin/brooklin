@@ -10,12 +10,17 @@ import java.util.Properties;
 import org.apache.kafka.clients.producer.Producer;
 
 
+/**
+ * Abstraction of a Kafka {@link Producer} factory
+ * @param <K> Kafka producer key type
+ * @param <V> Kafka producer value (message) type
+ */
 public interface KafkaProducerFactory<K, V> {
   String DOMAIN_PRODUCER = "producer";
 
   /**
    * Create a Kafka Producer using the Transport Provider Properties.
-   * The "Standard" Kafka Producer Properties will have the {@link DOMAIN_PRODUCER} prefix.
+   * The "Standard" Kafka Producer Properties will have the {@value DOMAIN_PRODUCER} prefix.
    */
   Producer<K, V> createProducer(Properties transportProps);
 }

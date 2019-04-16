@@ -17,13 +17,19 @@ import com.linkedin.datastream.server.DatastreamServerConfigurationConstants;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
 
-
+/**
+ * Base class of all Rest.li client tests.
+ */
 public class TestRestliClientBase {
 
   public static final String TRANSPORT_NAME = "default";
   public static final long WAIT_TIMEOUT_MS = Duration.ofMinutes(3).toMillis();
   public EmbeddedDatastreamCluster _datastreamCluster;
 
+  /**
+   * Constructor for TestRestliClientBase
+   * @param numServers number of datastream servers in the cluster
+   */
   public void setupDatastreamCluster(int numServers) throws IOException, DatastreamException {
     Properties connectorProps = new Properties();
     connectorProps.put(DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME, DummyConnectorFactory.class.getCanonicalName());

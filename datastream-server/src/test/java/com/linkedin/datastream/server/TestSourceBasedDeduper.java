@@ -20,9 +20,15 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
+/**
+ * Tests for {@link SourceBasedDeduper}
+ */
 public class TestSourceBasedDeduper {
   private static final String CONNECTOR_TYPE = "test";
 
+  /**
+   * Generate a datastream
+   */
   public static Datastream generateDatastream(int seed, boolean withDestination) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);

@@ -34,7 +34,7 @@ import org.testng.Assert;
 
 
 /**
- * Parses the sql to
+ * Mock implementation of {@link PreparedStatement} for testing purposes.
  */
 public class MockJDBCPreparedStatement implements PreparedStatement {
   private String _sql;

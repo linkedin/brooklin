@@ -16,6 +16,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link ThreadUtils}
+ */
 @Test
 public class TestThreadUtils {
   private void runWorker(CountDownLatch latch, boolean unkillable, ExecutorService executor) {

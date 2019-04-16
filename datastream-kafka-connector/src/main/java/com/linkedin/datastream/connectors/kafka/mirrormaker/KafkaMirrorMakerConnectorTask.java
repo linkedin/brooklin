@@ -92,10 +92,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
 
-  /** Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
-   * It is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
-   * and also before every poll call.
-   */
+  // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
+  // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
+  // and also before every poll call.
   private final TopicManager _topicManager;
 
   // variables for flushless mode and flow control
@@ -110,7 +109,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private GroupIdConstructor _groupIdConstructor;
 
   /**
-   * Construct a KafkaMirrorMakerConnectorTask
+   * Constructor for KafkaMirrorMakerConnectorTask
+   * @param config Task configuration properties
+   * @param task Datastream task
+   * @param connectorName Connector name
+   * @param isFlushlessModeEnabled true if {@value KafkaMirrorMakerConnector#IS_FLUSHLESS_MODE_ENABLED}
+   *                               is set to true for the connector identified with {@code connectorName}
+   * @param groupIdConstructor Kafka consumer group ID constructor
    */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
@@ -135,6 +140,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
 
     // create topic manager
+    // by default it creates a NoOpTopicManager.
     VerifiableProperties connectorProperties = config.getConnectorProps();
     Properties topicManagerProperties = new Properties();
     String topicManagerFactoryName = DEFAULT_TOPIC_MANAGER_FACTORY;
@@ -286,6 +292,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  /**
+   * Get all metrics info for the connector whose name is {@code connectorName}
+   */
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
@@ -305,6 +314,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return metrics;
   }
 
+  /**
+   * Get Kafka consumer group ID for a datastream task
+   * @param task Datastream task
+   * @param groupIdConstructor Consumer group ID constructor
+   * @param consumerMetrics Consumer metrics to use for error reporting
+   * @param logger Logger to use
+   */
   @VisibleForTesting
   public static String getMirrorMakerGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
       CommonConnectorMetrics consumerMetrics, Logger logger) {

@@ -10,6 +10,9 @@ import java.sql.SQLException;
 import java.util.List;
 
 
+/**
+ * Abstraction for modules capable of validating and generating chunked SQL queries.
+ */
 public interface ChunkedQueryManager {
   /**
    * Validate the nested query to be compatible for chunking.

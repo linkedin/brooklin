@@ -46,6 +46,11 @@ public class CachedDatastreamReader {
   private List<String> _datastreamNames;
   private Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
 
+  /**
+   * Constructor for CachedDatastreamReader
+   * @param zkclient ZooKeeper client to use
+   * @param cluster Brooklin cluster name
+   */
   public CachedDatastreamReader(ZkClient zkclient, String cluster) {
     _zkclient = zkclient;
     _cluster = cluster;

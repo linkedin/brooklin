@@ -13,6 +13,18 @@ import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
+/**
+ * Abstraction to allow defining different strategies for:
+ * <ol>
+ *   <li>
+ *     breaking down a {@link com.linkedin.datastream.common.Datastream} into one or more {@link DatastreamTask}s
+ *   </li>
+ *   <li>
+ *     distributing {@link DatastreamTask}s among the available {@link com.linkedin.datastream.server.Coordinator}
+ *     instances
+ *   </li>
+ * </ol>
+ */
 public interface AssignmentStrategy {
   /**
    * Assign a list of datastreams to a list of instances, and return a map from instances-> list of streams.

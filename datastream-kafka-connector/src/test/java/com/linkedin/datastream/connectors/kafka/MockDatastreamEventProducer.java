@@ -23,6 +23,9 @@ import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
+/**
+ * Mock implementation of {@link DatastreamEventProducer} for testing purposes.
+ */
 public class MockDatastreamEventProducer implements DatastreamEventProducer {
 
   private static final Logger LOG = LoggerFactory.getLogger(MockDatastreamEventProducer.class);
@@ -33,18 +36,41 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
   private Duration _flushDuration;
 
+  /**
+   * Constructor for MockDatastreamEventProducer
+   */
   public MockDatastreamEventProducer() {
     this(null, null, null);
   }
 
+  /**
+   * Constructor for MockDatastreamEventProducer
+   * @param sendFailCondition predicate to use for identifying events/records
+   *                          in response to which {@link #send(DatastreamProducerRecord, SendCallback)}
+   *                          will throw a {@link DatastreamRuntimeException}.
+   */
   public MockDatastreamEventProducer(Predicate<DatastreamProducerRecord> sendFailCondition) {
     this(null, sendFailCondition, null);
   }
 
+  /**
+   * Constructor for MockDatastreamEventProducer
+   * @param callbackThrottleDuration Delay to introduce whenever {@link #send(DatastreamProducerRecord, SendCallback)}
+   *                                 is called before invoking {@link #sendEvent(DatastreamProducerRecord, SendCallback)}
+   */
   public MockDatastreamEventProducer(Duration callbackThrottleDuration) {
     this(callbackThrottleDuration, null, null);
   }
 
+  /**
+   * Constructor for MockDatastreamEventProducer
+   * @param callbackThrottleDuration Delay to introduce whenever {@link #send(DatastreamProducerRecord, SendCallback)}
+   *                                 is called before invoking {@link #sendEvent(DatastreamProducerRecord, SendCallback)}
+   * @param sendFailCondition predicate to use for identifying events/records
+   *                          in response to which {@link #send(DatastreamProducerRecord, SendCallback)}
+   *                          will throw a {@link DatastreamRuntimeException}.
+   * @param flushDuration Delay to introduce whenever {@link #flush()} is invoked before it returns
+   */
   public MockDatastreamEventProducer(Duration callbackThrottleDuration,
       Predicate<DatastreamProducerRecord> sendFailCondition, Duration flushDuration) {
     _callbackThrottleDuration = callbackThrottleDuration;
@@ -106,7 +132,7 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
     return _numFlushes;
   }
 
-  public void updateSendFailCondition(Predicate<DatastreamProducerRecord> sendFailCondition) {
+  public void setSendFailCondition(Predicate<DatastreamProducerRecord> sendFailCondition) {
     _sendFailCondition = sendFailCondition;
   }
 }

@@ -106,6 +106,22 @@ LinkedIn Java style.
       <property name="checkFirstSentence" value="false"/>
     </module>
 
+    <module name="JavadocType">
+      <property name="scope" value="public"/>
+    </module>
+
+    <module name="JavadocMethod">
+      <property name="scope" value="public"/>
+      <property name="allowUndeclaredRTE" value="true"/>
+      <property name="allowMissingParamTags" value="true"/>
+      <property name="validateThrows" value="true" />
+      <property name="allowThrowsTagsForSubclasses" value="true" />
+      <property name="allowMissingThrowsTags" value="true" />
+      <property name="allowMissingReturnTag" value="true" />
+      <property name="allowMissingPropertyJavadoc" value="true" />
+      <property name="allowedAnnotations" value="Override, AfterMethod, AfterTest, BeforeMethod, BeforeTest, Test" />
+    </module>
+
     <!-- NAMING CONVENTIONS -->
 
     <!-- Generic parameters for a class must be uppercase letters (e.g. <T>, <OLD>) -->

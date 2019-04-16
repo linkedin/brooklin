@@ -9,6 +9,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link RestliUtils}
+ */
 public class TestRestliUtils {
   @Test
   public void testSanitizeUriValid() {

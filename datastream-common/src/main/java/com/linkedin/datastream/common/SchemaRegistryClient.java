@@ -10,6 +10,9 @@ import java.io.IOException;
 import org.apache.avro.Schema;
 
 
+/**
+ * Abstraction of a Kafka schema registry client.
+ */
 public interface SchemaRegistryClient {
 
   /**

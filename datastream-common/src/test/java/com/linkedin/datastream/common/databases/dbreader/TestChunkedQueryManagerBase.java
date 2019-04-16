@@ -12,6 +12,9 @@ import java.util.List;
 import junit.framework.Assert;
 
 
+/**
+ * Base class for {@link ChunkedQueryManager} implementation tests.
+ */
 public class TestChunkedQueryManagerBase {
   protected static final String NESTED_QUERY = "SELECT * FROM TABLE";
   protected static final List<String> KEY = Arrays.asList("KEY1");

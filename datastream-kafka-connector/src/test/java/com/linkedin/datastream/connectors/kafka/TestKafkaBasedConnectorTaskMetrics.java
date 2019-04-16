@@ -22,6 +22,9 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
+/**
+ * Tests for {@link KafkaBasedConnectorTaskMetrics}
+ */
 public class TestKafkaBasedConnectorTaskMetrics {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaBasedConnectorTaskMetrics.class);

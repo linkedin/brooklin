@@ -9,6 +9,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link KafkaBrokerAddress}
+ */
 public class TestKafkaBrokerAddress {
 
   @Test(expectedExceptions = IllegalArgumentException.class)

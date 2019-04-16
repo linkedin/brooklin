@@ -56,6 +56,9 @@ import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMa
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
 
 
+/**
+ * Tests for {@link KafkaMirrorMakerConnector}
+ */
 @Test
 public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
@@ -63,6 +66,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   private static final String DATASTREAM_STATE_QUERY = "/datastream_state?datastream=";
 
+  /**
+   * Get the default config properties of a Kafka-based connector
+   * @param override Configuration properties to override default config properties
+   */
   public static Properties getDefaultConfig(Optional<Properties> override) {
     Properties config = new Properties();
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
@@ -158,7 +165,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
-        TestKafkaConnectorUtils.getKafkaTransportProviderAdmin(_kafkaCluster);
+        TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
 
@@ -191,7 +198,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
-        TestKafkaConnectorUtils.getKafkaTransportProviderAdmin(_kafkaCluster);
+        TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
 
@@ -314,7 +321,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     }
 
     // simulate send error to auto-pause yummyTopic partition
-    datastreamProducer.updateSendFailCondition((record) -> true);
+    datastreamProducer.setSendFailCondition((record) -> true);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
 
     if (!PollUtils.poll(() -> {
@@ -329,7 +336,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     }
 
     // update the send fail condition to allow the message to successfully flow through message is retried
-    datastreamProducer.updateSendFailCondition((record) -> false);
+    datastreamProducer.setSendFailCondition((record) -> false);
     if (!PollUtils.poll(() -> {
       Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions =
           KafkaDatastreamStatesResponse.fromJson(connector.process(DATASTREAM_STATE_QUERY + datastream.getName()))
@@ -587,7 +594,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
-        TestKafkaConnectorUtils.getKafkaTransportProviderAdmin(_kafkaCluster);
+        TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
 

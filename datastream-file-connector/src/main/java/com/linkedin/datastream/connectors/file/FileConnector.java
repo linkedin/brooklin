@@ -20,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -47,7 +46,11 @@ public class FileConnector implements Connector {
   private final int _numPartitions;
   private ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
-  public FileConnector(Properties config) throws DatastreamException {
+  /**
+   * Constructor for FileConnector
+   * @param config Connector configuration properties
+   */
+  public FileConnector(Properties config) {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 

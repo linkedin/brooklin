@@ -11,6 +11,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link KafkaBasedConnectorConfig}
+ */
 public class TestKafkaBasedConnectorConfig {
 
   /**

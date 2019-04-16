@@ -216,6 +216,12 @@ public class KafkaPositionTracker {
     });
   }
 
+  /**
+   * Clears previously assigned partitions and set them to {@code assignedPartitions}
+   * <br/>
+   * This method is typically invoked after an offset re-assignment completes and before
+   * the consumer starts fetching data.
+   */
   public synchronized void onPartitionsAssigned(final Collection<TopicPartition> assignedPartitions) {
     _positionsInitialized = false;
     _assignedPartitions.clear();

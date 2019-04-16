@@ -14,6 +14,10 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 
+
+/**
+ * A factory for creating Kafka {@link Producer} instances
+ */
 public class LiKafkaProducerFactory implements KafkaProducerFactory<byte[], byte[]> {
   // New producer configurations. Please look at http://kafka.apache.org/documentation.html#producerconfigs for
   // more details on what these configs mean.

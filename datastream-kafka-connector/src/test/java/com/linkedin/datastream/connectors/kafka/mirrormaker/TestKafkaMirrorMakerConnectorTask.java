@@ -63,6 +63,9 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.spy;
 
 
+/**
+ * Tests for {@link KafkaMirrorMakerConnectorTask}
+ */
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
@@ -517,7 +520,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
 
     // update the send failure condition so that events flow through once partition is resumed
-    datastreamProducer.updateSendFailCondition((r) -> false);
+    datastreamProducer.setSendFailCondition((r) -> false);
 
     // resume the partition
     pausedPartitions.put(yummyTopic, Collections.emptySet());
@@ -579,7 +582,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     validatePausedPartitionsMetrics("KafkaMirrorMakerConnectorTask", datastream.getName(), 1, 0, 0);
 
     // update the send failure condition so that events flow through once partition is resumed
-    datastreamProducer.updateSendFailCondition((r) -> false);
+    datastreamProducer.setSendFailCondition((r) -> false);
 
     Assert.assertTrue(
         PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().isEmpty(), POLL_PERIOD_MS, POLL_TIMEOUT_MS),

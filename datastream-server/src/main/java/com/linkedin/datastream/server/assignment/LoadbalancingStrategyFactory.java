@@ -11,6 +11,9 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 
+/**
+ * A factory for creating {@link LoadbalancingStrategy} instances
+ */
 public class LoadbalancingStrategyFactory implements AssignmentStrategyFactory {
 
   @Override

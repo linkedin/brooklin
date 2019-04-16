@@ -15,6 +15,9 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 
 
+/**
+ * A factory for creating {@link StickyMulticastStrategy} instances
+ */
 public class StickyMulticastStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_IMBALANCE_THRESHOLD = "imbalanceThreshold";
 

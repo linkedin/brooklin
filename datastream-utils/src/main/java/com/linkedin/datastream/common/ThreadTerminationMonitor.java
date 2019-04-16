@@ -46,6 +46,9 @@ public class ThreadTerminationMonitor {
     });
   }
 
+  /**
+   * Creates metrics info relevant to ThreadTerminatorMonitor
+   */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.add(new BrooklinMeterInfo(

@@ -32,6 +32,9 @@ public class FieldMetadata {
   private int _dbFieldPosition;
   private Types _dbFieldType;
 
+  /**
+   * Constructor for FieldMetadata
+   */
   public FieldMetadata(@NotNull String dbFieldName, String nullable, int dbFieldPosition, @NotNull Types dbFieldType,
       Optional<Integer> numberPrecision, Optional<Integer> numberScale) {
     _dbFieldName = dbFieldName;
@@ -74,6 +77,9 @@ public class FieldMetadata {
     return metas;
   }
 
+  /**
+   * Create FieldMetadata by parsing the provided {@code meta} string
+   */
   public static FieldMetadata fromString(String meta) {
     Map<String, String> metas = parseMetadata(meta);
 

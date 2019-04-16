@@ -28,14 +28,16 @@ import com.linkedin.restli.client.RestClient;
 
 
 /**
- * Base class for implementing a factory for Rest.li client wrappers, eg. DatastreamRestClient.
+ * Base class for implementing a factory for Rest.li client wrappers, eg. {@link DatastreamRestClient}.
  * We cache R2 RestClient by (URI, HTTP_PARAMS) because they are stateless. All custom factories
  * share the HttpClientFactory. R2 RestClient is the actual HTTP client used by wrappers to send
  * the actual requests and receive responses.
  *
  * Rest.li wrappers can be created in two ways:
- * 1) use default R2 RestClient either previously registered or created through HttpClientFactory.
- * 2) use a cached or new RestClient created with the specified http properties through HttpClientFactory.
+ * <ol>
+ *   <li>use default R2 RestClient either previously registered or created through HttpClientFactory.</li>
+ *   <li>use a cached or new RestClient created with the specified http properties through HttpClientFactory.</li>
+ * </ol>
  *
  * The registered R2 RestClient is mapped with (URI, EMPTY_MAP) in the cache so it will not be used
  * when the caller specifies non-empty HTTP_PARAMS.
@@ -64,7 +66,9 @@ public final class BaseRestClientFactory<T> {
   private HttpClientFactory _httpClientFactory;
 
   /**
+   * Constructor for BaseRestClientFactory
    * @param clazz Class object of the Rest.li client wrapper
+   * @param logger the logger to use
    */
   public BaseRestClientFactory(Class<T> clazz, Logger logger) {
     _restClientClass = clazz;
@@ -103,7 +107,7 @@ public final class BaseRestClientFactory<T> {
   }
 
   /**
-   * Register an existing R2 RestClient already bound to {@param uri}.
+   * Register an existing R2 RestClient already bound to {@code uri}.
    * It is cached and reused for future Rest.li client wrapper creations without custom HTTP parameters.
    * @param uri URI to the HTTP endpoint
    * @param restClient custom R2 RestClient
@@ -138,9 +142,10 @@ public final class BaseRestClientFactory<T> {
 
   /**
    * Special ThreadFactory to be used with HttpClientFactory:
-   *  - add brooklin prefix to the threads
-   *  - create daemon threads to prevent jvm unclean shutdown
-   *
+   * <ul>
+   *   <li>add brooklin prefix to the threads</li>
+   *   <li>create daemon threads to prevent jvm unclean shutdown</li>
+   * </ul>
    * By default, HttpClientFactory creates daemon threads with NamedThreadFactory.
    * Such threads will block JVM from shutting down when they are not fully stopped.
    * We do not have nor plan to support use cases where we need to access DMS during

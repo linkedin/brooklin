@@ -9,9 +9,13 @@ import java.util.Properties;
 
 
 /**
- * Factory to create the assignment strategy
+ * An abstraction of an {@link AssignmentStrategy} factory
  */
 public interface AssignmentStrategyFactory {
 
+  /**
+   * Create a {@link AssignmentStrategy} instance
+   * @param assignmentStrategyProperties Strategy configuration properties
+   */
   AssignmentStrategy createStrategy(Properties assignmentStrategyProperties);
 }

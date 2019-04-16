@@ -41,11 +41,17 @@ public class DatastreamProducerRecordBuilder {
     _partition = Optional.of(partition);
   }
 
+  /**
+   * Set partition key
+   */
   public void setPartitionKey(String partitionKey) {
     Validate.notEmpty(partitionKey, "partitionKey cannot be empty.");
     _partitionKey = Optional.of(partitionKey);
   }
 
+  /**
+   * Set destination
+   */
   public void setDestination(String destination) {
     Validate.notEmpty(destination, "destination cannot be empty.");
     _destination = Optional.of(destination);
@@ -64,10 +70,16 @@ public class DatastreamProducerRecordBuilder {
     _events.add(new BrooklinEnvelope(key, value, previousValue, metadata));
   }
 
+  /**
+   * Add a message to the events in the DatastreamProducerRecord
+   */
   public void addEvent(BrooklinEnvelope envelope) {
     _events.add(envelope);
   }
 
+  /**
+   * Set events source timestamp
+   */
   public void setEventsSourceTimestamp(long eventsSourceTimestamp) {
     _eventsSourceTimestamp = eventsSourceTimestamp;
   }
