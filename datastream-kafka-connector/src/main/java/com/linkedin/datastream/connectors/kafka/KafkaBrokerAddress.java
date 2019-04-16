@@ -13,7 +13,7 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 
 
 /**
- * the object representation of a Kafka Broker
+ * The object representation of a Kafka Broker
  */
 public class KafkaBrokerAddress {
   public static final Comparator<KafkaBrokerAddress> BY_URL = (o1, o2) -> {
@@ -28,9 +28,9 @@ public class KafkaBrokerAddress {
   private final int _portNumber;
 
   /**
-   * create a KafkaBrokerAddress
-   * @param hostName
-   * @param portNumber
+   * Construct a KafkaBrokerAddress
+   * @param hostName Kafka broker hostname
+   * @param portNumber Port number on Kafka broker
    */
   public KafkaBrokerAddress(String hostName, int portNumber) {
     validatePortNumber(portNumber);
@@ -69,9 +69,9 @@ public class KafkaBrokerAddress {
   }
 
   /**
-   * convert a brokerAddress String into a KafkaConnectionString object
+   * Create a KafkaBrokerAddress by parsing hostname and port from {@code brokerAddress}
    * @param brokerAddress
-   *  brokerAddress in the form host1:port1
+   *  brokerAddress in the form hostname:port
    */
   public static KafkaBrokerAddress valueOf(String brokerAddress) throws IllegalArgumentException {
     if (brokerAddress == null) {

@@ -13,7 +13,7 @@ import java.util.StringJoiner;
 
 
 /**
- * the object representation of a Kafka connection string.
+ * The object representation of a Kafka connection string.
  * strings are of the form:
  * kafka://[host1:port1,host2:port2...]/topicName
  */
@@ -27,7 +27,7 @@ public class KafkaConnectionString {
   private final boolean _isSecure;
 
   /**
-   * create a KafkaConnectionString
+   * Construct a KafkaConnectionString
    * @param brokers
    *  the brokers addresses associated with KafkaConnection, it should contain host:port
    * @param topicName
@@ -82,7 +82,7 @@ public class KafkaConnectionString {
   }
 
   /**
-   * convert a connection String into a KafkaConnectionString object
+   * Create a KafkaConnectionString by parsing {@code connectionString}
    * @param connectionString
    *  connection string in the form kafka://[host1:port1,host2:port2...]/topicName
    */
@@ -116,10 +116,9 @@ public class KafkaConnectionString {
   }
 
   /**
-   * parse a broker string into a list of KafkaBrokerAddresses
+   * Parse one or more concatenated broker connection strings into a list of KafkaBrokerAddresses
    * @param brokersValue
    *  example: [host1:port1,host2,port2]
-   * @return
    */
   public static List<KafkaBrokerAddress> parseBrokers(String brokersValue) {
     String[] hosts = brokersValue.split("\\s*,\\s*");

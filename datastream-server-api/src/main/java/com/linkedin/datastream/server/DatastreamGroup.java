@@ -30,7 +30,7 @@ public class DatastreamGroup {
   private final List<Datastream> _datastreams;
 
   /**
-   * Construct a datastream group
+   * Construct a DatastreamGroup
    * @param datastreams
    *  list of datastreams inside this group, the list cannot be null or empty
    */
@@ -64,16 +64,16 @@ public class DatastreamGroup {
   }
 
   /**
-   * get the source partition of this DatastreamGroup, the source partition is the same for all
-   * datastream inside this group
+   * Get the source partition of this DatastreamGroup. The source partition is the same for all datastream
+   * inside this group.
    */
   public Optional<Integer> getSourcePartitions() {
     return Optional.ofNullable(_datastreams.get(0).getSource()).map(x -> x.getPartitions(GetMode.NULL));
   }
 
   /**
-   * determine if a DatastreamGroup is paused. A DatastreamGroup is considered pauses only if ALL the
-   * datastreams in the group are paused.
+   * Determine if a DatastreamGroup is paused. A DatastreamGroup is considered paused only if ALL the datastreams
+   * in the group are paused.
    */
   public boolean isPaused() {
     boolean anyPaused = _datastreams.stream().anyMatch(ds -> ds.getStatus() == DatastreamStatus.PAUSED);
@@ -90,7 +90,7 @@ public class DatastreamGroup {
   }
 
   /**
-   *  determine if a DatastreamTask belongs to this group
+   *  Determine if a DatastreamTask belongs to this group
    */
   public boolean belongsTo(DatastreamTask task) {
     return task.getTaskPrefix().equals(getTaskPrefix());
