@@ -11,8 +11,14 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A {@link org.apache.avro.generic.GenericRecord} schema generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class RecordSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of RecordSchemaField using given {@link Field}
+   */
   public RecordSchemaField(Field field) {
     super(field);
   }
@@ -28,6 +34,9 @@ public class RecordSchemaField extends SchemaField {
     return generateRecord();
   }
 
+  /**
+   * generate a GenericRecord with random number of fields
+   */
   public GenericRecord generateRecord() throws UnknownTypeException {
     GenericRecord subRecord = new GenericData.Record(_field.schema());
     for (Field field : _field.schema().getFields()) {

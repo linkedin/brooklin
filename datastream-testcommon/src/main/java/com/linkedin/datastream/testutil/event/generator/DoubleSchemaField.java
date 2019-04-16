@@ -9,8 +9,14 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A random double generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class DoubleSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of DoubleSchemaField using given {@link Field}
+   */
   public DoubleSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class DoubleSchemaField extends SchemaField {
     return generateDouble();
   }
 
+  /**
+   * generate a random double
+   */
   public Double generateDouble() {
     return _randGenerator.getNextDouble();
   }

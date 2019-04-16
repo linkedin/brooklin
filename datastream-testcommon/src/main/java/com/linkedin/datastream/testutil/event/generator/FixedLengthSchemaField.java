@@ -8,11 +8,16 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * A random fixed length string generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class FixedLengthSchemaField extends SchemaField {
 
   int fixedSize;
 
+  /**
+   * Construct an instance of FixedLengthSchemaField using given {@link Field}
+   */
   public FixedLengthSchemaField(Field field) {
     super(field);
     fixedSize = field.schema().getFixedSize();
@@ -28,6 +33,9 @@ public class FixedLengthSchemaField extends SchemaField {
     return generateFixedLengthString();
   }
 
+  /**
+   * generate a random fixed length string
+   */
   public String generateFixedLengthString() {
     return _randGenerator.getNextString(0, fixedSize);
   }

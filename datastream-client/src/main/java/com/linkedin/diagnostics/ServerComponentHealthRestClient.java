@@ -27,6 +27,11 @@ public class ServerComponentHealthRestClient {
   private final DiagRequestBuilders _builders;
   private final RestClient _restClient;
 
+  /**
+   * Construct an instance of ServerComponentHealthRestClient
+   * @param restClient
+   *    the restClient to use for sending requests
+   */
   public ServerComponentHealthRestClient(RestClient restClient) {
     Validate.notNull(restClient, "null restClient");
     _builders = new DiagRequestBuilders();

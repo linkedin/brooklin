@@ -13,8 +13,14 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
 
 
+/**
+ * A random map generator for a specific {@link org.apache.avro.Schema.Field}
+ */
 public class MapSchemaField extends SchemaField {
 
+  /**
+   * Construct an instance of MapSchemaField using given {@link Field}
+   */
   public MapSchemaField(Field field) {
     super(field);
   }
@@ -29,6 +35,9 @@ public class MapSchemaField extends SchemaField {
     return generateMap();
   }
 
+  /**
+   * generate a map with random number of fields
+   */
   public Map<Utf8, Object> generateMap() throws UnknownTypeException {
     int count = _randGenerator.getNextInt(1, _maxNumElements);
     Map<Utf8, Object> map = new HashMap<Utf8, Object>(count);

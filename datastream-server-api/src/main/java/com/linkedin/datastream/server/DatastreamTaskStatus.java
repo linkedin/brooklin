@@ -32,6 +32,9 @@ public class DatastreamTaskStatus {
     _hostName = "";
   }
 
+  /**
+   * Construct an instance of DatastreamTaskStatus
+   */
   public DatastreamTaskStatus(Code code, String message) {
     if (code != Code.ERROR) {
       Validate.notEmpty(message, "must provide a message for ERROR status.");
