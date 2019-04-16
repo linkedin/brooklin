@@ -22,7 +22,7 @@ Brooklin also offers a framework that enables creating data pipes, [`Datastreams
 - Brooklin can be deployed to a cluster of machines (scale out) to support as many data streams as desired.
 
 ### 3. Easy to Operate
-Brooklin offers a single REST endpoint for managing data streams, and offers a rich set of operations on them in addition to CRUD (e.g. `stop` and `resume`).
+Brooklin offers a single REST endpoint for managing data streams, and offers a rich set of operations on them in addition to CRUD (e.g. `pause` and `resume`).
 
 ### 4. Offers Premium Support for Kafka
 While it is not limited to any particular system, Brooklin offers first class and battle-tested support for Kafka. It provides capabilities for reading/writing massive amounts of data to/from Kafka with high reliability at scale. You can learn more about this in the [Use Cases](#use-cases) section.
