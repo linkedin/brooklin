@@ -49,6 +49,9 @@ Brooklin offers various advantages when used for mirroring data across Kafka clu
     <li><h4>
     Whitelisting Topics Using Regex</h4>
     Select the topics to mirror using regex patterns against their names.</li>
+    <li><h4>
+    Pausing/Resuming Individual Partitions</h4>
+    Through its <a href="https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#datastream-management-service-dms">Datastream Management Service (DMS)</a>, Brooklin exposes REST APIs that allow finer control over replication pipelines, like being able to pause and resume individual partitions of a Kafka topic.</li>
 </ol>
 
 Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) wiki page to learn more about using Brooklin to mirror Kafka clusters
