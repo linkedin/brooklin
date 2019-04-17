@@ -47,6 +47,9 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import static org.mockito.Mockito.mock;
 
 
+/**
+ * Tests for {@link KafkaTransportProvider}.
+ */
 @Test
 public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   private static final Integer NUM_PARTITIONS = 10;

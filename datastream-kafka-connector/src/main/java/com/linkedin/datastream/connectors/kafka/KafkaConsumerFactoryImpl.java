@@ -12,6 +12,9 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 
 
+/**
+ * A factory for creating Kafka {@link Consumer} instances
+ */
 public class KafkaConsumerFactoryImpl implements KafkaConsumerFactory<byte[], byte[]> {
   @Override
   public Consumer<byte[], byte[]> createConsumer(Properties properties) {

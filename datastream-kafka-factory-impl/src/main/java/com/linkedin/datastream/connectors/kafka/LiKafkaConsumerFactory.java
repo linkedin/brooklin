@@ -13,6 +13,9 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import com.linkedin.kafka.clients.consumer.LiKafkaConsumerImpl;
 
 
+/**
+ * Factory for creating Kafka {@link Consumer} instances with {@code byte[]} keys and values
+ */
 public class LiKafkaConsumerFactory implements KafkaConsumerFactory<byte[], byte[]> {
 
   @Override

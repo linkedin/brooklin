@@ -15,8 +15,7 @@ import java.net.ServerSocket;
 public class NetworkUtils {
 
   /**
-   * @return
-   *  The next available port that can be used for opening a socket connection.
+   * Get the next available port that can be used for opening a socket connection.
    */
   public synchronized static int getAvailablePort() {
     try {

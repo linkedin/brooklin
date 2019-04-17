@@ -18,22 +18,27 @@ import org.slf4j.Logger;
  * The Restli request will call process on each host/instances, then aggregate all
  * the responses by calling reduce to return a merged response.
  */
-
 public interface DiagnosticsAware {
 
   // Commonly used key in diagnostics queries
   String DATASTREAM_KEY = "datastream";
 
   /**
-   * @return process the query of a single host/instance, return response such as the status of the host
+   * Process the query of a single host/instance
+   * @return response such as the status of the host
    */
   String process(String query);
 
   /**
-   * @return reduce/merge the responses of a collection of host/instance into one response
+   * Reduce/Merge the responses of a collection of host/instance into one response
    */
   String reduce(String query, Map<String, String> responses);
 
+  /**
+   * Returns the decoded path component of the URI in {@code query}
+   * @throws java.net.URISyntaxException if {@code query} is not a
+   *         valid URI per {@link URI#URI(String)}
+   */
   default String getPath(String query, Logger logger) throws Exception {
     URI uri = new URI(query);
     String path = uri.getPath();

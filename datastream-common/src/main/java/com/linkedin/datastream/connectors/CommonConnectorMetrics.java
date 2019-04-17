@@ -480,7 +480,7 @@ public class CommonConnectorMetrics {
 
   /**
    * Return the list of Brooklin metrics the connector generates for event processing related activity
-   * @param prefix Prefix to append to create the BrooklinMetricInfo.
+   * @param prefix Prefix to prepend to BrooklinMetricInfo.
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventProcessingMetrics(String prefix) {
@@ -490,7 +490,7 @@ public class CommonConnectorMetrics {
 
   /**
    * Return the list of Brooklin metrics the connector generates for event poll related activity
-   * @param prefix Prefix to append to create the BrooklinMetricInfo.
+   * @param prefix Prefix to prepend to BrooklinMetricInfo.
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventPollMetrics(String prefix) {
@@ -500,7 +500,7 @@ public class CommonConnectorMetrics {
 
   /**
    * Return the list of Brooklin metrics the connector generates for partition based activity
-   * @param prefix Prefix to append to create the BrooklinMetricInfo.
+   * @param prefix Prefix to prepend to BrooklinMetricInfo.
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getPartitionSpecificMetrics(String prefix) {

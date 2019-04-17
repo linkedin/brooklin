@@ -14,6 +14,9 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 
 
+/**
+ * Tests for {@link DatastreamProducerRecordBuilder}
+ */
 public class TestDatastreamProducerRecordBuilder {
 
   @Test

@@ -68,6 +68,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link DatastreamServer}
+ */
 @Test(singleThreaded = true)
 public class TestDatastreamServer {
   public static final String LOAD_BALANCING_STRATEGY_FACTORY = LoadbalancingStrategyFactory.class.getTypeName();
@@ -81,6 +84,14 @@ public class TestDatastreamServer {
 
   private EmbeddedDatastreamCluster _datastreamCluster;
 
+  /**
+   * Create an embedded datastream cluster initialized with 3 connectors
+   * <ol>
+   *   <li>{@value DUMMY_CONNECTOR}</li>
+   *   <li>{@value DUMMY_BOOTSTRAP_CONNECTOR}</li>
+   *   <li>{@value BROKEN_CONNECTOR}</li>
+   * </ol>
+   */
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithBootstrap() throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(true));
@@ -97,6 +108,14 @@ public class TestDatastreamServer {
     return props;
   }
 
+  /**
+   * Create an embedded datasteam cluster initialized with 2 connectors
+   * <ol>
+   *   <li>{@value DUMMY_CONNECTOR}</li>
+   *   <li>{@value BROKEN_CONNECTOR}</li>
+   * </ol>
+   * @param override Configuration properties to override defaults
+   */
   public static EmbeddedDatastreamCluster initializeTestDatastreamServerWithDummyConnector(Properties override)
       throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
@@ -309,8 +328,8 @@ public class TestDatastreamServer {
 
     Assert.assertTrue(eventsReceived1.containsAll(eventsWritten1));
 
-    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreams"));
-    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric("FileConnector.numDatastreamTasks"));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(FILE_CONNECTOR + ".numDatastreams"));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(FILE_CONNECTOR + ".numDatastreamTasks"));
 
     _datastreamCluster.shutdown();
   }

@@ -15,25 +15,31 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.serde.SerDeSet;
 
 
+/**
+ * Describes a unit of work generated from a {@link Datastream}. Every {@link Datastream} is broken
+ * down into smaller units of work, DatastreamTasks, that are assigned to one or more
+ * {@link com.linkedin.datastream.server.api.connector.Connector} instances and processed concurrently.
+ * @see com.linkedin.datastream.server.api.strategy.AssignmentStrategy
+ */
 public interface DatastreamTask {
 
   /**
-   * @return the connector type that generates events for this datastream task.
+   * Get the connector type that generates events for this datastream task.
    */
   String getConnectorType();
 
   /**
-   * @return the name of the transport provider associated with the datastream task.
+   * Get the name of the transport provider associated with the datastream task.
    */
   String getTransportProviderName();
 
   /**
-   * @return the event producer that the connector can use to produce events for this datastream task.
+   * Get the event producer that the connector can use to produce events for this datastream task.
    */
   DatastreamEventProducer getEventProducer();
 
   /**
-   * @return Id of the datastream task. Each datastream task will have a unique id.
+   * Get the Id of the datastream task. Each datastream task will have a unique id.
    */
   String getId();
 
@@ -58,44 +64,44 @@ public interface DatastreamTask {
   SerDeSet getDestinationSerDes();
 
   /**
-   * @return Current status of the datastream task.
+   * Get the current status of the datastream task.
    */
   DatastreamTaskStatus getStatus();
 
   /**
-   * Set the status for DatastreamTask. This is a way for the connector
-   * implementation to persist the status of the datastream task
+   * Set the status of the datastream task.
+   * This is a way for the connector implementation to persist the status of the datastream task
    * @param status Status of the datastream task.
    */
   void setStatus(DatastreamTaskStatus status);
 
   /**
-   * @return the name of the datastream task.
+   * Get the name of the datastream task.
    */
   String getDatastreamTaskName();
 
   /**
-   * @return whether the destination is a user managed.
+   * Get whether the destination is user-managed.
    */
   boolean isUserManagedDestination();
 
   /**
-   * @return the Datastream source.
+   * Get the datastream source.
    */
   DatastreamSource getDatastreamSource();
 
   /**
-   * @return the Datastream destination.
+   * Get the datastream destination.
    */
   DatastreamDestination getDatastreamDestination();
 
   /**
-   * @return the list of partitions this task covers.
+   * Get the list of partitions this task covers.
    */
   List<Integer> getPartitions();
 
   /**
-   * @return a map of safe checkpoints which are guaranteed
+   * Get a map of safe checkpoints which are guaranteed
    * to have been flushed onto the transport. Key is partition
    * number, and value is the safe checkpoint for it.
    */
@@ -107,7 +113,7 @@ public interface DatastreamTask {
   String getTaskPrefix();
 
   /**
-   * @return the list of datastreams for which this task is producing events for.
+   * Get the list of datastreams for which this task is producing events.
    */
   List<Datastream> getDatastreams();
 

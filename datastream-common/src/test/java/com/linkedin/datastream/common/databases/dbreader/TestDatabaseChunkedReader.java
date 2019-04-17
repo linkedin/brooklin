@@ -47,6 +47,9 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 
 
+/**
+ * Tests for {@link DatabaseChunkedReader}.
+ */
 public class TestDatabaseChunkedReader {
   // Dummy table name with 3 columns forming a composite key.
   private static final String TEST_COMPOSITE_KEY_TABLE = "TEST_DB_TEST_TABLE";

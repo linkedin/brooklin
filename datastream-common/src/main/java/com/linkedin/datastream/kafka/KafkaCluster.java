@@ -11,17 +11,17 @@ package com.linkedin.datastream.kafka;
 public interface KafkaCluster {
 
   /**
-   * @return the brokers that are part of the Kafka cluster.
+   * Get the brokers that are part of the Kafka cluster.
    */
   String getBrokers();
 
   /**
-   * @return ZooKeeper connection string used by the Kafka cluster.
+   * Get ZooKeeper connection string used by the Kafka cluster.
    */
   String getZkConnection();
 
   /**
-   * @return whether the Kafka cluster is started or not.
+   * Get whether the Kafka cluster is started or not.
    */
   boolean isStarted();
 

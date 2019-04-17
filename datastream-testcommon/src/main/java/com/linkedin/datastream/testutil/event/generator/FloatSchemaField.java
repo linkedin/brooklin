@@ -8,9 +8,15 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * A generator of random float values for a specific {@link Field}
+ */
 public class FloatSchemaField extends SchemaField {
 
+  /**
+   * Constructor for FloatSchemaField
+   * @param field the schema field to generate values for
+   */
   public FloatSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class FloatSchemaField extends SchemaField {
     return generateFloat();
   }
 
+  /**
+   * Generate a random float value between {@code 0.0} and {@code 1.0}
+   */
   public Float generateFloat() {
     return _randGenerator.getNextFloat();
   }

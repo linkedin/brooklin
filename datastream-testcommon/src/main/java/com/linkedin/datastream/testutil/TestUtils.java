@@ -18,6 +18,11 @@ public final class TestUtils {
   private TestUtils() {
   }
 
+  /**
+   * Generate a list of random strings
+   * @param count number of random strings to generate
+   * @return List of Strings
+   */
   public static List<String> generateStrings(int count) {
     List<String> generatedValues = new ArrayList<>();
     for (int index = 0; index < count; index++) {

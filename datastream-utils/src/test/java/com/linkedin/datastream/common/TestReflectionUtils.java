@@ -15,17 +15,29 @@ import org.testng.annotations.Test;
 import junit.framework.Assert;
 
 
+/**
+ * Tests for {@link ReflectionUtils}
+ */
 public class TestReflectionUtils {
   private static final String STR_ARG1 = "hello";
   private static final Integer INT_ARG2 = 100;
 
+  /**
+   * Zero argument constructor for TestReflectionUtils (used in tests)
+   */
   public TestReflectionUtils() {
   }
 
+  /**
+   * Single argument constructor for TestReflectionUtils (used in tests)
+   */
   public TestReflectionUtils(String first) {
     Assert.assertEquals(first, STR_ARG1);
   }
 
+  /**
+   * Two-argument constructor for TestReflectionUtils (used in tests)
+   */
   public TestReflectionUtils(String first, Integer second) {
     Assert.assertEquals(first, STR_ARG1);
     Assert.assertEquals(second, INT_ARG2);
@@ -82,6 +94,9 @@ public class TestReflectionUtils {
     return foo + 5;
   }
 
+  /**
+   * Public zero-argument method (used in tests)
+   */
   public int publicNoArgsMethod() {
     System.out.println("publicPlainMethod");
     return 10;

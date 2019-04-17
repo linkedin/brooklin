@@ -14,18 +14,30 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 public class AuthorizationException extends DatastreamRuntimeException {
   private static final long serialVersionUID = 1;
 
+  /**
+   * Default constructor
+   */
   public AuthorizationException() {
     super();
   }
 
+  /**
+   * Constructor using message and cause
+   */
   public AuthorizationException(String message, Throwable cause) {
     super(message, cause);
   }
 
+  /**
+   * Constructor using message only
+   */
   public AuthorizationException(String message) {
     super(message);
   }
 
+  /**
+   * Constructor using cause only
+   */
   public AuthorizationException(Throwable cause) {
     super(cause);
   }

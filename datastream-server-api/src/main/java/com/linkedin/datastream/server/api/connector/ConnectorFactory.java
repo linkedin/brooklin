@@ -9,12 +9,15 @@ import java.util.Properties;
 
 
 /**
- * Connector factory interface. Each connector should implement this which creates the connector instance.
+ * Abstraction for {@link Connector} factories.
+ * <br/>
+ * Every connector should have a corresponding implementation of this factory.
+ * @param <T> Concrete {@link Connector} type
  */
 public interface ConnectorFactory<T extends Connector> {
 
   /**
-   * create connector instance. Each connector should implement this method to create the corresponding connector
+   * Create connector instance. Each connector should implement this method to create the corresponding connector
    * instance based on the configuration.
    * @param connectorName the connector name
    * @param config    Connector configuration.

@@ -15,10 +15,24 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
- * This class implements TopicManagerFactory interface and returns NoOpTopicManager instance. This factory is used by default
- * by mirror maker to create topic manager instance.
+ * An implementation of {@link TopicManagerFactory} for creating {@link NoOpTopicManager} instances. This factory is
+ * used by default by mirror maker to create topic manager instance.
  */
 public class NoOpTopicManagerFactory implements TopicManagerFactory {
+
+  /**
+   * Create an instance of NoOpTopicManager.
+   * @param datastreamTask Task that topic manager is going to be created for.
+   * @param datastream Datastream that topic manager is going to be created for.
+   * @param groupIdConstructor This will be used while creating source/destination consumers
+   * @param kafkaConsumerFactory This will be used to create source/destination Kafka consumer
+   * @param consumerProperties properties for Kafka consumer
+   * @param topicManagerProperties Any additional properties that need to be passed to topic manager
+   * @param consumerMetrics In case one needs to log consumer metrics.
+   * @param metricsPrefix Prefix to use for metrics that topic manager emits.
+   * @param metricsKey Key to use for metrics that topic manager emits
+   * @return Instance of NoOpTopicManager.
+   */
   public TopicManager createTopicManager(DatastreamTask datastreamTask, Datastream datastream,
       GroupIdConstructor groupIdConstructor, KafkaConsumerFactory<?, ?> kafkaConsumerFactory,
       Properties consumerProperties, Properties topicManagerProperties, CommonConnectorMetrics consumerMetrics,

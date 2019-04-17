@@ -178,7 +178,7 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+    _consumer._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
         _state.getAllTopicPartitions(), currentTime);
     DatastreamPositionResponse response = _consumer.getPositionResponse();
 
@@ -230,7 +230,7 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+    _consumer._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
         _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 
@@ -280,7 +280,7 @@ public class TestPositionResponse {
     _state.allowNextPoll();
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
     long currentTime = System.currentTimeMillis();
-    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+    _consumer._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
         _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 
@@ -332,7 +332,7 @@ public class TestPositionResponse {
     PollUtils.poll(() -> false, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     long currentTime = System.currentTimeMillis();
-    _consumer._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
+    _consumer._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(_factory.createConsumer(null),
         _state.getAllTopicPartitions(), currentTime);
     response = _consumer.getPositionResponse();
 

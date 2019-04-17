@@ -16,7 +16,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 
 
 /**
- * NoOp connector that doesn't perform anything.
+ * A factory for creating {@link NoOpConnector} instances
  */
 public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFactory.NoOpConnector> {
   @Override
@@ -24,6 +24,9 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
     return new NoOpConnector();
   }
 
+  /**
+   * A {@link Connector} implementation that does nothing.
+   */
   public static class NoOpConnector implements Connector {
     @Override
     public void start(CheckpointProvider checkpointProvider) {
@@ -31,7 +34,6 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
 
     @Override
     public void stop() {
-
     }
 
     @Override

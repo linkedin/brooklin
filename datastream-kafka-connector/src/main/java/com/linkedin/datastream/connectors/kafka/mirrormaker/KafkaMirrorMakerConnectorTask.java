@@ -108,6 +108,15 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   private GroupIdConstructor _groupIdConstructor;
 
+  /**
+   * Constructor for KafkaMirrorMakerConnectorTask
+   * @param config Task configuration properties
+   * @param task Datastream task
+   * @param connectorName Connector name
+   * @param isFlushlessModeEnabled true if {@value KafkaMirrorMakerConnector#IS_FLUSHLESS_MODE_ENABLED}
+   *                               is set to true for the connector identified with {@code connectorName}
+   * @param groupIdConstructor Kafka consumer group ID constructor
+   */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
@@ -283,6 +292,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  /**
+   * Get all metrics info for the connector whose name is {@code connectorName}
+   */
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
@@ -302,6 +314,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return metrics;
   }
 
+  /**
+   * Get Kafka consumer group ID for a datastream task
+   * @param task Datastream task
+   * @param groupIdConstructor Consumer group ID constructor
+   * @param consumerMetrics Consumer metrics to use for error reporting
+   * @param logger Logger to use
+   */
   @VisibleForTesting
   public static String getMirrorMakerGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
       CommonConnectorMetrics consumerMetrics, Logger logger) {

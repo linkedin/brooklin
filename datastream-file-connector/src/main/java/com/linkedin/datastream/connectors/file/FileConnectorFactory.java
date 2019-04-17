@@ -7,17 +7,15 @@ package com.linkedin.datastream.connectors.file;
 
 import java.util.Properties;
 
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 
 
+/**
+ * A factory for creating {@link FileConnector} instances
+ */
 public class FileConnectorFactory implements ConnectorFactory<FileConnector> {
   @Override
   public FileConnector createConnector(String connectorName, Properties config, String clusterName) {
-    try {
-      return new FileConnector(config);
-    } catch (DatastreamException e) {
-      throw new RuntimeException("File connector instantiation failed with error", e);
-    }
+    return new FileConnector(config);
   }
 }

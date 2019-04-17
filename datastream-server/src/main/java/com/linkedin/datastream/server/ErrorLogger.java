@@ -16,7 +16,7 @@ import com.linkedin.restli.server.RestLiServiceException;
 
 
 /**
- * Simple utility class for logging and throwing/returning a restli exception.
+ * Simple utility class for logging and throwing/returning a Rest.li exception.
  * A shortened random UUID, as well as the server instance name,
  * is attached to each error message to facilitate the troubleshooting
  */

@@ -12,6 +12,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link KafkaConnectionString}
+ */
 public class TestKafkaConnectionString {
 
   @Test(expectedExceptions = IllegalArgumentException.class)

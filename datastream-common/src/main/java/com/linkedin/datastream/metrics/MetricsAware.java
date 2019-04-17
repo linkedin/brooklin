@@ -34,14 +34,14 @@ public interface MetricsAware {
   }
 
   /**
-   * @return the metric name prepended with the caller's class name
+   * Get the metric name prepended with the caller's class name
    */
   default String buildMetricName(String metricName) {
     return MetricRegistry.name(this.getClass().getSimpleName(), metricName);
   }
 
   /**
-   * @return the metric name prepended with the caller's class name
+   * Get the metric name prepended with the caller's class name
    */
   default String buildMetricName(String classSimpleName, String metricName) {
     return MetricRegistry.name(classSimpleName, metricName);
@@ -62,6 +62,10 @@ public interface MetricsAware {
     return this.getClass().getSimpleName() + KEY_REGEX;
   }
 
+  /**
+   * Get a regular expression for all dynamic metrics created with the class whose name is {@code classSimpleName}
+   * @see #getDynamicMetricPrefixRegex()
+   */
   default String getDynamicMetricPrefixRegex(String classSimpleName) {
     return classSimpleName + KEY_REGEX;
   }

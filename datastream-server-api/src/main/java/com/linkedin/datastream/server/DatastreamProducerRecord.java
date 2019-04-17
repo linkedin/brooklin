@@ -17,7 +17,7 @@ import com.linkedin.datastream.serde.SerDeSet;
 
 
 /**
- * List of brooklin events that needs to be sent to the transport provider
+ * List of brooklin events that need to be sent to the {@link com.linkedin.datastream.server.api.transport.TransportProvider}
  */
 public class DatastreamProducerRecord {
   private final Optional<Integer> _partition;
@@ -50,6 +50,9 @@ public class DatastreamProducerRecord {
     _destination = destination;
   }
 
+  /**
+   * Serialize events in the DatastreamProducerRecord using the serializers/deserializers in {@code serDes}
+   */
   public synchronized void serializeEvents(SerDeSet serDes) {
     _events.forEach(event -> serializeEvent(event, serDes));
   }
@@ -68,7 +71,7 @@ public class DatastreamProducerRecord {
   }
 
   /**
-   * @return all events in the event record. The events returned can be of type BrooklinEnvelope or a serialized
+   * Get all events in the event record. The events returned can be of type BrooklinEnvelope or a serialized
    * byte array. based on whether the envelope serializer is configured for the stream.
    */
   public synchronized List<BrooklinEnvelope> getEvents() {
@@ -76,7 +79,7 @@ public class DatastreamProducerRecord {
   }
 
   /**
-   * @return timestamp in Epoch-millis when the events were produced onto the source
+   * Get timestamp in Epoch-millis when the events were produced onto the source
    */
   public long getEventsSourceTimestamp() {
     return _eventsSourceTimestamp;
@@ -91,7 +94,7 @@ public class DatastreamProducerRecord {
   }
 
   /**
-   * @return destination partition within the destination
+   * Get destination partition within the destination
    */
   public Optional<Integer> getPartition() {
     return _partition;

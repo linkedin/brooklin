@@ -53,6 +53,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 
+/**
+ * Tests for {@link KafkaConnectorTask}
+ */
 public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);
@@ -194,7 +197,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     LOG.info("Sending third set of events");
 
     //Sleep 1 seconds to wait for maybeCommitOffsets being called
-    Thread.sleep(1100);
+    Thread.sleep(2000);
     spiedTask.stop();
     Assert.assertTrue(spiedTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
@@ -235,7 +238,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
             consumerPosition, lastRecordTime));
 
     long postProductionTime = System.currentTimeMillis();
-    connectorTask._kafkaPositionTracker.updateLatestBrokerOffsetsByRpc(connectorTask._consumer,
+    connectorTask._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(connectorTask._consumer,
         connectorTask._consumerAssignment, postProductionTime);
 
     consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),

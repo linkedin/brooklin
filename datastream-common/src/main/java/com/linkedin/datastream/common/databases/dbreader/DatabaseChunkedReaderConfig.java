@@ -45,6 +45,10 @@ public class DatabaseChunkedReaderConfig {
   private ChunkedQueryManager _chunkedQueryManager;
   private boolean _shouldSkipBadMessage;
 
+  /**
+   * Constructor for DatabaseChunkedReaderConfig
+   * @param properties Configuration properties to load
+   */
   public DatabaseChunkedReaderConfig(Properties properties) {
     Properties props = new VerifiableProperties(properties).getDomainProperties(DB_READER_DOMAIN_CONFIG);
     VerifiableProperties verifiableProperties = new VerifiableProperties(props);
@@ -69,10 +73,6 @@ public class DatabaseChunkedReaderConfig {
     verifiableProperties.verify();
   }
 
-  /**
-   * Getters for private member fields
-   */
-
   public int getFetchSize() {
     return _fetchSize;
   }
@@ -89,7 +89,7 @@ public class DatabaseChunkedReaderConfig {
     return _chunkedQueryManager;
   }
 
-  public boolean shouldSkipBadMessage() {
+  public boolean getShouldSkipBadMessage() {
     return _shouldSkipBadMessage;
   }
 }

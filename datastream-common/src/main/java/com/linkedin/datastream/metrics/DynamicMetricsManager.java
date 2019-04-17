@@ -86,6 +86,9 @@ public class DynamicMetricsManager {
     }
   }
 
+  /**
+   * Get the DynamicMetricsManager instance
+   */
   public static DynamicMetricsManager getInstance() {
     if (_instance == null) {
       throw new IllegalStateException("DynamicMetricsManager has not yet been instantiated.");

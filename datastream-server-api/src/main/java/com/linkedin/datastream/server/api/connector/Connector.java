@@ -50,10 +50,14 @@ public interface Connector extends MetricsAware {
    * Initialize the datastream. Any connector-specific validations for the datastream needs to performed here.
    * Connector can mutate the datastream object in this call. Framework will write the updated datastream object.
    * NOTE:
-   *   1. This method is called by the restli service before the datastream is written to ZooKeeper, so please make sure,
-   *   this call doesn't block for more then few seconds otherwise the rest call will time out.
-   *   2. It is possible that the brooklin framework may call this method in parallel to another onAssignmentChange
-   *   call. It is up to the connector to perform the synchronization if it needs between initialize and onAssignmentChange.
+   * <ol>
+   *   <li>
+   *     This method is called by the Rest.li service before the datastream is written to ZooKeeper, so please make sure,
+   *     this call doesn't block for more then few seconds otherwise the REST call will time out.</li>
+   *   <li>
+   *     It is possible that the brooklin framework may call this method in parallel to another onAssignmentChange
+   *     call. It is up to the connector to perform the synchronization if it needs between initialize and onAssignmentChange.</li>
+   * </ol>
    * @param stream Datastream model
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.
@@ -112,8 +116,8 @@ public interface Connector extends MetricsAware {
    * Hook that can be used to do any final connector related initializations on datastream, after coordinator is done
    * with its set of initializations.
    *
-   * NOTE: This method is called by the restli service before the datastream is written to ZooKeeper, so please make
-   *   sure this call doesn't block for more then few seconds otherwise the rest call will timeout.
+   * NOTE: This method is called by the Rest.li service before the datastream is written to ZooKeeper, so please make
+   *   sure this call doesn't block for more then few seconds otherwise the REST call will timeout.
    * @param stream Datastream being initialized
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.

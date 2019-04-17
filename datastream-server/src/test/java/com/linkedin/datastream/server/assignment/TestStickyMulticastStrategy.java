@@ -34,6 +34,10 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 
+
+/**
+ * Tests for {@link StickyMulticastStrategy}
+ */
 public class TestStickyMulticastStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestBroadcastStrategy.class.getName());

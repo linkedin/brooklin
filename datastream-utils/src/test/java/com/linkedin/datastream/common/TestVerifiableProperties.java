@@ -13,6 +13,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link VerifiableProperties}
+ */
 public class TestVerifiableProperties {
 
   @Test

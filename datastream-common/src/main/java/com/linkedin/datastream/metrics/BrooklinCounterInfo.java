@@ -22,10 +22,19 @@ public class BrooklinCounterInfo extends BrooklinMetricInfo {
 
   public static final Set<String> SUPPORTED_ATTRIBUTES = Stream.of(COUNT, VALUE).collect(Collectors.toSet());
 
+  /**
+   * Construct an instance of BrooklinCounterInfo
+   * @param nameOrRegex Counter name or regex
+   */
   public BrooklinCounterInfo(String nameOrRegex) {
     this(nameOrRegex, Optional.empty());
   }
 
+  /**
+   * Construct an instance of BrooklinCounterInfo
+   * @param nameOrRegex Counter name or regex
+   * @param counterAttributes Counter attributes
+   */
   public BrooklinCounterInfo(String nameOrRegex, Optional<List<String>> counterAttributes) {
     super(nameOrRegex, counterAttributes);
   }

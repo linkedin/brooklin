@@ -33,7 +33,7 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MS = "processingDelayLogThreshold";
-  public static final String CONFIG_ENABLE_LATEST_BROKER_OFFSETS_FETCHER = "enableLatestBrokerOffsetsFetcher";
+  public static final String CONFIG_ENABLE_KAFKA_POSITION_TRACKER = "enableKafkaPositionTracker";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MS = Duration.ofMinutes(1).toMillis();
 
@@ -60,8 +60,12 @@ public class KafkaBasedConnectorConfig {
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMs;
-  private final boolean _enableLatestBrokerOffsetsFetcher;
+  private final boolean _enableKafkaPositionTracker;
 
+  /**
+   * Constructor for KafkaBasedConnectorConfig.
+   * @param properties Properties to use for creating config.
+   */
   public KafkaBasedConnectorConfig(Properties properties) {
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
     _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
@@ -86,8 +90,8 @@ public class KafkaBasedConnectorConfig {
             MIN_NON_GOOD_STATE_THRESHOLD_MS, Long.MAX_VALUE);
     _processingDelayLogThresholdMs =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MS, DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS);
-    _enableLatestBrokerOffsetsFetcher =
-        verifiableProperties.getBoolean(CONFIG_ENABLE_LATEST_BROKER_OFFSETS_FETCHER, Boolean.FALSE);
+    _enableKafkaPositionTracker =
+        verifiableProperties.getBoolean(CONFIG_ENABLE_KAFKA_POSITION_TRACKER, Boolean.FALSE);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -100,6 +104,19 @@ public class KafkaBasedConnectorConfig {
     _connectorProps = verifiableProperties;
   }
 
+  /**
+   * Constructor for KafkaBasedConnectorConfig.
+   * @param consumerFactory KafkaConsumerFactory instance to use for creating consumers.
+   * @param connectorProps Properties of kafka based connector.
+   * @param consumerProps Properties of consumer used in the connector.
+   * @param defaultKeySerde Name of default key serde.
+   * @param defaultValueSerde Name of default value serde.
+   * @param commitIntervalMillis Time interval between commits.
+   * @param retryCount Max retries while sending data.
+   * @param retrySleepDuration Sleep duration between two send retries.
+   * @param pausePartitionOnError Indicates if the task should pause partition on error.
+   * @param pauseErrorPartitionDuration Duration for which a task should be paused on error.
+   */
   @VisibleForTesting
   public KafkaBasedConnectorConfig(KafkaConsumerFactory<?, ?> consumerFactory, VerifiableProperties connectorProps,
       Properties consumerProps, String defaultKeySerde, String defaultValueSerde, long commitIntervalMillis,
@@ -120,7 +137,7 @@ public class KafkaBasedConnectorConfig {
     _daemonThreadIntervalSeconds = DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS;
     _nonGoodStateThresholdMs = DEFAULT_NON_GOOD_STATE_THRESHOLD_MS;
     _processingDelayLogThresholdMs = DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MS;
-    _enableLatestBrokerOffsetsFetcher = false;
+    _enableKafkaPositionTracker = true;
   }
 
   public String getDefaultKeySerde() {
@@ -155,6 +172,9 @@ public class KafkaBasedConnectorConfig {
     return _pauseErrorPartitionDuration;
   }
 
+  /**
+   * Get all Kafka consumer config properties
+   */
   public Properties getConsumerProps() {
     Properties consumerProps = new Properties();
     consumerProps.putAll(_consumerProps);
@@ -181,7 +201,7 @@ public class KafkaBasedConnectorConfig {
     return _processingDelayLogThresholdMs;
   }
 
-  public boolean enableLatestBrokerOffsetsFetcher() {
-    return _enableLatestBrokerOffsetsFetcher;
+  public boolean getEnableKafkaPositionTracker() {
+    return _enableKafkaPositionTracker;
   }
 }

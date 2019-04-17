@@ -54,10 +54,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link DatastreamRestClient}
+ */
 @Test(singleThreaded = true)
 public class TestDatastreamRestClient extends TestRestliClientBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestDatastreamRestClient.class);
 
+  /**
+   * Generate a datastream
+   */
   public static Datastream generateDatastream(int seed) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
@@ -86,7 +92,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   }
 
   /**
-   * Create a rest client with the default/leader DMS instance
+   * Create a REST client with the default/leader DMS instance
    */
   private DatastreamRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamCluster.getDatastreamPorts().get(0));

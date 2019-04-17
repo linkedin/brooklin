@@ -12,9 +12,15 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
 
-
+/**
+ * A generator of random map objects for a specific {@link Field}
+ */
 public class MapSchemaField extends SchemaField {
 
+  /**
+   * Constructor for MapSchemaField
+   * @param field the schema field to generate values for
+   */
   public MapSchemaField(Field field) {
     super(field);
   }
@@ -29,6 +35,10 @@ public class MapSchemaField extends SchemaField {
     return generateMap();
   }
 
+  /**
+   * Generate a map with a random number of {@link Utf8} keys (between
+   * {@code 1} and {@value _maxNumElements}) and random values
+   */
   public Map<Utf8, Object> generateMap() throws UnknownTypeException {
     int count = _randGenerator.getNextInt(1, _maxNumElements);
     Map<Utf8, Object> map = new HashMap<Utf8, Object>(count);

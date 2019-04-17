@@ -31,6 +31,9 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 
 
+/**
+ * Tests for {@link BroadcastStrategy}
+ */
 public class TestBroadcastStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestBroadcastStrategy.class.getName());

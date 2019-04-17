@@ -19,12 +19,18 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 
 
+/**
+ * A {@link TransportProviderAdmin} implementation for {@link InMemoryTransportProvider}.
+ */
 public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
 
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProviderAdminFactory.class);
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
   private static final InMemoryTransportProvider TRANSPORT_PROVIDER = new InMemoryTransportProvider();
 
+  /**
+   * Get InMemoryTransportProvider singleton
+   */
   public static InMemoryTransportProvider getTransportProvider() {
     return TRANSPORT_PROVIDER;
   }
@@ -34,6 +40,7 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
     return Duration.ofDays(1);
   }
 
+  @Override
   public synchronized void createDestination(Datastream datastream) {
     String topicName = datastream.getDestination().getConnectionString();
     int numberOfPartitions = datastream.getDestination().getPartitions();

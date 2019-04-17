@@ -17,6 +17,9 @@ import com.linkedin.TestRestliClientBase;
 import com.linkedin.datastream.diagnostics.ServerComponentHealth;
 
 
+/**
+ * Tests for {@link ServerComponentHealthRestClient}
+ */
 @Test(singleThreaded = true)
 public class TestServerComponentHealthRestClient extends TestRestliClientBase {
 
@@ -36,7 +39,7 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
   }
 
   /**
-   * Create a rest client with the default/leader DMS instance
+   * Create a REST client with the default/leader DMS instance
    */
   private ServerComponentHealthRestClient createRestClient() {
     String dmsUri = String.format("http://localhost:%d", _datastreamCluster.getDatastreamPorts().get(0));

@@ -24,13 +24,14 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * ZKClient is a wrapper of sgroschupf/zkclient. It provides the following
+ * ZKClient is a wrapper of {@link org.I0Itec.zkclient.ZkClient}. It provides the following
  * basic features:
- * (1) tolerate network reconnects so the caller doesn't have to handle the retries
- * (2) provide a String serializer since we only need to store JSON strings in ZooKeeper
- * (3) additional features like ensurePath to recursively create paths
+ * <ol>
+ *  <li>tolerate network reconnects so the caller doesn't have to handle the retries</li>
+ *  <li>provide a String serializer since we only need to store JSON strings in ZooKeeper</li>
+ *  <li>additional features like ensurePath to recursively create paths</li>
+ * </ol>
  */
-
 public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public static final String ZK_PATH_SEPARATOR = "/";
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
@@ -41,16 +42,31 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   private final ZkSerializer _zkSerializer = new ZKStringSerializer();
   private int _zkSessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
 
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   * @param sessionTimeout the session timeout in milliseconds
+   * @param connectionTimeout the connection timeout in milliseconds
+   */
   public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
     super(zkServers, sessionTimeout, connectionTimeout, new ZKStringSerializer());
 
     _zkSessionTimeoutMs = sessionTimeout;
   }
 
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   * @param connectionTimeout the connection timeout in milliseconds
+   */
   public ZkClient(String zkServers, int connectionTimeout) {
     super(zkServers, DEFAULT_SESSION_TIMEOUT, connectionTimeout, new ZKStringSerializer());
   }
 
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   */
   public ZkClient(String zkServers) {
     super(zkServers, DEFAULT_SESSION_TIMEOUT, DEFAULT_CONNECTION_TIMEOUT, new ZKStringSerializer());
   }
@@ -59,14 +75,14 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public void close() throws ZkInterruptedException {
     if (LOG.isTraceEnabled()) {
       StackTraceElement[] calls = Thread.currentThread().getStackTrace();
-      LOG.trace("closing a zkclient. callStack: " + Arrays.asList(calls));
+      LOG.trace("closing zkclient. callStack: {}", Arrays.asList(calls));
     }
     getEventLock().lock();
     try {
       if (_connection == null) {
         return;
       }
-      LOG.info("Closing zkclient: " + ((ZkConnection) _connection).getZookeeper());
+      LOG.info("closing zkclient: {}", ((ZkConnection) _connection).getZookeeper());
       super.close();
     } catch (ZkInterruptedException e) {
       /**
@@ -92,24 +108,10 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       }
     } finally {
       getEventLock().unlock();
-      LOG.info("Closed zkclient");
+      LOG.info("closed zkclient");
     }
   }
 
-  public Stat getStat(final String path) {
-    long startT = System.nanoTime();
-
-    try {
-      return retryUntilConnected(() -> ((ZkConnection) _connection).getZookeeper().exists(path, false));
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("exists, path: " + path + ", time: " + (endT - startT) + " ns");
-      }
-    }
-  }
-
-  // override exists(path, watch), so we can record all exists requests
   @Override
   public boolean exists(final String path, final boolean watch) {
     long startT = System.nanoTime();
@@ -119,12 +121,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("exists, path: " + path + ", time: " + (endT - startT) + " ns");
+        LOG.trace("exists, path: {}, time: {} ns", path, (endT - startT));
       }
     }
   }
 
-  // override getChildren(path, watch), so we can record all getChildren requests
   @Override
   public List<String> getChildren(final String path, final boolean watch) {
     long startT = System.nanoTime();
@@ -134,15 +135,18 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("getChildren, path: " + path + ", time: " + (endT - startT) + " ns");
+        LOG.trace("getChildren, path: {}, time: {} ns", path, (endT - startT));
       }
     }
   }
 
   /**
-   * Read the content of a znode, and make sure to read a valid result. When znodes is in an inconsistent
-   * state, for example, being written to by a different process, the ZkClient.readData(path) will return
-   * null. This is a helper method to do retry until the value is not null.
+   * Read the content of a znode and make sure to read a valid result. When znode is in an inconsistent
+   * state (e.g. being written to by a different process), the ZkClient.readData(path) will return
+   * null. This is a helper method to retry until the return value is non-null or until {@code timeout} is reached
+   * @param path the path of the znode to read
+   * @param timeout the timeout, in milliseonds, after which this method will return even if the value is null
+   * @return the content of the znode at the given path
    */
   public String ensureReadData(final String path, final long timeout) {
     Random rn = new Random();
@@ -171,24 +175,30 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       try {
         Thread.sleep(nextWait);
       } catch (InterruptedException e) {
-        LOG.error("Failed to sleep at retry: " + counter + " " + e.getMessage());
+        LOG.error("Failed to sleep at retry: {}", counter, e);
       }
       totalWait += nextWait;
-      content = super.readData(path, false /* returnNullIfPathNotExists */);
+      content = super.readData(path, false);
     }
 
     if (content == null) {
-      LOG.warn("Failed to read znode data for path " + path + " within timeout " + timeout + " milliseconds");
+      LOG.warn("Failed to read znode data for path {} within timeout of {} milliseconds", path, timeout);
     }
 
     return content;
   }
 
+  /**
+   * Read the content of a znode and make sure to read a valid result. When znode is in an inconsistent state (e.g.
+   * being written to by a different process), the ZkClient.readData(path) will return null. This is a helper method to
+   * retry until the return value is non-null or until the zk session timeout is reached
+   * @param path the path of the znode to read
+   * @return the content of the znode at the given path
+   */
   public String ensureReadData(final String path) {
     return ensureReadData(path, _zkSessionTimeoutMs);
   }
 
-  // override readData(path, stat, watch), so we can record all read requests
   @Override
   @SuppressWarnings("unchecked")
   protected <T extends Object> T readData(final String path, final Stat stat, final boolean watch) {
@@ -199,52 +209,25 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("getData, path: " + path + ", time: " + (endT - startT) + " ns");
+        LOG.trace("readData, path: {}, time: {} ns", path, (endT - startT));
       }
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  public <T extends Object> T readDataAndStat(String path, Stat stat, boolean returnNullIfPathNotExists) {
-    T data = null;
-    try {
-      data = (T) super.readData(path, stat);
-    } catch (ZkNoNodeException e) {
-      if (!returnNullIfPathNotExists) {
-        throw e;
-      }
-    }
-    return data;
   }
 
   @Override
-  public void writeData(final String path, Object datat, final int expectedVersion) {
+  public void writeData(final String path, Object data, final int expectedVersion) {
     long startT = System.nanoTime();
     try {
-      final byte[] data = serialize(datat);
+      final byte[] bytes = serialize(data);
 
       retryUntilConnected(() -> {
-        _connection.writeData(path, data, expectedVersion);
+        _connection.writeData(path, bytes, expectedVersion);
         return null;
       });
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("setData, path: " + path + ", time: " + (endT - startT) + " ns");
-      }
-    }
-  }
-
-  public Stat writeDataGetStat(final String path, Object datat, final int expectedVersion) throws InterruptedException {
-    long start = System.nanoTime();
-    try {
-      final byte[] bytes = _zkSerializer.serialize(datat);
-      return retryUntilConnected(
-          () -> ((ZkConnection) _connection).getZookeeper().setData(path, bytes, expectedVersion));
-    } finally {
-      long end = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("setData, path: " + path + ", time: " + (end - start) + " ns");
+        LOG.trace("writeData, path: {}, time: {} ns", path, (endT - startT));
       }
     }
   }
@@ -263,7 +246,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("create, path: " + path + ", time: " + (endT - startT) + " ns");
+        LOG.trace("create, path: {}, time: {} ns", path, (endT - startT));
       }
     }
   }
@@ -285,11 +268,15 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     } finally {
       long endT = System.nanoTime();
       if (LOG.isTraceEnabled()) {
-        LOG.trace("delete, path: " + path + ", time: " + (endT - startT) + " ns");
+        LOG.trace("delete, path: {}, time: {} ns", path, (endT - startT));
       }
     }
   }
 
+  /**
+   * Ensure that all the paths in the given full path String are created
+   * @param path the zk path
+   */
   public void ensurePath(String path) {
     if (path == null) {
       return;
@@ -304,7 +291,7 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     Stack<String> pstack = new Stack<>();
 
     // push paths in stack because we need to create from parent to children
-    while (!this.exists(path)) {
+    while (!exists(path)) {
       pstack.push(path);
       path = path.substring(0, path.lastIndexOf(ZK_PATH_SEPARATOR));
       if (path.isEmpty()) {
@@ -316,11 +303,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       String p = pstack.pop();
 
       // double check the existence of the path to avoid herd effect
-      if (this.exists(p)) {
+      if (exists(p)) {
         continue;
       }
 
-      LOG.info("creating path in zookeeper: " + p);
+      LOG.info("creating path in zookeeper: {}", p);
       try {
         this.createPersistent(p);
       } catch (ZkNodeExistsException e) {
@@ -329,10 +316,16 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     }
   }
 
+  /**
+   * Serialize the given data into a byte array using the ZkSerializer
+   */
   public byte[] serialize(Object data) {
     return _zkSerializer.serialize(data);
   }
 
+  /**
+   * Deserialize the given data using the ZkSerializer
+   */
   @SuppressWarnings("unchecked")
   public <T extends Object> T deserialize(byte[] data) {
     if (data == null) {

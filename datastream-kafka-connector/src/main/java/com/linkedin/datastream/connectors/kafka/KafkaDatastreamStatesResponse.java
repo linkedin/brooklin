@@ -28,6 +28,11 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 
 
+/**
+ * Holds information about the states of the various datastreams in a Brooklin instance.
+ * Used to respond to requests made to the ServerComponentHealthResources diagnostic endpoint.
+ * @see AbstractKafkaConnector#process(String)
+ */
 @JsonPropertyOrder({"datastream", "assignedTopicPartitions", "autoPausedPartitions", "manualPausedPartitions", "inFlightMessageCounts"})
 public class KafkaDatastreamStatesResponse {
 
@@ -45,16 +50,35 @@ public class KafkaDatastreamStatesResponse {
   // Map of source partition to number of in-flight message counts
   private Map<FlushlessEventProducerHandler.SourcePartition, Long> _inFlightMessageCounts;
 
+  /**
+   * Constructor
+   */
   public KafkaDatastreamStatesResponse() {
 
   }
 
+  /**
+   * Constructor
+   * @param datastream datastream name
+   * @param autoPausedPartitions a map of paused Kafka topic partitions and their metadata (e.g. reason for pause)
+   * @param manualPausedPartitions a map of topic to partitions that are configured for pause
+   * @param assignedTopicPartitions all assigned Kafka topic partitions
+   */
   public KafkaDatastreamStatesResponse(String datastream,
       Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions,
       Map<String, Set<String>> manualPausedPartitions, Set<TopicPartition> assignedTopicPartitions) {
     this(datastream, autoPausedPartitions, manualPausedPartitions, assignedTopicPartitions, Collections.emptyMap());
   }
 
+  /**
+   * Constructor
+   * @param datastream datastream name
+   * @param autoPausedPartitions a map of paused Kafka topic partitions and their metadata (e.g. reason for pause)
+   * @param manualPausedPartitions a map of topic to partitions that are configured for pause
+   * @param assignedTopicPartitions all assigned Kafka topic partitions
+   * @param inFlightMessageCounts a map of all source partitions to their inflight message counts
+   * @see FlushlessEventProducerHandler#getInFlightMessagesCounts()
+   */
   public KafkaDatastreamStatesResponse(String datastream,
       Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions,
       Map<String, Set<String>> manualPausedPartitions, Set<TopicPartition> assignedTopicPartitions,
@@ -66,10 +90,16 @@ public class KafkaDatastreamStatesResponse {
     _inFlightMessageCounts = inFlightMessageCounts;
   }
 
+  /**
+   * Serialize to JSON
+   */
   public static String toJson(KafkaDatastreamStatesResponse obj) {
     return JsonUtils.toJson(obj);
   }
 
+  /**
+   * Deserialize from JSON
+   */
   public static KafkaDatastreamStatesResponse fromJson(String json) {
     SimpleModule simpleModule = new SimpleModule("KafkaDatastreamStatesResponseModule", Version.unknownVersion());
     simpleModule.addKeyDeserializer(FlushlessEventProducerHandler.SourcePartition.class, SourcePartitionDeserializer.getInstance());

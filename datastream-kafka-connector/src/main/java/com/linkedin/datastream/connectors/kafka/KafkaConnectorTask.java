@@ -33,6 +33,9 @@ import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
+/**
+ * A connector task that can consume from a single kafka topic.
+ */
 public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final String CLASS_NAME = KafkaConnectorTask.class.getSimpleName();
 
@@ -44,6 +47,14 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
 
   GroupIdConstructor _groupIdConstructor;
 
+  /**
+   * Concstructor for KafkaConnectorTask.
+   * @param config Config to be used while creating KafkaConnectorTask.
+   * @param task Corresponding DatastreamTask that the KafkaConnectorTask is going to be created for.
+   * @param connectorName Name of the connector that the task belongs to.
+   * @param groupIdConstructor Group ID constructor to use for generating consumer group name when creating
+   *                           consumer inside the task.
+   */
   public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
@@ -80,6 +91,14 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     _consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), this);
   }
 
+  /**
+   * Create kafka consumer
+   * @param consumerFactory Instance of KafkaConsumerFactory that is used to create consumer.
+   * @param consumerProps Properties of the consumer to be created.
+   * @param groupId Consumer group that the consumer to create is part of.
+   * @param connectionString Kafka cluster the consumer should connect to.
+   * @return Instance of Consumer.
+   */
   public static Consumer<?, ?> createConsumer(KafkaConsumerFactory<?, ?> consumerFactory, Properties consumerProps,
       String groupId, KafkaConnectionString connectionString) {
 
@@ -94,6 +113,10 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
         _srcConnString);
   }
 
+  /**
+   * Get Brooklin metrics info
+   * @param connectorName Connector name to use
+   */
   public static List<BrooklinMetricInfo> getMetricInfos(String connectorName) {
     return AbstractKafkaBasedConnectorTask.getMetricInfos(
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX);
@@ -131,6 +154,13 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     return builder.build();
   }
 
+  /**
+   * Get Kafka group ID of given task
+   * @param task Task for which group ID is generated.
+   * @param groupIdConstructor GroupIdConstructor to use for generating group ID.
+   * @param consumerMetrics CommonConnectorMetrics to use for reporting errors.
+   * @param logger Logger for logging information.
+   */
   @VisibleForTesting
   public static String getKafkaGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
       CommonConnectorMetrics consumerMetrics, Logger logger) {

@@ -15,7 +15,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+/**
+ * Holds global settings for the event generators and event producers used for testing.
+ */
 public class GlobalSettings {
+
   private static final Logger LOG = LoggerFactory.getLogger(GlobalSettings.class.getName());
 
   public String _datastreamName;
@@ -48,11 +52,17 @@ public class GlobalSettings {
 
   private int _numberOfErrors = 0;
 
+  /**
+   * Enum for the mode to run in
+   */
   public enum Mode {
     Default,
     SizeConstrained
   }
 
+  /**
+   * Enum for the producer type to use
+   */
   public enum ProducerType {
     Generic,
     Datastream,
@@ -60,10 +70,17 @@ public class GlobalSettings {
     Espresso
   }
 
+  /**
+   * Increment the number of errors by 1
+   */
   public synchronized void incrementErrorCount() {
     _numberOfErrors++;
   }
 
+  /**
+   * Increment the number of errors by {@code errorCount}
+   * @param errorCount the error count to increment by
+   */
   public synchronized void incrementErrorCount(int errorCount) {
     _numberOfErrors += errorCount;
   }
@@ -72,6 +89,11 @@ public class GlobalSettings {
     return _numberOfErrors;
   }
 
+  /**
+   * Parse the command line parameters
+   * @param args the arguments passed through command line
+   * @return whether the parsing was successful
+   */
   @SuppressWarnings("static")
   public boolean parseCommandLineParameters(String[] args) {
     // Create command-line options

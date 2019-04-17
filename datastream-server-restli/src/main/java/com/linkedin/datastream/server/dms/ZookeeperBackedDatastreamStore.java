@@ -21,7 +21,9 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
-
+/**
+ * ZooKeeper-backed {@link DatastreamStore}
+ */
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperBackedDatastreamStore.class.getName());
@@ -30,6 +32,12 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   private final String _cluster;
   private final CachedDatastreamReader _datastreamCache;
 
+  /**
+   * Construct an instance of ZookeeperBackedDatastreamStore
+   * @param datastreamCache cache for datastream data
+   * @param zkClient ZooKeeper client to use
+   * @param cluster Brooklin cluster name
+   */
   public ZookeeperBackedDatastreamStore(CachedDatastreamReader datastreamCache, ZkClient zkClient, String cluster) {
     Validate.notNull(datastreamCache);
     Validate.notNull(zkClient);

@@ -22,6 +22,9 @@ import com.linkedin.datastream.testutil.event.generator.DatastreamEventGenerator
 import com.linkedin.datastream.testutil.event.validator.GenericEventValidator;
 
 
+/**
+ * Tests for {@link DatastreamEventGenerator}
+ */
 public class TestEventGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(TestEventGenerator.class);
 

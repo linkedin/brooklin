@@ -16,6 +16,9 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
+/**
+ * Tests for {@link DatastreamTask}
+ */
 public class TestDatastreamTask {
 
   @Test

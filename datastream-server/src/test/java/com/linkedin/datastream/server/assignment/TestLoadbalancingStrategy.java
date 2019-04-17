@@ -33,6 +33,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 
+/**
+ * Tests for {@link LoadbalancingStrategy}
+ */
 public class TestLoadbalancingStrategy {
   private ZkAdapter createMockAdapter() {
     ZkAdapter adapter = mock(ZkAdapter.class);

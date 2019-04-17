@@ -23,6 +23,9 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
 
+/**
+ * Tests for {@link CommonConnectorMetrics}.
+ */
 public class TestCommonConnectorMetrics {
   private static final Logger LOG = LoggerFactory.getLogger(TestCommonConnectorMetrics.class);
   private static final String CONSUMER1_NAME = "CONNECTOR_CONSUMER1";

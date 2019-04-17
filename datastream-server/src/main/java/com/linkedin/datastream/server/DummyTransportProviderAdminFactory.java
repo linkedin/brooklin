@@ -19,6 +19,9 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
 
 
+/**
+ * Factory to create a dummy {@link TransportProvider} which simply drops the events on the floor.
+ */
 public class DummyTransportProviderAdminFactory implements TransportProviderAdminFactory, TransportProviderAdmin {
 
   public static final String PROVIDER_NAME = "default";
@@ -28,10 +31,17 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
   int _createDestinationCount = 0;
   int _dropDestinationCount = 0;
 
+  /**
+   * Constructor for DummyTransportProviderAdminFactory
+   */
   public DummyTransportProviderAdminFactory() {
     this(false);
   }
 
+  /**
+   * Constructor for DummyTransportProviderAdminFactory which can optionally throw exception on every send call
+   * @param throwOnSend whether or not to throw an exception on send calls
+   */
   public DummyTransportProviderAdminFactory(boolean throwOnSend) {
     _throwOnSend = throwOnSend;
   }
@@ -67,7 +77,6 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
 
   @Override
   public void initializeDestinationForDatastream(Datastream datastream, String destinationName) throws DatastreamValidationException {
-
     if (!datastream.hasDestination()) {
       datastream.setDestination(new DatastreamDestination());
     }

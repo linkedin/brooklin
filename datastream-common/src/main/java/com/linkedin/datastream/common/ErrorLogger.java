@@ -15,6 +15,10 @@ import org.slf4j.Logger;
 public class ErrorLogger {
   private final Logger _logger;
 
+  /**
+   * Construct an ErrorLogger
+   * @param logger the actual logger to use
+   */
   public ErrorLogger(Logger logger) {
     Validate.notNull(logger, "null logger");
     _logger = logger;

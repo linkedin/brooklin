@@ -13,6 +13,9 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 
+/**
+ * A factory for creating {@link BroadcastStrategy} instances
+ */
 public class BroadcastStrategyFactory implements AssignmentStrategyFactory {
   // the number of datastream tasks to create for a datastream
   public static final String CFG_MAX_TASKS = "maxTasks";

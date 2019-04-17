@@ -74,6 +74,7 @@ public class DatastreamRestClient {
   private long _retryTimeoutMs = DEFAULT_RETRY_TIMEOUT_MS;
 
   /**
+   * Construct the DatastreamRestClient
    * @deprecated Please use {@link DatastreamRestClientFactory} instead
    * @param restClient pre-created RestClient
    */
@@ -257,11 +258,7 @@ public class DatastreamRestClient {
   /**
    * Creates a new datastream. Name of the datastream must be unique. This method makes a POST REST call to the
    * Datastream management service which validates the datastream object and writes it to the store (ZooKeeper).
-   * @param datastream
-   *   Datastream that needs to be created.
-   * @for any errors encountered while creating the datastream.
-   * @throws com.linkedin.r2.RemoteInvocationException for any network/system level errors encountered
-   *   while sending the request or receiving the response.
+   * @param datastream Datastream to create
    */
   public void createDatastream(Datastream datastream) {
     Instant startTime = Instant.now();
