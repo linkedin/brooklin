@@ -426,16 +426,55 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  /**
-   * testCoordinationWithStickyMulticastStrategy is a smoke test to verify correct rebalance behavior upon datastream
-   * being paused and instance being add
-   * <ul>
-   *     <li>create 3 instances and 4 datastreams, verified all of them get assigned properly</li>
-   *     <li>pause a data stream, verified it doesn't get rebalanced</li>
-   *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
-   *     <li>add a instance, verify the new instance get proper assignment</li>
-   * </ul>
-   */
+  @Test
+  public void testStopAndResumeDatastream() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+    //verify the assignment
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1);
+    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
+    Assert.assertNotEquals(zkClient.getChildren(instance1Path).size(), 0);
+
+    // Stop the datastream.
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setStatus(DatastreamStatus.STOPPED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() == 0), 200, WAIT_TIMEOUT_MS));
+
+    // Resume the datastream
+    ds1.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() != 0), 200, WAIT_TIMEOUT_MS));
+
+  }
+
+    /**
+     * testCoordinationWithStickyMulticastStrategy is a smoke test to verify correct rebalance behavior upon datastream
+     * being paused and instance being add
+     * <ul>
+     *     <li>create 3 instances and 4 datastreams, verified all of them get assigned properly</li>
+     *     <li>pause a data stream, verified it doesn't get rebalanced</li>
+     *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
+     *     <li>add a instance, verify the new instance get proper assignment</li>
+     * </ul>
+     */
   @Test
   public void testCoordinationWithStickyMulticastStrategy() throws Exception {
     String testCluster = "testCoordinationSmoke";

@@ -238,6 +238,20 @@ public class TestDatastreamResources {
     Assert.assertEquals(ds1.getStatus(), DatastreamStatus.READY);
     Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
 
+    // STOPPED Datastream1 (normal)
+    restClient.stop(ds1.getName());
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.STOPPED);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+
+    // Resume Datastream1 (Normal)
+    restClient.resume(ds1.getName(), false);
+    ds1 = restClient.getDatastream(ds1.getName());
+    ds2 = restClient.getDatastream(ds2.getName());
+    Assert.assertEquals(ds1.getStatus(), DatastreamStatus.READY);
+    Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+
     // Do a call to find a datastream group
     List<Datastream> result = restClient.findGroup(ds2.getName());
     Assert.assertEquals(result.size(), 2);

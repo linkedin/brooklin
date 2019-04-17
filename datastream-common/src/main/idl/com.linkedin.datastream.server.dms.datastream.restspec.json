@@ -67,6 +67,13 @@
           "type" : "{ \"type\" : \"map\", \"values\" : \"string\" }",
           "doc" : "StringMap of format <source, comma separated list of partitions or \"*\">.\n                         Example: <\"FooTopic\", \"0,13,2\"> or <\"FooTopic\",\"*\">"
         } ]
+      }, {
+        "name" : "stop",
+        "parameters" : [ {
+          "name" : "force",
+          "type" : "boolean",
+          "default" : "false"
+        } ]
       } ]
     }
   }
