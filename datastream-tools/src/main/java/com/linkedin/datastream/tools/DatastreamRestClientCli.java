@@ -53,6 +53,7 @@ public class DatastreamRestClientCli {
     DELETE,
     READALL
   }
+  
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
