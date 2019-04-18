@@ -53,6 +53,7 @@ public class DatastreamRestClientCli {
     DELETE,
     READALL
   }
+
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
@@ -113,6 +114,10 @@ public class DatastreamRestClientCli {
             false, OptionConstants.OPT_DESC_UNFORMATTED));
 
     options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_FORCE, OptionConstants.OPT_LONG_FORCE, null,
+            false, OptionConstants.OPT_DESC_FORCE));
+
+    options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_DESTINATION_URI, OptionConstants.OPT_LONG_DESTINATION_URI,
             OptionConstants.OPT_ARG_DESTINATION_URI, false, OptionConstants.OPT_DESC_DESTINATION_URI));
 
@@ -150,6 +155,7 @@ public class DatastreamRestClientCli {
     Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
+    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE) ? true : false;
     try {
       datastreamRestClient = DatastreamRestClientFactory.getClient(dmsUri);
       String datastreamName;
@@ -169,12 +175,12 @@ public class DatastreamRestClientCli {
           break;
         case PAUSE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
-          datastreamRestClient.pause(datastreamName);
+          datastreamRestClient.pause(datastreamName, force);
           System.out.println("Pause datastream successfully");
           break;
         case RESUME:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
-          datastreamRestClient.resume(datastreamName);
+          datastreamRestClient.resume(datastreamName, force);
           System.out.println("Resume datastream successfully");
           break;
         case CREATE:
