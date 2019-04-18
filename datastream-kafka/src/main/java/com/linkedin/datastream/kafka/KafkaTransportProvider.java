@@ -129,8 +129,7 @@ public class KafkaTransportProvider implements TransportProvider {
     try {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
-      Validate.isTrue(record.getPartition().isPresent() || record.getPartitionKey().isPresent(),
-          "Either partition or partitionKey needs to be set");
+
 
       LOG.debug("Sending Datastream event record: {}", record);
 
