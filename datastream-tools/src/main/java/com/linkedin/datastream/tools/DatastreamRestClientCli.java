@@ -48,10 +48,11 @@ public class DatastreamRestClientCli {
   private enum Operation {
     CREATE,
     READ,
+    PAUSE,
+    RESUME,
     DELETE,
     READALL
   }
-
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
@@ -164,7 +165,17 @@ public class DatastreamRestClientCli {
         case DELETE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
-          System.out.println("Success");
+          System.out.println("Delete datastream successfully");
+          break;
+        case PAUSE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          datastreamRestClient.pause(datastreamName);
+          System.out.println("Pause datastream successfully");
+          break;
+        case RESUME:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          datastreamRestClient.resume(datastreamName);
+          System.out.println("Resume datastream successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -179,7 +190,11 @@ public class DatastreamRestClientCli {
                 Integer.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
           }
 
-          int partitions = Integer.parseInt(getOptionValue(cmd, OptionConstants.OPT_SHORT_NUM_PARTITION, options));
+          Optional<Integer> maybePartitions = Optional.empty();
+          if (cmd.hasOption(OptionConstants.OPT_SHORT_NUM_PARTITION)) {
+            maybePartitions = Optional.of(Integer.parseInt(getOptionValue(cmd,
+                OptionConstants.OPT_SHORT_NUM_PARTITION, options)));
+          }
           Map<String, String> metadata = new HashMap<>();
           if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
             metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
@@ -203,7 +218,7 @@ public class DatastreamRestClientCli {
           datastream.setConnectorName(connectorName);
           DatastreamSource datastreamSource = new DatastreamSource();
           datastreamSource.setConnectionString(sourceUri);
-          datastreamSource.setPartitions(partitions);
+          maybePartitions.ifPresent(datastreamSource::setPartitions);
           datastream.setTransportProviderName(transportProviderName);
           DatastreamDestination destination = new DatastreamDestination();
           datastream.setDestination(destination);
