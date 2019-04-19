@@ -154,7 +154,7 @@ project(':datastream-file-connector') {
 
 project(':datastream-kafka') {
   dependencies {
-    compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    compile "org.apache.kafka:kafka_2.11:$kafkaVersion"
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
@@ -285,7 +285,7 @@ project(':datastream-server') {
     compile project(':datastream-client')
 
     testCompile project(':datastream-kafka')
-    testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    testCompile "org.apache.kafka:kafka_2.11:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
@@ -318,7 +318,7 @@ project(':datastream-server-restli') {
     compile project(':datastream-server')
 
     testCompile project(':datastream-kafka')
-    testCompile "org.apache.kafka:kafka_2.10:$kafkaVersion"
+    testCompile "org.apache.kafka:kafka_2.11:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
