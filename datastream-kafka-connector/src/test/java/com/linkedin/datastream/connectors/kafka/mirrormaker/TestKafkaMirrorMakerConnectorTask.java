@@ -221,8 +221,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
     t.start();
 
+    // TODO Flaky test, Remove sleep with Poll
     //Sleep ~1 seconds to wait for maybeCommitOffsets being called
-    Thread.sleep(1100);
+    Thread.sleep(5000);
     //we expect >=5 commit calls to be made even without any traffic
     Mockito.verify(spiedTask, atLeast(5)).maybeCommitOffsets(any(), anyBoolean());
     // producer shouldn't flush before the shutdown
@@ -620,6 +621,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
+    Thread.sleep(5000);
     // verify the task is subscribed to both topics
     validateTaskConsumerAssignment(connectorTask,
         Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));

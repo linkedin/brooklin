@@ -41,6 +41,7 @@ public abstract class BaseKafkaZkTest {
     // we will disable auto topic creation for tests
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
     kafkaConfig.setProperty("delete.topic.enable", Boolean.TRUE.toString());
+    kafkaConfig.setProperty("offsets.topic.replication.factor", "1");
     _kafkaCluster = new DatastreamEmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
     _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];

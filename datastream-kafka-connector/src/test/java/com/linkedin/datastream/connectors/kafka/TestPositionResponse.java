@@ -114,6 +114,11 @@ public class TestPositionResponse {
           }
 
           @Override
+          public Object metricValue() {
+            return e.getValue();
+          }
+
+          @Override
           public double value() {
             return e.getValue().doubleValue();
           }
