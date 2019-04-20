@@ -9,8 +9,15 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
 
+/**
+ * A generator of random double values for a specific {@link Field}
+ */
 public class DoubleSchemaField extends SchemaField {
 
+  /**
+   * Constructor for DoubleSchemaField
+   * @param field the schema field to generate values for
+   */
   public DoubleSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +32,9 @@ public class DoubleSchemaField extends SchemaField {
     return generateDouble();
   }
 
+  /**
+   * Generates a random double value between {@code 0.0} and {@code 1.0} (inclusive)
+   */
   public Double generateDouble() {
     return _randGenerator.getNextDouble();
   }

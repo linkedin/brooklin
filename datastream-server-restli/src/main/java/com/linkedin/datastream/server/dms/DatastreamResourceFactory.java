@@ -14,12 +14,15 @@ import com.linkedin.restli.server.resources.ResourceFactory;
 
 
 /**
- * Datastream Resource Factory that is used to create the datastream restli resources.
+ * Datastream Resource Factory that is used to create the datastream Rest.li resources.
  */
 public class DatastreamResourceFactory implements ResourceFactory {
 
   private final DatastreamServer _datastreamServer;
 
+  /**
+   * Constructor for DatastreamResourceFactory
+   */
   public DatastreamResourceFactory(DatastreamServer datastreamServer) {
     _datastreamServer = datastreamServer;
   }

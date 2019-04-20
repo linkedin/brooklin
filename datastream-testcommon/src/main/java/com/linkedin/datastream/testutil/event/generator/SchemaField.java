@@ -40,24 +40,39 @@ public abstract class SchemaField {
     _randGenerator = new RandomValueGenerator(_seed);
   }
 
+  /**
+   * Set min and max values for generated integers, inclusive
+   */
   public static void setDataRange(int minValue, int maxValue) {
     _minValue = minValue;
     _maxValue = maxValue;
   }
 
+  /**
+   * Set the maximum number of elements for generated arrays
+   */
   public static void setMaxNumElements(int maxNumElements) {
     _maxNumElements = maxNumElements;
   }
 
+  /**
+   * Get the random seed
+   */
   public static long getSeed() {
     return _seed;
   }
 
+  /**
+   * Set the random seed
+   */
   public static void setSeed(long seed) {
     _seed = seed;
     createRandomValueGenerator();
   }
 
+  /**
+   * Return true if seed is set
+   */
   public static boolean isSeedSet() {
     return _seed >= 0;
   }

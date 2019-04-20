@@ -50,7 +50,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
  * <ul>
  *  <li>Maintains the mapping of which {@link TransportProvider} each {@link DatastreamTask} is assigned to</li>
  *  <li>Takes care of topic creation/deletion on the datastream destination</li>
- *  <li>Sets up the correct destination connection string/kafka brokers</li>
+ *  <li>Sets up the correct destination connection string/Kafka brokers</li>
  * </ul>
  */
 public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
@@ -315,7 +315,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   }
 
   /**
-   * Get the kafka destination URI for a given {@link Datastream} object
+   * Get the Kafka destination URI for a given {@link Datastream} object
    * @param datastream the Datastream object for which to return the destination
    * @param topicName the topic name for which to return the destination
    * @return Kafka destination URI as a string

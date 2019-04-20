@@ -22,6 +22,9 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
+/**
+ * Tests for {@link ZkClient}
+ */
 public class TestZkClient {
   private static final Logger logger = LoggerFactory.getLogger(TestZkClient.class.getName());
 

@@ -28,6 +28,9 @@ import java.util.concurrent.Executor;
 import org.testng.Assert;
 
 
+/**
+ * Mock implementation of {@link Connection} for testing purposes.
+ */
 public class MockJDBCConnection implements Connection {
   private PreparedStatement _firstStmt;
   private PreparedStatement _nextStmt;
@@ -38,6 +41,9 @@ public class MockJDBCConnection implements Connection {
   private Map<Integer, List<DatabaseRow>> _dataMap;
   private boolean _firstCall = true;
 
+  /**
+   * Constructor for MockJDBCConnection
+   */
   public MockJDBCConnection(Map<Integer, Map<Integer, Object>> keyMap, Map<Integer, List<DatabaseRow>> dataMap) {
     _keyMap = keyMap;
     _dataMap = dataMap;

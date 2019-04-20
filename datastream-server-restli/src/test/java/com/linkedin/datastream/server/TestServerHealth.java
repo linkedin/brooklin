@@ -30,6 +30,9 @@ import com.linkedin.restli.client.ResponseFuture;
 import com.linkedin.restli.client.RestClient;
 
 
+/**
+ * Tests for {@link ServerHealth}
+ */
 public class TestServerHealth {
 
   private EmbeddedDatastreamCluster _datastreamCluster;
@@ -43,6 +46,10 @@ public class TestServerHealth {
     _datastreamCluster.startup();
   }
 
+  /**
+   * Create an embedded datastream cluster initialized with {@value TestDatastreamServer#DUMMY_CONNECTOR}
+   * @param override Configuration properties to use to override defaults
+   */
   public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TestDatastreamServer.DUMMY_CONNECTOR, getDummyConnectorProperties(false));
@@ -81,7 +88,7 @@ public class TestServerHealth {
         _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().getInstanceName());
   }
 
-  public ServerHealth fetchServerHealth() throws RemoteInvocationException {
+  private ServerHealth fetchServerHealth() throws RemoteInvocationException {
     String healthUri = "http://localhost:" + _datastreamCluster.getDatastreamPorts().get(0) + "/";
     _builders = new HealthRequestBuilders();
     final HttpClientFactory http = new HttpClientFactory();

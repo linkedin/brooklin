@@ -5,7 +5,13 @@
  */
 package com.linkedin.datastream.testutil.event.generator;
 
+/**
+ * Encapsulates the command-line entry point for {@link StandaloneDatastreamEventGenerator}.
+ */
 public class StandaloneDatastreamEventGenerator {
+  /**
+   * The entry point for {@link DatastreamEventGeneratorCmdline}.
+   */
   public static void main(String[] args) {
     DatastreamEventGeneratorCmdline dsCmdline = new DatastreamEventGeneratorCmdline();
     boolean b = dsCmdline.runWithShutdownHook(args);

@@ -19,6 +19,12 @@ public final class RestliUtils {
   private static final String URI_SCHEME = "http://";
   private static final String URI_SCHEME_SSL = "https://";
 
+  /**
+   * Sanitizes the provided {@code uri}
+   * @return Sanitized URI; lowercased, with {@value URI_SCHEME}
+   *         prepended to it if it does not specify a scheme, and
+   *         a {@code "/"} appended to it unless it already has one.
+   */
   public static String sanitizeUri(String uri) {
     uri = uri.toLowerCase();
     if (!uri.startsWith(URI_SCHEME) && !uri.startsWith(URI_SCHEME_SSL)) {

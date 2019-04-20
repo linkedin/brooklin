@@ -27,14 +27,17 @@ import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 
 
+/**
+ * Utility methods for encoding/decoding data into/from Avro.
+ */
 public class AvroUtils {
 
   /**
    * Encode an Avro record into byte array
    *
    * @param clazz The class type of the Avro record
-   * @param record the instance of the avro record
-   * @param <T> The type of the avro record.
+   * @param record the instance of the Avro record
+   * @param <T> The type of the Avro record.
    * @return encoded bytes
    */
   public static <T> byte[] encodeAvroSpecificRecord(Class<T> clazz, T record) throws IOException {
@@ -50,7 +53,7 @@ public class AvroUtils {
   /**
    * Encode an Avro record into byte array
    * @param schema schema describing the desired layout of the bytes
-   * @param record the instance of the avro record
+   * @param record the instance of the Avro record
    * @return encoded bytes
    */
   public static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record) throws IOException {
@@ -62,7 +65,7 @@ public class AvroUtils {
   /**
    * Convert an Avro record to Json and encode it into byte array
    * @param schema schema describing the desired layout of the bytes
-   * @param record the instance of the avro record
+   * @param record the instance of the Avro record
    * @return encoded bytes
    */
   public static byte[] encodeAvroIndexedRecordAsJson(Schema schema, IndexedRecord record) throws IOException {

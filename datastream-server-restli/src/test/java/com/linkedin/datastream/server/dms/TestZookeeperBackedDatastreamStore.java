@@ -23,6 +23,9 @@ import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
+/**
+ * Tests for {@link ZookeeperBackedDatastreamStore}
+ */
 public class TestZookeeperBackedDatastreamStore {
   private EmbeddedZookeeper _embeddedZookeeper;
   private String _zkConnectionString;

@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.tools;
 
+/**
+ * String constants for options used with {@link DatastreamRestClientCli}
+ */
 public class OptionConstants {
 
   public static final String OPT_SHORT_MGMT_URI = "u";
@@ -81,4 +84,8 @@ public class OptionConstants {
   public static final String OPT_SHORT_HELP = "h";
   public static final String OPT_LONG_HELP = "help";
   public static final String OPT_DESC_HELP = "Display this message";
+
+  public static final String OPT_SHORT_FORCE = "f";
+  public static final String OPT_LONG_FORCE = "force";
+  public static final String OPT_DESC_FORCE = "force the entire datastream group to be paused/resumed";
 }

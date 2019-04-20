@@ -62,6 +62,10 @@ public class KafkaBasedConnectorConfig {
   private final long _nonGoodStateThresholdMs;
   private final boolean _enableKafkaPositionTracker;
 
+  /**
+   * Constructor for KafkaBasedConnectorConfig.
+   * @param properties Properties to use for creating config.
+   */
   public KafkaBasedConnectorConfig(Properties properties) {
     VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
     _defaultKeySerde = verifiableProperties.getString(CONFIG_DEFAULT_KEY_SERDE, "");
@@ -100,6 +104,19 @@ public class KafkaBasedConnectorConfig {
     _connectorProps = verifiableProperties;
   }
 
+  /**
+   * Constructor for KafkaBasedConnectorConfig.
+   * @param consumerFactory KafkaConsumerFactory instance to use for creating consumers.
+   * @param connectorProps Properties of kafka based connector.
+   * @param consumerProps Properties of consumer used in the connector.
+   * @param defaultKeySerde Name of default key serde.
+   * @param defaultValueSerde Name of default value serde.
+   * @param commitIntervalMillis Time interval between commits.
+   * @param retryCount Max retries while sending data.
+   * @param retrySleepDuration Sleep duration between two send retries.
+   * @param pausePartitionOnError Indicates if the task should pause partition on error.
+   * @param pauseErrorPartitionDuration Duration for which a task should be paused on error.
+   */
   @VisibleForTesting
   public KafkaBasedConnectorConfig(KafkaConsumerFactory<?, ?> consumerFactory, VerifiableProperties connectorProps,
       Properties consumerProps, String defaultKeySerde, String defaultValueSerde, long commitIntervalMillis,
@@ -155,6 +172,9 @@ public class KafkaBasedConnectorConfig {
     return _pauseErrorPartitionDuration;
   }
 
+  /**
+   * Get all Kafka consumer config properties
+   */
   public Properties getConsumerProps() {
     Properties consumerProps = new Properties();
     consumerProps.putAll(_consumerProps);
@@ -181,7 +201,7 @@ public class KafkaBasedConnectorConfig {
     return _processingDelayLogThresholdMs;
   }
 
-  public boolean enableKafkaPositionTracker() {
+  public boolean getEnableKafkaPositionTracker() {
     return _enableKafkaPositionTracker;
   }
 }

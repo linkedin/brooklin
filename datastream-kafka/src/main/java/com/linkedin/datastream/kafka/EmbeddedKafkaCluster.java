@@ -35,23 +35,38 @@ public class EmbeddedKafkaCluster {
   private final List<KafkaServer> _brokerList;
   private final List<File> _logDirs;
 
+  /**
+   * Constructor for EmbeddedKafkaCluster
+   * @param zkConnection the ZooKeeper connection string
+   */
   public EmbeddedKafkaCluster(String zkConnection) {
     this(zkConnection, new Properties());
   }
 
+  /**
+   * Constructor for EmbeddedKafkaCluster
+   * @param zkConnection the ZooKeeper connection string
+   * @param baseProperties the configuration properties
+   */
   public EmbeddedKafkaCluster(String zkConnection, Properties baseProperties) {
     this(zkConnection, baseProperties, Collections.singletonList(-1));
   }
 
+  /**
+   * Constructor for EmbeddedKafkaCluster
+   * @param zkConnection the ZooKeeper connection string
+   * @param baseProperties the configuration properties
+   * @param ports a list of port numbers to use for the Kafka cluster
+   */
   public EmbeddedKafkaCluster(String zkConnection, Properties baseProperties, List<Integer> ports) {
-    this._zkConnection = zkConnection;
-    this._ports = resolvePorts(ports);
-    this._baseProperties = baseProperties;
+    _zkConnection = zkConnection;
+    _ports = resolvePorts(ports);
+    _baseProperties = baseProperties;
 
-    this._brokerList = new ArrayList<>();
-    this._logDirs = new ArrayList<>();
+    _brokerList = new ArrayList<>();
+    _logDirs = new ArrayList<>();
 
-    this._brokers = constructBrokerList(this._ports);
+    _brokers = constructBrokerList(_ports);
   }
 
   private List<Integer> resolvePorts(List<Integer> ports) {
@@ -80,6 +95,9 @@ public class EmbeddedKafkaCluster {
     return sb.toString();
   }
 
+  /**
+   * Start up the Kafka cluster
+   */
   public void startup() {
     for (int i = 0; i < _ports.size(); i++) {
       Integer port = _ports.get(i);
@@ -110,6 +128,9 @@ public class EmbeddedKafkaCluster {
     return server;
   }
 
+  /**
+   * Get the configuration properties of the Kafka cluster and ZooKeeper connection string
+   */
   public Properties getProps() {
     Properties props = new Properties();
     props.putAll(_baseProperties);
@@ -130,6 +151,9 @@ public class EmbeddedKafkaCluster {
     return _zkConnection;
   }
 
+  /**
+   * Shut down the Kafka cluster
+   */
   public void shutdown() {
     for (KafkaServer broker : _brokerList) {
       try {

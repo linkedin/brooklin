@@ -21,26 +21,30 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * Class for sending events to the corresponding EventProducer and keeping track of the inflight messages,
- * and the acknowledged checkpoints for each source partition.
+ * Wraps a {@link DatastreamEventProducer} and keeps track of the in-flight messages and the acknowledged checkpoints
+ * for each source partition.
  *
- * The main assumption of this class is that: For each source/partition tuple, the send method should
+ * The main assumption of this class is that: for each source/partition tuple, the send method should
  * be called with monotonically ascending UNIQUE checkpoints.
  *
  * @param <T> Type of the comparable checkpoint object internally used by the connector.
  */
 public class FlushlessEventProducerHandler<T extends Comparable<T>> {
+
   private static final Logger LOG = LoggerFactory.getLogger(FlushlessEventProducerHandler.class);
 
   private final DatastreamEventProducer _eventProducer;
   private final ConcurrentHashMap<SourcePartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
 
+  /**
+   * Constructor for FlushlessEventProducerHandler
+   */
   public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
     _eventProducer = eventProducer;
   }
 
   /**
-   * Reset all the inflight status counters, and metadata stored for this eventProducer.
+   * Reset all the in-flight status counters, and metadata stored for the {@link DatastreamEventProducer}.
    * This should be used after calling flush and getting partition reassignments.
    */
   public void clear() {
@@ -50,9 +54,11 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   /**
    * Sends event to the transport.
    *
-   * NOTE: This method should be called with monotonically increasing checkpoints for a given source and sourcePartition.
+   * NOTE: This method should be called with monotonically increasing checkpoints for a given source and
+   * sourcePartition.
    * @param record the event to send
-   * @param sourceCheckpoint the sourceCheckpoint associated with this event. Multiple events could share the same sourceCheckpoint.
+   * @param sourceCheckpoint the sourceCheckpoint associated with this event. Multiple events could share the same
+   *                         sourceCheckpoint.
    */
   public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint) {
     SourcePartition sp = new SourcePartition(source, sourcePartition);
@@ -68,7 +74,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the latest safe checkpoint acknowledged by a sourcePartition, or an empty optional if no event has been
+   * Get the latest safe checkpoint acknowledged by a sourcePartition, or an empty optional if no event has been
    * acknowledged.
    */
   public Optional<T> getAckCheckpoint(String source, int sourcePartition) {
@@ -77,7 +83,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the inflight count of messages yet to be acknowledged for a given source and sourcePartition.
+   * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
    */
   public long getInFlightCount(String source, int sourcePartition) {
     CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
@@ -85,7 +91,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return a map of all source partitions to their inflight message counts
+   * Get a map of all source partitions to their in-flight message counts
    */
   public Map<SourcePartition, Long> getInFlightMessagesCounts() {
     return _callbackStatusMap.entrySet()
@@ -94,11 +100,12 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
-   * @return the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
-   *         If all tasks are up to date, returns the passed {@code currentCheckpoint}
-   *         NOTE: This method assumes that the checkpoints are monotonically increasing across DestinationPartition.
-   *               For example, for a connector reading from a source with a global monotonic SCN (e.g. Espresso)
-   *               this function will work correctly.
+   * Get the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
+   * If all tasks are up to date, returns the passed {@code currentCheckpoint}
+   *
+   * NOTE: This method assumes that the checkpoints are monotonically increasing across DestinationPartition.
+   *       For example, for a connector reading from a source with a global monotonic SCN this function will
+   *       work correctly.
    */
   public Optional<T> getAckCheckpoint(T currentCheckpoint, Comparator<T> checkpointComparator) {
     T lowWaterMark = null;
@@ -118,7 +125,14 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     return lowWaterMark != null ? Optional.of(lowWaterMark) : Optional.ofNullable(currentCheckpoint);
   }
 
+  /**
+   * Represents a pair of source (i.e. topic) and partition.
+   */
   public static final class SourcePartition extends Pair<String, Integer> {
+
+    /**
+     * Constructor for SourcePartition
+     */
     public SourcePartition(String source, int partition) {
       super(source, partition);
     }
@@ -141,6 +155,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    * Helper class to store the callback status of the inflight events.
    */
   private class CallbackStatus {
+
     private T _currentCheckpoint = null;
     private T _highWaterMark = null;
 
@@ -155,12 +170,16 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
       return _inFlight.size();
     }
 
+    /**
+     * Registers the given checkpoint by adding it to the set of in-flight checkpoints.
+     * @param checkpoint the checkpoint to register
+     */
     public synchronized void register(T checkpoint) {
       _inFlight.add(checkpoint);
     }
 
     /**
-     * The checkpoints acknowledgement can be received out of order. In that case we need to keep track
+     * The checkpoint acknowledgement can be received out of order. In that case we need to keep track
      * of the high watermark, and only update the ackCheckpoint when we are sure all events before it has
      * been received.
      */
@@ -179,7 +198,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
         _currentCheckpoint = _highWaterMark;
         _acked.clear();
       } else {
-        // Update the checkpoint to the largest acked message that is still smaller than the first inflight message
+        // Update the checkpoint to the largest acked message that is still smaller than the first in-flight message
         T max = null;
         T first = _inFlight.iterator().next();
         while (!_acked.isEmpty() && _acked.peek().compareTo(first) < 0) {
@@ -189,7 +208,8 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
           if (_currentCheckpoint != null && max.compareTo(_currentCheckpoint) < 0) {
             // max is less than current checkpoint, should not happen
             LOG.error(
-                "Internal error: checkpoints should progress in increasing order. Resolved checkpoint as {} which is less than current checkpoint of {}",
+                "Internal error: checkpoints should progress in increasing order. Resolved checkpoint as {} which is "
+                    + "less than current checkpoint of {}",
                 max, _currentCheckpoint);
           }
           _currentCheckpoint = max;

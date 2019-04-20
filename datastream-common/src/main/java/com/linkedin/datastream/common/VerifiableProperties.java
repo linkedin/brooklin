@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * Verifiable properties for configs
+ * Utility class for managing property retrieval from {@link Properties} objects
  */
 public class VerifiableProperties {
 

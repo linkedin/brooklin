@@ -32,7 +32,9 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 
-
+/**
+ * The main class containing the entry point of the Datastream REST client command line utility
+ */
 public class DatastreamRestClientCli {
 
   private DatastreamRestClientCli() {
@@ -46,6 +48,8 @@ public class DatastreamRestClientCli {
   private enum Operation {
     CREATE,
     READ,
+    PAUSE,
+    RESUME,
     DELETE,
     READALL
   }
@@ -68,6 +72,9 @@ public class DatastreamRestClientCli {
     });
   }
 
+  /**
+   * The entry point of the Datastream REST client command line utility
+   */
   public static void main(String[] args) throws Exception {
     Options options = new Options();
     options.addOption(OptionUtils.createOption(OptionConstants.OPT_SHORT_OPERATION, OptionConstants.OPT_LONG_OPERATION,
@@ -107,6 +114,10 @@ public class DatastreamRestClientCli {
             false, OptionConstants.OPT_DESC_UNFORMATTED));
 
     options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_FORCE, OptionConstants.OPT_LONG_FORCE, null,
+            false, OptionConstants.OPT_DESC_FORCE));
+
+    options.addOption(
         OptionUtils.createOption(OptionConstants.OPT_SHORT_DESTINATION_URI, OptionConstants.OPT_LONG_DESTINATION_URI,
             OptionConstants.OPT_ARG_DESTINATION_URI, false, OptionConstants.OPT_DESC_DESTINATION_URI));
 
@@ -144,6 +155,7 @@ public class DatastreamRestClientCli {
     Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
+    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE) ? true : false;
     try {
       datastreamRestClient = DatastreamRestClientFactory.getClient(dmsUri);
       String datastreamName;
@@ -159,7 +171,17 @@ public class DatastreamRestClientCli {
         case DELETE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
-          System.out.println("Success");
+          System.out.println("Delete datastream successfully");
+          break;
+        case PAUSE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          datastreamRestClient.pause(datastreamName, force);
+          System.out.println("Pause datastream successfully");
+          break;
+        case RESUME:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          datastreamRestClient.resume(datastreamName, force);
+          System.out.println("Resume datastream successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -174,7 +196,11 @@ public class DatastreamRestClientCli {
                 Integer.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
           }
 
-          int partitions = Integer.parseInt(getOptionValue(cmd, OptionConstants.OPT_SHORT_NUM_PARTITION, options));
+          Optional<Integer> maybePartitions = Optional.empty();
+          if (cmd.hasOption(OptionConstants.OPT_SHORT_NUM_PARTITION)) {
+            maybePartitions = Optional.of(Integer.parseInt(getOptionValue(cmd,
+                OptionConstants.OPT_SHORT_NUM_PARTITION, options)));
+          }
           Map<String, String> metadata = new HashMap<>();
           if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
             metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
@@ -198,7 +224,7 @@ public class DatastreamRestClientCli {
           datastream.setConnectorName(connectorName);
           DatastreamSource datastreamSource = new DatastreamSource();
           datastreamSource.setConnectionString(sourceUri);
-          datastreamSource.setPartitions(partitions);
+          maybePartitions.ifPresent(datastreamSource::setPartitions);
           datastream.setTransportProviderName(transportProviderName);
           DatastreamDestination destination = new DatastreamDestination();
           datastream.setDestination(destination);

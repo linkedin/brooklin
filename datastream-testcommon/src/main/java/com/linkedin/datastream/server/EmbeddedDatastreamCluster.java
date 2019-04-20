@@ -25,8 +25,11 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.kafka.KafkaCluster;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-
+/**
+ * Provides a Datastream cluster, including a ZooKeeper cluster and Kafka cluster (if necessary), for testing purposes.
+ */
 public class EmbeddedDatastreamCluster {
+
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
   public static final String BOOTSTRAP_SERVERS_CONFIG = "bootstrap.servers";
 
@@ -50,8 +53,8 @@ public class EmbeddedDatastreamCluster {
       KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts) throws IOException {
     _kafkaCluster = kafkaCluster;
 
-    // If the datastream cluster doesn't use the Kafka as transport, then we setup our own ZooKeeper otherwise
-    // use Kafka's ZooKeeper.
+    // If the datastream cluster doesn't use Kafka as transport, then we set up our own ZooKeeper; otherwise use
+    // Kafka's ZooKeeper.
     if (_kafkaCluster != null) {
       _zkAddress = _kafkaCluster.getZkConnection();
     } else {
@@ -69,39 +72,67 @@ public class EmbeddedDatastreamCluster {
     }
   }
 
+  /**
+   * Create a new test datastream cluster
+   * @param connectorProperties a map of the connector configs with connector name as the key
+   * @param override any server level config override
+   * @param numServers number of datastream servers in the cluster
+   * @return a datastream cluster
+   */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(Map<String, Properties> connectorProperties,
-      Properties override, int numServers) throws IOException, DatastreamException {
+      Properties override, int numServers) throws IOException {
     return newTestDatastreamCluster(null, connectorProperties, override, numServers, null);
   }
 
+  /**
+   * Create a new test datastream cluster
+   * @param kafkaCluster the Kafka cluster to start up
+   * @param connectorProperties a map of the connector configs with connector name as the key
+   * @param override any server level config override
+   * @return a datastream cluster
+   */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
-      Map<String, Properties> connectorProperties, Properties override) throws IOException, DatastreamException {
+      Map<String, Properties> connectorProperties, Properties override) throws IOException {
     return newTestDatastreamCluster(kafkaCluster, connectorProperties, override, 1, null);
   }
 
+  /**
+   * Create a new test datastream cluster
+   * @param connectorProperties a map of the connector configs with connector name as the key
+   * @param override any server level config override
+   * @return a datastream cluster
+   */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(Map<String, Properties> connectorProperties,
       Properties override) throws IOException, DatastreamException {
     return newTestDatastreamCluster(null, connectorProperties, override);
   }
 
+  /**
+   * Create a new test datastream cluster
+   * @param kafkaCluster Kafka cluster to be used by the datastream cluster
+   * @param connectorProperties a map of the connector configs with connector name as the key
+   * @param override any server level config override
+   * @param numServers number of datastream servers in the cluster
+   * @return a datastream cluster
+   */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
       Map<String, Properties> connectorProperties, Properties override, int numServers)
-      throws IllegalArgumentException, IOException, DatastreamException {
+      throws IllegalArgumentException, IOException {
     return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, null);
   }
 
   /**
    * Create a new test datastream cluster
-   * @param KafkaCluster Kafka cluster to be used by the datastream cluster
-   * @param connectorProperties a map of the connector configs with connector name as the keys
+   * @param kafkaCluster Kafka cluster to be used by the datastream cluster
+   * @param connectorProperties a map of the connector configs with connector name as the key
    * @param override any server level config override
    * @param numServers number of datastream servers in the cluster
    * @param dmsPorts the dms ports to be used; accept null if automatic assignment
-   * @return instance of a new EmbeddedDatastreamCluster
+   * @return a datastream cluster
    */
   public static EmbeddedDatastreamCluster newTestDatastreamCluster(KafkaCluster kafkaCluster,
       Map<String, Properties> connectorProperties, Properties override, int numServers,
-      @Nullable List<Integer> dmsPorts) throws IllegalArgumentException, IOException, DatastreamException {
+      @Nullable List<Integer> dmsPorts) throws IllegalArgumentException, IOException {
 
     return new EmbeddedDatastreamCluster(connectorProperties, override, kafkaCluster, numServers, dmsPorts);
   }
@@ -163,14 +194,14 @@ public class EmbeddedDatastreamCluster {
   }
 
   /**
-   * Construct a datastream rest client for the primary datastream server
+   * Construct a datastream REST client for the primary datastream server
    */
   public DatastreamRestClient createDatastreamRestClient() {
     return createDatastreamRestClient(0);
   }
 
   /**
-   * Construct a datastream rest client for the specific datastream server
+   * Construct a datastream REST client for the specific datastream server
    */
   public DatastreamRestClient createDatastreamRestClient(int index) {
     return DatastreamRestClientFactory.getClient(String.format("http://localhost:%d/", _datastreamPorts.get(index)));
@@ -198,6 +229,10 @@ public class EmbeddedDatastreamCluster {
     }
   }
 
+  /**
+   * Start up the datastream server at the given {@code index}
+   * @param index the index of the datastream server to start
+   */
   public void startupServer(int index) throws IOException, DatastreamException {
     Validate.isTrue(index >= 0, "Server index out of bound: " + index);
     if (index < _servers.size() && _servers.get(index) != null) {
@@ -217,6 +252,9 @@ public class EmbeddedDatastreamCluster {
     LOG.info("DatastreamServer[{}] started at port={}.", index, server.getHttpPort());
   }
 
+  /**
+   * Start up the datastream cluster
+   */
   public void startup() throws IOException, DatastreamException {
     int numServers = _numServers;
     for (int i = 0; i < numServers; i++) {
@@ -227,6 +265,10 @@ public class EmbeddedDatastreamCluster {
     _servers.stream().forEach(server -> PollUtils.poll(server::isStarted, 1000, SERVER_INIT_TIMEOUT_MS));
   }
 
+  /**
+   * Shut down the datastream server at the given {@code index}
+   * @param index the index of the datastream server to shut down
+   */
   public void shutdownServer(int index) {
     Validate.isTrue(index >= 0 && index < _servers.size(), "Server index out of bound: " + index);
     if (_servers.get(index) == null) {
@@ -240,6 +282,9 @@ public class EmbeddedDatastreamCluster {
     }
   }
 
+  /**
+   * Shut down the datastream cluster
+   */
   public void shutdown() {
     _servers.forEach(server -> {
       if (server != null && server.isStarted()) {

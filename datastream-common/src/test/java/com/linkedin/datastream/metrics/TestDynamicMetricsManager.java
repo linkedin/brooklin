@@ -17,6 +17,9 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 
 
+/**
+ * Tests for {@link DynamicMetricsManager}.
+ */
 @Test
 public class TestDynamicMetricsManager {
   private static final String CLASS_NAME = TestDynamicMetricsManager.class.getSimpleName();
@@ -42,6 +45,7 @@ public class TestDynamicMetricsManager {
     Assert.assertNotEquals(histogram.getSnapshot().getMax(), highLatency);
   }
 
+  @Test
   public void testCreateOrUpdateCounter() {
     String numEvents = "numEvents";
     String numErrors = "numErrors";
@@ -106,6 +110,7 @@ public class TestDynamicMetricsManager {
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, someKey, numEvents).isPresent());
   }
 
+  @Test
   public void testCreateOrUpdateMeter() {
     String eventRate = "eventRate";
     String errorRate = "errorRate";
@@ -163,6 +168,7 @@ public class TestDynamicMetricsManager {
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, someKey, eventRate).isPresent());
   }
 
+  @Test
   public void testCreateOrUpdateHistogram() {
     String eventLatency = "eventLatency";
     String processLatency = "processLatency";

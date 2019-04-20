@@ -5,8 +5,14 @@
  */
 package com.linkedin.datastream.server;
 
+/**
+ * Represents different event types inside {@link Coordinator}.
+ */
 public class CoordinatorEvent {
 
+  /**
+   * Represents event types inside {@link Coordinator}.
+   */
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
@@ -31,22 +37,38 @@ public class CoordinatorEvent {
     _eventType = eventType;
   }
 
+  /**
+   * Returns an event that indicates a new assignment needs to be done (this is a leader-specific event).
+   */
   public static CoordinatorEvent createLeaderDoAssignmentEvent() {
     return LEADER_DO_ASSIGNMENT_EVENT;
   }
 
+  /**
+   * Returns an event that indicates a change in task assignment to connectors.
+   */
   public static CoordinatorEvent createHandleAssignmentChangeEvent() {
     return HANDLE_ASSIGNMENT_CHANGE_EVENT;
   }
 
+  /**
+   * Returns an event that indicates an update to a datastream was made.
+   */
   public static CoordinatorEvent createHandleDatastreamChangeEvent() {
     return HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT;
   }
 
+  /**
+   * Returns an event that indicates addition/deletion of new/existing datastream.
+   */
   public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
     return HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT;
   }
 
+  /**
+   * Creates an instance of HandleInstanceError that represents an error event inside coordinator.
+   * @param errorMessage Error message associated with the event.
+   */
   public static HandleInstanceError createHandleInstanceErrorEvent(String errorMessage) {
     return new HandleInstanceError(errorMessage);
   }
@@ -60,6 +82,9 @@ public class CoordinatorEvent {
     return "type:" + _eventType;
   }
 
+  /**
+   * Represents an error event seen inside coordinator. It stores the error event along with the error message.
+   */
   public static final class HandleInstanceError extends CoordinatorEvent {
     private final String _errorMessage;
 

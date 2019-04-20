@@ -80,15 +80,30 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
 
+  /**
+   * Constructor for DatastreamTaskImpl.
+   * Initializes task partitions to an empty list.
+   * NOTE: The constructor is intended for tests only.
+   */
   @TestOnly
   public DatastreamTaskImpl() {
     _partitions = new ArrayList<>();
   }
 
+  /**
+   * Constructor for DatastreamTaskImpl.
+   * Initializes task with the provided datastreams, a random task ID, and an empty list of partitions
+   */
   public DatastreamTaskImpl(List<Datastream> datastreams) {
     this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
+  /**
+   * Constructor for DatastreamTaskImpl.
+   * @param datastreams Datastreams associated with the task.
+   * @param id Task ID
+   * @param partitions Partitions associated with the task.
+   */
   public DatastreamTaskImpl(List<Datastream> datastreams, String id, List<Integer> partitions) {
     Validate.notEmpty(datastreams, "empty datastream");
     Validate.notNull(id, "null id");
@@ -118,7 +133,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * @return the prefix of the task names that will be created for this datastream.
+   * Get the prefix of the task names that will be created for this datastream.
    */
   public static String getTaskPrefix(Datastream datastream) {
     return datastream.getName();
@@ -135,7 +150,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * @return DatastreamTask serialized as JSON
+   * Get DatastreamTask serialized as JSON
    */
   public String toJson() throws IOException {
     return JsonUtils.toJson(this);
@@ -169,6 +184,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _partitions;
   }
 
+  /**
+   * Set partitions associated with the task.
+   * @param partitions List of partitions to associate with task.
+   */
   public void setPartitions(List<Integer> partitions) {
     Validate.notNull(partitions);
     _partitions = partitions;
@@ -199,6 +218,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return Collections.unmodifiableList(_datastreams);
   }
 
+  /**
+   * Set datastreams associated with the task.
+   * @param datastreams List of datastreams associated with task.
+   */
   public void setDatastreams(List<Datastream> datastreams) {
     _datastreams = datastreams;
     // destination and connector type should be immutable
@@ -233,6 +256,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _eventProducer = eventProducer;
   }
 
+  /**
+   * Set destination serde
+   */
   public void assignSerDes(SerDeSet destination) {
     _destinationSerDes = destination;
   }
@@ -335,6 +361,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _zkAdapter = adapter;
   }
 
+  /**
+   * Update checkpoint info for given partition inside the task.
+   * @param partition Partition whose checkpoint needs to be updated.
+   * @param checkpoint Checkpoint to update to.
+   */
   public void updateCheckpoint(int partition, String checkpoint) {
     LOG.debug("Update checkpoint called for partition {} and checkpoint {}", partition, checkpoint);
     _checkpoints.put(partition, checkpoint);

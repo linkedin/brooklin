@@ -68,7 +68,7 @@ import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
 
 /**
- * Resources classes are used by rest.li to process corresponding http request.
+ * Resources classes are used by rest.li to process corresponding HTTP request.
  * Note that rest.li will instantiate an object each time it processes a request.
  * So do make it thread-safe when implementing the resources.
  */
@@ -99,10 +99,19 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   private final DynamicMetricsManager _dynamicMetricsManager;
 
+  /**
+   * Constructor for DatastreamResources
+   * @param datastreamServer the datastream server
+   */
   public DatastreamResources(DatastreamServer datastreamServer) {
     this(datastreamServer.getDatastreamStore(), datastreamServer.getCoordinator());
   }
 
+  /**
+   * Constructor for DatastreamResources
+   * @param store the datastream store
+   * @param coordinator the server coordinator
+   */
   public DatastreamResources(DatastreamStore store, Coordinator coordinator) {
     _store = store;
     _coordinator = coordinator;
@@ -113,14 +122,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _dynamicMetricsManager.registerGauge(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
   }
 
-  /*
+  /**
    * Update multiple datastreams. Throw exception if any of the updates is not valid:
-   * 1. datastream doesn't exist
-   * 2. datastream connector, transport provider, destination or status is not present or gets modified
-   * 3. all datastreams don't form part of same datastream group
-   * 4. list of updated datastreams don't share the same destination and source
-   * 5. list of updated datastreams don't form the same datastream group as existing datastreams
-   * 6. connector type doesn't support datastream updates or fails to validate the update
+   * <ol>
+   *  <li>Datastream doesn't exist</li>
+   *  <li>Datastream connector, transport provider, destination or status is not present or gets modified</li>
+   *  <li>All datastreams don't form part of same datastream group</li>
+   *  <li>List of updated datastreams don't share the same destination and source</li>
+   *  <li>List of updated datastreams don't form the same datastream group as existing datastreams</li>
+   *  <li>Connector type doesn't support datastream updates or fails to validate the update</li>
+   * </ol>
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
     LOG.info("Update datastream call with request: ", datastreamMap);
@@ -263,13 +274,19 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new UpdateResponse(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Pause a datastream
+   * @param pathKeys resource key containing the datastream name
+   * @param force whether or not to pause all datastreams within the given datastream's group
+   * @return result HTTP status
+   */
   @Action(name = "pause", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pause(@PathKeysParam PathKeys pathKeys,
       @ActionParam("force") @Optional("false") boolean force) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to resume datastream {}", datastream);
+    LOG.info("Received request to pause datastream {}", datastream);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -303,6 +320,58 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * Stop a datastream
+   * @param pathKeys resource key containing the datastream name
+   * @param force whether or not to resume all datastreams within the given datastream's group
+   * @return result HTTP status
+   */
+  @Action(name = "stop", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> stop(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("force") @Optional("false") boolean force) {
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+
+    LOG.info("Received request to stop datastream {}", datastream);
+
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream to stopped does not exist: " + datastreamName);
+    }
+
+    if (!DatastreamStatus.READY.equals(datastream.getStatus()) && !DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only pause a datastream in READY/PAUSED state: " + datastreamName);
+    }
+
+    List<Datastream> datastreamsToStop =
+        force ? getGroupedDatastreams(datastream) : Collections.singletonList(datastream);
+    LOG.info("Stop datastreams {}", datastreamsToStop);
+    for (Datastream d : datastreamsToStop) {
+      try {
+        if (DatastreamStatus.READY.equals(datastream.getStatus()) || DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+          d.setStatus(DatastreamStatus.STOPPED);
+          _store.updateDatastream(d.getName(), d, true);
+        } else {
+          LOG.warn("Cannot stop datastream {}, as it is not in READY/PAUSED state. State: {}", d, datastream.getStatus());
+        }
+      } catch (DatastreamException e) {
+        _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+            "Could not update datastream to STOPPED state: " + d.getName(), e);
+      }
+    }
+
+    LOG.info("Completed request for stopping datastream {}", datastream);
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
+  /**
+   * Resume a datastream
+   * @param pathKeys resource key containing the datastream name
+   * @param force whether or not to resume all datastreams within the given datastream's group
+   * @return result HTTP status
+   */
   @Action(name = "resume", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resume(@PathKeysParam PathKeys pathKeys,
       @ActionParam("force") @Optional("false") boolean force) {
@@ -316,9 +385,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to resume does not exist: " + datastreamName);
     }
 
-    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus()) &&
+        !DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
-          "Datastream is not paused, cannot resume: " + datastreamName);
+          "Datastream is not paused or stopped, cannot resume: " + datastreamName);
     }
 
     List<Datastream> datastreamsToResume =
@@ -326,11 +396,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     LOG.info("Resuming datastreams {}", datastreamsToResume);
     for (Datastream d : datastreamsToResume) {
       try {
-        if (DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
+        if (DatastreamStatus.PAUSED.equals(datastream.getStatus()) ||
+            DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
         } else {
-          LOG.warn("Will not resume datastream {}, as it is already in paused state", d);
+          LOG.warn("Will not resume datastream {}, as it is not already in PAUSED/STOPPED state", d);
         }
       } catch (DatastreamException e) {
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
@@ -343,10 +414,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * Given datastream and a map representing < source, list of partitions to pause >, pauses the partitions.
+   * Given datastream and a map representing &lt;source, list of partitions to pause&gt;, pauses the partitions.
    * @param pathKeys Datastream resource key
-   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
-   *                         or <"FooTopic","*">
+   * @param sourcePartitions StringMap of format &lt;source, comma separated list of partitions or "*"&gt;.
+   *                         <pre>Example: <"FooTopic", "0,13,2"> or <"FooTopic","*"></pre>
    */
   @Action(name = "pauseSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> pauseSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -423,8 +494,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   /**
    * Given a datastream and a map representing < source, list of partitions to resume >, resumes the partitions.
    * @param pathKeys Datastream resource key
-   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">. Example: <"FooTopic", "0,13,2">
-   *                         or <"FooTopic","*">
+   * @param sourcePartitions StringMap of format <source, comma separated list of partitions or "*">.
+   *                         Example: <"FooTopic", "0,13,2"> or <"FooTopic","*">
    */
   @Action(name = "resumeSourcePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> resumeSourcePartitions(@PathKeysParam PathKeys pathKeys,
@@ -536,7 +607,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return null;
   }
 
-  // Returning null will automatically trigger a 404 Not Found response
   @Override
   public Datastream get(String name) {
     try {
@@ -552,6 +622,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Get datastream failed for datastream: " + name, e);
     }
 
+    // Returning null will automatically trigger a 404 Not Found response
     return null;
   }
 
@@ -579,7 +650,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * You can access this FINDER method via /resources/datastream?q=findDuplicates&datastreamName=name
+   * Find all the datastreams in the same group as the provided {@code datastreamName}
+   * This finder method can be invoked via /resources/datastream?q=findDuplicates&datastreamName=name
    */
   @SuppressWarnings("deprecated")
   @Finder("findGroup")
@@ -679,6 +751,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return null;
   }
 
+  /**
+   * Get the list of metrics emitted by this class
+   */
   public static List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
 

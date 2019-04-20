@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 
 
+/**
+ * Utility methods for dealing with threading-related concerns.
+ */
 public final class ThreadUtils {
   /**
    * Gracefully shutdown an executor service and force terminate if the worker threads

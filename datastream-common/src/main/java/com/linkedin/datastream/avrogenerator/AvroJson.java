@@ -70,7 +70,7 @@ public class AvroJson {
 
   /**
    * A simple helper method that wraps an Avro type around an array and adds "null"
-   * @param type The avro Collection or Struct Type
+   * @param type The Avro Collection or Struct Type
    * @return ["null", { avroType }]
    */
   public static List<Object> nullableType(AvroJson type) {

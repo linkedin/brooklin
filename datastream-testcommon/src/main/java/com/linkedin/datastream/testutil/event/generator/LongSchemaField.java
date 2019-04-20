@@ -8,9 +8,15 @@ package com.linkedin.datastream.testutil.event.generator;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.IndexedRecord;
 
-
+/**
+ * A generator of random Long values for a specific {@link Field}
+ */
 public class LongSchemaField extends SchemaField {
 
+  /**
+   * Constructor for LongSchemaField
+   * @param field the schema field to generate values for
+   */
   public LongSchemaField(Field field) {
     super(field);
   }
@@ -25,6 +31,9 @@ public class LongSchemaField extends SchemaField {
     return generateLong();
   }
 
+  /**
+   * Generate a random Long value between {@code 0} and {@code Long.MAX_VALUE}, inclusive
+   */
   public Long generateLong() {
     return _randGenerator.getNextLong();
   }

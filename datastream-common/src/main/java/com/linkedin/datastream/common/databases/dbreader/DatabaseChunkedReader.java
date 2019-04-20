@@ -124,7 +124,7 @@ public class DatabaseChunkedReader implements Closeable {
     _connection = source.getConnection();
     Validate.notNull(_connection, "getConnection returned null for source" + source);
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
-    _skipBadMessagesEnabled = _databaseChunkedReaderConfig.shouldSkipBadMessage();
+    _skipBadMessagesEnabled = _databaseChunkedReaderConfig.getShouldSkipBadMessage();
 
     if (StringUtils.isBlank(db)) {
       _database = _connection.getMetaData().getUserName();

@@ -19,15 +19,21 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 public class DatabaseRow {
   private List<DatabaseColumnRecord> _allFields = new ArrayList<>();
 
+  /**
+   * Construct a DatabaseRow using a list of fields/columns
+   */
   public DatabaseRow(List<DatabaseColumnRecord> fields) {
     _allFields = fields;
   }
 
+  /**
+   * Construct a DatabaseRow with no fields/columns
+   */
   public DatabaseRow() {
   }
 
   /**
-   * @return Number of fields in the row
+   * Get the number of fields/columns in the row
    */
   public int getColumnCount() {
     return _allFields.size();
@@ -50,18 +56,20 @@ public class DatabaseRow {
   }
 
   /**
-   * @return Field records in the row
+   * Get all records in the row
    */
   public List<DatabaseColumnRecord> getRecords() {
     return _allFields;
   }
 
+  @Override
   public String toString() {
     StringBuilder str = new StringBuilder();
     _allFields.forEach(column -> str.append(column.toString() + ","));
     return str.toString();
   }
 
+  @Override
   public boolean equals(Object o) {
     if (!(o instanceof DatabaseRow)) {
       return false;
@@ -82,6 +90,7 @@ public class DatabaseRow {
     return true;
   }
 
+  @Override
   public int hashCode() {
     return Objects.hash(this);
   }

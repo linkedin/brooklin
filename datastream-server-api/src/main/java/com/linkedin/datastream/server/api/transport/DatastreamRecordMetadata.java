@@ -14,6 +14,12 @@ public class DatastreamRecordMetadata {
   private final int _partition;
   private final String _checkpoint;
 
+  /**
+   * Construct an instance of DatastreamRecordMetadata
+   * @param  checkpoint checkpoint string
+   * @param topic Kafka topic name
+   * @param partition Kafka topic partition
+   */
   public DatastreamRecordMetadata(String checkpoint, String topic, int partition) {
     _checkpoint = checkpoint;
     _topic = topic;
@@ -41,6 +47,7 @@ public class DatastreamRecordMetadata {
     return _topic;
   }
 
+  @Override
   public String toString() {
     return String.format("Checkpoint: %s, Topic: %s, Partition: %d", _checkpoint, _topic, _partition);
   }

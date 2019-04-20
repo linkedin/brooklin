@@ -30,6 +30,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link AbstractKafkaConnector}
+ */
 public class TestAbstractKafkaConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestAbstractKafkaConnector.class);
@@ -86,11 +89,20 @@ public class TestAbstractKafkaConnector {
     connector.stop();
   }
 
+  /**
+   * Dummy implementation of {@link AbstractKafkaConnector} for testing purposes
+   */
   public class TestKafkaConnector extends AbstractKafkaConnector {
 
     private boolean _restartThrows;
     private int _createTaskCalled = 0;
 
+    /**
+     * Constructor for TestKafkaConnector
+     * @param restartThrows Indicates whether calling {@link #restartIfNotRunning(DatastreamTask)}
+     *                      for the first time should throw a {@link RuntimeException}
+     * @param props Configuration properties to use
+     */
     public TestKafkaConnector(boolean restartThrows, Properties props) {
       super("test", props, new KafkaGroupIdConstructor(
           Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),

@@ -19,6 +19,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link DurableScheduledService}.
+ */
 @Test
 public class TestDurableScheduledService {
 

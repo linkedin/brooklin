@@ -13,6 +13,9 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 
 
+/**
+ * Utility methods for {@link KafkaTransportProvider}
+ */
 public class KafkaTransportProviderUtils {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderUtils.class.getName());
   // Mapping destination URI to topic name

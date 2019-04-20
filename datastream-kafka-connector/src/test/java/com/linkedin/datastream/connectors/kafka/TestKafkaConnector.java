@@ -31,6 +31,9 @@ import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 
+/**
+ * Tests for {@link KafkaConnector}
+ */
 @Test
 public class TestKafkaConnector extends BaseKafkaZkTest {
 
@@ -156,7 +159,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
-        TestKafkaConnectorUtils.getKafkaTransportProviderAdmin(_kafkaCluster);
+        TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
 

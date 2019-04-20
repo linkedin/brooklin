@@ -8,6 +8,9 @@ package com.linkedin.datastream.common;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link JsonUtils}
+ */
 public class TestJsonUtils {
   @Test
   public void testDeserializationNewFieldsNoErrors() {

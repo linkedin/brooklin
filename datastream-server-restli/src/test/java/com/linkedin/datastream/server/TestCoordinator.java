@@ -84,6 +84,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Tests for {@link Coordinator}
+ */
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
@@ -423,16 +426,55 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  /**
-   * testCoordinationWithStickyMulticastStrategy is a smoke test to verify correct rebalance behavior upon datastream
-   * being paused and instance being add
-   * <ul>
-   *     <li>create 3 instances and 4 datastreams, verified all of them get assigned properly</li>
-   *     <li>pause a data stream, verified it doesn't get rebalanced</li>
-   *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
-   *     <li>add a instance, verify the new instance get proper assignment</li>
-   * </ul>
-   */
+  @Test
+  public void testStopAndResumeDatastream() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+    //verify the assignment
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1);
+    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
+    Assert.assertNotEquals(zkClient.getChildren(instance1Path).size(), 0);
+
+    // Stop the datastream.
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.setStatus(DatastreamStatus.STOPPED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() == 0), 200, WAIT_TIMEOUT_MS));
+
+    // Resume the datastream
+    ds1.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1).getStatus()), 200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(PollUtils.poll(() -> (zkClient.getChildren(instance1Path).size() != 0), 200, WAIT_TIMEOUT_MS));
+
+  }
+
+    /**
+     * testCoordinationWithStickyMulticastStrategy is a smoke test to verify correct rebalance behavior upon datastream
+     * being paused and instance being add
+     * <ul>
+     *     <li>create 3 instances and 4 datastreams, verified all of them get assigned properly</li>
+     *     <li>pause a data stream, verified it doesn't get rebalanced</li>
+     *     <li>unpause a data stream, verified it doesn't get rebalanced</li>
+     *     <li>add a instance, verify the new instance get proper assignment</li>
+     * </ul>
+     */
   @Test
   public void testCoordinationWithStickyMulticastStrategy() throws Exception {
     String testCluster = "testCoordinationSmoke";
@@ -2167,6 +2209,9 @@ public class TestCoordinator {
     zkClient.deleteRecursive(path);
   }
 
+  /**
+   * Base class of test Connector implementations
+   */
   public class TestHookConnector implements Connector {
     boolean _isStarted = false;
     boolean _allowDatastreamUpdate = true;
@@ -2175,11 +2220,20 @@ public class TestCoordinator {
     String _instance = "";
     String _name;
 
+    /**
+     * Constructor for TestHookConnector
+     * @param name Connector name
+     * @param connectorType Connector type
+     */
     public TestHookConnector(String name, String connectorType) {
       _name = name;
       _connectorType = connectorType;
     }
 
+    /**
+     * Constructor for TestHookConnector
+     * @param connectorType Connector type
+     */
     public TestHookConnector(String connectorType) {
       _connectorType = connectorType;
     }
@@ -2188,6 +2242,9 @@ public class TestCoordinator {
       return _name;
     }
 
+    /**
+     * Get all datastream tasks
+     */
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
@@ -2243,7 +2300,9 @@ public class TestCoordinator {
     }
   }
 
-  // Test hook connector for mirror maker
+  /**
+   * Test hook connector for mirror maker
+   */
   class MMTestHookConnector extends TestHookConnector implements Connector {
 
     public MMTestHookConnector(String connectorName, String connectorType) {
@@ -2274,6 +2333,9 @@ public class TestCoordinator {
     }
   }
 
+  /**
+   * A {@link Connector} implementation that fails on assignment.
+   */
   class BadConnector implements Connector {
     private int assignmentCount;
 

@@ -20,6 +20,9 @@ import org.slf4j.LoggerFactory;
 public class DatastreamTaskStatus {
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTaskStatus.class);
 
+  /**
+   * DatastreamTask status code
+   */
   public enum Code { OK, ERROR, COMPLETE, PAUSED }
 
   private Code _code;
@@ -27,11 +30,16 @@ public class DatastreamTaskStatus {
   private long _timeStamp = System.currentTimeMillis();
   private String _hostName;
 
-  // Needed for JSON deserialization
+  /**
+   * Constructor for DatastreamTaskStatus (needed for JSON deserialization)
+   */
   public DatastreamTaskStatus() {
     _hostName = "";
   }
 
+  /**
+   * Construct an instance of DatastreamTaskStatus
+   */
   public DatastreamTaskStatus(Code code, String message) {
     if (code != Code.ERROR) {
       Validate.notEmpty(message, "must provide a message for ERROR status.");
@@ -92,7 +100,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return the timestamp of the status
+   * Get the timestamp of the status
    */
   public long getTimeStamp() {
     return _timeStamp;
@@ -107,7 +115,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return the hostname where the last status was written
+   * Get the hostname where the last status was written
    */
   public String getHostName() {
     return _hostName;
@@ -122,7 +130,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return kind of the status
+   * Get kind of the status
    */
   public Code getCode() {
     return _code;
@@ -137,7 +145,7 @@ public class DatastreamTaskStatus {
   }
 
   /**
-   * @return message associated with the status
+   * Get message associated with the status
    */
   public String getMessage() {
     return _message;

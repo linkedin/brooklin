@@ -24,8 +24,8 @@ public interface Authorizer {
   enum Operation { CREATE, READ, UPDATE, DELETE }
 
   /**
-   * Validate if the {@param principal} is authorized to perform {@param operation}
-   * on the specified {@param datastream}.
+   * Validate if the {@code principal} is authorized to perform {@code operation}
+   * on the specified {@code datastream}.
    *
    * @param datastream datastream to be operated on
    * @param operation type of the operation in {@link Operation}

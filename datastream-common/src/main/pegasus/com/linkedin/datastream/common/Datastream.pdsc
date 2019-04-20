@@ -44,7 +44,7 @@
       "type" : {
        "type" : "enum",
        "name" : "DatastreamStatus",
-       "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING" ]
+       "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING", "STOPPED" ]
       },
       "name" : "Status",
       "doc" : "Status of the datastream",

@@ -53,6 +53,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 
+/**
+ * Tests for {@link KafkaConnectorTask}
+ */
 public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaConnectorTask.class);

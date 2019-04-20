@@ -9,7 +9,14 @@ import java.util.Properties;
 
 import org.apache.kafka.clients.consumer.Consumer;
 
-
+/**
+ * Interface for Kafka consumer factories
+ * @param <K> The type that the key is deserialized into
+ * @param <V> The type that the value is deserialized into
+ */
 public interface KafkaConsumerFactory<K, V> {
+  /**
+  * Create a consumer instance using given {@link Properties}
+  */
   Consumer<K, V> createConsumer(Properties properties);
 }

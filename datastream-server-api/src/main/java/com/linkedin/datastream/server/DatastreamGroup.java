@@ -29,6 +29,11 @@ public class DatastreamGroup {
   private final String _taskPrefix;
   private final List<Datastream> _datastreams;
 
+  /**
+   * Construct a DatastreamGroup
+   * @param datastreams
+   *  list of datastreams inside this group, the list cannot be null or empty
+   */
   public DatastreamGroup(List<Datastream> datastreams) {
     Validate.notEmpty(datastreams, "datastreams cannot be null or empty.");
     Datastream ds = datastreams.get(0);
@@ -58,11 +63,18 @@ public class DatastreamGroup {
     return _datastreams.get(0).getConnectorName();
   }
 
+  /**
+   * Get the source partition of this DatastreamGroup. The source partition is the same for all datastream
+   * inside this group.
+   */
   public Optional<Integer> getSourcePartitions() {
     return Optional.ofNullable(_datastreams.get(0).getSource()).map(x -> x.getPartitions(GetMode.NULL));
   }
 
-  // A Datastream Group is paused, only if ALL the datastreams in the group are paused.
+  /**
+   * Determine if a DatastreamGroup is paused. A DatastreamGroup is considered paused only if ALL the datastreams
+   * in the group are paused.
+   */
   public boolean isPaused() {
     boolean anyPaused = _datastreams.stream().anyMatch(ds -> ds.getStatus() == DatastreamStatus.PAUSED);
     boolean allPaused = _datastreams.stream().allMatch(ds -> ds.getStatus() == DatastreamStatus.PAUSED);
@@ -77,7 +89,9 @@ public class DatastreamGroup {
     return allPaused;
   }
 
-  // Returns true if the task belongs to this group.
+  /**
+   *  Determine if a DatastreamTask belongs to this group
+   */
   public boolean belongsTo(DatastreamTask task) {
     return task.getTaskPrefix().equals(getTaskPrefix());
   }
