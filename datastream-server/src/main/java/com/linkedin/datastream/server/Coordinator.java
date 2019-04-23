@@ -71,6 +71,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
+import com.linkedin.datastream.server.zk.ZkHostManager;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
@@ -227,7 +228,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
     _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), new ZkHostManager(_config.getZkHostConfig()), this);
 
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();

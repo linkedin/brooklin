@@ -10,6 +10,8 @@ import java.util.Properties;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.zk.ZkHostConfig;
+
 
 /**
  * Brooklin {@link Coordinator} configuration properties
@@ -33,6 +35,7 @@ public final class CoordinatorConfig {
   private final int _retryIntervalMs;
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
+  private final ZkHostConfig _zkHostConfig;
 
   private int _assignmentChangeThreadPoolThreadCount = 3;
 
@@ -51,6 +54,7 @@ public final class CoordinatorConfig {
     _retryIntervalMs = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
     _heartbeatPeriodMs = _properties.getLong(CONFIG_HEARTBEAT_PERIOD_MS, Duration.ofMinutes(1).toMillis());
     _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
+    _zkHostConfig = new ZkHostConfig(PREFIX, config);
   }
 
   public Properties getConfigProperties() {
@@ -92,4 +96,9 @@ public final class CoordinatorConfig {
   public long getHeartbeatPeriodMs() {
     return _heartbeatPeriodMs;
   }
+
+  public ZkHostConfig getZkHostConfig() {
+    return _zkHostConfig;
+  }
+
 }

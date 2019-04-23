@@ -159,10 +159,12 @@
           } ]
         }, {
           "name" : "stop",
+          "doc" : "Stop a datastream\nService Returns: Result HTTP status",
           "parameters" : [ {
             "name" : "force",
             "type" : "boolean",
-            "default" : "false"
+            "default" : "false",
+            "doc" : "whether or not to resume all datastreams within the given datastream's group"
           } ]
         } ]
       }

@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -27,7 +28,9 @@ import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.I0Itec.zkclient.exception.ZkNoNodeException;
+import org.apache.commons.lang.Validate;
 import org.apache.zookeeper.CreateMode;
+import org.jetbrains.annotations.TestOnly;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -129,6 +132,7 @@ public class ZkAdapter {
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
+  private ZkHostManager _zkHostManager;
 
   /**
    * Constructor
@@ -137,8 +141,25 @@ public class ZkAdapter {
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
    * @param sessionTimeout Session timeout to use for the connection with the ZooKeeper server
    * @param connectionTimeout Connection timeout to use for the connection with the ZooKeeper server
+   * @param zkHostManager ZkHostManager implementation to blacklist unstable node
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
+      int connectionTimeout, ZkHostManager zkHostManager, ZkAdapterListener listener) {
+    Validate.notNull(zkHostManager);
+    _zkServers = zkServers;
+    _cluster = cluster;
+    _sessionTimeout = sessionTimeout;
+    _connectionTimeout = connectionTimeout;
+    _listener = listener;
+    _defaultTransportProviderName = defaultTransportProviderName;
+    _zkHostManager = zkHostManager;
+  }
+
+  /**
+   * Constructor without wire in zkHostManger instance, used for test only
+   */
+  @TestOnly
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
       int connectionTimeout, ZkAdapterListener listener) {
     _zkServers = zkServers;
@@ -147,6 +168,7 @@ public class ZkAdapter {
     _connectionTimeout = connectionTimeout;
     _listener = listener;
     _defaultTransportProviderName = defaultTransportProviderName;
+    _zkHostManager = new ZkHostManager(new ZkHostConfig("", new Properties()));
   }
 
   /**
@@ -440,7 +462,7 @@ public class ZkAdapter {
    * Get all live instances in the cluster
    */
   public List<String> getLiveInstances() {
-    return _liveInstancesProvider.getLiveInstances();
+    return _liveInstancesProvider.getStableInstances();
   }
 
   /**
@@ -1030,7 +1052,7 @@ public class ZkAdapter {
    * done in the constructor ZkBackedLiveInstanceListProvider().
    */
   public class ZkBackedLiveInstanceListProvider implements IZkChildListener {
-    private List<String> _liveInstances = new ArrayList<>();
+    private List<String> _stableInstances = new ArrayList<>();
     private String _path;
 
     /**
@@ -1042,7 +1064,7 @@ public class ZkAdapter {
       _zkclient.ensurePath(_path);
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
-      _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
+      _stableInstances = _zkHostManager.joinHosts(getLiveInstanceNames(_zkclient.getChildren(_path)));
     }
 
     // translate list of node names in the form of sequence number to list of instance names
@@ -1068,8 +1090,8 @@ public class ZkAdapter {
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
-    public List<String> getLiveInstances() {
-      return _liveInstances;
+    public List<String> getStableInstances() {
+      return _stableInstances;
     }
 
     @Override
@@ -1078,7 +1100,7 @@ public class ZkAdapter {
           "ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
               + "parentPath %s,children %s", parentPath, currentChildren));
 
-      _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
+      _stableInstances = _zkHostManager.joinHosts(getLiveInstanceNames(_zkclient.getChildren(_path)));
 
       if (_listener != null && ZkAdapter.this.isLeader()) {
         _listener.onLiveInstancesChange();
