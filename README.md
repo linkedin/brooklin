@@ -10,7 +10,7 @@ Brooklin also offers a framework that enables creating data pipes, [`Datastreams
 
 ![Brooklin Overview](images/brooklin-overview.svg)
 
-## Distiguishing Features
+## Distinguishing Features
 
 ### 1. Extensible for Any Source/Destination System
 - Brooklin offers a flexible API that can be extended to support a wide variety of source and destination systems. It is not confined to single type of source or destination systems.
