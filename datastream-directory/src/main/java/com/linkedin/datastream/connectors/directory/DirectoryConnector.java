@@ -6,6 +6,8 @@
 package com.linkedin.datastream.connectors.directory;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -87,9 +89,17 @@ public class DirectoryConnector implements Connector {
     LOG.info("validating datastream " + stream.toString());
 
     String sourceDirectoryPath = stream.getSource().getConnectionString();
-    if (!DirectoryChangeProcessor.isDirectory(sourceDirectoryPath)) {
-      throw new DatastreamValidationException(String.format("Path %s is not a directory",
-          sourceDirectoryPath));
+    validateDirectoryPath(sourceDirectoryPath);
+
+    String destDirectoryPath = stream.getDestination().getConnectionString();
+    validateDirectoryPath(destDirectoryPath);
+
+    try {
+      if (Files.isSameFile(Paths.get(sourceDirectoryPath), Paths.get(destDirectoryPath))) {
+        throw new DatastreamValidationException("Source and destination paths cannot refer to the same directory");
+      }
+    } catch (IOException ex) {
+      throw new DatastreamValidationException("Could not verify if source and destination paths are different", ex);
     }
 
     // single partition datastream
@@ -115,6 +125,12 @@ public class DirectoryConnector implements Connector {
         processor.close();
       }
       LOG.info("Processor stopped for task: " + datastreamTask);
+    }
+  }
+
+  private static void validateDirectoryPath(String path) throws DatastreamValidationException {
+    if (!DirectoryChangeProcessor.isDirectory(path)) {
+      throw new DatastreamValidationException(String.format("Path %s is not a directory", path));
     }
   }
 }
