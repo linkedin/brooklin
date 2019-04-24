@@ -113,6 +113,10 @@ public class DirectoryChangeProcessor implements Runnable, AutoCloseable {
         for (WatchEvent<?> event : key.pollEvents()) {
           WatchEvent.Kind<?> kind = event.kind();
 
+          /*
+           * We may get an OVERFLOW event even though we have not registered for it.
+           * https://docs.oracle.com/javase/tutorial/essential/io/notification.html#register
+           */
           if (kind != OVERFLOW) {
             @SuppressWarnings("unchecked")
             Path filename = ((WatchEvent<Path>) event).context();
