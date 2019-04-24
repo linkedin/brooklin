@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.file;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.net.URI;
@@ -158,7 +159,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
         LOG.error("Could not process query {} with path {}", query, path);
       }
     } catch (Exception e) {
-      LOG.error("Failed to process query {}", query, e);
+      throw new DatastreamRuntimeException(String.format("Failed to process query %s", query), e);
     }
     return null;
   }
