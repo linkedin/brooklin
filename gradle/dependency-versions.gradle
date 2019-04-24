@@ -4,6 +4,7 @@ ext {
     avroVersion = "1.7.7"
     commonsCliVersion = "1.2"
     commonsHttpClientVersion = "3.1"
+    commonsIOVersion = "2.4"
     commonslang3Version = "3.4"
     commonsValidatorVersion = "1.5.1"
     eventHubVersion = "0.9.0"

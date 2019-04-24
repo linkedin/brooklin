@@ -38,6 +38,8 @@ class FileProcessor implements Runnable {
   private boolean _cancelRequested;
   private boolean _isStopped;
 
+  private volatile Integer _lineNo;
+
   public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
@@ -75,7 +77,7 @@ class FileProcessor implements Runnable {
     try {
       _task.acquire(ACQUIRE_TIMEOUT);
 
-      Integer lineNo = loadCheckpoint();
+      _lineNo = loadCheckpoint();
       while (!_cancelRequested) {
         String text;
         try {
@@ -90,7 +92,7 @@ class FileProcessor implements Runnable {
           long currentTimeMillis = System.currentTimeMillis();
           eventMetadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(currentTimeMillis));
           BrooklinEnvelope event =
-              new BrooklinEnvelope(lineNo.toString().getBytes(), text.getBytes(), null, eventMetadata);
+              new BrooklinEnvelope(_lineNo.toString().getBytes(), text.getBytes(), null, eventMetadata);
 
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
@@ -100,10 +102,10 @@ class FileProcessor implements Runnable {
           if (!_task.isUserManagedDestination()) {
             builder.setPartition(0);
           } else {
-            builder.setPartitionKey(lineNo.toString());
+            builder.setPartitionKey(_lineNo.toString());
           }
 
-          builder.setSourceCheckpoint(lineNo.toString());
+          builder.setSourceCheckpoint(_lineNo.toString());
           _producer.send(builder.build(), (metadata, exception) -> {
             if (exception == null) {
               LOG.info("Sending event:{} succeeded, metadata:{}", text, metadata);
@@ -111,7 +113,7 @@ class FileProcessor implements Runnable {
               LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
             }
           });
-          ++lineNo;
+          ++_lineNo;
         } else {
           try {
             // Wait for new data
@@ -125,7 +127,7 @@ class FileProcessor implements Runnable {
 
       _task.release();
       _isStopped = true;
-      LOG.info("Stopped at line " + lineNo + " task=" + _task);
+      LOG.info("Stopped at line " + _lineNo + " task=" + _task);
     } catch (Throwable e) {
       LOG.error("File processor is quitting with exception, task=" + _task, e);
     }
@@ -137,5 +139,13 @@ class FileProcessor implements Runnable {
 
   public void stop() {
     _cancelRequested = true;
+  }
+
+  public Integer getLineNumber() {
+    return _lineNo;
+  }
+
+  public String getFileName() {
+    return _fileName;
   }
 }

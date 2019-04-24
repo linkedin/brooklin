@@ -1,15 +1,15 @@
 rootProject.name = "brooklin"
 
-include 'datastream-common'
-include 'datastream-testcommon'
 include 'datastream-client'
+include 'datastream-common'
+include 'datastream-directory'
+include 'datastream-file-connector'
+include 'datastream-kafka'
+include 'datastream-kafka-connector'
+include 'datastream-kafka-factory-impl'
 include 'datastream-server'
 include 'datastream-server-api'
 include 'datastream-server-restli'
-include 'datastream-utils'
-include 'datastream-kafka'
-include 'datastream-kafka-factory-impl'
-include 'datastream-kafka-connector'
-include 'datastream-file-connector'
+include 'datastream-testcommon'
 include 'datastream-tools'
-
+include 'datastream-utils'

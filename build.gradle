@@ -153,6 +153,17 @@ project(':datastream-file-connector') {
   }
 }
 
+project(':datastream-directory') {
+  dependencies {
+    compile project(':datastream-server-api')
+    compile project(':datastream-common')
+    compile "org.slf4j:slf4j-api:$slf4jVersion"
+    compile "org.apache.commons:commons-lang3:$commonslang3Version"
+    compile "commons-io:commons-io:$commonsIOVersion"
+    compile "com.google.guava:guava:$guavaVersion"
+  }
+}
+
 project(':datastream-kafka') {
   dependencies {
     compile "org.apache.kafka:kafka_2.10:$kafkaVersion"
@@ -245,6 +256,8 @@ project(':datastream-tools') {
     from(project(':datastream-server').configurations.runtime) { into("libs/") }
     from(project(':datastream-file-connector').jar) { into("libs/") }
     from(project(':datastream-file-connector').configurations.runtime) { into("libs/") }
+    from(project(':datastream-directory').jar) { into("libs/") }
+    from(project(':datastream-directory').configurations.runtime) { into("libs/") }
     from(project(':datastream-testcommon').jar) { into("libs/") }
     from(project(':datastream-testcommon').configurations.runtime) { into("libs/") }
     from(project(':datastream-common').jar) { into("libs/") }
