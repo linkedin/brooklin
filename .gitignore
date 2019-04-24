@@ -12,3 +12,4 @@ out/
 logs/
 mainGeneratedRest/
 mainGeneratedDataTemplate/
+.DS_Store
