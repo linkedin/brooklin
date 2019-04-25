@@ -1,8 +1,8 @@
 # Brooklin
-![License](https://img.shields.io/github/license/linkedin/brooklin.svg?style=popout)
-![Last Commit](https://img.shields.io/github/last-commit/linkedin/brooklin.svg?style=popout)
-![Bugs](https://img.shields.io/github/issues/linkedin/brooklin/bug.svg?color=orange?style=popout)
-![Gitter](https://img.shields.io/gitter/room/linkedin/kafka.svg?style=popout)
+[![License](https://img.shields.io/github/license/linkedin/brooklin.svg?style=popout)](https://github.com/linkedin/brooklin/blob/master/LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/linkedin/brooklin.svg?style=popout)](https://github.com/linkedin/brooklin/commits/master)
+[![Bugs](https://img.shields.io/github/issues/linkedin/brooklin/bug.svg?color=orange?style=popout)](https://github.com/linkedin/brooklin/labels/bug)
+[![Gitter](https://img.shields.io/gitter/room/linkedin/kafka.svg?style=popout)](https://gitter.im/linkedin/brooklin)
 
 Brooklin is a distributed system intended for streaming data between various hetergenous source and destination systems with high reliability and throughput at scale. It features an extensible API that enables writing extensions to support consuming/producing data from/to new systems.
 
