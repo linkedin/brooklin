@@ -108,38 +108,42 @@ public class DirectoryChangeProcessor implements Runnable, AutoCloseable {
     try {
       _task.acquire(ACQUIRE_TIMEOUT);
 
+      LOG.info("Started watching directory {}", _dirPath);
+
       boolean isWatchKeyValid = true;
       for (WatchKey key = pollWatchService(); isWatchKeyValid; key = pollWatchService()) {
-        for (WatchEvent<?> event : key.pollEvents()) {
-          WatchEvent.Kind<?> kind = event.kind();
+        if (key != null) {
+          for (WatchEvent<?> event : key.pollEvents()) {
+            WatchEvent.Kind<?> kind = event.kind();
 
-          /*
-           * We may get an OVERFLOW event even though we have not registered for it.
-           * https://docs.oracle.com/javase/tutorial/essential/io/notification.html#register
-           */
-          if (kind != OVERFLOW) {
-            @SuppressWarnings("unchecked")
-            Path filename = ((WatchEvent<Path>) event).context();
-            Path absolutePath = _dirPath.resolve(filename).toAbsolutePath();
+            /*
+             * We may get an OVERFLOW event even though we have not registered for it.
+             * https://docs.oracle.com/javase/tutorial/essential/io/notification.html#register
+             */
+            if (kind != OVERFLOW) {
+              @SuppressWarnings("unchecked")
+              Path filename = ((WatchEvent<Path>) event).context();
+              Path absolutePath = _dirPath.resolve(filename).toAbsolutePath();
 
-            BrooklinEnvelope envelope = new BrooklinEnvelope(absolutePath, getCorrespondingDirectoryEvent(kind), null,
-                Collections.emptyMap());
+              BrooklinEnvelope envelope = new BrooklinEnvelope(absolutePath, getCorrespondingDirectoryEvent(kind), null,
+                  Collections.emptyMap());
 
-            DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-            builder.addEvent(envelope);
-            builder.setEventsSourceTimestamp(System.currentTimeMillis());
-            builder.setPartition(0);
+              DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+              builder.addEvent(envelope);
+              builder.setEventsSourceTimestamp(System.currentTimeMillis());
+              builder.setPartition(0);
 
-           _producer.send(builder.build(), ((metadata, exception) -> {
-              if (exception == null) {
-                LOG.info("Sending event succeeded");
-              } else {
-                LOG.error("Sending event failed", exception);
-              }
-            }));
+              _producer.send(builder.build(), ((metadata, exception) -> {
+                if (exception == null) {
+                  LOG.info("Sending event succeeded");
+                } else {
+                  LOG.error("Sending event failed", exception);
+                }
+              }));
+            }
           }
+          isWatchKeyValid = key.reset();
         }
-        isWatchKeyValid = key.reset();
       }
 
       LOG.warn("Watch key no longer valid. Path {} might have been altered or removed.", _dirPath);
@@ -147,6 +151,8 @@ public class DirectoryChangeProcessor implements Runnable, AutoCloseable {
       Thread.currentThread().interrupt();
     } catch (ClosedWatchServiceException e) {
       LOG.info("WatchService closed");
+    } catch (Exception e) {
+      LOG.error("Unexpected exception {}", e);
     } finally {
       _task.release();
     }
