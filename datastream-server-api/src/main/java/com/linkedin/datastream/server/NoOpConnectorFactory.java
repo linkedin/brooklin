@@ -10,6 +10,8 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -31,6 +33,7 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
    * A {@link Connector} implementation that does nothing.
    */
   public static class NoOpConnector implements Connector {
+    private static final Logger LOG = LoggerFactory.getLogger(NoOpConnector.class.getName());
     @Override
     public void start(CheckpointProvider checkpointProvider) {
     }
@@ -49,27 +52,28 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
     }
 
     private boolean doesSourceMatch(Datastream newDatastream, Datastream existingDatastream) {
-      if ((!newDatastream.hasSource() && !existingDatastream.hasSource())
+      return ((!newDatastream.hasSource() && !existingDatastream.hasSource())
           || (newDatastream.hasSource() && existingDatastream.hasSource()
-          && newDatastream.getSource().equals(existingDatastream.getSource()))) {
-        return true;
-      }
-      return false;
+          && newDatastream.getSource().equals(existingDatastream.getSource())));
     }
 
     private boolean doesDestinationMatch(Datastream newDatastream, Datastream existingDatastream) {
-      if ((!newDatastream.hasDestination() && !existingDatastream.hasDestination())
+      return ((!newDatastream.hasDestination() && !existingDatastream.hasDestination())
           || (newDatastream.hasDestination() && existingDatastream.hasDestination()
-          && newDatastream.getDestination().equals(existingDatastream.getDestination()))) {
-        return true;
-      }
-      return false;
+          && newDatastream.getDestination().equals(existingDatastream.getDestination())));
     }
 
+    /**
+     * Throws {@link DatastreamValidationException} if datastream update is not allowed.
+     * Validates that the source and destination are not being updated. Only metadata can be updated.
+     * @param datastreams list of datastreams to be updated
+     * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
+     *                       validated.
+     * @throws DatastreamValidationException
+     */
     @Override
     public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-      // Only metadata updates are allowed
       for (Datastream newDatastream : datastreams) {
         List<Datastream> existingDatastreams = allDatastreams.stream().filter(ds -> ds.getName()
             .equals(newDatastream.getName())).collect(Collectors.toList());
@@ -79,6 +83,7 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
         Datastream existingDatastream = existingDatastreams.get(0);
 
         if (newDatastream.equals(existingDatastream)) {
+          LOG.info(String.format("Skipping update for datastream {%s} due to no change", existingDatastream));
           continue;
         }
 
@@ -89,6 +94,7 @@ public class NoOpConnectorFactory implements ConnectorFactory<NoOpConnectorFacto
               newDatastream));
         }
 
+        // Only metadata updates are allowed
         if (newDatastream.hasMetadata() && existingDatastream.hasMetadata()
             && newDatastream.getMetadata().equals(existingDatastream.getMetadata())) {
           throw new DatastreamValidationException(String.format("Only metadata update is allowed. "
