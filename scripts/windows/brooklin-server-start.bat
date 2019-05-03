@@ -1,7 +1,7 @@
 @echo off
 
 IF [%1] EQU [] (
-	echo USAGE: %0 server1.properties
+	echo USAGE: %0 server.properties
 	EXIT /B 1
 )
 

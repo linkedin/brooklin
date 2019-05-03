@@ -14,13 +14,13 @@ set BASE_DIR=%CD%
 popd
 
 call :concat %BASE_DIR%\datastream-server\build\libs\*
-call :concat %BASE_DIR%\datastream-server\build\dependant-libs\*
+call :concat %BASE_DIR%\datastream-server\build\dependent-libs\*
 call :concat %BASE_DIR%\datastream-kafka\build\libs\*
-call :concat %BASE_DIR%\datastream-kafka\build\dependant-libs\*
+call :concat %BASE_DIR%\datastream-kafka\build\dependent-libs\*
 call :concat %BASE_DIR%\datastream-file-connector\build\libs\*
-call :concat %BASE_DIR%\datastream-file-connector\build\dependant-libs\*
+call :concat %BASE_DIR%\datastream-file-connector\build\dependent-libs\*
 call :concat %BASE_DIR%\datastream-tools\build\libs\*
-call :concat %BASE_DIR%\datastream-tools\build\dependant-libs\*
+call :concat %BASE_DIR%\datastream-tools\build\dependent-libs\*
 
 
 rem Classpath addition for release

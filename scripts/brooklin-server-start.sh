@@ -2,7 +2,7 @@
 
 if [ $# -lt 1 ];
 then
-	echo "USAGE: $0 [-daemon] server1.properties [--override property=value]*"
+	echo "USAGE: $0 [-daemon] server.properties [--override property=value]*"
 	exit 1
 fi
 base_dir=$(dirname $0)
@@ -15,7 +15,7 @@ if [ "x$HEAP_OPTS" = "x" ]; then
     export HEAP_OPTS="-Xmx1G -Xms1G"
 fi
 
-EXTRA_ARGS="-name datastream -loggc"
+EXTRA_ARGS="-name brooklin -loggc"
 
 COMMAND=$1
 case $COMMAND in
