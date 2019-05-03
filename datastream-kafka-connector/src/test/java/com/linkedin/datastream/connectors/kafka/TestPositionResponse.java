@@ -42,6 +42,7 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
 import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
@@ -136,9 +137,7 @@ public class TestPositionResponse {
         new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
     _state = new KafkaConsumerState(assignments);
 
-    _consumer = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
+    _consumer = createKafkaConnectorTask(_factory, _task);
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -167,9 +166,7 @@ public class TestPositionResponse {
         new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
     _state = new KafkaConsumerState(assignments);
 
-    _consumer = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
+    _consumer = createKafkaConnectorTask(_factory, _task);
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -206,9 +203,7 @@ public class TestPositionResponse {
         new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
     _state = new KafkaConsumerState(assignments);
 
-    _consumer = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
+    _consumer = createKafkaConnectorTask(_factory, _task);
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -256,9 +251,7 @@ public class TestPositionResponse {
         new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
     _state = new KafkaConsumerState(assignments);
 
-    _consumer = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
+    _consumer = createKafkaConnectorTask(_factory, _task);
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -307,9 +300,7 @@ public class TestPositionResponse {
         new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
     _state = new KafkaConsumerState(assignments);
 
-    _consumer = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(_factory, null, new Properties(), "", "", 1000, 5, Duration.ZERO, false,
-            Duration.ZERO), _task, "", new KafkaGroupIdConstructor(false, "testCluster"));
+    _consumer = createKafkaConnectorTask(_factory, _task);
     Thread consumerThread = new Thread(_consumer, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.start();
@@ -369,6 +360,11 @@ public class TestPositionResponse {
         .map(sourcesToPosition -> sourcesToPosition.get(topicPartition.toString()))
         .map(PhysicalSourcePosition::getConsumerPosition)
         .map(Long::valueOf);
+  }
+
+  private static KafkaConnectorTask createKafkaConnectorTask(KafkaConsumerFactory<byte[], byte[]> factory, DatastreamTask task) {
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder().setConsumerFactory(factory).build();
+    return new KafkaConnectorTask(connectorConfig, task, "", new KafkaGroupIdConstructor(false, "testCluster"));
   }
 
   /**

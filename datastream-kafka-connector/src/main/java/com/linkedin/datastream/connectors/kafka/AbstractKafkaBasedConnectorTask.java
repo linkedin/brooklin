@@ -97,6 +97,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   // config
   protected DatastreamTask _datastreamTask;
   protected final long _offsetCommitInterval;
+  protected final Duration _commitTimeout;
   protected final long _pollTimeoutMs;
   protected final Duration _retrySleepDuration;
   protected final int _maxRetryCount;
@@ -152,7 +153,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _datastreamName);
     }
 
-    _processingDelayLogThresholdMs = config.getProcessingDelayLogThresholdMs();
+    _processingDelayLogThresholdMs = config.getProcessingDelayLogThresholdMillis();
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
@@ -162,6 +163,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _pollTimeoutMs = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
+    _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _kafkaPositionTracker = config.getEnableKafkaPositionTracker() ? Optional.of(new KafkaPositionTracker(_taskName,
@@ -526,9 +528,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
-          consumer.commitSync(offsets.get());
+          consumer.commitSync(offsets.get(), _commitTimeout);
         } else {
-          consumer.commitSync();
+          consumer.commitSync(_commitTimeout);
         }
         _logger.info("Commit succeeded.");
       } catch (KafkaException e) {

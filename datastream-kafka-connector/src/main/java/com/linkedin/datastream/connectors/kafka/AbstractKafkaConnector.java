@@ -235,7 +235,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     Thread taskThread = _taskThreads.get(datastreamTask);
     AbstractKafkaBasedConnectorTask kafkaTask = _runningTasks.get(datastreamTask);
     return (taskThread != null && taskThread.isAlive()
-        && (System.currentTimeMillis() - kafkaTask.getLastPolledTimeMs()) < _config.getNonGoodStateThresholdMs());
+        && (System.currentTimeMillis() - kafkaTask.getLastPolledTimeMs()) < _config.getNonGoodStateThresholdMillis());
   }
 
   @Override

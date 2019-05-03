@@ -186,12 +186,12 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     testEventSend(1, 1, 0, true, true, "test");
   }
 
-  @Test(enabled = true)
+  @Test
   public void testSendWithoutPartitionNumber() throws Exception {
     testEventSend(1, 2, -1, true, true, "test");
   }
 
-  @Test(enabled = true)
+  @Test
   public void testEventWithoutKeyAndPartition() throws Exception {
     testEventSend(1, 2, -1, false, true, "test");
   }

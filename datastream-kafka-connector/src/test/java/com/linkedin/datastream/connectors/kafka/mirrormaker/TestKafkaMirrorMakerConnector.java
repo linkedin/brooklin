@@ -75,13 +75,14 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
     config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS, "1000");
     config.put(KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS, "5000");
     config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, LiKafkaConsumerFactory.class.getName());
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.TRUE.toString());
-    config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MS, "1000");
-    config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MS,
+    config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS, "1000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS,
         String.valueOf(Duration.ofSeconds(5).toMillis()));
-    override.ifPresent(o -> config.putAll(o));
+    override.ifPresent(config::putAll);
     return config;
   }
 
