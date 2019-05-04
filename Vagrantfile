@@ -79,6 +79,10 @@ Vagrant.configure("2") do |config|
     yum install -y java-1.8.0-openjdk
     exitIfError "Encountered an error while installing Java"
 
+    yum install -y epel-release
+    yum install -y jq
+    exitIfError "Encountered an error while installing jq"
+
     # Download and untar Kafka
     echo "Downloading Kafka"
     curl -s -o kafka_2.12-2.2.0.tgz 'https://www-us.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz'
