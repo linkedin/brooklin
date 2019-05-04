@@ -33,21 +33,21 @@ While it is not limited to any particular system, Brooklin provides capabilities
 ## Use Cases
 
 ### Mirroring Kafka Clusters
-    Brooklin offers various advantages when used for mirroring data across Kafka clusters:
+Brooklin offers various advantages when used for mirroring data across Kafka clusters:
 
 #### Multitenancy
-    A single Brooklin cluster can be used to mirror data across several Kafka clusters.
+A single Brooklin cluster can be used to mirror data across several Kafka clusters.
 
 #### Fault Isolation Across Topic Partitions
-    One bad partition will not affect an entire Kafka topic. Mirroring will continue for all the other healthy partitions.
+One bad partition will not affect an entire Kafka topic. Mirroring will continue for all the other healthy partitions.
 
 #### Whitelisting Topics Using Regular Expressions
-    Select the topics to mirror using regular expression patterns against their names.
+Select the topics to mirror using regular expression patterns against their names.
 
 #### Pausing/Resuming Individual Partitions
-    Through its [Datastream Management Service (DMS)](https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest-endpoints), Brooklin exposes REST APIs that allow finer control over replication pipelines, like being able to pause and resume individual partitions of a Kafka topic.
+Through its [Datastream Management Service (DMS)](https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest-endpoints), Brooklin exposes REST APIs that allow finer control over replication pipelines, like being able to pause and resume individual partitions of a Kafka topic.
 
-Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) wiki page to learn more about using Brooklin to mirror Kafka clusters.
+> Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) wiki page to learn more about using Brooklin to mirror Kafka clusters.
 
 ### Change Data Capture
 - Brooklin supports propagating [Change Data Capture](https://en.wikipedia.org/wiki/Change_data_capture) events from data stores, e.g. RDBMS, KV stores ... etc. 
@@ -61,7 +61,7 @@ Brooklin can be used as the underlying streaming infrastructure feeding data to 
 Feel free to check out our [step-by-step tutorials](https://github.com/linkedin/brooklin/wiki/test-driving-brooklin) for running Brooklin locally in a few example scenarios.
 
 ## Documentation
-Check out our [wiki pages](https://github.com/linkedin/Brooklin/wiki).
+[Brooklin Wiki Pages](https://github.com/linkedin/Brooklin/wiki)
 
 ## Community
 - Join our [Brooklin chat room on Gitter](https://gitter.im/linkedin/brooklin)
