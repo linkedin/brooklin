@@ -8,9 +8,12 @@ package com.linkedin.datastream.connectors.kafka;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -21,6 +24,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -38,7 +42,10 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.diag.KafkaPositionValue;
+import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.server.DatastreamEventProducer;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
@@ -226,6 +233,63 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testConsumerPositionTracking() throws Exception {
+    // Clear position data set by previous tests
+    PositionDataStore.getInstance().clear();
+
+    final KafkaBasedConnectorConfig config = new KafkaBasedConnectorConfigBuilder().build();
+
+    final String topic = "ChicagoStylePizza";
+    createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    final Datastream datastream = getDatastream(_broker, topic);
+    final DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    final MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    final KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, config);
+
+    LOG.info("Producing 100 msgs to topic: " + topic);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // Create our own Kafka consumer for the position tracker
+    final KafkaConnectionString connectionString
+        = KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
+    try (final Consumer<?, ?> consumer = connectorTask.createKafkaConsumer(
+        KafkaConnectorTask.getKafkaConsumerProperties(config.getConsumerProps(), "testGroupId", connectionString))) {
+      // Test Kafka connector's position data
+      Assert.assertTrue(connectorTask._kafkaPositionTracker.isPresent());
+      connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
+          Collections.singleton(new TopicPartition(topic, 0)));
+      final Optional<KafkaPositionValue> position = PositionDataStore.getInstance().values()
+          .stream()
+          .map(ConcurrentHashMap::values)
+          .flatMap(Collection::stream)
+          .map(value -> (KafkaPositionValue) value)
+          .findAny();
+      Assert.assertTrue(position.isPresent());
+      Assert.assertEquals(position.get().getBrokerOffset(), position.get().getConsumerOffset());
+      final DatastreamProducerRecord lastEvent = datastreamProducer.getEvents()
+          .get(datastreamProducer.getEvents().size() - 1);
+      Assert.assertNotNull(position.get().getLastRecordReceivedTimestamp());
+      Assert.assertEquals(lastEvent.getEventsSourceTimestamp(),
+          position.get().getLastRecordReceivedTimestamp().toEpochMilli());
     }
 
     connectorTask.stop();

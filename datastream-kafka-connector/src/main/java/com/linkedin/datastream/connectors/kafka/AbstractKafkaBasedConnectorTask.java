@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -30,6 +31,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.InvalidOffsetException;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
@@ -40,7 +42,6 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
@@ -106,6 +107,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
+  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
   // Datastream task updates that need to be processed
@@ -162,6 +164,19 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = 0;
+
+    KafkaPositionTracker positionTracker = null;
+    if (config.getEnablePositionTracker()) {
+      final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
+      final Instant taskStartTime = Instant.now();
+      final String taskPrefix = _datastreamTask.getTaskPrefix();
+      final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
+          && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
+      final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
+      positionTracker = new KafkaPositionTracker(brooklinTaskId, taskStartTime, taskPrefix, isConnectorTaskAlive,
+          consumerSupplier);
+    }
+    _kafkaPositionTracker = Optional.ofNullable(positionTracker);
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -416,6 +431,25 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
       }
       _pollAttempts = 0;
+
+      _kafkaPositionTracker.ifPresent(tracker -> {
+        // The calls to position() (needed for initializing the position data for these positions) are intentionally
+        // made after a poll() so that they will return very quickly
+        for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
+          try {
+            tracker.initializePartition(topicPartition, _consumer.position(topicPartition));
+          } catch (IllegalStateException ignored) {
+            // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
+            // In this case, there is nothing we can do but wait for onPartitionsRevoked().
+          } catch (InvalidOffsetException ignored) {
+            // Occurs if no offset is defined for the partition and no offset reset policy is defined.
+            // This error should have been caught by poll(), but will definitely be caught by poll() in the next run, so
+            // it should be safe to ignore this exception and allow records processing to continue.
+          }
+        }
+        tracker.onRecordsReceived(records, _consumer.metrics());
+      });
+
       return records;
     } catch (NoOffsetForPartitionException e) {
       handleNoOffsetForPartitionException(e);
@@ -611,6 +645,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(topicPartitions));
     if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
@@ -629,8 +664,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    _consumerMetrics.updateRebalanceRate(1);
     _logger.info("Partition ownership assigned for {}.", partitions);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
+    _consumerMetrics.updateRebalanceRate(1);
 
     updateConsumerAssignment(partitions);
 
