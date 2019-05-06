@@ -1,0 +1,96 @@
+{
+  "models" : [ {
+    "type" : "record",
+    "name" : "PositionData",
+    "namespace" : "com.linkedin.datastream.diagnostics.position",
+    "doc" : "Data describing a consumer's position for a given task prefix and key",
+    "fields" : [ {
+      "name" : "taskPrefix",
+      "type" : "string",
+      "doc" : "The task prefix of the DatastreamTask that this position is for"
+    }, {
+      "name" : "key",
+      "type" : "string",
+      "doc" : "The position key, which uniquely identifies the consumer and the source being consumed, serialized into a JSON string"
+    }, {
+      "name" : "value",
+      "type" : "string",
+      "doc" : "The position value, which describes information about the consumer's position and status reading from the source, serialized into a JSON string"
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "InstancePositionReport",
+    "namespace" : "com.linkedin.datastream.diagnostics.position",
+    "doc" : "A position report collected from an instance",
+    "fields" : [ {
+      "name" : "instance",
+      "type" : "string",
+      "doc" : "The instance that provided the given position report"
+    }, {
+      "name" : "positions",
+      "type" : {
+        "type" : "array",
+        "items" : "PositionData"
+      },
+      "doc" : "The instance's reported positions"
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "ConnectorPositionReport",
+    "namespace" : "com.linkedin.datastream.diagnostics.position",
+    "doc" : "Returns the current position data for connectors running on this server or every server",
+    "fields" : [ {
+      "name" : "succeeded",
+      "type" : "boolean",
+      "doc" : "True if the request succeeded across all instances, false otherwise"
+    }, {
+      "name" : "failedInstances",
+      "type" : {
+        "type" : "array",
+        "items" : "string"
+      },
+      "doc" : "The list of instances that failed to return data, if any"
+    }, {
+      "name" : "respondingInstance",
+      "type" : "string",
+      "doc" : "The instance that handled this request"
+    }, {
+      "name" : "errorMessages",
+      "type" : {
+        "type" : "array",
+        "items" : "string"
+      },
+      "doc" : "Applicable error messages encountered when performing this request"
+    }, {
+      "name" : "positionReports",
+      "type" : {
+        "type" : "array",
+        "items" : "InstancePositionReport"
+      },
+      "doc" : "All gathered position reports from instances"
+    } ]
+  } ],
+  "schema" : {
+    "name" : "connectorPositions",
+    "namespace" : "com.linkedin.datastream.server.diagnostics",
+    "path" : "/connectorPositions",
+    "schema" : "com.linkedin.datastream.diagnostics.position.ConnectorPositionReport",
+    "doc" : "Resource class used by Rest.li to process HTTP requests to the /connectorPositions endpoint.\n\n The format of the request to get the Connector position data for this server instance is:\n   GET /connectorPositions\n The format of the request to get the Connector position data for all server instances is:\n   GET /connectorPositions?aggregate=true\n\n The data returned will be a {@link ConnectorPositionReport} object.\n\ngenerated from: com.linkedin.datastream.server.diagnostics.ConnectorPositionReportResource",
+    "simple" : {
+      "supports" : [ "get" ],
+      "methods" : [ {
+        "method" : "get",
+        "doc" : "Implements GET /connectorPositions with the boolean query parameter 'aggregate'.\n\n This method handles returning responses for the following calls:\n   GET /connectorPositions\n   GET /connectorPositions?aggregate=false\n   GET /connectorPositions?aggregate=true",
+        "parameters" : [ {
+          "name" : "aggregate",
+          "type" : "boolean",
+          "default" : "false",
+          "doc" : "If true, the returned data will be aggregated data from every instance in the cluster. If false,\n                  the returned data will only be from this instance."
+        } ]
+      } ],
+      "entity" : {
+        "path" : "/connectorPositions"
+      }
+    }
+  }
+}
