@@ -13,7 +13,6 @@ import com.linkedin.datastream.common.VerifiableProperties;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS;
-import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_ENABLE_KAFKA_POSITION_TRACKER;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS;
@@ -45,7 +44,6 @@ public class KafkaBasedConnectorConfigBuilder {
     setRetrySleepDuration(Duration.ZERO);
     setPausePartitionOnError(false);
     setPauseErrorPartitionDuration(Duration.ZERO);
-    setEnableKafkaPositionTracker(true);
   }
 
   /**
@@ -146,14 +144,6 @@ public class KafkaBasedConnectorConfigBuilder {
    */
   public KafkaBasedConnectorConfigBuilder setPollTimeoutMillis(long pollTimeoutMillis) {
     _properties.put(CONFIG_POLL_TIMEOUT_MILLIS, Long.toString(pollTimeoutMillis));
-    return this;
-  }
-
-  /**
-   * Set flag indicating whether or not to enable Kafka position tracker
-   */
-  public KafkaBasedConnectorConfigBuilder setEnableKafkaPositionTracker(boolean enableKafkaPositionTracker) {
-    _properties.put(CONFIG_ENABLE_KAFKA_POSITION_TRACKER, Boolean.toString(enableKafkaPositionTracker));
     return this;
   }
 }

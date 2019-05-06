@@ -21,8 +21,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -53,7 +51,6 @@ import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -122,8 +119,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
-  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
-
   private volatile int _pollAttempts;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
@@ -165,10 +160,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
-
-    _kafkaPositionTracker = config.getEnableKafkaPositionTracker() ? Optional.of(new KafkaPositionTracker(_taskName,
-        () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
-        () -> createKafkaConsumer(_consumerProps))) : Optional.empty();
 
     _pollAttempts = 0;
   }
@@ -246,8 +237,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
     }
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.updatePositions(readTime, records, _consumer.metrics(),
-        records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp)))));
 
     if (shouldAddPausePartitionsTask) {
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -634,9 +623,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     updateConsumerAssignment(_consumer.assignment());
 
-    // Remove old position data
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(_consumerAssignment));
-
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
@@ -647,7 +633,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Partition ownership assigned for {}.", partitions);
 
     updateConsumerAssignment(partitions);
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
 
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -914,27 +899,5 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
 
     return null;
-  }
-
-  /**
-   * Gets a DatastreamPositionResponse containing time-based position data for the current task.
-   * @return the current time-based position data, or null if position tracker is disabled
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  public DatastreamPositionResponse getPositionResponse() {
-    return _kafkaPositionTracker.map(
-        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getPositions())))
-        .orElse(null);
-  }
-
-  /**
-   * Gets a DatastreamPositionResponse containing offset-based position data for the current task.
-   * @return the current offset-based position data, or null if position tracker is disabled
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  public DatastreamPositionResponse getOffsetPositionResponse() {
-    return _kafkaPositionTracker.map(
-        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getOffsetPositions())))
-        .orElse(null);
   }
 }

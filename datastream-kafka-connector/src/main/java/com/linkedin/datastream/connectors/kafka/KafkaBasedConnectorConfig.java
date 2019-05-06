@@ -32,7 +32,6 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
-  public static final String CONFIG_ENABLE_KAFKA_POSITION_TRACKER = "enableKafkaPositionTracker";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
 
@@ -61,7 +60,6 @@ public class KafkaBasedConnectorConfig {
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
-  private final boolean _enableKafkaPositionTracker;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -95,8 +93,6 @@ public class KafkaBasedConnectorConfig {
     _processingDelayLogThresholdMillis =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
-    _enableKafkaPositionTracker =
-        verifiableProperties.getBoolean(CONFIG_ENABLE_KAFKA_POSITION_TRACKER, Boolean.FALSE);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -172,9 +168,5 @@ public class KafkaBasedConnectorConfig {
 
   public long getProcessingDelayLogThresholdMillis() {
     return _processingDelayLogThresholdMillis;
-  }
-
-  public boolean getEnableKafkaPositionTracker() {
-    return _enableKafkaPositionTracker;
   }
 }

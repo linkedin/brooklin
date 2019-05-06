@@ -11,9 +11,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,9 +40,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
-import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
-import com.linkedin.datastream.common.diag.PhysicalSources;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -67,8 +62,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
-  private static final String TOPIC_KEY = "topic";
-  private static final String OFFSETS_KEY = "offsets";
   private static final long MIN_INITIAL_DELAY = 120L;
 
 
@@ -97,8 +90,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       });
 
   enum DiagnosticsRequestType {
-    DATASTREAM_STATE,
-    POSITION
+    DATASTREAM_STATE
   }
 
   /**
@@ -349,9 +341,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     try {
       URI uri = new URI(query);
       String path = getPath(query, _logger);
-      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        return processDatastreamPositionRequest(uri);
-      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
         String response = processDatastreamStateRequest(uri);
         _logger.info("Query: {} returns response: {}", query, response);
         return response;
@@ -376,45 +366,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Processes a datastream position request.
-   * @param request the request parameters
-   * @return a datastream position request, serialized in JSON
-   * @see com.linkedin.datastream.common.diag.DatastreamPositionResponse for the contents of such a response
-   * @see AbstractKafkaBasedConnectorTask#getPositionResponse() for how the response is compiled
-   */
-  private String processDatastreamPositionRequest(URI request) {
-    _logger.debug("Processing datastream position request: {}", request);
-
-    // Determine if the user is asking specifically for the offset position data
-    boolean offsetPositionTypeRequested = extractQueryParam(request, OFFSETS_KEY).map(Boolean::parseBoolean).orElse(false);
-
-    DatastreamPositionResponse response = _runningTasks.values()
-        .stream()
-        .map(task -> offsetPositionTypeRequested ? task.getOffsetPositionResponse() : task.getPositionResponse())
-        .reduce(DatastreamPositionResponse::merge)
-        .orElse(new DatastreamPositionResponse());
-    _logger.debug("Unfiltered datastream position response: {}", response);
-
-    // Filter datastreams if specified -- may be needed if output is too large
-    extractQueryParam(request, DATASTREAM_KEY).ifPresent(name -> response.retainAll(Collections.singleton(name)));
-
-    // Filter topic if specified -- may be needed if output is too large
-    extractQueryParam(request, TOPIC_KEY).ifPresent(topic -> {
-      for (PhysicalSources sources : response.getDatastreamToPhysicalSources().values()) {
-        Map<String, PhysicalSourcePosition> positions = new HashMap<>(sources.getPhysicalSourceToPosition());
-        for (String position : positions.keySet()) {
-          if (!position.matches("^" + topic + "-\\d+$")) {
-            positions.remove(position);
-          }
-        }
-      }
-    });
-    _logger.debug("Filtered datastream position response: {}", response);
-
-    return DatastreamPositionResponse.toJson(response);
-  }
-
-  /**
    * Aggregates the responses from all the instances into a single JSON response.
    * Sample query: /datastream_state?datastream=PizzaDatastream
    * Sample response:
@@ -434,9 +385,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _logger.info("Reducing query {} with responses from {}.", query, responses.keySet());
     try {
       String path = getPath(query, _logger);
-      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        return reduceDatastreamPositionResponses(responses);
-      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
         return JsonUtils.toJson(responses);
       }
     } catch (Exception e) {
@@ -444,30 +393,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       return null;
     }
     return null;
-  }
-
-  /**
-   * Aggregates all of the position responses from all the instances into a single JSON response.
-   * @param responses the individual responses
-   * @return an aggregated response
-   * @see com.linkedin.datastream.common.diag.DatastreamPositionResponse for the contents of such a response
-   */
-  private String reduceDatastreamPositionResponses(Map<String, String> responses) {
-    List<DatastreamPositionResponse> responseList = new ArrayList<>();
-    responses.forEach((instance, json) -> {
-      try {
-        DatastreamPositionResponse response = DatastreamPositionResponse.fromJson(json);
-        _logger.debug("Datastream position response from instance {} is {}", instance, response);
-        responseList.add(response);
-      } catch (Exception e) {
-        _logger.error("Invalid datastream position response {} from instance {}.", json, instance, e);
-      }
-    });
-    DatastreamPositionResponse result = responseList.stream()
-        .reduce(DatastreamPositionResponse::merge)
-        .orElse(new DatastreamPositionResponse());
-    _logger.debug("Final reduced datastream position response {}", result);
-    return DatastreamPositionResponse.toJson(result);
   }
 
   /**

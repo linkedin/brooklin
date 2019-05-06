@@ -228,29 +228,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
-    // TODO Below code needs fixing, With latest kafka, below code breaks because it
-    //  doesn't allow the consumer to be used across threads
-
-
-//    long consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
-//        new TopicPartition(topic, 0)).orElse(0L);
-//    long lastRecordTime = datastreamProducer.getEvents().get(datastreamProducer.getEvents().size() - 1)
-//        .getEventsSourceTimestamp();
-//    Assert.assertTrue(consumerPosition <= lastRecordTime,
-//        String.format(
-//            "Position response is newer than the events we have read so far. Expected consumer position of %s to be before time %s.",
-//            consumerPosition, lastRecordTime));
-//
-//    long postProductionTime = System.currentTimeMillis();
-//    connectorTask._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(connectorTask._consumer,
-//        connectorTask._consumerAssignment, postProductionTime);
-//
-//    consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
-//        new TopicPartition(topic, 0)).orElse(0L);
-//    Assert.assertTrue(consumerPosition >= postProductionTime,
-//        String.format("Position response is stale. Expected consumer position of %s to be after time %s.",
-//            consumerPosition, postProductionTime));
-
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
