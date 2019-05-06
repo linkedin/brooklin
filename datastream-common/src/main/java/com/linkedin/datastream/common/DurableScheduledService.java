@@ -5,9 +5,6 @@
  */
 package com.linkedin.datastream.common;
 
-import com.google.common.util.concurrent.AbstractScheduledService;
-import com.google.common.util.concurrent.Service;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -15,7 +12,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.util.concurrent.AbstractScheduledService;
+import com.google.common.util.concurrent.Service;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +34,9 @@ import org.slf4j.LoggerFactory;
  * Because of its durable nature, it may be possible for the class responsible for this service to encounter errors
  * which this class is unaffected by. This may cause this service to leak. Override the {@link #hasLeaked()} method as
  * described in the comments to provide some mitigation in case this happens.
+ *
+ * If you suspect that the running task may get permanently stuck (block indefinitely), you can implement
+ * {@link #signalShutdown(Thread)} to give this service a way to signalShutdown the running task to exit.
  */
 public abstract class DurableScheduledService implements Service {
 
@@ -41,27 +47,38 @@ public abstract class DurableScheduledService implements Service {
    * increasing to make debugging lifecycles easier to understand.
    */
   private static final AtomicLong CLASS_INSTANTIATION_COUNTER = new AtomicLong();
+
   /**
    * The default interval where the periodic task is checked for liveliness.
    */
   private static final Duration DEFAULT_WATCHER_INTERVAL = Duration.ofMinutes(1);
+
+  /**
+   * The default interval to wait for  the previous failed/stopping task to end before creating and starting a new task.
+   */
+  private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+
   /**
    * The class instantiation count of this current instantiation. Used in the service and thread names.
    */
   private final long _classInstantiationCount = CLASS_INSTANTIATION_COUNTER.incrementAndGet();
+
   /**
    * Counts instantiations of the periodic task. Used to ensure the service and thread name for the task are unique and
    * monotonically increasing to show lifecycle information if the periodic task gets restarted.
    */
   private final AtomicLong _taskInstantiationCount = new AtomicLong();
+
   /**
    * The service name.
    */
   private final String _serviceName;
+
   /**
    * The periodicity in which to run the periodic task.
    */
   private final Duration _runInterval;
+
   /**
    * The smallest duration between the last successful run of the periodic task and the current time such that something
    * is considered to be wrong with the periodic task.
@@ -69,6 +86,13 @@ public abstract class DurableScheduledService implements Service {
    * If the run time of the periodic task exceeds this duration, it will be terminated and restarted.
    */
   private final Duration _timeout;
+
+  /**
+   * The duration to wait for the previous failed/stopping task to end before creating and starting a new task. After
+   * this timeout, there will be no more interactions with the previous failed/stopping task.
+   */
+  private final Duration _shutdownTimeout;
+
   /**
    * The interval in which the periodic task is checked for liveliness.
    */
@@ -102,8 +126,9 @@ public abstract class DurableScheduledService implements Service {
    * @param runInterval how frequently to run the periodic task
    * @param timeout how long between successful runs before the periodic task is considered to be unhealthy
    */
-  public DurableScheduledService(final String serviceName, final Duration runInterval, final Duration timeout) {
-    this(serviceName, runInterval, timeout, DEFAULT_WATCHER_INTERVAL);
+  public DurableScheduledService(@NotNull final String serviceName, @NotNull final Duration runInterval,
+      @NotNull final Duration timeout) {
+    this(serviceName, runInterval, timeout, DEFAULT_WATCHER_INTERVAL, DEFAULT_SHUTDOWN_TIMEOUT);
   }
 
   /**
@@ -112,13 +137,17 @@ public abstract class DurableScheduledService implements Service {
    * @param runInterval how frequently to run the periodic task
    * @param timeout how long between successful runs before the periodic task is considered to be unhealthy
    * @param watcherInterval how frequently to check on the periodic task to ensure it is healthy
+   * @param shutdownTimeout how long to wait for the previous failed/stopping task to end before creating and starting a
+   *                        new task
    */
-  public DurableScheduledService(final String serviceName, final Duration runInterval, final Duration timeout,
-      final Duration watcherInterval) {
+  public DurableScheduledService(@NotNull final String serviceName, @NotNull final Duration runInterval,
+      @NotNull final Duration timeout, @NotNull final Duration watcherInterval,
+      @NotNull final Duration shutdownTimeout) {
     _serviceName = serviceName;
     _runInterval = runInterval;
     _timeout = timeout;
     _watcherInterval = watcherInterval;
+    _shutdownTimeout = shutdownTimeout;
     _watcherService = createWatcherService();
   }
 
@@ -136,9 +165,24 @@ public abstract class DurableScheduledService implements Service {
   protected abstract void runOneIteration() throws Exception;
 
   /**
+   * This method contains code that should be run to signal the running task that it should hurry up and complete
+   * execution. A typical implementation of this method is to set any necessary shutdown flags, or send an interrupt to
+   * the running task thread.
+   *
+   * By default, this method does not perform any action. Override it as necessary.
+   *
+   * This method MUST halt in a timely manner or it will block this class from scheduling future task runs, violating
+   * its contract.
+   *
+   * @param taskThread the last observed running task thread
+   * @throws Exception if there is an exception sending a signal to the task to complete execution
+   */
+  protected void signalShutdown(@Nullable final Thread taskThread) throws Exception {
+  }
+
+  /**
    * This method contains code that should be run to clean up the environment that the periodic task executes in. It
-   * will be called when the task terminates, when the task has crashed, or when the task eventually halts after being
-   * timed out.
+   * will be called when the task terminates.
    */
   protected abstract void shutDown() throws Exception;
 
@@ -258,48 +302,24 @@ public abstract class DurableScheduledService implements Service {
           _taskService.stopAsync();
         }
 
-        // Wait up to one second for the task to stop on its own accord
-        final Duration attemptDuration = Duration.ofSeconds(1);
+        // Send a signal to the task thread if necessary
+        if (_taskThread != null && _taskThread.isAlive()) {
+          try {
+            DurableScheduledService.this.signalShutdown(_taskThread);
+          } catch (Exception ignored) {
+            // Best faith effort
+          }
+        }
+
+        // Wait for the task to stop on its own accord after calling signal
         try {
-          _taskService.awaitTerminated(attemptDuration.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
+          _taskService.awaitTerminated(_shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (Exception ignored) {
           // Best faith effort
         }
 
-        // Make a supreme effort to kill the thread in question if it is still alive
-        final Thread thread = _taskThread;
-        if (thread != null && thread.isAlive()) {
-          // Try to interrupt the thread a few times to encourage it to quit out
-          LOG.debug("Attempting to stop thread {} by sending interrupts for task {}", thread.getName(), _taskService);
-          final Duration minimumSleepDuration = Duration.ofMillis(10);
-          long waitTimeMs = attemptDuration.toMillis();
-          final Instant expiration = Instant.now().plus(attemptDuration);
-          while (thread.isAlive() && Instant.now().isBefore(expiration)) {
-            thread.interrupt();
-            waitTimeMs = Math.max(waitTimeMs / 2, minimumSleepDuration.toMillis());
-            try {
-              Thread.sleep(waitTimeMs);
-            } catch (InterruptedException ignored) {
-              break; // Exit the loop immediately
-            }
-          }
-
-          // Check if the thread is still alive. If so, forcibly kill it.
-          if (thread.isAlive()) {
-            LOG.debug("Sending interrupts failed. Attempting to forcibly kill thread {} for task {}", thread.getName(),
-                _taskService);
-            try {
-              // Thread.stop() is deprecated as of JDK 1.2, but still implemented as of JDK 11. If this method is
-              // removed in a future JDK version, then we should get rid of this clause in our unit tests.
-              thread.stop();
-            } catch (Exception ignored) {
-              // Best faith effort
-            }
-          }
-        }
-
         LOG.debug("Task {} stopped {}", _taskService,
-            Optional.ofNullable(thread).map(Thread::isAlive).orElse(false) ? "unsuccessfully" : "successfully");
+            Optional.ofNullable(_taskThread).map(Thread::isAlive).orElse(false) ? "unsuccessfully" : "successfully");
       }
     };
   }

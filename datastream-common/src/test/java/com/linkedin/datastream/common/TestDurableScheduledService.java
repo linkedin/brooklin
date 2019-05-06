@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -36,7 +38,7 @@ public class TestDurableScheduledService {
     final AtomicLong runsCompleted = new AtomicLong(0);
     final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
     final DurableScheduledService service =
-        new DurableScheduledService("testAlwaysHealthy", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testAlwaysHealthy", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           @Override
           protected void startUp() {
             LOG.info(Thread.currentThread().getName() + " startUp");
@@ -86,7 +88,7 @@ public class TestDurableScheduledService {
     final AtomicLong exceptionalRuns = new AtomicLong(0);
     final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
     final DurableScheduledService service =
-        new DurableScheduledService("testAlwaysThrows", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testAlwaysThrows", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           @Override
           protected void startUp() {
             LOG.info(Thread.currentThread().getName() + " startUp");
@@ -141,7 +143,7 @@ public class TestDurableScheduledService {
     final AtomicLong runsStarted = new AtomicLong(0);
     final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
     final DurableScheduledService service =
-        new DurableScheduledService("testAlwaysBlocks", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testAlwaysBlocks", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           @Override
           protected void startUp() {
             LOG.info(Thread.currentThread().getName() + " startUp");
@@ -162,59 +164,10 @@ public class TestDurableScheduledService {
           }
 
           @Override
-          protected void shutDown() {
-            LOG.info(Thread.currentThread().getName() + " shutDown");
-          }
-        };
-    service.startAsync().awaitRunning();
-
-    // Perform a sample of runs
-    long numRuns = 2 * ((RUN_TIMEOUT.toMillis() / RUN_FREQUENCY.toMillis()) + 1);
-    Duration runDuration = RESTART_TIMEOUT.multipliedBy(numRuns);
-    Instant expiration = Instant.now().plus(runDuration);
-    while (runsStarted.get() < numRuns && Instant.now().isBefore(expiration)) {
-      Thread.sleep(RUN_FREQUENCY.toMillis());
-    }
-
-    // Stop the service
-    service.stopAsync().awaitTerminated();
-
-    // Ensure we completed our task within the timeout
-    Assert.assertTrue(numRuns <= runsStarted.get());
-
-    // Ensure all threads are cleaned up
-    Assert.assertTrue(taskThreads.stream().noneMatch(Thread::isAlive));
-
-    // We should have seen a thread for every run since we had a failure on each thread
-    Assert.assertEquals(taskThreads.size(), runsStarted.get());
-  }
-
-  @Test
-  public void testAlwaysIgnoreInterrupts() throws Exception {
-    final AtomicLong runsStarted = new AtomicLong(0);
-    final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
-    final DurableScheduledService service =
-        new DurableScheduledService("testAlwaysIgnoreInterrupts", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
-          @Override
-          protected void startUp() {
-            LOG.info(Thread.currentThread().getName() + " startUp");
-          }
-
-          @Override
-          protected void runOneIteration() {
-            LOG.info(Thread.currentThread().getName() + " runOneIteration");
-            runsStarted.incrementAndGet();
-            synchronized (taskThreads) {
-              if (!taskThreads.contains(Thread.currentThread())) {
-                taskThreads.add(Thread.currentThread());
-              }
-            }
-            while (true) {
-              try {
-                Thread.sleep(RUN_FREQUENCY.toMillis());
-              } catch (Exception e) {
-                LOG.debug("Exception caught and discarded in thread {}", Thread.currentThread().getName());
-              }
+          protected void signalShutdown(@Nullable final Thread taskThread) {
+            LOG.info(Thread.currentThread().getName() + " signalShutdown");
+            if (taskThread != null && taskThread.isAlive()) {
+              taskThread.interrupt();
             }
           }
 
@@ -254,7 +207,7 @@ public class TestDurableScheduledService {
     final AtomicLong runsSucceeded = new AtomicLong(0);
     final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
     final DurableScheduledService service =
-        new DurableScheduledService("testExtendedRun", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testExtendedRun", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           final Random _random = new Random();
 
           @Override
@@ -271,7 +224,7 @@ public class TestDurableScheduledService {
                 taskThreads.add(Thread.currentThread());
               }
             }
-            int outcome = _random.nextInt(4);
+            int outcome = _random.nextInt(3);
             if (outcome == 0) {
               // Success
               runsSucceeded.incrementAndGet();
@@ -283,17 +236,16 @@ public class TestDurableScheduledService {
               while (true) {
                 Thread.sleep(RUN_FREQUENCY.toMillis());
               }
-            } else if (outcome == 3) {
-              // Ignores interruption
-              while (true) {
-                try {
-                  Thread.sleep(RUN_FREQUENCY.toMillis());
-                } catch (Exception e) {
-                  LOG.debug("Exception caught and discarded in thread {}", Thread.currentThread().getName());
-                }
-              }
             } else {
               throw new IllegalStateException("Unknown outcome");
+            }
+          }
+
+          @Override
+          protected void signalShutdown(@Nullable final Thread taskThread) {
+            LOG.info(Thread.currentThread().getName() + " signalShutdown");
+            if (taskThread != null && taskThread.isAlive()) {
+              taskThread.interrupt();
             }
           }
 
@@ -332,7 +284,7 @@ public class TestDurableScheduledService {
   public void testStartWithLeak() throws Exception {
     final AtomicLong runsStarted = new AtomicLong(0);
     final DurableScheduledService service =
-        new DurableScheduledService("testStartWithLeak", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testStartWithLeak", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           @Override
           protected void startUp() {
             LOG.info(Thread.currentThread().getName() + " startUp");
@@ -356,7 +308,7 @@ public class TestDurableScheduledService {
         };
 
     // Start the service
-    service.startAsync().awaitRunning();
+    service.startAsync(); // Possible race condition on awaitRunning()
 
     // Wait for the service to detect the leak and halt
     Instant expiration = Instant.now().plus(RESTART_TIMEOUT);
@@ -377,7 +329,7 @@ public class TestDurableScheduledService {
     final AtomicLong runsStarted = new AtomicLong(0);
     final List<Thread> taskThreads = Collections.synchronizedList(new ArrayList<>());
     final DurableScheduledService service =
-        new DurableScheduledService("testStartWithLeak", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT) {
+        new DurableScheduledService("testStartWithLeak", RUN_FREQUENCY, RUN_TIMEOUT, RUN_TIMEOUT, RESTART_TIMEOUT) {
           @Override
           protected void startUp() {
             LOG.info(Thread.currentThread().getName() + " startUp");
