@@ -6,19 +6,28 @@
 package com.linkedin.datastream.connectors.file;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.common.io.CountingInputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.diag.InstanceFinder;
+import com.linkedin.datastream.common.diag.PositionDataStore;
+import com.linkedin.datastream.connectors.file.diag.FilePositionKey;
+import com.linkedin.datastream.connectors.file.diag.FilePositionValue;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -34,7 +43,9 @@ class FileProcessor implements Runnable {
   private final DatastreamTask _task;
   private final String _fileName;
   private final DatastreamEventProducer _producer;
-  private BufferedReader _fileReader;
+  private final BufferedReader _fileReader;
+  private final CountingInputStream _inputStream;
+  private final FilePositionValue _positionValue;
   private boolean _cancelRequested;
   private boolean _isStopped;
 
@@ -43,7 +54,19 @@ class FileProcessor implements Runnable {
   public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
-    _fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(_fileName)));
+
+    // Get reference to position data
+    _positionValue = (FilePositionValue) PositionDataStore.getInstance()
+        .computeIfAbsent(_task.getTaskPrefix(), s -> new ConcurrentHashMap<>())
+        .computeIfAbsent(new FilePositionKey(InstanceFinder.getInstanceName(), _task.getDatastreamTaskName(),
+            Instant.now(), _fileName), s -> new FilePositionValue());
+
+    // Set up input streams/readers
+    final File file = new File(_fileName);
+    _positionValue.setFileLengthBytes(file.length());
+    _inputStream = new CountingInputStream(new FileInputStream(file));
+    _fileReader = new BufferedReader(new InputStreamReader(_inputStream));
+
     _producer = producer;
     _isStopped = false;
     _cancelRequested = false;
@@ -78,10 +101,12 @@ class FileProcessor implements Runnable {
       _task.acquire(ACQUIRE_TIMEOUT);
 
       _lineNo = loadCheckpoint();
+      _positionValue.setLinesSeen(Long.valueOf(_lineNo));
       while (!_cancelRequested) {
         String text;
         try {
           text = _fileReader.readLine();
+          _positionValue.setBytesRead(_inputStream.getCount());
         } catch (IOException e) {
           throw new RuntimeException("Reading file failed.", e);
         }
@@ -114,6 +139,7 @@ class FileProcessor implements Runnable {
             }
           });
           ++_lineNo;
+          _positionValue.setLinesSeen(Long.valueOf(_lineNo));
         } else {
           try {
             // Wait for new data
