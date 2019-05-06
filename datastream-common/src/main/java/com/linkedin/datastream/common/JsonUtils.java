@@ -7,11 +7,18 @@ package com.linkedin.datastream.common;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.time.Instant;
 
 import org.apache.commons.lang.Validate;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.annotate.JsonIgnore;
 import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.map.DeserializationContext;
+import org.codehaus.jackson.map.JsonDeserializer;
+import org.codehaus.jackson.map.JsonSerializer;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.SerializerProvider;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,5 +127,25 @@ public final class JsonUtils {
   private abstract class IgnoreDatastreamSetPausedMixIn {
     @JsonIgnore
     public abstract void setPaused(Boolean value);
+  }
+
+  /**
+   * Serializes an Instant object into a Long containing the number of milliseconds from the epoch (Unix time).
+   */
+  public static class InstantSerializer extends JsonSerializer<Instant> {
+    @Override
+    public void serialize(Instant value, JsonGenerator generator, SerializerProvider provider) throws IOException {
+      generator.writeNumber(value.toEpochMilli());
+    }
+  }
+
+  /**
+   * Serializes an Instant object from a Long containing the number of milliseconds from the epoch (Unix time).
+   */
+  public static class InstantDeserializer extends JsonDeserializer<Instant> {
+    @Override
+    public Instant deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+      return Instant.ofEpochMilli(parser.getLongValue());
+    }
   }
 }
