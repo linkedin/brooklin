@@ -81,7 +81,10 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   @Override
   public void send(DatastreamProducerRecord event, SendCallback callback) {
     if (_sendFailCondition != null && _sendFailCondition.test(event)) {
-      throw new DatastreamRuntimeException("Random exception");
+      if (callback != null) {
+        callback.onCompletion(null, new DatastreamRuntimeException("Random exception"));
+      }
+      return;
     }
 
     if (_callbackThrottleDuration != null) {

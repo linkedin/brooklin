@@ -24,7 +24,8 @@ public interface TransportProvider {
    *
    * @param destination the destination topic to which the record should be sent.
    * @param record DatastreamEvent that needs to be sent to the stream.
-   * @param onComplete call back that needs to called when the send completes.
+   * @param onComplete call back that needs to called when the send completes. Any exception during ending will
+   *                   be reported through callback
    */
   void send(String destination, DatastreamProducerRecord record, SendCallback onComplete);
 

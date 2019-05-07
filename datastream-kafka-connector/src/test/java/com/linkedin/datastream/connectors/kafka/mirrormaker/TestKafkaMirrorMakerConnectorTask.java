@@ -546,6 +546,96 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testAutoPauseOnRightTopic() throws Exception {
+    String topic1 = "APizza";
+    String topic2 = "BPizza";
+
+    createTopic(_zkUtils, topic1);
+    createTopic(_zkUtils, topic2);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create event producer that fails on Topic 2
+    MockDatastreamEventProducer datastreamProducer =
+        new MockDatastreamEventProducer(r -> {
+          String checkpoint = r.getCheckpoint();
+          System.out.println(checkpoint);
+          KafkaMirrorMakerCheckpoint mirrorMakerCheckpoint = new KafkaMirrorMakerCheckpoint(checkpoint);
+          return mirrorMakerCheckpoint.getTopic().equals(topic2);
+        });
+    task.setEventProducer(datastreamProducer);
+
+    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
+            Duration.ofSeconds(60), false, "testCluster");
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce 5 events
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(topic1, 5, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(topic2, 5, _kafkaCluster);
+
+
+    // validate that the topic partition was added to auto-paused set
+    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(topic2, 0)),
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("Partition did not auto-pause after multiple send failures.");
+    }
+
+    Assert.assertEquals(datastreamProducer.getEvents().size(), 5,
+        "The events for other topic the failure should have been sent");
+
+    // validate metrics
+    validatePausedPartitionsMetrics("KafkaMirrorMakerConnectorTask", datastream.getName(), 1, 0, 0);
+  }
+
+  @Test
+  public void testAutoPauseOnRightPartition() throws Exception {
+    String topic1 = "APizza";
+
+    createTopic(_zkUtils, topic1, 3);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastream.getMetadata().put("system.destination.identityPartitioningEnabled", "true");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create event producer that fails on Topic 2
+    MockDatastreamEventProducer datastreamProducer =
+        new MockDatastreamEventProducer(r -> (r.getPartition().get() == 1));
+    task.setEventProducer(datastreamProducer);
+
+    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, consumerProps,
+            Duration.ofSeconds(60), false, "testCluster");
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce 5 events
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(topic1, 0, 5, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(topic1, 1, 5, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(topic1, 2, 5, _kafkaCluster);
+
+    // Verifying receiving 10 msg from other partitions
+    if (!PollUtils.poll(() -> (datastreamProducer.getEvents().size() == 10), POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("The events from other partitions should have been sent");
+    }
+    // validate that the topic partition was added to auto-paused set
+    if (!PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().contains(new TopicPartition(topic1, 1)),
+        POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("Partition did not auto-pause after multiple send failures.");
+    }
+    Assert.assertEquals(datastreamProducer.getEvents().size(), 10,
+        "The events before the failure should have been sent");
+
+    // validate metrics
+    validatePausedPartitionsMetrics("KafkaMirrorMakerConnectorTask", datastream.getName(), 1, 0, 0);
+  }
+
+  @Test
   public void testAutoPauseAndResumeOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
@@ -828,6 +918,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         POLL_TIMEOUT_MS),
         "spicyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
             spicyTopic, 0));
+    Assert.assertTrue(PollUtils.poll(() ->
+        connectorTask.getKafkaDatastreamStatesResponse().getAutoPausedPartitions().size() == 3, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
 
     // verify the states response returned by diagnostics endpoint contains correct counts
     KafkaDatastreamStatesResponse statesResponse = connectorTask.getKafkaDatastreamStatesResponse();
@@ -865,6 +957,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     if (!PollUtils.poll(() -> datastreamProducer2.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
+
 
     connectorTask2.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

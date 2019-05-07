@@ -180,7 +180,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   @Override
-  protected DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) throws Exception {
+  protected DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) {
     long eventsSourceTimestamp =
         fromKafka.timestampType() == TimestampType.LOG_APPEND_TIME ? fromKafka.timestamp() : readTime.toEpochMilli();
     HashMap<String, String> metadata = new HashMap<>();
@@ -209,13 +209,22 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   @Override
-  protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord) throws Exception {
+  protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
+      TopicPartition srcTopicPartition) {
     if (_isFlushlessModeEnabled) {
+      // The topic/partition is the same for topicPartition
       KafkaMirrorMakerCheckpoint sourceCheckpoint =
           new KafkaMirrorMakerCheckpoint(datastreamProducerRecord.getCheckpoint());
       String topic = sourceCheckpoint.getTopic();
       int partition = sourceCheckpoint.getPartition();
-      _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset());
+      _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(),
+          ((metadata, exception) -> {
+            if (exception != null) {
+              _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
+                  + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
+              pauseTopicPartitionWhenException(srcTopicPartition, exception);
+            }
+          }));
       if (_flowControlEnabled) {
         TopicPartition tp = new TopicPartition(topic, partition);
         long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
@@ -232,9 +241,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         }
       }
     } else {
-      super.sendDatastreamProducerRecord(datastreamProducerRecord);
+      super.sendDatastreamProducerRecord(datastreamProducerRecord, srcTopicPartition);
     }
   }
+
+
 
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
