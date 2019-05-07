@@ -13,3 +13,4 @@ logs/
 mainGeneratedRest/
 mainGeneratedDataTemplate/
 .DS_Store
+ligradle/

@@ -27,7 +27,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
-import kafka.admin.AdminUtils;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
@@ -224,7 +223,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     TransportProvider transportProvider = provider.assignTransportProvider(task);
     provider.createTopic(destinationUri, numberOfPartitions, new Properties());
 
-    Assert.assertTrue(PollUtils.poll(() -> AdminUtils.topicExists(_zkUtils, topicName), 1000, 10000));
+    KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
 
     LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, numberOfPartitions,
         new Properties()));
@@ -312,8 +311,8 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
       }
 
       if (includeValue) {
-          payloadValue = payload;
-          previousPayloadValue = previousPayload;
+        payloadValue = payload;
+        previousPayloadValue = previousPayload;
       }
 
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
