@@ -211,7 +211,11 @@ class KafkaProducerWrapper<K, V> {
       try {
         ++numberOfAttempt;
         maybeGetKafkaProducer(task).ifPresent(p -> p.send(producerRecord, (metadata, exception) -> {
-          onComplete.onCompletion(metadata, generateSendFailure(task, exception));
+          if (exception == null) {
+            onComplete.onCompletion(metadata, null);
+          } else {
+            onComplete.onCompletion(metadata, generateSendFailure(task, exception));
+          }
         }));
 
         retry = false;
@@ -256,25 +260,21 @@ class KafkaProducerWrapper<K, V> {
   }
 
   private DatastreamRuntimeException generateSendFailure(DatastreamTask task, Exception exception) {
-    if (exception == null) {
-      return null;
+    _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
+    if (exception instanceof IllegalStateException) {
+      _log.warn("sent failure transiently, exception: ", exception);
+      _lastExceptionForTasks.putIfAbsent(task, new DatastreamTransientException(exception));
+      return new DatastreamTransientException(exception);
     } else {
-      _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
-      if (exception instanceof IllegalStateException) {
-        _log.warn("sent failure transiently, exception: ", exception);
-        _lastExceptionForTasks.putIfAbsent(task, new DatastreamTransientException(exception));
-        return new DatastreamTransientException(exception);
-      } else {
-        _log.warn("sent failure, restart producer, exception: ", exception);
-        _lastExceptionForTasks.putIfAbsent(task, new DatastreamRuntimeException(exception));
-        shutdownProducer();
-        return new DatastreamRuntimeException(exception);
-      }
+      _log.warn("sent failure, restart producer, exception: ", exception);
+      _lastExceptionForTasks.putIfAbsent(task, new DatastreamRuntimeException(exception));
+      shutdownProducer();
+      return new DatastreamRuntimeException(exception);
     }
   }
 
   synchronized void flush(DatastreamTask task) {
-    _lastExceptionForTasks.remove(task);
+    notifyTaskForException(task);
     if (_kafkaProducer != null) {
       _kafkaProducer.flush();
     }

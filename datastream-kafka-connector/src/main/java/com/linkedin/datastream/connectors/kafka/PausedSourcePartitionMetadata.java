@@ -124,7 +124,7 @@ public class PausedSourcePartitionMetadata {
       builder.append(_description);
     }
     if (_exception != null) {
-      builder.append(", StackTrace: ");
+      builder.append(", Exception StackTrace: ");
       builder.append(ExceptionUtils.getStackTrace(_exception));
     }
     return builder.toString();

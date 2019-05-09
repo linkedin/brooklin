@@ -226,13 +226,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             _logger.warn("Abort sending as {} is auto-paused", topicPartition);
           } else {
             DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
-            sendDatastreamProducerRecord(datastreamProducerRecord, topicPartition);
             int numBytes = record.serializedKeySize() + record.serializedValueSize();
-            _consumerMetrics.updateBytesProcessedRate(numBytes);
+            sendDatastreamProducerRecord(datastreamProducerRecord, topicPartition, numBytes);
           }
         } catch (Exception e) {
           _logger.warn("Got exception while sending record {}", record);
-          pauseTopicPartitionWhenException(topicPartition, e);
+          rewindAndPauseTopicPartitionWhenException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
         }
@@ -242,15 +241,21 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp)))));
   }
 
-  protected void pauseTopicPartitionWhenException(TopicPartition srcTopicPartition, Exception ex) {
+  protected void rewindAndPauseTopicPartitionWhenException(TopicPartition srcTopicPartition, Exception ex) {
     _consumerMetrics.updateErrorRate(1);
+    Instant start = Instant.now();
     // seek to previous checkpoints for this topic partition
-    seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
-    if ((!containsTransientException(ex)) && _pausePartitionOnError) {
+    boolean partitionRewound = false;
+    try {
+      seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
+      partitionRewound = true;
+    } catch (Exception e) {
+      _logger.error("Partition rewind failed due to ", e);
+    }
+    if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
       // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
       // add to auto-paused set
       _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
-      Instant start = Instant.now();
       _autoPausedSourcePartitions.put(srcTopicPartition,
           PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -268,13 +273,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
-      TopicPartition srcTopicPartition) {
+      TopicPartition srcTopicPartition, int numBytes) {
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
       if (exception != null) {
         _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
           + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
-      pauseTopicPartitionWhenException(srcTopicPartition, exception);
-    }
+        rewindAndPauseTopicPartitionWhenException(srcTopicPartition, exception);
+      }
+      _consumerMetrics.updateBytesProcessedRate(numBytes);
     }));
   }
 
@@ -486,7 +492,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Flush the producer and commit the offsets if the configured offset commit interval has been reached, or if
    * force is set to true.
-   * @param consumer the Kafka xr
+   * @param consumer the Kafka consumer
    * @param force whether flush and commit should happen unconditionally
    */
   protected void maybeCommitOffsetsInternal(Consumer<?, ?> consumer, boolean force) {

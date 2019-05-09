@@ -210,7 +210,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
-      TopicPartition srcTopicPartition) {
+      TopicPartition srcTopicPartition, int numBytes) {
     if (_isFlushlessModeEnabled) {
       // The topic/partition is the same for topicPartition
       KafkaMirrorMakerCheckpoint sourceCheckpoint =
@@ -222,8 +222,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
             if (exception != null) {
               _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
                   + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
-              pauseTopicPartitionWhenException(srcTopicPartition, exception);
+              rewindAndPauseTopicPartitionWhenException(srcTopicPartition, exception);
             }
+            _consumerMetrics.updateBytesProcessedRate(numBytes);
           }));
       if (_flowControlEnabled) {
         TopicPartition tp = new TopicPartition(topic, partition);
@@ -241,7 +242,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         }
       }
     } else {
-      super.sendDatastreamProducerRecord(datastreamProducerRecord, srcTopicPartition);
+      super.sendDatastreamProducerRecord(datastreamProducerRecord, srcTopicPartition, numBytes);
     }
   }
 
