@@ -35,9 +35,4 @@ public final class DatastreamServerConfigurationConstants {
   public static final String DOMAIN_DIAG = CONFIG_PREFIX + "diag";
   public static final String CONFIG_DIAG_PORT = "port";
   public static final String CONFIG_DIAG_PATH = "path";
-  public static final String DOMAIN_CONNECTOR_POSITION_ENDPOINT_PREFIX = DOMAIN_DIAG + ".connectorPositionEndpoint";
-  public static final String CONFIG_CONNECTOR_POSITION_ENDPOINT_USE_HTTPS = "useHttps";
-  public static final String CONFIG_CONNECTOR_POSITION_ENDPOINT_PATH = "path";
-  public static final String CONFIG_CONNECTOR_POSITION_ENDPOINT_PORT = "port";
-  public static final String DOMAIN_CONNECTOR_POSITION_CLIENT_PREFIX = DOMAIN_CONNECTOR_POSITION_ENDPOINT_PREFIX + ".clientProps";
 }

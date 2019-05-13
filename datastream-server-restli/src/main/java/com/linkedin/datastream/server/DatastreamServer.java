@@ -20,7 +20,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -50,16 +49,11 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactory;
-import com.linkedin.datastream.server.diagnostics.ConnectorPositionReportAggregator;
 import com.linkedin.datastream.server.diagnostics.ServerComponentHealthAggregator;
 import com.linkedin.datastream.server.dms.DatastreamResourceFactory;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_AUTHORIZER_NAME;
@@ -67,9 +61,6 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_DEDUPER_FACTORY;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_NAMES;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_POSITION_ENDPOINT_PATH;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_POSITION_ENDPOINT_PORT;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_POSITION_ENDPOINT_USE_HTTPS;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CSV_METRICS_DIR;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_DIAG_PATH;
@@ -82,11 +73,12 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_NAMES;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_TRANSPORT_PROVIDER_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DEFAULT_DEDUPER_FACTORY;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_CONNECTOR_POSITION_CLIENT_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DEDUPER;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DIAG;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_CONNECTOR_POSITION_ENDPOINT_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.STRATEGY_DOMAIN;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * DatastreamServer is the entry point for Brooklin. It is a container for all
@@ -108,12 +100,6 @@ public class DatastreamServer {
   private int _httpPort;
   private boolean _isInitialized = false;
   private boolean _isStarted = false;
-
-  /**
-   * Used by {@link com.linkedin.datastream.server.diagnostics.ConnectorPositionReportResource} to aggregate requests on
-   * behalf of the user.
-   */
-  private ConnectorPositionReportAggregator _connectorPositionReportAggregator;
 
   static {
     // Instantiate a dynamic metrics manager singleton object so that other components can emit metrics on the fly
@@ -209,19 +195,6 @@ public class DatastreamServer {
     String diagPath = diagProperties.getProperty(CONFIG_DIAG_PATH, "");
     _serverComponentHealthAggregator = new ServerComponentHealthAggregator(zkClient, coordinatorConfig.getCluster(), diagPort, diagPath);
 
-    final VerifiableProperties connectorPositionEndpointProperties
-        = new VerifiableProperties(verifiableProperties.getDomainProperties(DOMAIN_CONNECTOR_POSITION_ENDPOINT_PREFIX));
-    final Map<String, Object> connectorPositionClientProperties = verifiableProperties
-        .getDomainProperties(DOMAIN_CONNECTOR_POSITION_CLIENT_PREFIX)
-        .entrySet()
-        .stream()
-        .collect(Collectors.toMap(e -> (String) e.getKey(), Map.Entry::getValue));
-    _connectorPositionReportAggregator = new ConnectorPositionReportAggregator(_coordinator,
-        connectorPositionEndpointProperties.getBoolean(CONFIG_CONNECTOR_POSITION_ENDPOINT_USE_HTTPS, false),
-        connectorPositionEndpointProperties.getString(CONFIG_CONNECTOR_POSITION_ENDPOINT_PATH, ""),
-        connectorPositionEndpointProperties.getInt(CONFIG_CONNECTOR_POSITION_ENDPOINT_PORT, _httpPort),
-        connectorPositionClientProperties);
-
     _csvMetricsDir = verifiableProperties.getString(CONFIG_CSV_METRICS_DIR, "");
 
     verifiableProperties.verify();
@@ -255,16 +228,6 @@ public class DatastreamServer {
 
   public int getHttpPort() {
     return _httpPort;
-  }
-
-  /**
-   * Returns an aggregator that can aggregate ConnectorPositionReport data from other servers in the cluster.
-   *
-   * @see ConnectorPositionReportAggregator#getReports() for usage
-   * @return an aggregator for ConnectorPositionReport data
-   */
-  public ConnectorPositionReportAggregator getConnectorPositionReportAggregator() {
-    return _connectorPositionReportAggregator;
   }
 
   public ServerComponentHealthAggregator getServerComponentHealthAggregator() {
@@ -424,8 +387,7 @@ public class DatastreamServer {
     try {
       _jettyLauncher.start();
       _httpPort = _jettyLauncher.getPort();
-      //httpPort might be modified when _jettyLauncher starts, so provide that data to classes which need it
-      _connectorPositionReportAggregator.setPort(_httpPort);
+      // httpPort might be modified when _jettyLauncher start, so set the port of _serverComponentHealthAggregator.
       _serverComponentHealthAggregator.setPort(_httpPort);
       _isStarted = true;
     } catch (Exception ex) {

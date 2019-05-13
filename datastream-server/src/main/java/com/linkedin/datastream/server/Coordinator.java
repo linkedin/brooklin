@@ -339,15 +339,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Gets the a List of instance ids from all instances currently live in the cluster.
-   *
-   * @return a List of instance ids from all live instances
-   */
-  public List<String> getLiveInstances() {
-    return _adapter.getLiveInstances();
-  }
-
-  /**
    * {@inheritDoc}
    * There can only be one leader in a datastream cluster.
    */
