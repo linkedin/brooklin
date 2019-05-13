@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * The data is stored like this:
  * <ul>
- *   <li>The map's key is the task prefix of the DatastreamTask responsible for managing the consumer</li>
+ *   <li>The map's key is the name of the Connector</li>
  *   <li>The map's value is a map of the position data</li>
  *   <li><ul>
  *     <li>That map's key is a {@link PositionKey} which uniquely identifies the consumer instance under the

@@ -57,9 +57,9 @@ class FileProcessor implements Runnable {
 
     // Get reference to position data
     _positionValue = (FilePositionValue) PositionDataStore.getInstance()
-        .computeIfAbsent(_task.getTaskPrefix(), s -> new ConcurrentHashMap<>())
-        .computeIfAbsent(new FilePositionKey(BrooklinInstanceInfo.getInstanceName(), _task.getDatastreamTaskName(),
-            Instant.now(), _fileName), s -> new FilePositionValue());
+        .computeIfAbsent(_task.getConnectorType(), s -> new ConcurrentHashMap<>())
+        .computeIfAbsent(new FilePositionKey(BrooklinInstanceInfo.getInstanceName(), _task.getTaskPrefix(),
+            _task.getDatastreamTaskName(), Instant.now(), _fileName), s -> new FilePositionValue());
 
     // Set up input streams/readers
     final File file = new File(_fileName);

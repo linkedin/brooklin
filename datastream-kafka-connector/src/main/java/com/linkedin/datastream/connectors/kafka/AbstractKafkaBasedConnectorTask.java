@@ -167,14 +167,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     KafkaPositionTracker positionTracker = null;
     if (config.getEnablePositionTracker()) {
+      final String brooklinConnectorName = _datastreamTask.getConnectorType();
+      final String brooklinTaskPrefix = _datastreamTask.getTaskPrefix();
       final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
       final Instant taskStartTime = Instant.now();
-      final String taskPrefix = _datastreamTask.getTaskPrefix();
       final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
           && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
       final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
-      positionTracker = new KafkaPositionTracker(brooklinTaskId, taskStartTime, taskPrefix, isConnectorTaskAlive,
-          consumerSupplier);
+      positionTracker = new KafkaPositionTracker(brooklinConnectorName, brooklinTaskPrefix, brooklinTaskId,
+          taskStartTime, isConnectorTaskAlive, consumerSupplier);
     }
     _kafkaPositionTracker = Optional.ofNullable(positionTracker);
   }

@@ -39,6 +39,14 @@ public interface PositionKey {
   String getBrooklinInstance();
 
   /**
+   * Returns the task prefix of the DatastreamTask being consumed.
+   *
+   * @return the task prefix of the DatastreamTask.
+   */
+  @Nullable
+  String getBrooklinTaskPrefix();
+
+  /**
    * Returns a unique id for the task which the Connector's consumer is running in.
    *
    * @return an id that uniquely identifies a task

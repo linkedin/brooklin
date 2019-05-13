@@ -40,6 +40,9 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.diag.PositionDataStore;
+import com.linkedin.datastream.common.diag.PositionKey;
+import com.linkedin.datastream.common.diag.PositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -90,7 +93,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       });
 
   enum DiagnosticsRequestType {
-    DATASTREAM_STATE
+    DATASTREAM_STATE,
+    POSITION
   }
 
   /**
@@ -343,19 +347,26 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       String path = getPath(query, _logger);
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
         String response = processDatastreamStateRequest(uri);
-        _logger.info("Query: {} returns response: {}", query, response);
+        _logger.trace("Query: {} returns response: {}", query, response);
+        return response;
+      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
+        final Map<PositionKey, PositionValue> positionData = PositionDataStore.getInstance()
+            .getOrDefault(_connectorName, new ConcurrentHashMap<>());
+        final String response = JsonUtils.toJson(positionData);
+        _logger.trace("Query: {} returns response: {}", query, response);
         return response;
       } else {
-        _logger.error("Could not process query {} with path {}", query, path);
+        _logger.warn("Could not process query {} with path {}", query, path);
       }
     } catch (Exception e) {
-      _logger.error("Failed to process query {}", query, e);
+      _logger.warn("Failed to process query {}", query);
+      _logger.debug("Failed to process query {}", query, e);
     }
     return null;
   }
 
   private String processDatastreamStateRequest(URI request) {
-    _logger.info("process Datastream state request: {}", request);
+    _logger.info("rocess Datastream state request: {}", request);
     Optional<String> datastreamName = extractQueryParam(request, DATASTREAM_KEY);
     return datastreamName.map(streamName -> _runningTasks.values()
         .stream()
@@ -382,14 +393,20 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    */
   @Override
   public String reduce(String query, Map<String, String> responses) {
-    _logger.info("Reducing query {} with responses from {}.", query, responses.keySet());
+    _logger.info("Reducing query {} with responses from {} instances", query, responses.size());
+    _logger.debug("Reducing query {} with responses from {}", query, responses.keySet());
+    _logger.trace("Reducing query {} with responses {}", query, responses);
     try {
       String path = getPath(query, _logger);
-      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
+      if (path != null
+          && (path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())
+          || path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString()))) {
         return JsonUtils.toJson(responses);
       }
     } catch (Exception e) {
-      _logger.error(String.format("Failed to reduce responses %s", query), e);
+      _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
+      _logger.debug("Failed to reduce responses from query {}: {}", query, e.getMessage(), e);
+      _logger.trace("Failed to reduce responses {} from query {}: {}", responses, query, e.getMessage(), e);
       return null;
     }
     return null;

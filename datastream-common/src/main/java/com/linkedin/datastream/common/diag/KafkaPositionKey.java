@@ -44,6 +44,11 @@ public class KafkaPositionKey implements PositionKey {
   private final String brooklinInstance;
 
   /**
+   * A String that matches the DatastreamTask's task prefix.
+   */
+  private final String brooklinTaskPrefix;
+
+  /**
    * A String that uniquely identifies the DatastreamTask which is running the Kafka consumer.
    */
   private final String brooklinTaskId;
@@ -61,6 +66,7 @@ public class KafkaPositionKey implements PositionKey {
    * @param topic the Kafka topic we are consuming from
    * @param partition the Kafka partition we are consuming from
    * @param brooklinInstance the Brooklin instance that is running the Kafka consumer
+   * @param brooklinTaskPrefix the task prefix for the DatastreamTask which is running the consumer
    * @param brooklinTaskId a unique identifier for the DatastreamTask which is running the consumer
    * @param taskStartTime the time at which consumption started
    */
@@ -69,11 +75,13 @@ public class KafkaPositionKey implements PositionKey {
       @JsonProperty("topic") @NotNull final String topic,
       @JsonProperty("partition") final int partition,
       @JsonProperty("brooklinInstance") @NotNull final String brooklinInstance,
+      @JsonProperty("brooklinTaskPrefix") @NotNull final String brooklinTaskPrefix,
       @JsonProperty("brooklinTaskId") @NotNull final String brooklinTaskId,
       @JsonProperty("taskStartTime") @NotNull final Instant taskStartTime) {
     this.topic = topic;
     this.partition = partition;
     this.brooklinInstance = brooklinInstance;
+    this.brooklinTaskPrefix = brooklinTaskPrefix;
     this.brooklinTaskId = brooklinTaskId;
     this.taskStartTime = taskStartTime;
   }
@@ -118,6 +126,16 @@ public class KafkaPositionKey implements PositionKey {
   }
 
   /**
+   * Returns the task prefix of the DatastreamTask which is running the Kafka consumer.
+   *
+   * @return the task prefix of the DatastreamTask
+   */
+  @NotNull
+  public String getBrooklinTaskPrefix() {
+    return brooklinTaskPrefix;
+  }
+
+  /**
    * Returns a String that uniquely identifies the DatastreamTask which is running the Kafka consumer.
    * @return a unique identifier for the DatastreamTask which is running the consumer
    */
@@ -135,6 +153,9 @@ public class KafkaPositionKey implements PositionKey {
     return taskStartTime;
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public boolean equals(Object obj) {
     if (this == obj) {
@@ -147,12 +168,16 @@ public class KafkaPositionKey implements PositionKey {
     return partition == other.partition
         && Objects.equals(topic, other.topic)
         && Objects.equals(brooklinInstance, other.brooklinInstance)
+        && Objects.equals(brooklinTaskPrefix, other.brooklinTaskPrefix)
         && Objects.equals(brooklinTaskId, other.brooklinTaskId)
         && Objects.equals(taskStartTime, other.taskStartTime);
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public int hashCode() {
-    return Objects.hash(topic, partition, brooklinInstance, brooklinTaskId, taskStartTime);
+    return Objects.hash(topic, partition, brooklinInstance, brooklinTaskPrefix, brooklinTaskId, taskStartTime);
   }
 }

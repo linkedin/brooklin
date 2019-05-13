@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,8 +21,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DiagnosticsAware;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.common.diag.PositionDataStore;
+import com.linkedin.datastream.common.diag.PositionKey;
+import com.linkedin.datastream.common.diag.PositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -34,7 +40,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  *   source should be  network files. local files can be used only in a standalone environment.
  * Uses a single thread per file
  */
-public class FileConnector implements Connector {
+public class FileConnector implements Connector, DiagnosticsAware {
   public static final String CONNECTOR_NAME = "file";
   public static final String CFG_MAX_EXEC_PROCS = "maxExecProcessors";
   public static final String CFG_NUM_PARTITIONS = "numPartitions";
@@ -43,15 +49,21 @@ public class FileConnector implements Connector {
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
   private static final Duration SHUTDOWN_TIMEOUT = Duration.ofMillis(5000);
 
+  private final String _connectorName;
   private final ExecutorService _executorService;
   private final int _numPartitions;
   private final ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
+
+  private enum DiagnosticsRequestType {
+    POSITION
+  }
 
   /**
    * Constructor for FileConnector
    * @param config Connector configuration properties
    */
-  public FileConnector(Properties config) {
+  public FileConnector(String connectorName, Properties config) {
+    _connectorName = connectorName;
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 
@@ -129,5 +141,46 @@ public class FileConnector implements Connector {
     if (_numPartitions != 1) {
       stream.getSource().setPartitions(_numPartitions);
     }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String process(String query) {
+    LOG.info("Processing query: {}", query);
+    try {
+      String path = getPath(query, LOG);
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
+        final Map<PositionKey, PositionValue> positionData = PositionDataStore.getInstance()
+            .getOrDefault(_connectorName, new ConcurrentHashMap<>());
+        final String response = JsonUtils.toJson(positionData);
+        LOG.trace("Query: {} returns response: {}", query, response);
+        return response;
+      } else {
+        LOG.warn("Could not process query {} with path {}", query, path);
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to process query {}", query, e);
+    }
+    return null;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String reduce(String query, Map<String, String> responses) {
+    LOG.info("Reducing query {} with responses from {}.", query, responses.keySet());
+    try {
+      String path = getPath(query, LOG);
+      if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
+        return JsonUtils.toJson(responses);
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to reduce responses {}", responses, e);
+      return null;
+    }
+    return null;
   }
 }

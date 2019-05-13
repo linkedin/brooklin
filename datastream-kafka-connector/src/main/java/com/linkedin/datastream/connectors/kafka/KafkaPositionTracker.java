@@ -72,7 +72,14 @@ public class KafkaPositionTracker {
   private static final int BROKER_OFFSETS_FETCH_SIZE = 250;
 
   /**
-   * The DatastreamTask name.
+   * The task prefix for the DatastreamTask.
+   * @see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()
+   */
+  @NotNull
+  private final String _brooklinTaskPrefix;
+
+  /**
+   * The unique DatastreamTask name.
    * @see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()
    */
   @NotNull
@@ -151,22 +158,25 @@ public class KafkaPositionTracker {
   /**
    * Constructor for a KafkaPositionTracker.
    *
+   * @param brooklinConnectorName The name of the Connector for the given DatastreamTask
+   *                             {@see com.linkedin.datastream.server.DatastreamTask#getConnectorName()}
+   * @param brooklinTaskPrefix The task prefix for the DatastreamTask
+   *                             {@see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()}
    * @param brooklinTaskId The DatastreamTask name
    *                       {@see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()}
    * @param taskStartTime The time at which the associated DatastreamTask started
-   * @param datastreamTaskPrefix The task prefix for the DatastreamTask
-   *                             {@see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()}
    * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive. If
    *                             it is not, then we should stop.
    * @param consumerSupplier A Consumer supplier that is suitable for querying the brokers that the Connector task is
    *                         talking to
    */
-  public KafkaPositionTracker(@NotNull final String brooklinTaskId, @NotNull final Instant taskStartTime,
-      @NotNull final String datastreamTaskPrefix, @NotNull final Supplier<Boolean> isConnectorTaskAlive,
-      @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+  public KafkaPositionTracker(@NotNull final String brooklinConnectorName, @NotNull final String brooklinTaskPrefix,
+      @NotNull final String brooklinTaskId, @NotNull final Instant taskStartTime,
+      @NotNull final Supplier<Boolean> isConnectorTaskAlive, @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+    _brooklinTaskPrefix = brooklinTaskPrefix;
     _brooklinTaskId = brooklinTaskId;
     _taskStartTime = taskStartTime;
-    _positions = PositionDataStore.getInstance().computeIfAbsent(datastreamTaskPrefix, s -> new ConcurrentHashMap<>());
+    _positions = PositionDataStore.getInstance().computeIfAbsent(brooklinConnectorName, s -> new ConcurrentHashMap<>());
     _brokerOffsetsFetcher = new DurableScheduledService(brooklinTaskId, BROKER_OFFSETS_FETCH_INTERVAL,
         BROKER_OFFSETS_FETCH_TIMEOUT) {
       private Consumer<?, ?> _consumer;
@@ -246,7 +256,7 @@ public class KafkaPositionTracker {
     final Instant assignmentTime = Instant.now();
     for (final TopicPartition topicPartition : topicPartitions) {
       final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-          BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime);
+          BrooklinInstanceInfo.getInstanceName(), _brooklinTaskPrefix, _brooklinTaskId, _taskStartTime);
       _ownedKeys.put(topicPartition, key);
       _needingInit.add(topicPartition);
       final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key, s ->
@@ -291,7 +301,7 @@ public class KafkaPositionTracker {
       // coming from the consumer thread without race conditions.
       final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
           s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime));
+              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskPrefix, _brooklinTaskId, _taskStartTime));
       final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
           s -> new KafkaPositionValue());
 
@@ -472,7 +482,7 @@ public class KafkaPositionTracker {
       // coming from the consumer thread without race conditions.
       final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
           s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime));
+              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskPrefix, _brooklinTaskId, _taskStartTime));
       final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
           s -> new KafkaPositionValue());
       value.setConsumerOffset(consumerOffset);
