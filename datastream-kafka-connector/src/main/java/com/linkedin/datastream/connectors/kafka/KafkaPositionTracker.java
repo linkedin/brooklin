@@ -31,7 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import com.linkedin.datastream.common.DurableScheduledService;
-import com.linkedin.datastream.common.diag.InstanceFinder;
+import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
 import com.linkedin.datastream.common.diag.KafkaPositionKey;
 import com.linkedin.datastream.common.diag.KafkaPositionValue;
 import com.linkedin.datastream.common.diag.PositionDataStore;
@@ -72,12 +72,6 @@ public class KafkaPositionTracker {
   private static final int BROKER_OFFSETS_FETCH_SIZE = 250;
 
   /**
-   * Our server's instance name.
-   */
-  @NotNull
-  private final String _brooklinInstance;
-
-  /**
    * The DatastreamTask name.
    * @see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()
    */
@@ -94,13 +88,13 @@ public class KafkaPositionTracker {
    * The position data for this DatastreamTask as held by the {@link PositionDataStore}.
    */
   @NotNull
-  private final Map<PositionKey, PositionValue> _positions;
+  private final ConcurrentHashMap<PositionKey, PositionValue> _positions;
 
   /**
    * A map of TopicPartitions to KafkaPositionKeys currently owned/operated on by this KafkaPositionTracker instance.
    */
   @NotNull
-  private final Map<TopicPartition, KafkaPositionKey> _ownedKeys = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<TopicPartition, KafkaPositionKey> _ownedKeys = new ConcurrentHashMap<>();
 
   /**
    * A set of TopicPartitions which are assigned to us, but for which we have not yet received any records or
@@ -170,7 +164,6 @@ public class KafkaPositionTracker {
   public KafkaPositionTracker(@NotNull final String brooklinTaskId, @NotNull final Instant taskStartTime,
       @NotNull final String datastreamTaskPrefix, @NotNull final Supplier<Boolean> isConnectorTaskAlive,
       @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
-    _brooklinInstance = InstanceFinder.getInstanceName();
     _brooklinTaskId = brooklinTaskId;
     _taskStartTime = taskStartTime;
     _positions = PositionDataStore.getInstance().computeIfAbsent(datastreamTaskPrefix, s -> new ConcurrentHashMap<>());
@@ -188,16 +181,15 @@ public class KafkaPositionTracker {
         // Find which partitions have stale broker offset information
         final Instant staleBy = Instant.now().minus(BROKER_OFFSETS_FETCH_INTERVAL);
         final Set<TopicPartition> partitionsNeedingUpdate = new HashSet<>();
-        for (final TopicPartition topicPartition : _ownedKeys.keySet()) {
-          @Nullable final KafkaPositionKey key = _ownedKeys.get(topicPartition);
-          if (key != null) {
-            @Nullable final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
-            if (value != null
-                && (value.getLastBrokerQueriedTime() == null || value.getLastBrokerQueriedTime().isBefore(staleBy))) {
-              partitionsNeedingUpdate.add(topicPartition);
-            }
+        _ownedKeys.forEach(((topicPartition, key) -> {
+          // Race condition could exist where we might be unassigned the topic in a different thread while we are in
+          // this thread, so do not create/initialize the value in the map.
+          @Nullable final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
+          if (value != null
+              && (value.getLastBrokerQueriedTime() == null || value.getLastBrokerQueriedTime().isBefore(staleBy))) {
+            partitionsNeedingUpdate.add(topicPartition);
           }
-        }
+        }));
 
         // Query the broker for its offsets for those partitions
         try {
@@ -253,11 +245,11 @@ public class KafkaPositionTracker {
   public synchronized void onPartitionsAssigned(@NotNull final Collection<TopicPartition> topicPartitions) {
     final Instant assignmentTime = Instant.now();
     for (final TopicPartition topicPartition : topicPartitions) {
-      @NotNull final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-          _brooklinInstance, _brooklinTaskId, _taskStartTime);
+      final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+          BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime);
       _ownedKeys.put(topicPartition, key);
       _needingInit.add(topicPartition);
-      @NotNull final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key, s ->
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key, s ->
           new KafkaPositionValue());
       value.setAssignmentTime(assignmentTime);
     }
@@ -294,14 +286,14 @@ public class KafkaPositionTracker {
       @NotNull final Map<MetricName, ? extends Metric> metrics) {
     final Instant receivedTime = Instant.now();
     for (final TopicPartition topicPartition : records.partitions()) {
-      @Nullable final KafkaPositionKey key = _ownedKeys.get(topicPartition);
-      if (key == null) {
-        continue;
-      }
-      @Nullable final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
-      if (value == null) {
-        continue;
-      }
+      // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
+      // with this topicPartition before then, but it should be safe to construct them here as this data should be
+      // coming from the consumer thread without race conditions.
+      final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime));
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
+          s -> new KafkaPositionValue());
 
       // Derive the consumer offset and the last record polled timestamp from the records
       long consumerOffset = Long.MIN_VALUE;
@@ -475,14 +467,16 @@ public class KafkaPositionTracker {
   public synchronized void initializePartition(@Nullable final TopicPartition topicPartition,
       @Nullable final Long consumerOffset) {
     if (topicPartition != null && consumerOffset != null) {
-      @Nullable final KafkaPositionKey key = _ownedKeys.get(topicPartition);
-      if (key != null) {
-        @Nullable final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
-        if (value != null) {
-          value.setConsumerOffset(consumerOffset);
-          _needingInit.remove(topicPartition);
-        }
-      }
+      // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
+      // with this topicPartition before then, but it should be safe to construct them here as this data should be
+      // coming from the consumer thread without race conditions.
+      final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+              BrooklinInstanceInfo.getInstanceName(), _brooklinTaskId, _taskStartTime));
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
+          s -> new KafkaPositionValue());
+      value.setConsumerOffset(consumerOffset);
+      _needingInit.remove(topicPartition);
     }
   }
 
@@ -505,6 +499,8 @@ public class KafkaPositionTracker {
       final Map<TopicPartition, Long> offsets = consumer.endOffsets(batch);
       offsets.forEach((topicPartition, offset) -> {
         if (offset != null) {
+          // Race condition could exist where we might be unassigned the topic in a different thread while we are in
+          // this thread, so do not create/initialize the key/value in the map.
           final KafkaPositionKey key = _ownedKeys.get(topicPartition);
           if (key != null) {
             final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);

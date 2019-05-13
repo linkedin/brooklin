@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.diag.InstanceFinder;
+import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
 import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.connectors.file.diag.FilePositionKey;
 import com.linkedin.datastream.connectors.file.diag.FilePositionValue;
@@ -58,7 +58,7 @@ class FileProcessor implements Runnable {
     // Get reference to position data
     _positionValue = (FilePositionValue) PositionDataStore.getInstance()
         .computeIfAbsent(_task.getTaskPrefix(), s -> new ConcurrentHashMap<>())
-        .computeIfAbsent(new FilePositionKey(InstanceFinder.getInstanceName(), _task.getDatastreamTaskName(),
+        .computeIfAbsent(new FilePositionKey(BrooklinInstanceInfo.getInstanceName(), _task.getDatastreamTaskName(),
             Instant.now(), _fileName), s -> new FilePositionValue());
 
     // Set up input streams/readers

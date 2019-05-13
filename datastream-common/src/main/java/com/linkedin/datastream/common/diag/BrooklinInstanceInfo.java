@@ -6,14 +6,13 @@
 package com.linkedin.datastream.common.diag;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 
 /**
- * InstanceFinder provides a convenience method to fetch the current Brooklin server's cluster instance name with a
- * fallback to {@link #UNKNOWN_INSTANCE_NAME} if it cannot be determined.
+ * BrooklinInstanceInfo provides a convenience method to fetch the current Brooklin server's cluster instance name with
+ * a fallback to {@value #UNKNOWN_INSTANCE_NAME} if it cannot be determined.
  */
-public class InstanceFinder {
+public class BrooklinInstanceInfo {
 
   /**
    * Default (fallback) instance name if it is not possible to determine our instance name.
@@ -23,30 +22,30 @@ public class InstanceFinder {
   /**
    * The singleton instance of this class.
    */
-  private static final InstanceFinder INSTANCE = new InstanceFinder();
+  private static final BrooklinInstanceInfo INSTANCE = new BrooklinInstanceInfo();
 
   /**
    * This instance's name.
    */
-  @Nullable
+  @NotNull
   private String _instanceName;
 
   /**
-   * Private construction for InstanceFinder.
+   * Private construction for BrooklinInstanceInfo.
    */
-  private InstanceFinder() {
+  private BrooklinInstanceInfo() {
+    _instanceName = UNKNOWN_INSTANCE_NAME;
   }
 
   /**
-   * Gets this Brooklin server's cluster instance name if it was previously set, or {@link #UNKNOWN_INSTANCE_NAME} if
+   * Gets this Brooklin server's cluster instance name if it was previously set, or {@value #UNKNOWN_INSTANCE_NAME} if
    * not.
    *
-   * @return this server's instance name or {@link #UNKNOWN_INSTANCE_NAME}
+   * @return this server's instance name or {@value #UNKNOWN_INSTANCE_NAME}
    */
   @NotNull
   public static String getInstanceName() {
-    final String instanceName = INSTANCE._instanceName;
-    return instanceName == null ? UNKNOWN_INSTANCE_NAME : instanceName;
+    return INSTANCE._instanceName;
   }
 
   /**

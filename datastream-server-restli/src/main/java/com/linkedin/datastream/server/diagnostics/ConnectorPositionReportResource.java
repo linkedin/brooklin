@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.data.template.StringArray;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.diag.InstanceFinder;
+import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
 import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.common.diag.PositionKey;
 import com.linkedin.datastream.common.diag.PositionValue;
@@ -164,6 +164,6 @@ public class ConnectorPositionReportResource extends SimpleResourceTemplate<Conn
         .setFailedInstances(new StringArray())
         .setErrorMessages(new StringArray())
         .setPositionReports(new InstancePositionReportArray())
-        .setRespondingInstance(InstanceFinder.getInstanceName());
+        .setRespondingInstance(BrooklinInstanceInfo.getInstanceName());
   }
 }
