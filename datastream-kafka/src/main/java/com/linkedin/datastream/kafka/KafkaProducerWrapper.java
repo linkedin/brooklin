@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -67,9 +66,6 @@ class KafkaProducerWrapper<K, V> {
   // Set of datastream tasks assigned to the producer
   private Set<DatastreamTask> _tasks = ConcurrentHashMap.newKeySet();
 
-  // Last exception thrown by Kafka producer for that particular task
-  private Map<DatastreamTask, RuntimeException> _lastExceptionForTasks = new ConcurrentHashMap<>();
-
   // Producer is lazily initialized during the first send call.
   // Also, can be nullified in case of exceptions, and recreated by subsequent send calls.
   // Mark as volatile as it is mutable and used by different threads
@@ -95,12 +91,9 @@ class KafkaProducerWrapper<K, V> {
   private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
   private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
   private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
-  private static final String CFG_NOTIFY_EXCEPTION_SYNCHRONOUSLY = "notifyExceptionSynchronously";
-
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
-  private final Boolean _shouldNotifyLastExceptionSynchronously;
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
@@ -137,8 +130,6 @@ class KafkaProducerWrapper<K, V> {
     _producerFactory = ReflectionUtils.createInstance(kafkaProducerFactoryName);
 
     populateDefaultProducerConfigs();
-
-    _shouldNotifyLastExceptionSynchronously = transportProviderProperties.getBoolean(CFG_NOTIFY_EXCEPTION_SYNCHRONOUSLY, false);
   }
 
   private void populateDefaultProducerConfigs() {
@@ -162,16 +153,7 @@ class KafkaProducerWrapper<K, V> {
 
   void unassignTask(DatastreamTask task) {
     _tasks.remove(task);
-    _lastExceptionForTasks.remove(task);
   }
-
-  private void notifyTaskForException(DatastreamTask task) {
-    RuntimeException exception = _lastExceptionForTasks.remove(task);
-    if (exception != null && _shouldNotifyLastExceptionSynchronously) {
-      throw exception;
-    }
-  }
-
 
   int getTasksSize() {
     return _tasks.size();
@@ -198,9 +180,6 @@ class KafkaProducerWrapper<K, V> {
 
   void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
       throws InterruptedException {
-    //notify last exception synchronously during send call
-    notifyTaskForException(task);
-
     // There are two known cases that lead to IllegalStateException and we should retry:
     //  1) number of brokers is less than minISR
     //  2) producer is closed in generateSendFailure by another thread
@@ -263,18 +242,15 @@ class KafkaProducerWrapper<K, V> {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
       _log.warn("sent failure transiently, exception: ", exception);
-      _lastExceptionForTasks.putIfAbsent(task, new DatastreamTransientException(exception));
       return new DatastreamTransientException(exception);
     } else {
       _log.warn("sent failure, restart producer, exception: ", exception);
-      _lastExceptionForTasks.putIfAbsent(task, new DatastreamRuntimeException(exception));
       shutdownProducer();
       return new DatastreamRuntimeException(exception);
     }
   }
 
-  synchronized void flush(DatastreamTask task) {
-    notifyTaskForException(task);
+  synchronized void flush() {
     if (_kafkaProducer != null) {
       _kafkaProducer.flush();
     }
@@ -282,7 +258,6 @@ class KafkaProducerWrapper<K, V> {
 
   synchronized void close(DatastreamTask task) {
     _tasks.remove(task);
-    _lastExceptionForTasks.remove(task);
     if (_kafkaProducer != null && _tasks.isEmpty()) {
       shutdownProducer();
     }

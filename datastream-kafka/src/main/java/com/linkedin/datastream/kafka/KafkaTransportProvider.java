@@ -186,7 +186,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void flush() {
-    _producers.forEach(p -> p.flush(_datastreamTask));
+    _producers.forEach(p -> p.flush());
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
