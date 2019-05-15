@@ -629,6 +629,47 @@ public class TestCoordinator {
   }
 
   /**
+   * Test that coordinator does not delete topics when datastream using BYOT is deleted.
+   * @throws Exception
+   */
+  @Test
+  public void testDatastreamWithBYOT() throws Exception {
+    String testCluster = "testDatastreamWithBYOT";
+    String testConnectorType = "testConnector";
+
+    DummyTransportProviderAdminFactory transportProviderAdminFactory = new DummyTransportProviderAdminFactory();
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, new Properties(), transportProviderAdminFactory);
+    TestHookConnector connector1 = new TestHookConnector("testDatastreamWithBYOTConnector", testConnectorType);
+    coordinator.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String datastreamName = "testBYOTDatastream";
+    Datastream ds =
+        DatastreamTestUtils.createDatastream(testConnectorType, datastreamName, "testDatastreamWithBYOTSource",
+            "testDatastreamWithBYOTDestination", 10);
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+    resource.create(ds);
+
+    ds = resource.get(datastreamName);
+    Assert.assertTrue(DatastreamUtils.isUserManagedDestination(ds),
+        "createDatastream with pre-populated destination string should have set metadata "
+            + DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
+
+    resource.delete(datastreamName);
+    String path = KeyBuilder.datastream(testCluster, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
+    Assert.assertEquals(transportProviderAdminFactory._dropDestinationCount, 0,
+        "Delete destination count should have been 0, since Datastream uses BYOT");
+  }
+
+  /**
    * Test datastream creation with Connector-managed destination; coordinator should not create or delete topics.
    */
   @Test
