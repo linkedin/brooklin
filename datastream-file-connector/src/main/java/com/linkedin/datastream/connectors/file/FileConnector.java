@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -162,6 +163,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
       }
     } catch (Exception e) {
       LOG.warn("Failed to process query {}", query, e);
+      throw new DatastreamRuntimeException(e);
     }
     return null;
   }
@@ -179,7 +181,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
       }
     } catch (Exception e) {
       LOG.warn("Failed to reduce responses {}", responses, e);
-      return null;
+      throw new DatastreamRuntimeException(e);
     }
     return null;
   }

@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
@@ -361,12 +362,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     } catch (Exception e) {
       _logger.warn("Failed to process query {}", query);
       _logger.debug("Failed to process query {}", query, e);
+      throw new DatastreamRuntimeException(e);
     }
     return null;
   }
 
   private String processDatastreamStateRequest(URI request) {
-    _logger.info("rocess Datastream state request: {}", request);
+    _logger.info("process Datastream state request: {}", request);
     Optional<String> datastreamName = extractQueryParam(request, DATASTREAM_KEY);
     return datastreamName.map(streamName -> _runningTasks.values()
         .stream()
@@ -407,7 +409,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
       _logger.debug("Failed to reduce responses from query {}: {}", query, e.getMessage(), e);
       _logger.trace("Failed to reduce responses {} from query {}: {}", responses, query, e.getMessage(), e);
-      return null;
+      throw new DatastreamRuntimeException(e);
     }
     return null;
   }

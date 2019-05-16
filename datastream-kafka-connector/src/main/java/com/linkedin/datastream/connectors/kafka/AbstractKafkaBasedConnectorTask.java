@@ -37,6 +37,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
@@ -433,23 +434,31 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
       _pollAttempts = 0;
 
-      _kafkaPositionTracker.ifPresent(tracker -> {
-        // The calls to position() (needed for initializing the position data for these positions) are intentionally
-        // made after a poll() so that they will return very quickly
-        for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
-          try {
-            tracker.initializePartition(topicPartition, _consumer.position(topicPartition));
-          } catch (IllegalStateException ignored) {
-            // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
-            // In this case, there is nothing we can do but wait for onPartitionsRevoked().
-          } catch (InvalidOffsetException ignored) {
-            // Occurs if no offset is defined for the partition and no offset reset policy is defined.
-            // This error should have been caught by poll(), but will definitely be caught by poll() in the next run, so
-            // it should be safe to ignore this exception and allow records processing to continue.
+      try {
+        _kafkaPositionTracker.ifPresent(tracker -> {
+          // The calls to position() (needed for initializing the position data for these positions) are intentionally
+          // made after a poll() so that they will return very quickly
+          for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
+            try {
+              tracker.initializePartition(topicPartition, _consumer.position(topicPartition));
+            } catch (IllegalStateException e) {
+              // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
+              // In this case, there is nothing we can do but wait for onPartitionsRevoked().
+              _logger.trace("Got IllegalStateException when processing partition {}", topicPartition, e);
+            } catch (InvalidOffsetException e) {
+              // Occurs if no offset is defined for the partition and no offset reset policy is defined.
+              // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
+              // so it should be safe to ignore this exception and allow records processing to continue.
+              _logger.trace("Got InvalidOffsetException when processing partition {}", topicPartition, e);
+            }
           }
-        }
-        tracker.onRecordsReceived(records, _consumer.metrics());
-      });
+          tracker.onRecordsReceived(records, _consumer.metrics());
+        });
+      } catch (WakeupException | InterruptException e) {
+        throw e;
+      } catch (Exception e) {
+        _logger.warn("Got uncaught exception while processing position tracker code (swallowing and continuing)", e);
+      }
 
       return records;
     } catch (NoOffsetForPartitionException e) {
