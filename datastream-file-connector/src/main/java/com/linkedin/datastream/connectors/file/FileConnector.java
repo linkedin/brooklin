@@ -26,7 +26,7 @@ import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
-import com.linkedin.datastream.common.diag.PositionDataStore;
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.common.diag.PositionKey;
 import com.linkedin.datastream.common.diag.PositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -153,7 +153,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
     try {
       String path = getPath(query, LOG);
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        final Map<PositionKey, PositionValue> positionData = PositionDataStore.getInstance()
+        final Map<PositionKey, PositionValue> positionData = ConnectorPositionsCache.getInstance()
             .getOrDefault(_connectorName, new ConcurrentHashMap<>());
         final String response = JsonUtils.toJson(positionData);
         LOG.trace("Query: {} returns response: {}", query, response);

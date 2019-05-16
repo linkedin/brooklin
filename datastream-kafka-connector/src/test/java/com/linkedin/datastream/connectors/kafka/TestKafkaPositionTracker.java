@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,7 +48,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.diag.KafkaPositionKey;
 import com.linkedin.datastream.common.diag.KafkaPositionValue;
-import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
@@ -61,7 +61,7 @@ import static org.mockito.Mockito.when;
  * Tests the position data set by KafkaPositionTracker for a Kafka connector task.
  *
  * @see KafkaPositionTracker for the class which modifies/sets the position data
- * @see PositionDataStore for the class responsible for storing the position data
+ * @see ConnectorPositionsCache for the class responsible for storing the position data
  * @see KafkaPositionKey for information on the PositionKey type used for Kafka
  * @see KafkaPositionValue for information on the PositionValue type used for Kafka
  */
@@ -80,7 +80,7 @@ public class TestKafkaPositionTracker {
 
   @BeforeMethod(alwaysRun = true)
   public void beforeMethodSetup() {
-    PositionDataStore.getInstance().clear();
+    ConnectorPositionsCache.getInstance().clear();
     _connectorName = "CrushedTomatoes";
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
     Datastream datastream = new Datastream();
@@ -155,7 +155,7 @@ public class TestKafkaPositionTracker {
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
-    PositionDataStore store = PositionDataStore.getInstance();
+    ConnectorPositionsCache store = ConnectorPositionsCache.getInstance();
 
     Optional<KafkaPositionValue> positionData;
     positionData = getPositionData(new TopicPartition("cloves", 0));
@@ -396,7 +396,7 @@ public class TestKafkaPositionTracker {
    * @return a KafkaPositionValue containing position data, if present
    */
   private Optional<KafkaPositionValue> getPositionData(TopicPartition topicPartition) {
-    Map<KafkaPositionKey, KafkaPositionValue> positionData = PositionDataStore.getInstance()
+    Map<KafkaPositionKey, KafkaPositionValue> positionData = ConnectorPositionsCache.getInstance()
         .get(_connectorName)
         .entrySet()
         .stream()

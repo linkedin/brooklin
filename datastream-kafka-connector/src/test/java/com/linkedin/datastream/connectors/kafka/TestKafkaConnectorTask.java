@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -43,7 +44,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.diag.KafkaPositionValue;
-import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -243,7 +243,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConsumerPositionTracking() throws Exception {
     // Clear position data set by previous tests
-    PositionDataStore.getInstance().clear();
+    ConnectorPositionsCache.getInstance().clear();
 
     final KafkaBasedConnectorConfig config = new KafkaBasedConnectorConfigBuilder().build();
 
@@ -268,16 +268,12 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
-    // Create our own Kafka consumer for the position tracker
-    final KafkaConnectionString connectionString
-        = KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString());
-    try (final Consumer<?, ?> consumer = connectorTask.createKafkaConsumer(
-        KafkaConnectorTask.getKafkaConsumerProperties(config.getConsumerProps(), "testGroupId", connectionString))) {
+    Assert.assertTrue(connectorTask._kafkaPositionTracker.isPresent());
+    try (final Consumer<?, ?> consumer = connectorTask._kafkaPositionTracker.get().getConsumerSupplier().get()) {
       // Test Kafka connector's position data
-      Assert.assertTrue(connectorTask._kafkaPositionTracker.isPresent());
       connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
           Collections.singleton(new TopicPartition(topic, 0)));
-      final Optional<KafkaPositionValue> position = PositionDataStore.getInstance().values()
+      final Optional<KafkaPositionValue> position = ConnectorPositionsCache.getInstance().values()
           .stream()
           .map(ConcurrentHashMap::values)
           .flatMap(Collection::stream)

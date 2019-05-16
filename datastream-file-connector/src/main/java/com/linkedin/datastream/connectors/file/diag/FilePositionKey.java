@@ -25,33 +25,29 @@ import com.linkedin.datastream.common.diag.PositionKey;
  * @see com.linkedin.datastream.connectors.file.FileConnector
  */
 public class FilePositionKey implements PositionKey {
-
-  /**
-   * The position type.
-   */
-  private static final String FILE_POSITION_TYPE = "File";
+  private static final long serialVersionUID = 1L;
 
   /**
    * The Brooklin server's cluster instance that is running the FileConnector.
    */
-  private final String brooklinInstance;
+  private final String brooklinInstanceName;
 
   /**
    * A String that matches the DatastreamTask's task prefix.
    */
-  private final String brooklinTaskPrefix;
+  private final String datastreamTaskPrefix;
 
   /**
    * A String that uniquely identifies the DatastreamTask which is running the FileProcessor.
    */
-  private final String brooklinTaskId;
+  private final String datastreamTaskName;
 
   /**
    * The time at which consumption started.
    */
   @JsonSerialize(using = InstantSerializer.class)
   @JsonDeserialize(using = InstantDeserializer.class)
-  private final Instant taskStartTime;
+  private final Instant connectorTaskStartTime;
 
   /**
    * The file name of the file being consumed.
@@ -61,22 +57,22 @@ public class FilePositionKey implements PositionKey {
   /**
    * Constructs a FilePositionKey.
    *
-   * @param brooklinInstance the Brooklin server's cluster instance
-   * @param brooklinTaskPrefix the task prefix for the DatastreamTask running on the FileConnector
-   * @param brooklinTaskId a unique identifier for the DatastreamTask running on the FileConnector
-   * @param taskStartTime time time at which consumption started
+   * @param brooklinInstanceName the Brooklin server's cluster instance
+   * @param datastreamTaskPrefix the task prefix for the DatastreamTask running on the FileConnector
+   * @param datastreamTaskName a unique identifier for the DatastreamTask running on the FileConnector
+   * @param connectorTaskStartTime time time at which consumption started
    * @param fileName the file name of the file being consumed
    */
   public FilePositionKey(
-      @JsonProperty("brooklinInstance") @NotNull final String brooklinInstance,
-      @JsonProperty("brooklinTaskPrefix") @NotNull final String brooklinTaskPrefix,
-      @JsonProperty("brooklinTaskId") @NotNull final String brooklinTaskId,
-      @JsonProperty("taskStartTime") @NotNull final Instant taskStartTime,
+      @JsonProperty("brooklinInstanceName") @NotNull final String brooklinInstanceName,
+      @JsonProperty("datastreamTaskPrefix") @NotNull final String datastreamTaskPrefix,
+      @JsonProperty("datastreamTaskName") @NotNull final String datastreamTaskName,
+      @JsonProperty("connectorTaskStartTime") @NotNull final Instant connectorTaskStartTime,
       @JsonProperty("fileName") @NotNull final String fileName) {
-    this.brooklinInstance = brooklinInstance;
-    this.brooklinTaskPrefix = brooklinTaskPrefix;
-    this.brooklinTaskId = brooklinTaskId;
-    this.taskStartTime = taskStartTime;
+    this.brooklinInstanceName = brooklinInstanceName;
+    this.datastreamTaskPrefix = datastreamTaskPrefix;
+    this.datastreamTaskName = datastreamTaskName;
+    this.connectorTaskStartTime = connectorTaskStartTime;
     this.fileName = fileName;
   }
 
@@ -85,8 +81,8 @@ public class FilePositionKey implements PositionKey {
    */
   @NotNull
   @Override
-  public String getType() {
-    return FILE_POSITION_TYPE;
+  public String getBrooklinInstanceName() {
+    return brooklinInstanceName;
   }
 
   /**
@@ -94,8 +90,8 @@ public class FilePositionKey implements PositionKey {
    */
   @NotNull
   @Override
-  public String getBrooklinInstance() {
-    return brooklinInstance;
+  public String getDatastreamTaskPrefix() {
+    return datastreamTaskPrefix;
   }
 
   /**
@@ -103,8 +99,8 @@ public class FilePositionKey implements PositionKey {
    */
   @NotNull
   @Override
-  public String getBrooklinTaskPrefix() {
-    return brooklinTaskPrefix;
+  public String getDatastreamTaskName() {
+    return datastreamTaskName;
   }
 
   /**
@@ -112,17 +108,8 @@ public class FilePositionKey implements PositionKey {
    */
   @NotNull
   @Override
-  public String getBrooklinTaskId() {
-    return brooklinTaskId;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @NotNull
-  @Override
-  public Instant getTaskStartTime() {
-    return taskStartTime;
+  public Instant getConnectorTaskStartTime() {
+    return connectorTaskStartTime;
   }
 
   /**
@@ -146,10 +133,10 @@ public class FilePositionKey implements PositionKey {
       return false;
     }
     FilePositionKey that = (FilePositionKey) o;
-    return Objects.equals(brooklinInstance, that.brooklinInstance)
-        && Objects.equals(brooklinTaskPrefix, that.brooklinTaskPrefix)
-        && Objects.equals(brooklinTaskId, that.brooklinTaskId)
-        && Objects.equals(taskStartTime, that.taskStartTime)
+    return Objects.equals(brooklinInstanceName, that.brooklinInstanceName)
+        && Objects.equals(datastreamTaskPrefix, that.datastreamTaskPrefix)
+        && Objects.equals(datastreamTaskName, that.datastreamTaskName)
+        && Objects.equals(connectorTaskStartTime, that.connectorTaskStartTime)
         && Objects.equals(fileName, that.fileName);
   }
 
@@ -158,6 +145,6 @@ public class FilePositionKey implements PositionKey {
    */
   @Override
   public int hashCode() {
-    return Objects.hash(brooklinInstance, brooklinTaskPrefix, brooklinTaskId, taskStartTime, fileName);
+    return Objects.hash(brooklinInstanceName, datastreamTaskPrefix, datastreamTaskName, connectorTaskStartTime, fileName);
   }
 }

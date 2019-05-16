@@ -21,6 +21,7 @@ import com.linkedin.datastream.common.JsonUtils.InstantSerializer;
  * specific TopicPartition.
  */
 public class KafkaPositionValue implements PositionValue {
+  private static final long serialVersionUID = 1L;
 
   /**
    * The latest offset (the offset of the last produced message) on the Kafka broker for this TopicPartition. If the

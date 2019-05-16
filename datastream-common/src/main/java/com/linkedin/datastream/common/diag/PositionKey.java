@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.common.diag;
 
+import java.io.Serializable;
 import java.time.Instant;
 
 import org.jetbrains.annotations.Nullable;
@@ -16,27 +17,17 @@ import org.jetbrains.annotations.Nullable;
  * {@link com.linkedin.datastream.common.JsonUtils#toJson(Object)} and deserializable from JSON by
  * {@link com.linkedin.datastream.common.JsonUtils#fromJson(String, Class)}.
  *
- * Classes which implement this interface are expected to be POJOs and used as keys in {@link java.util.Map}. Thus, this
- * class implement {@link #equals(Object)} and {@link #hashCode()} as appropriate.
+ * Classes which implement this interface are expected to be POJOs and used as keys in {@link java.util.Map}. Thus, they
+ * should also implement {@link #equals(Object)} and {@link #hashCode()} as appropriate.
  */
-public interface PositionKey {
-
-  /**
-   * Gets the type of position data to be described. For example, "Kafka" if we are describing the status of a Kafka
-   * consumer reading from a topic partition.
-   *
-   * @return the type of position data to be described
-   */
-  @Nullable
-  String getType();
-
+public interface PositionKey extends Serializable {
   /**
    * Returns the instance of Brooklin joined to the cluster which the Connector's consumer is running on.
    *
    * @return the instance name that uniquely identifies this Brooklin instance
    */
   @Nullable
-  String getBrooklinInstance();
+  String getBrooklinInstanceName();
 
   /**
    * Returns the task prefix of the DatastreamTask being consumed.
@@ -44,15 +35,15 @@ public interface PositionKey {
    * @return the task prefix of the DatastreamTask.
    */
   @Nullable
-  String getBrooklinTaskPrefix();
+  String getDatastreamTaskPrefix();
 
   /**
-   * Returns a unique id for the task which the Connector's consumer is running in.
+   * Returns a unique id for the DatastreamTask assigned to the Connector.
    *
-   * @return an id that uniquely identifies a task
+   * @return an id that uniquely identifies a DatastreamTask
    */
   @Nullable
-  String getBrooklinTaskId();
+  String getDatastreamTaskName();
 
   /**
    * Returns the time at which consumption by the Connector's consumer started.
@@ -60,5 +51,5 @@ public interface PositionKey {
    * @return the consumption start time
    */
   @Nullable
-  Instant getTaskStartTime();
+  Instant getConnectorTaskStartTime();
 }

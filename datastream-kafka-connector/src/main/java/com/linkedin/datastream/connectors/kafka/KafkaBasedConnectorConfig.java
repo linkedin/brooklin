@@ -30,6 +30,7 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS = "pauseErrorPartitionDurationMs";
   public static final String CONFIG_ENABLE_POSITION_TRACKER = "enablePositionTracker";
+  public static final String CONFIG_ENABLE_BROKER_OFFSET_FETCHER = "enableBrokerOffsetFetcher";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
@@ -59,6 +60,7 @@ public class KafkaBasedConnectorConfig {
   private final Duration _pauseErrorPartitionDuration;
   private final long _processingDelayLogThresholdMillis;
   private final boolean _enablePositionTracker;
+  private final boolean _enableBrokerOffsetFetcher;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -96,6 +98,7 @@ public class KafkaBasedConnectorConfig {
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
     _enablePositionTracker = verifiableProperties.getBoolean(CONFIG_ENABLE_POSITION_TRACKER, true);
+    _enableBrokerOffsetFetcher = verifiableProperties.getBoolean(CONFIG_ENABLE_BROKER_OFFSET_FETCHER, true);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -175,5 +178,9 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePositionTracker() {
     return _enablePositionTracker;
+  }
+
+  public boolean getEnableBrokerOffsetFetcher() {
+    return _enableBrokerOffsetFetcher;
   }
 }

@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
-import com.linkedin.datastream.common.diag.PositionDataStore;
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.connectors.file.diag.FilePositionKey;
 import com.linkedin.datastream.connectors.file.diag.FilePositionValue;
 import com.linkedin.datastream.server.DatastreamEventProducer;
@@ -56,7 +56,7 @@ class FileProcessor implements Runnable {
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
 
     // Get reference to position data
-    _positionValue = (FilePositionValue) PositionDataStore.getInstance()
+    _positionValue = (FilePositionValue) ConnectorPositionsCache.getInstance()
         .computeIfAbsent(_task.getConnectorType(), s -> new ConcurrentHashMap<>())
         .computeIfAbsent(new FilePositionKey(BrooklinInstanceInfo.getInstanceName(), _task.getTaskPrefix(),
             _task.getDatastreamTaskName(), Instant.now(), _fileName), s -> new FilePositionValue());
@@ -101,7 +101,7 @@ class FileProcessor implements Runnable {
       _task.acquire(ACQUIRE_TIMEOUT);
 
       _lineNo = loadCheckpoint();
-      _positionValue.setLinesSeen(Long.valueOf(_lineNo));
+      _positionValue.setLinesRead(Long.valueOf(_lineNo));
       while (!_cancelRequested) {
         String text;
         try {
@@ -139,7 +139,7 @@ class FileProcessor implements Runnable {
             }
           });
           ++_lineNo;
-          _positionValue.setLinesSeen(Long.valueOf(_lineNo));
+          _positionValue.setLinesRead(Long.valueOf(_lineNo));
         } else {
           try {
             // Wait for new data

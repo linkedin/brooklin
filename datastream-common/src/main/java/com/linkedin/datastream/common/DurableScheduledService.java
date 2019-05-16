@@ -17,6 +17,7 @@ import com.google.common.util.concurrent.AbstractScheduledService;
 import com.google.common.util.concurrent.Service;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
+import org.apache.commons.lang3.Validate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -143,6 +144,7 @@ public abstract class DurableScheduledService implements Service {
   public DurableScheduledService(@NotNull final String serviceName, @NotNull final Duration runInterval,
       @NotNull final Duration timeout, @NotNull final Duration watcherInterval,
       @NotNull final Duration shutdownTimeout) {
+    Validate.notEmpty(serviceName);
     _serviceName = serviceName;
     _runInterval = runInterval;
     _timeout = timeout;

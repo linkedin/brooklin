@@ -14,6 +14,7 @@ import com.linkedin.datastream.common.diag.PositionValue;
  * A FilePositionValue provides information about a FileProcessor's current position when reading from a specific file.
  */
 public class FilePositionValue implements PositionValue {
+  private static final long serialVersionUID = 1L;
 
   /**
    * The number of bytes read from the file so far.
@@ -23,7 +24,7 @@ public class FilePositionValue implements PositionValue {
   /**
    * The number of lines read from the file so far.
    */
-  private Long linesSeen;
+  private Long linesRead;
 
   /**
    * The size of the file in bytes.
@@ -58,16 +59,16 @@ public class FilePositionValue implements PositionValue {
    * @return the number of lines read
    */
   @Nullable
-  public Long getLinesSeen() {
-    return linesSeen;
+  public Long getLinesRead() {
+    return linesRead;
   }
 
   /**
    * Sets the number of lines read from the file so far.
    * @param lines the number of lines read
    */
-  public void setLinesSeen(final Long lines) {
-    this.linesSeen = lines;
+  public void setLinesRead(final Long lines) {
+    this.linesRead = lines;
   }
 
   /**

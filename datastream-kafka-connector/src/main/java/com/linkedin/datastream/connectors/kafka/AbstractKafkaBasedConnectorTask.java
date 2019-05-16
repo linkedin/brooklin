@@ -165,20 +165,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = 0;
-
-    KafkaPositionTracker positionTracker = null;
-    if (config.getEnablePositionTracker()) {
-      final String brooklinConnectorName = _datastreamTask.getConnectorType();
-      final String brooklinTaskPrefix = _datastreamTask.getTaskPrefix();
-      final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
-      final Instant taskStartTime = Instant.now();
-      final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
-          && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
-      final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
-      positionTracker = new KafkaPositionTracker(brooklinConnectorName, brooklinTaskPrefix, brooklinTaskId,
-          taskStartTime, isConnectorTaskAlive, consumerSupplier);
-    }
-    _kafkaPositionTracker = Optional.ofNullable(positionTracker);
+    _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config));
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -471,6 +458,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       handlePollRecordsException(e);
       return ConsumerRecords.EMPTY;
     }
+  }
+
+  private void sendPollInfoToPositionTracker() {
+    _kafkaPositionTracker.ifPresent(tracker -> {
+      
+    });
   }
 
   protected long getLastPolledTimeMillis() {
@@ -944,6 +937,27 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       return (String) groupIds.toArray()[0];
     }
 
+    return null;
+  }
+
+  /**
+   * Creates a KafkaPositionTracker if enabled in the provided config.
+   *
+   * @param config the provided config
+   * @return a KafkaPositionTracker if enabled in config, or null
+   */
+  private KafkaPositionTracker createKafkaPositionTracker(KafkaBasedConnectorConfig config) {
+    if (config.getEnablePositionTracker()) {
+      final String brooklinConnectorName = _datastreamTask.getConnectorType();
+      final String brooklinTaskPrefix = _datastreamTask.getTaskPrefix();
+      final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
+      final Instant taskStartTime = Instant.now();
+      final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
+          && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
+      final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
+      return new KafkaPositionTracker(brooklinConnectorName, brooklinTaskPrefix, brooklinTaskId,
+          taskStartTime, config.getEnableBrokerOffsetFetcher(), isConnectorTaskAlive, consumerSupplier);
+    }
     return null;
   }
 }

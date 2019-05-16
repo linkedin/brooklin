@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -41,7 +42,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.diag.PositionDataStore;
 import com.linkedin.datastream.common.diag.PositionKey;
 import com.linkedin.datastream.common.diag.PositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -351,7 +351,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
       } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        final Map<PositionKey, PositionValue> positionData = PositionDataStore.getInstance()
+        final Map<PositionKey, PositionValue> positionData = ConnectorPositionsCache.getInstance()
             .getOrDefault(_connectorName, new ConcurrentHashMap<>());
         final String response = JsonUtils.toJson(positionData);
         _logger.trace("Query: {} returns response: {}", query, response);

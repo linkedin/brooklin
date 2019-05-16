@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.common.diag;
 
+import java.io.Serializable;
+
+
 /**
  * A position value describes information about a Connector consumer's position and status when reading from a source.
  *
@@ -12,5 +15,5 @@ package com.linkedin.datastream.common.diag;
  * {@link com.linkedin.datastream.common.JsonUtils#toJson(Object)} and deserializable from JSON by
  * {@link com.linkedin.datastream.common.JsonUtils#fromJson(String, Class)}.
  */
-public interface PositionValue {
+public interface PositionValue extends Serializable {
 }

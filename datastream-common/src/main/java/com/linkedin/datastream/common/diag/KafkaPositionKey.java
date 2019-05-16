@@ -22,11 +22,7 @@ import com.linkedin.datastream.common.JsonUtils.InstantSerializer;
  * A KafkaPositionKey uniquely identifies an instantiation of a Kafka consumer within a Brooklin cluster.
  */
 public class KafkaPositionKey implements PositionKey {
-
-  /**
-   * The position type.
-   */
-  private static final String KAFKA_POSITION_TYPE = "Kafka";
+  private static final long serialVersionUID = 1L;
 
   /**
    * The Kafka topic we are consuming from.
@@ -41,59 +37,49 @@ public class KafkaPositionKey implements PositionKey {
   /**
    * This Brooklin instance running the Kafka consumer.
    */
-  private final String brooklinInstance;
+  private final String brooklinInstanceName;
 
   /**
    * A String that matches the DatastreamTask's task prefix.
    */
-  private final String brooklinTaskPrefix;
+  private final String datastreamTaskPrefix;
 
   /**
    * A String that uniquely identifies the DatastreamTask which is running the Kafka consumer.
    */
-  private final String brooklinTaskId;
+  private final String datastreamTaskName;
 
   /**
    * The time at which consumption started.
    */
   @JsonSerialize(using = InstantSerializer.class)
   @JsonDeserialize(using = InstantDeserializer.class)
-  private final Instant taskStartTime;
+  private final Instant connectorTaskStartTime;
 
   /**
    * Constructs a KafkaPositionKey.
    *
    * @param topic the Kafka topic we are consuming from
    * @param partition the Kafka partition we are consuming from
-   * @param brooklinInstance the Brooklin instance that is running the Kafka consumer
-   * @param brooklinTaskPrefix the task prefix for the DatastreamTask which is running the consumer
-   * @param brooklinTaskId a unique identifier for the DatastreamTask which is running the consumer
-   * @param taskStartTime the time at which consumption started
+   * @param brooklinInstanceName the Brooklin instance that is running the Kafka consumer
+   * @param datastreamTaskPrefix the task prefix for the DatastreamTask which is running the consumer
+   * @param datastreamTaskName a unique identifier for the DatastreamTask which is running the consumer
+   * @param connectorTaskStartTime the time at which consumption started
    */
   @JsonCreator
   public KafkaPositionKey(
       @JsonProperty("topic") @NotNull final String topic,
       @JsonProperty("partition") final int partition,
-      @JsonProperty("brooklinInstance") @NotNull final String brooklinInstance,
-      @JsonProperty("brooklinTaskPrefix") @NotNull final String brooklinTaskPrefix,
-      @JsonProperty("brooklinTaskId") @NotNull final String brooklinTaskId,
-      @JsonProperty("taskStartTime") @NotNull final Instant taskStartTime) {
+      @JsonProperty("brooklinInstanceName") @NotNull final String brooklinInstanceName,
+      @JsonProperty("datastreamTaskPrefix") @NotNull final String datastreamTaskPrefix,
+      @JsonProperty("datastreamTaskName") @NotNull final String datastreamTaskName,
+      @JsonProperty("connectorTaskStartTime") @NotNull final Instant connectorTaskStartTime) {
     this.topic = topic;
     this.partition = partition;
-    this.brooklinInstance = brooklinInstance;
-    this.brooklinTaskPrefix = brooklinTaskPrefix;
-    this.brooklinTaskId = brooklinTaskId;
-    this.taskStartTime = taskStartTime;
-  }
-
-  /**
-   * Returns the position type.
-   *
-   * @return the position type
-   */
-  @NotNull
-  public String getType() {
-    return KAFKA_POSITION_TYPE;
+    this.brooklinInstanceName = brooklinInstanceName;
+    this.datastreamTaskPrefix = datastreamTaskPrefix;
+    this.datastreamTaskName = datastreamTaskName;
+    this.connectorTaskStartTime = connectorTaskStartTime;
   }
 
   /**
@@ -121,8 +107,9 @@ public class KafkaPositionKey implements PositionKey {
    * @return the Brooklin instance that is running the Kafka consumer
    */
   @NotNull
-  public String getBrooklinInstance() {
-    return brooklinInstance;
+  @Override
+  public String getBrooklinInstanceName() {
+    return brooklinInstanceName;
   }
 
   /**
@@ -131,26 +118,31 @@ public class KafkaPositionKey implements PositionKey {
    * @return the task prefix of the DatastreamTask
    */
   @NotNull
-  public String getBrooklinTaskPrefix() {
-    return brooklinTaskPrefix;
+  @Override
+  public String getDatastreamTaskPrefix() {
+    return datastreamTaskPrefix;
   }
 
   /**
-   * Returns a String that uniquely identifies the DatastreamTask which is running the Kafka consumer.
-   * @return a unique identifier for the DatastreamTask which is running the consumer
+   * Returns a unique id for the DatastreamTask assigned to the Kafka connector.
+   *
+   * @return an id that uniquely identifies a DatastreamTask
    */
   @NotNull
-  public String getBrooklinTaskId() {
-    return brooklinTaskId;
+  @Override
+  public String getDatastreamTaskName() {
+    return datastreamTaskName;
   }
 
   /**
    * Returns the time at which consumption started.
+   *
    * @return the time at which consumption started
    */
   @NotNull
-  public Instant getTaskStartTime() {
-    return taskStartTime;
+  @Override
+  public Instant getConnectorTaskStartTime() {
+    return connectorTaskStartTime;
   }
 
   /**
@@ -167,10 +159,10 @@ public class KafkaPositionKey implements PositionKey {
     final KafkaPositionKey other = (KafkaPositionKey) obj;
     return partition == other.partition
         && Objects.equals(topic, other.topic)
-        && Objects.equals(brooklinInstance, other.brooklinInstance)
-        && Objects.equals(brooklinTaskPrefix, other.brooklinTaskPrefix)
-        && Objects.equals(brooklinTaskId, other.brooklinTaskId)
-        && Objects.equals(taskStartTime, other.taskStartTime);
+        && Objects.equals(brooklinInstanceName, other.brooklinInstanceName)
+        && Objects.equals(datastreamTaskPrefix, other.datastreamTaskPrefix)
+        && Objects.equals(datastreamTaskName, other.datastreamTaskName)
+        && Objects.equals(connectorTaskStartTime, other.connectorTaskStartTime);
   }
 
   /**
@@ -178,6 +170,7 @@ public class KafkaPositionKey implements PositionKey {
    */
   @Override
   public int hashCode() {
-    return Objects.hash(topic, partition, brooklinInstance, brooklinTaskPrefix, brooklinTaskId, taskStartTime);
+    return Objects.hash(topic, partition, brooklinInstanceName, datastreamTaskPrefix, datastreamTaskName,
+        connectorTaskStartTime);
   }
 }
