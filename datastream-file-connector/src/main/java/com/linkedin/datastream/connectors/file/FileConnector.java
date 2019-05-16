@@ -16,7 +16,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +29,6 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
-import com.linkedin.datastream.common.diag.PositionKey;
-import com.linkedin.datastream.common.diag.PositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -153,9 +153,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
     try {
       String path = getPath(query, LOG);
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        final Map<PositionKey, PositionValue> positionData = ConnectorPositionsCache.getInstance()
-            .getOrDefault(_connectorName, new ConcurrentHashMap<>());
-        final String response = JsonUtils.toJson(positionData);
+        final String response = processPositionRequest();
         LOG.trace("Query: {} returns response: {}", query, response);
         return response;
       } else {
@@ -166,6 +164,19 @@ public class FileConnector implements Connector, DiagnosticsAware {
       throw new DatastreamRuntimeException(e);
     }
     return null;
+  }
+
+  /**
+   * Returns a JSON representation of the position data this connector has.
+   * @return a JSON representation of the position data this connector has
+   */
+  private String processPositionRequest() {
+    return JsonUtils.toJson(ConnectorPositionsCache.getInstance()
+        .getOrDefault(_connectorName, new ConcurrentHashMap<>())
+        .entrySet()
+        .stream()
+        .map(e -> ImmutableMap.of("key", e.getKey(), "value", e.getValue()))
+        .collect(Collectors.toList()));
   }
 
   /**

@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -25,8 +24,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -42,8 +44,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.diag.PositionKey;
-import com.linkedin.datastream.common.diag.PositionValue;
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -351,9 +352,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
       } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        final Map<PositionKey, PositionValue> positionData = ConnectorPositionsCache.getInstance()
-            .getOrDefault(_connectorName, new ConcurrentHashMap<>());
-        final String response = JsonUtils.toJson(positionData);
+        final String response = processPositionRequest();
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
       } else {
@@ -376,6 +375,19 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         .findFirst()
         .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
         .orElse(null)).map(KafkaDatastreamStatesResponse::toJson).orElse(null);
+  }
+
+  /**
+   * Returns a JSON representation of the position data this connector has.
+   * @return a JSON representation of the position data this connector has
+   */
+  private String processPositionRequest() {
+    return JsonUtils.toJson(ConnectorPositionsCache.getInstance()
+        .getOrDefault(_connectorName, new ConcurrentHashMap<>())
+        .entrySet()
+        .stream()
+        .map(e -> ImmutableMap.of("key", e.getKey(), "value", e.getValue()))
+        .collect(Collectors.toList()));
   }
 
   /**
