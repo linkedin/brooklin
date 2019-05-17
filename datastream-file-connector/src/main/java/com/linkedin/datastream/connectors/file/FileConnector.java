@@ -5,12 +5,9 @@
  */
 package com.linkedin.datastream.connectors.file;
 
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.net.URI;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,17 +16,19 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DiagnosticsAware;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
-import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
-import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
-import com.linkedin.datastream.common.diag.PhysicalSources;
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -48,16 +47,15 @@ public class FileConnector implements Connector, DiagnosticsAware {
   public static final String CFG_NUM_PARTITIONS = "numPartitions";
 
   private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
-  private static final String FILE_CONNECTOR_POSITION_TYPE = "lineNumber";
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
   private static final Duration SHUTDOWN_TIMEOUT = Duration.ofMillis(5000);
 
+  private final String _connectorName;
   private final ExecutorService _executorService;
   private final int _numPartitions;
   private final ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
 
   private enum DiagnosticsRequestType {
-    DATASTREAM_STATE,
     POSITION
   }
 
@@ -65,7 +63,8 @@ public class FileConnector implements Connector, DiagnosticsAware {
    * Constructor for FileConnector
    * @param config Connector configuration properties
    */
-  public FileConnector(Properties config) {
+  public FileConnector(String connectorName, Properties config) {
+    _connectorName = connectorName;
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 
@@ -145,76 +144,56 @@ public class FileConnector implements Connector, DiagnosticsAware {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public String process(String query) {
     LOG.info("Processing query: {}", query);
     try {
-      URI uri = new URI(query);
       String path = getPath(query, LOG);
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        return processDatastreamPositionRequest(uri);
-      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
-        throw new UnsupportedOperationException("FileConnector does not support querying for datastream state");
+        final String response = processPositionRequest();
+        LOG.trace("Query: {} returns response: {}", query, response);
+        return response;
       } else {
-        LOG.error("Could not process query {} with path {}", query, path);
+        LOG.warn("Could not process query {} with path {}", query, path);
       }
     } catch (Exception e) {
-      throw new DatastreamRuntimeException(String.format("Failed to process query %s", query), e);
+      LOG.warn("Failed to process query {}", query, e);
+      throw new DatastreamRuntimeException(e);
     }
     return null;
   }
 
-  private String processDatastreamPositionRequest(URI request) {
-    LOG.debug("Processing datastream position request: {}", request);
-
-    Map<String, PhysicalSources> datastreamToPhysicalSources = new HashMap<>();
-
-    _fileProcessors.forEach((datastreamTask, fileProcessor) -> {
-      datastreamTask.getDatastreams().forEach(datastream -> {
-        PhysicalSourcePosition sourcePosition = new PhysicalSourcePosition();
-        sourcePosition.setSourcePosition(fileProcessor.getLineNumber().toString());
-        sourcePosition.setPositionType(FILE_CONNECTOR_POSITION_TYPE);
-
-        PhysicalSources physicalSources = new PhysicalSources();
-        physicalSources.set(fileProcessor.getFileName(), sourcePosition);
-
-        datastreamToPhysicalSources.put(datastream.getName(), physicalSources);
-      });
-    });
-
-    return DatastreamPositionResponse.toJson(new DatastreamPositionResponse(datastreamToPhysicalSources));
+  /**
+   * Returns a JSON representation of the position data this connector has.
+   * @return a JSON representation of the position data this connector has
+   */
+  private String processPositionRequest() {
+    return JsonUtils.toJson(ConnectorPositionsCache.getInstance()
+        .getOrDefault(_connectorName, new ConcurrentHashMap<>())
+        .entrySet()
+        .stream()
+        .map(e -> ImmutableMap.of("key", e.getKey(), "value", e.getValue()))
+        .collect(Collectors.toList()));
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public String reduce(String query, Map<String, String> responses) {
     LOG.info("Reducing query {} with responses from {}.", query, responses.keySet());
     try {
       String path = getPath(query, LOG);
       if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        return reduceDatastreamPositionResponses(responses);
-      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())) {
-        throw new UnsupportedOperationException("FileConnector does not support querying for datastream state");
+        return JsonUtils.toJson(responses);
       }
     } catch (Exception e) {
-      LOG.error(String.format("Failed to reduce responses %s", query), e);
-      return null;
+      LOG.warn("Failed to reduce responses {}", responses, e);
+      throw new DatastreamRuntimeException(e);
     }
     return null;
-  }
-
-  private String reduceDatastreamPositionResponses(Map<String, String> responses) {
-    Map<String, PhysicalSources> datastreamToPhysicalSources = new HashMap<>();
-
-    responses.forEach((instance, json) -> {
-      try {
-        DatastreamPositionResponse response = DatastreamPositionResponse.fromJson(json);
-        LOG.debug("Datastream position response from instance {} is {}", instance, response);
-        datastreamToPhysicalSources.putAll(response.getDatastreamToPhysicalSources());
-      } catch (Exception e) {
-        LOG.error("Invalid datastream position response {} from instance {}.", json, instance, e);
-      }
-    });
-
-    return DatastreamPositionResponse.toJson(new DatastreamPositionResponse(datastreamToPhysicalSources));
   }
 }

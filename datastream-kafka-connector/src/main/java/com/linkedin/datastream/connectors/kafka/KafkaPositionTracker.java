@@ -5,20 +5,21 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
+import java.io.Closeable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -26,495 +27,558 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.record.TimestampType;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
+
 import com.linkedin.datastream.common.DurableScheduledService;
-import com.linkedin.datastream.common.diag.PhysicalSourcePosition;
-import com.linkedin.datastream.common.diag.PhysicalSources;
+import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
+import com.linkedin.datastream.common.diag.KafkaPositionKey;
+import com.linkedin.datastream.common.diag.KafkaPositionValue;
+import com.linkedin.datastream.common.diag.PositionKey;
+import com.linkedin.datastream.common.diag.PositionValue;
 
 
 /**
- * KafkaPositionTracker is intended to be used with a Kafka-based connector task to keep track of the current
- * offset/position of the connector task's consumer per TopicPartition and the latest available offset/position on the
- * broker per TopicPartition.
+ * KafkaPositionTracker is intended to be used with a Kafka-based Connector task to keep track of the current
+ * offset/position of the Connector task's consumer. This data is stored in the globally instantiated
+ * {@link ConnectorPositionsCache}.
  *
- * This information can then be used to provide diagnostic and analytic information about our position on the Kafka
- * topic (e.g. Do we have more messages to consume? Are we stuck or are we making progress?).
+ * The information stored can then be queried via the /diag endpoint for diagnostic and analytic purposes.
  */
-public class KafkaPositionTracker {
+public class KafkaPositionTracker implements Closeable {
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaPositionTracker.class);
 
   /**
-   * The task name of the connector this class is for.
+   * The suffix for Kafka consumer metrics that record records lag.
    */
-  private final String _connectorTaskName;
+  private static final String RECORDS_LAG_METRIC_NAME_SUFFIX = "records-lag";
 
   /**
-   * A store of position data for each TopicPartition. This position data is what will be returned to this task's
-   * connector. The position data will be in the form of event timestamp if timestamp data is available, and otherwise
-   * will use Kafka offset.
-   *
-   * @see com.linkedin.datastream.common.diag.PhysicalSources
-   *      which will map TopicPartition -> PhysicalSourcePosition
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition
-   *      which will contain position data for both the broker and this consumer
+   * The number of offsets to fetch from the broker per endOffsets() RPC call. This was chosen by experiment after
+   * finding timeouts with large partition counts (say 2000 or more) when using the default Kafka settings.
    */
-  private final PhysicalSources _positions = new PhysicalSources();
+  private static final int BROKER_OFFSETS_FETCH_SIZE = 250;
 
   /**
-   * A store of position data for each TopicPartition. This position data will exclusively be Kafka offset based, and is
-   * kept to assist in calculating if the current consumer is caught-up or not.
-   *
-   * @see com.linkedin.datastream.common.diag.PhysicalSources
-   *      which will map TopicPartition -> PhysicalSourcePosition
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition
-   *      which will contain position data for both the broker and this consumer
+   * The task prefix for the DatastreamTask.
+   * @see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()
    */
-  private final PhysicalSources _offsetPositions = new PhysicalSources();
+  @NotNull
+  private final String _datastreamTaskPrefix;
 
   /**
-   * The frequency at which to fetch offsets from the broker using an RPC call.
+   * The unique DatastreamTask name.
+   * @see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()
    */
-  private static final Duration OFFSETS_FETCH_INTERVAL = Duration.ofSeconds(30);
+  @NotNull
+  private final String _datastreamTaskName;
 
   /**
-   * The maximum duration from the last terminated endOffsets RPCs calls to when the Kafka consumer is assumed to be
-   * faulty and is reconstructed.
+   * The time at which the Connector task was instantiated.
    */
-  private static final Duration LAST_CONSUMER_RPC_TERMINATED_TIMEOUT = Duration.ofMinutes(5);
+  @NotNull
+  private final Instant _connectorTaskStartTime;
 
   /**
-   * The service responsible for fetching offsets.
+   * The position data for this DatastreamTask as held by the {@link ConnectorPositionsCache}.
    */
-  private DurableScheduledService _offsetsFetcherService; // Defined to help investigation issues (when you have a heap
-  // dump or are in a debugger)
+  @NotNull
+  private final ConcurrentHashMap<PositionKey, PositionValue> _positions;
 
   /**
-   * define if the positions tracker need to be initialize
+   * A map of TopicPartitions to KafkaPositionKeys currently owned/operated on by this KafkaPositionTracker instance.
    */
-  private volatile boolean _positionsInitialized;
+  @NotNull
+  private final ConcurrentHashMap<TopicPartition, KafkaPositionKey> _ownedKeys = new ConcurrentHashMap<>();
 
   /**
-   * The list of assigned partitions for the connector this task is for
+   * A set of TopicPartitions which are assigned to us, but for which we have not yet received any records or
+   * consumer position data for.
    */
-  private final Set<TopicPartition> _assignedPartitions = Sets.newConcurrentHashSet();
+  @NotNull
+  private final Set<TopicPartition> _needingInit = ConcurrentHashMap.newKeySet();
+
+  /**
+   * A look-up table of TopicPartition -> MetricName as they are encountered to speed consumer metric look up.
+   */
+  @NotNull
+  private final Map<TopicPartition, MetricName> _metricNameCache = new HashMap<>();
+
+  /**
+   * The client id of the Kafka consumer used by the Connector task. Used to fetch metrics.
+   */
+  @Nullable
+  private String _clientId;
+
+  /**
+   * The metrics format supported by the Kafka consumer used by the Connector task.
+   */
+  @Nullable
+  private ConsumerMetricsFormatSupport _consumerMetricsSupport;
+
+  /**
+   * A Supplier that determines if the Connector task which this tracker is for is alive. If it is not, then we should
+   * stop running.
+   */
+  private final Supplier<Consumer<?, ?>> _consumerSupplier;
+
+  /**
+   * The service responsible for periodically fetching offsets from the broker.
+   */
+  @Nullable
+  private final BrokerOffsetFetcher _brokerOffsetFetcher; // Defined to help investigation issues (when you have a
+  // heap dump or are in a debugger)
+
+  /**
+   * Describes the metrics format supported by a Kafka consumer.
+   */
+  private enum ConsumerMetricsFormatSupport {
+    /**
+     * The Kafka consumer exposes record lag by KIP-92, which applies to Kafka versions >= 0.10.2.0 and < 1.1.0.
+     * @see <a href="https://cwiki.apache.org/confluence/x/bhX8Awr">KIP-92</a>
+     */
+    KIP_92,
+
+    /**
+     * The Kafka consumer exposes record lag by KIP-225 (superseding KIP-92), which applies to Kafka versions >= 1.1.0.
+     * @see <a href="https://cwiki.apache.org/confluence/x/uaBzB">KIP-225</a>
+     */
+    KIP_225
+  }
 
   /**
    * Constructor for a KafkaPositionTracker.
    *
-   * @param connectorTaskName the name of the connector task this task is for
-   * @param isConnectorTaskAlive A supplier that determines if the connector task this task is for is alive. If it is
-   *                             not, then we should stop.
-   * @param consumerSupplier a consumer supplier that is suitable for querying the brokers that the connector task is
+   * @param connectorName The name of the Connector for the given DatastreamTask
+   *                      {@see com.linkedin.datastream.server.DatastreamTask#getConnectorName()}
+   * @param datastreamTaskPrefix The task prefix for the DatastreamTask
+   *                             {@see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()}
+   * @param datastreamTaskName The DatastreamTask name
+   *                           {@see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()}
+   * @param connectorTaskStartTime The time at which the associated DatastreamTask started
+   * @param enableBrokerOffsetFetcher True if we should fetch stale broker offset data periodically, false otherwise
+   * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive. If
+   *                             it is not, then we should stop.
+   * @param consumerSupplier A Consumer supplier that is suitable for querying the brokers that the Connector task is
    *                         talking to
    */
-  public KafkaPositionTracker(final String connectorTaskName, final Supplier<Boolean> isConnectorTaskAlive,
-      final Supplier<Consumer<?, ?>> consumerSupplier) {
-    LOG.info("Creating KafkaPositionTracker for {}", connectorTaskName);
-    _connectorTaskName = connectorTaskName;
-    _positionsInitialized = false;
-    _offsetsFetcherService = new DurableScheduledService(_connectorTaskName, OFFSETS_FETCH_INTERVAL,
-        LAST_CONSUMER_RPC_TERMINATED_TIMEOUT) {
-      private Consumer<?, ?> _consumer;
-
-      @Override
-      protected void startUp() {
-        _consumer = consumerSupplier.get();
-      }
-
-      @Override
-      protected void runOneIteration() {
-        if (!_positionsInitialized) {
-          _positionsInitialized = initializePositions(_consumer, _assignedPartitions);
-          return;
-        }
-
-        final Instant currentTime = Instant.now();
-
-        // We want to update only those partitions which are assigned to us and haven't been updated in our fetch
-        // interval.
-        final Set<TopicPartition> partitionsNeedingUpdate = _assignedPartitions.stream()
-            .filter(tp -> Optional.ofNullable(_offsetPositions.get(tp.toString()))
-                .map(PhysicalSourcePosition::getSourceQueriedTimeMs)
-                .map(Instant::ofEpochMilli)
-                .orElse(Instant.EPOCH)
-                .isBefore(currentTime.minus(OFFSETS_FETCH_INTERVAL)))
-            .collect(Collectors.toSet());
-
-        // If we are caught up on all partitions, there is no need to make any RPC calls.
-        if (partitionsNeedingUpdate.isEmpty()) {
-          return;
-        }
-
-        LOG.debug("Detected that the following partitions would benefit from broker endOffsets RPC: {}",
-            partitionsNeedingUpdate);
-
-        try {
-          updateLatestBrokerOffsetsByRpc(_consumer, partitionsNeedingUpdate, currentTime.toEpochMilli());
-        } catch (Exception e) {
-          // If we run into an exception, we should crash and allow ourselves to be revived by the
-          // DurableScheduledService
-          LOG.warn("Failed to update broker end offsets via RPC.", e);
-          throw e;
-        }
-      }
-
-      @Override
-      protected void shutDown() {
-        if (_consumer != null) {
-          _consumer.close();
-        }
-      }
-
-      @Override
-      protected boolean hasLeaked() {
-        return !isConnectorTaskAlive.get();
-      }
-    };
-
-    _offsetsFetcherService.startAsync();
+  public KafkaPositionTracker(@NotNull final String connectorName, @NotNull final String datastreamTaskPrefix,
+      @NotNull final String datastreamTaskName, @NotNull final Instant connectorTaskStartTime,
+      final boolean enableBrokerOffsetFetcher, @NotNull final Supplier<Boolean> isConnectorTaskAlive,
+      @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+    _datastreamTaskPrefix = datastreamTaskPrefix;
+    _datastreamTaskName = datastreamTaskName;
+    _connectorTaskStartTime = connectorTaskStartTime;
+    _positions = ConnectorPositionsCache.getInstance().computeIfAbsent(connectorName, s -> new ConcurrentHashMap<>());
+    _consumerSupplier = consumerSupplier;
+    if (enableBrokerOffsetFetcher) {
+      _brokerOffsetFetcher = new BrokerOffsetFetcher(datastreamTaskName, this, isConnectorTaskAlive);
+      _brokerOffsetFetcher.startAsync();
+    } else {
+      _brokerOffsetFetcher = null;
+    }
   }
 
   /**
-   * Uses the specified consumer to make an RPC call to get the end offsets for the specified partitions and updates the
-   * metadata. Use externally for testing purposes only. Note that the provided consumer must not be either the consumer
-   * for this task or the consumer used within the endOffsetsUpdater task, or else a concurrent modification condition
+   * Initializes position data for the assigned partitions. This method should be called whenever the Connector's
+   * consumer finishes assigning partitions.
+   *
+   * @see AbstractKafkaBasedConnectorTask#onPartitionsAssigned(Collection) for how this method is used in a connector
+   *      task
+   * @param topicPartitions the topic partitions which have been assigned
+   */
+  public synchronized void onPartitionsAssigned(@NotNull final Collection<TopicPartition> topicPartitions) {
+    final Instant assignmentTime = Instant.now();
+    for (final TopicPartition topicPartition : topicPartitions) {
+      final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+          BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime);
+      _ownedKeys.put(topicPartition, key);
+      _needingInit.add(topicPartition);
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key, s ->
+          new KafkaPositionValue());
+      value.setAssignmentTime(assignmentTime);
+    }
+  }
+
+  /**
+   * Frees position data for partitions which have been unassigned. This method should be called whenever the
+   * Connector's consumer is about to rebalance (and thus unassign partitions).
+   *
+   * @see AbstractKafkaBasedConnectorTask#onPartitionsRevoked(Collection) for how this method is used in a connector
+   *      task
+   * @param topicPartitions the topic partitions which were previously assigned
+   */
+  public synchronized void onPartitionsRevoked(@NotNull final Collection<TopicPartition> topicPartitions) {
+    for (final TopicPartition topicPartition : topicPartitions) {
+      _metricNameCache.remove(topicPartition);
+      _needingInit.remove(topicPartition);
+      @Nullable final KafkaPositionKey key = _ownedKeys.remove(topicPartition);
+      if (key != null) {
+        _positions.remove(key);
+      }
+    }
+  }
+
+  /**
+   * Updates the position data after the Connector's consumer has finished polling, using both the returned records and
+   * the available internal Kafka consumer metrics.
+   *
+   * This method will only update position data for partitions which have received records.
+   *
+   * @param records the records fetched from {@link Consumer#poll(Duration)}
+   * @param metrics the metrics for the Kafka consumer as fetched from {@link Consumer#metrics()}
+   */
+  public synchronized void onRecordsReceived(@NotNull final ConsumerRecords<?, ?> records,
+      @NotNull final Map<MetricName, ? extends Metric> metrics) {
+    final Instant receivedTime = Instant.now();
+    for (final TopicPartition topicPartition : records.partitions()) {
+      // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
+      // with this topicPartition before then, but it should be safe to construct them here as this data should be
+      // coming from the consumer thread without race conditions.
+      final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+              BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName,
+              _connectorTaskStartTime));
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
+          s -> new KafkaPositionValue());
+
+      // Derive the consumer offset and the last record polled timestamp from the records
+      records.records(topicPartition).stream()
+          .max(Comparator.comparingLong(ConsumerRecord::offset))
+          .ifPresent(record -> {
+            value.setLastNonEmptyPollTime(receivedTime);
+            // Why add +1? The consumer's position is the offset of the next record it expects.
+            value.setConsumerOffset(record.offset() + 1);
+            value.setLastRecordReceivedTimestamp(Instant.ofEpochMilli(record.timestamp()));
+          });
+
+      // Attempt derive the broker's offset from the consumer's metrics
+      getLagMetric(metrics, topicPartition).ifPresent(consumerLag ->
+          Optional.ofNullable(value.getConsumerOffset()).ifPresent(consumerOffset -> {
+            // If we know both the consumer's lag from the metrics, and the consumer's offset from our position data,
+            // then we can calculate what the broker's offset should be.
+            final long brokerOffset = consumerOffset + consumerLag;
+            value.setLastBrokerQueriedTime(receivedTime);
+            value.setBrokerOffset(brokerOffset);
+          }));
+
+      _needingInit.remove(topicPartition);
+    }
+  }
+
+  /**
+   * Checks the Kafka consumer metrics as acquired by {@link Consumer#metrics()} to see if it contains information on
+   * record lag (the lag between the consumer and the broker) for a given TopicPartition.
+   *
+   * If it does, the lag value is returned.
+   *
+   * @param metrics The metrics returned by the Kafka consumer to check
+   * @param topicPartition The TopicPartition to match against
+   * @return the lag value if it can be found
+   */
+  @NotNull
+  private Optional<Long> getLagMetric(@NotNull final Map<MetricName, ? extends Metric> metrics,
+      @NotNull final TopicPartition topicPartition) {
+    @Nullable final MetricName metricName = Optional.ofNullable(_metricNameCache.get(topicPartition))
+        .orElseGet(() -> tryCreateMetricName(topicPartition, metrics.keySet()).orElse(null));
+    return Optional.ofNullable(metricName)
+        .map(metrics::get)
+        .map(Metric::metricValue)
+        .filter(value -> value instanceof Double)
+        .map(value -> ((Double) value).longValue());
+  }
+
+  /**
+   * Attempts to return the metric name containing record lag information if it exists. This method will attempt to
+   * return the cached value before calculating it (calculating the value is expensive).
+   *
+   * @param topicPartition the provided topic partition
+   * @param metricNames the collection of metric names
+   * @return the metric name containing record lag information, if it can be derived
+   */
+  @NotNull
+  private Optional<MetricName> tryCreateMetricName(@NotNull final TopicPartition topicPartition,
+      @NotNull final Collection<MetricName> metricNames) {
+    // Try to fetch the result from cache first
+    MetricName metricName = _metricNameCache.get(topicPartition);
+    if (metricName != null) {
+      return Optional.of(metricName);
+    }
+
+    // Try to initialize the variables if they are not set
+    if (_clientId == null || _consumerMetricsSupport == null) {
+      // Find a testable metric name in the collection
+      metricNames.stream()
+          .filter(candidateMetricName -> candidateMetricName.name().endsWith(RECORDS_LAG_METRIC_NAME_SUFFIX))
+          .findAny()
+          .ifPresent(testableMetricName -> {
+            // Attempt to extract the consumer's client id and the consumer's metric support level through the testable
+            // metric name
+            _clientId = Optional.ofNullable(testableMetricName.tags()).map(tags -> tags.get("client-id")).orElse(null);
+            _consumerMetricsSupport = testableMetricName.name().length() == RECORDS_LAG_METRIC_NAME_SUFFIX.length()
+                ? ConsumerMetricsFormatSupport.KIP_225 : ConsumerMetricsFormatSupport.KIP_92;
+          });
+    }
+
+    // Ensure our variables are initialized (they should be, but we are being extra defensive)
+    @Nullable final String clientId = _clientId;
+    @Nullable final ConsumerMetricsFormatSupport consumerMetricsSupport = _consumerMetricsSupport;
+    if (clientId == null || consumerMetricsSupport == null) {
+      // Client metric support is unimplemented in the current consumer
+      LOG.trace("The current consumer does not seem to have metric support for record lag.");
+      return Optional.empty();
+    }
+
+    // Build our metric name
+    switch (consumerMetricsSupport) {
+      case KIP_92: {
+        final Map<String, String> tags = new HashMap<>();
+        tags.put("client-id", clientId);
+        metricName = new MetricName(topicPartition + "." + RECORDS_LAG_METRIC_NAME_SUFFIX,
+            "consumer-fetch-manager-metrics", "", tags);
+        break;
+      }
+      case KIP_225: {
+        final Map<String, String> tags = new HashMap<>();
+        tags.put("client-id", clientId);
+        tags.put("topic", topicPartition.topic());
+        tags.put("partition", String.valueOf(topicPartition.partition()));
+        metricName = new MetricName(RECORDS_LAG_METRIC_NAME_SUFFIX, "consumer-fetch-manager-metrics", "", tags);
+        break;
+      }
+      default: {
+        // Client metric support is unimplemented in the current consumer
+        LOG.trace("The current consumer does not seem to have metric support for record lag.");
+        return Optional.empty();
+      }
+    }
+
+    // Store it in the cache and return it
+    _metricNameCache.put(topicPartition, metricName);
+    return Optional.of(metricName);
+  }
+
+  /**
+   * Returns a Set of TopicPartitions which are assigned to us, but for which we have not yet received any records or
+   * consumer position data for.
+   */
+  @NotNull
+  public synchronized Set<TopicPartition> getPartitionsNeedingInit() {
+    return Collections.unmodifiableSet(_needingInit);
+  }
+
+  /**
+   * Fills the current consumer offset into the position data for the given TopicPartition, causing the TopicPartition
+   * to no longer need initialization.
+   *
+   * This offset is typically found by the Connector's consumer by calling {@link Consumer#position(TopicPartition)}
+   * after a successful {@link Consumer#poll(Duration)}.
+   *
+   * @param topicPartition The given TopicPartition to provide position data for
+   * @param consumerOffset The Connector consumer's offset for this topic partition as if specified by
+   *                       {@link Consumer#position(TopicPartition)}
+   */
+  public synchronized void initializePartition(@Nullable final TopicPartition topicPartition,
+      @Nullable final Long consumerOffset) {
+    if (topicPartition != null && consumerOffset != null) {
+      // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
+      // with this topicPartition before then, but it should be safe to construct them here as this data should be
+      // coming from the consumer thread without race conditions.
+      final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
+              BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName,
+              _connectorTaskStartTime));
+      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
+          s -> new KafkaPositionValue());
+      value.setConsumerOffset(consumerOffset);
+      _needingInit.remove(topicPartition);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void close() {
+    final BrokerOffsetFetcher brokerOffsetFetcher = _brokerOffsetFetcher;
+    if (brokerOffsetFetcher != null) {
+      brokerOffsetFetcher.stopAsync();
+    }
+    onPartitionsRevoked(_ownedKeys.keySet());
+  }
+
+  /**
+   * Uses the specified consumer to make RPC calls of {@link Consumer#endOffsets(Collection)} to get the broker's latest
+   * offsets for the specified TopicPartitions, and then updates the position data. The partitions will be fetched in
+   * batches of {@value KafkaPositionTracker#BROKER_OFFSETS_FETCH_SIZE} to reduce the likelihood of a given call timing
+   * out.
+   *
+   * Note that the provided consumer must not be operated on by any other thread, or a concurrent modification condition
    * may arise.
    *
-   * @param consumer the specified consumer
-   * @param partitions the partitions to fetch broker offsets for
-   * @param currentTime the time the operation is asked for
+   * Use externally for testing purposes only.
    */
   @VisibleForTesting
-  void updateLatestBrokerOffsetsByRpc(final Consumer<?, ?> consumer, final Set<TopicPartition> partitions,
-      final long currentTime) {
-    LOG.debug("Updating the offsetPosition via endOffsets RPC for partitions {} for time {} for task {}", partitions,
-        currentTime, _connectorTaskName);
-
-    // Update the offset positions with the result of the RPC call
-    consumer.endOffsets(partitions).forEach((tp, offset) -> {
-      PhysicalSourcePosition offsetPosition = _offsetPositions.get(tp.toString());
-      if (offsetPosition == null) {
-        offsetPosition = new PhysicalSourcePosition();
-        _offsetPositions.set(tp.toString(), offsetPosition);
-      }
-      offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-      offsetPosition.setSourceQueriedTimeMs(currentTime);
-      offsetPosition.setSourcePosition(String.valueOf(offset));
-      LOG.debug("New offsetPosition for partition {} is {}", tp, offsetPosition);
-
-      final PhysicalSourcePosition position = _positions.get(tp.toString());
-      if (position != null && position.getPositionType().equals(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE)) {
-        LOG.debug("Updating the source position for partition {} via endOffsets RPC due to "
-            + "kafkaOffset position type being used", tp);
-        position.setSourceQueriedTimeMs(currentTime);
-        position.setSourcePosition(String.valueOf(offset));
-      }
-    });
-  }
-
-  /**
-   * Clears previously assigned partitions and set them to {@code assignedPartitions}
-   * <br/>
-   * This method is typically invoked after an offset re-assignment completes and before
-   * the consumer starts fetching data.
-   */
-  public synchronized void onPartitionsAssigned(final Collection<TopicPartition> assignedPartitions) {
-    _positionsInitialized = false;
-    _assignedPartitions.clear();
-    _assignedPartitions.addAll(assignedPartitions);
-  }
-
-  /**
-   * Updates the initial positions with offset data from the consumer and broker.
-   * @param consumer the consumer to use for fetching the consumer and broker positions for all assignments
-   * @return true if the initialization was successful, false if it should be retried
-   */
-  public boolean initializePositions(final Consumer<?, ?> consumer, final Set<TopicPartition> assignedPartitions) {
-    if (assignedPartitions == null || assignedPartitions.isEmpty()) {
-      LOG.info("partitions are not assigned yet");
-      return false;
-    }
-
-    // Get list of partitions needing position init
-    final List<TopicPartition> partitionsNeedingInit = assignedPartitions
-        .stream()
-        .filter(tp -> getPositions().get(tp.toString()) == null)
-        .collect(Collectors.toList());
-
-    // Initialize any partitions needed
-    if (!partitionsNeedingInit.isEmpty()) {
-      boolean noError = true;
-      final Instant readTime = Instant.now();
-
-      LOG.debug("Attempting to initialize positions for {}", partitionsNeedingInit);
-
-      // Get the consumer offsets
-      final Map<TopicPartition, Long> consumerOffsets = new HashMap<>();
-      for (TopicPartition tp : partitionsNeedingInit) {
-        try {
-          consumerOffsets.put(tp, consumer.position(tp));
-        } catch (Exception e) {
-          LOG.warn("Failed to get consumer offsets for {}", tp, e);
-          noError = false; // If we failed to get any of them, we have an error
+  void queryBrokerForLatestOffsets(@NotNull final Consumer<?, ?> consumer,
+      @NotNull final Set<TopicPartition> partitions) {
+    for (final List<TopicPartition> batch : Iterables.partition(partitions, BROKER_OFFSETS_FETCH_SIZE)) {
+      final Instant queryTime = Instant.now();
+      final Map<TopicPartition, Long> offsets = consumer.endOffsets(batch);
+      offsets.forEach((topicPartition, offset) -> {
+        if (offset != null) {
+          // Race condition could exist where we might be unassigned the topic in a different thread while we are in
+          // this thread, so do not create/initialize the key/value in the map.
+          final KafkaPositionKey key = _ownedKeys.get(topicPartition);
+          if (key != null) {
+            final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
+            if (value != null) {
+              value.setLastBrokerQueriedTime(queryTime);
+              value.setBrokerOffset(offset);
+            }
+          }
         }
-      }
-
-      if (consumerOffsets.isEmpty()) {
-        return false;
-      }
-
-      // Get the broker offsets
-      final Map<TopicPartition, Long> brokerOffsets;
-      try {
-        brokerOffsets = consumer.endOffsets(consumerOffsets.keySet());
-      } catch (Exception e) {
-        LOG.warn("Failed to get broker offsets for partitions {}", consumerOffsets.keySet(), e);
-        return false;
-      }
-
-      // Initialize
-      consumerOffsets.forEach((tp, offset) -> {
-        final PhysicalSourcePosition offsetPosition = new PhysicalSourcePosition();
-        offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-        offsetPosition.setSourceQueriedTimeMs(readTime.toEpochMilli());
-        offsetPosition.setSourcePosition(String.valueOf(brokerOffsets.get(tp)));
-        offsetPosition.setConsumerProcessedTimeMs(readTime.toEpochMilli());
-        offsetPosition.setConsumerPosition(String.valueOf(offset));
-        _offsetPositions.set(tp.toString(), offsetPosition);
-
-        final PhysicalSourcePosition position = new PhysicalSourcePosition();
-        position.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-        position.setSourceQueriedTimeMs(readTime.toEpochMilli());
-        position.setSourcePosition(String.valueOf(brokerOffsets.get(tp)));
-        position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
-        position.setConsumerPosition(String.valueOf(offset));
-        _positions.set(tp.toString(), position);
       });
-
-      return noError;
-    }
-
-    return true;
-  }
-
-  /**
-   * Updates the latest consumer and broker offsets based on the position reported by the consumer for the records
-   * received, and the internal Kafka consumer metrics.
-   *
-   * @param records the records fetched in the current poll
-   * @param readTime the time the records were fetched
-   * @param metrics the metrics for the Kafka consumer
-   * @param offsets the current position for the Kafka consumer
-   */
-  public void updatePositions(final Instant readTime, final ConsumerRecords<?, ?> records,
-      final Map<MetricName, ? extends Metric> metrics, final Map<TopicPartition, Long> offsets) {
-    LOG.debug("Update partitions called at {} for records received with partitions {}", readTime, records.partitions());
-    updateBrokerPositions(readTime, records, metrics, offsets);
-    for (ConsumerRecord<?, ?> record : records) {
-      updateConsumerPositions(readTime, record);
     }
   }
 
   /**
-   * Updates the latest broker offsets based on internal Kafka consumer metrics. Since the consumer metrics are only
-   * updated per topic partition actually fetched, we update only those positions.
+   * Supplies a consumer usable for fetching broker offsets.
    *
-   * @param records the records fetched in the current poll
-   * @param readTime the time the records were fetched
-   * @param metrics the metrics for the Kafka consumer
-   * @param offsets the current position for the Kafka consumer
+   * @return a consumer usable for RPC calls
    */
-  private void updateBrokerPositions(final Instant readTime, final ConsumerRecords<?, ?> records,
-      Map<MetricName, ? extends Metric> metrics, Map<TopicPartition, Long> offsets) {
-    LOG.debug("Attempting to update broker positions at {} for records received with partitions {}", readTime,
-        records.partitions());
+  @VisibleForTesting
+  Supplier<Consumer<?, ?>> getConsumerSupplier() {
+    return _consumerSupplier;
+  }
 
-    // Metric names per KIP-92, which applies to Kafka versions >= 0.10.2.0 and < 1.1.0
-    final BiPredicate<MetricName, TopicPartition> matchesKip92 =
-        (metricName, topicPartition) -> metricName != null && metricName.name() != null && metricName.name()
-            .equals(topicPartition + ".records-lag");
-    // Metric names per KIP-225, which applies to Kafka versions >= 1.1.0
-    final BiPredicate<MetricName, TopicPartition> matchesKip225 =
-        (metricName, topicPartition) -> metricName != null && metricName.name() != null && metricName.name()
-            .equals("records-lag") && metricName.tags() != null && metricName.tags().containsKey("topic")
-            && metricName.tags().get("topic").equals(topicPartition.topic()) && metricName.tags()
-            .containsKey("partition") && metricName.tags()
-            .get("partition")
-            .equals(String.valueOf(topicPartition.partition()));
+  /**
+   * Implements a periodic service which queries the broker for its latest partition offsets.
+   */
+  private static class BrokerOffsetFetcher extends DurableScheduledService {
 
-    for (final TopicPartition topicPartition : records.partitions()) {
-      for (final MetricName metricName : metrics.keySet()) {
-        if (matchesKip92.or(matchesKip225).test(metricName, topicPartition)) {
-          LOG.debug("Metric {} measures record lag for partition {}", metricName, topicPartition);
+    /**
+     * The frequency at which to fetch offsets from the broker using the endOffsets() RPC call.
+     */
+    private static final Duration BROKER_OFFSETS_FETCH_INTERVAL = Duration.ofSeconds(30);
 
-          // Calculate what the broker position must be from the lag metric
-          final long consumerLag = (long) metrics.get(metricName).value();
-          final long consumerPosition = offsets.get(topicPartition);
-          final long brokerPosition = consumerPosition + consumerLag;
-          LOG.debug("Partition {} has consumer lag {}, consumer position {}, and brokerPosition {} at time {}",
-              topicPartition, consumerLag, consumerPosition, brokerPosition, readTime);
+    /**
+     * The maximum duration from the last successful endOffsets() RPC call to when the Kafka consumer is assumed to be
+     * faulty and need reconstructing.
+     */
+    private static final Duration BROKER_OFFSETS_FETCH_TIMEOUT = Duration.ofMinutes(5);
 
-          // Build and update the broker offset position data
-          PhysicalSourcePosition offsetPosition = _offsetPositions.get(topicPartition.toString());
-          if (offsetPosition == null) {
-            offsetPosition = new PhysicalSourcePosition();
-            _offsetPositions.set(topicPartition.toString(), offsetPosition);
-          }
-          offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-          offsetPosition.setSourceQueriedTimeMs(readTime.toEpochMilli());
-          offsetPosition.setSourcePosition(Long.toString(brokerPosition));
-          LOG.debug("New offsetPosition for partition {} is {}", topicPartition, offsetPosition);
+    /**
+     * The KafkaPositionTracker object which created us.
+     */
+    private final KafkaPositionTracker _kafkaPositionTracker;
+
+    /**
+     * A Consumer supplier that is suitable for querying the brokers that the Connector task is talking to.
+     */
+    private final Supplier<Boolean> _isConnectorTaskAlive;
+
+    /**
+     * The underlying Consumer used to make the endOffsets() RPC call.
+     */
+    private Consumer<?, ?> _consumer;
+
+    /**
+     * Constructor for this class.
+     *
+     * @param brooklinTaskId The DatastreamTask name
+     *                       {@see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()}
+     * @param kafkaPositionTracker The KafkaPositionTracker instantiating this object
+     * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive.
+     *                             If it is not, then we should stop.
+     */
+    public BrokerOffsetFetcher(@NotNull final String brooklinTaskId,
+        @NotNull final KafkaPositionTracker kafkaPositionTracker,
+        @NotNull final Supplier<Boolean> isConnectorTaskAlive) {
+      super(brooklinTaskId, BROKER_OFFSETS_FETCH_INTERVAL, BROKER_OFFSETS_FETCH_TIMEOUT);
+      _kafkaPositionTracker = kafkaPositionTracker;
+      _isConnectorTaskAlive = isConnectorTaskAlive;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void startUp() {
+      _consumer = _kafkaPositionTracker._consumerSupplier.get();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void runOneIteration() {
+      // Find which partitions have stale broker offset information
+      final Instant staleBy = Instant.now().minus(BROKER_OFFSETS_FETCH_INTERVAL);
+      final Set<TopicPartition> partitionsNeedingUpdate = new HashSet<>();
+      _kafkaPositionTracker._ownedKeys.forEach(((topicPartition, key) -> {
+        // Race condition could exist where we might be unassigned the topic in a different thread while we are in
+        // this thread, so do not create/initialize the value in the map.
+        @Nullable final KafkaPositionValue value = (KafkaPositionValue) _kafkaPositionTracker._positions.get(key);
+        if (value != null
+            && (value.getLastBrokerQueriedTime() == null || value.getLastBrokerQueriedTime().isBefore(staleBy))) {
+          partitionsNeedingUpdate.add(topicPartition);
+        }
+      }));
+
+      // Query the broker for its offsets for those partitions
+      try {
+        _kafkaPositionTracker.queryBrokerForLatestOffsets(_consumer, partitionsNeedingUpdate);
+      } catch (Exception e) {
+        LOG.warn("Failed to query latest broker offsets via endOffsets() RPC", e);
+        throw e;
+      }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void signalShutdown(@Nullable final Thread taskThread) throws Exception {
+      if (taskThread != null && taskThread.isAlive()) {
+        // Attempt to gracefully interrupt the consumer
+        _consumer.wakeup();
+
+        // Wait up to ten seconds for success
+        taskThread.join(Duration.ofSeconds(10).toMillis());
+
+        if (taskThread.isAlive()) {
+          // Attempt to more aggressively interrupt the consumer
+          taskThread.interrupt();
         }
       }
     }
-  }
 
-  /**
-   * Updates the current consumer position from the record we are currently reading.
-   *
-   * @param record the record we are currently reading
-   * @param readTime the time the records were fetched
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  private void updateConsumerPositions(final Instant readTime, final ConsumerRecord<?, ?> record) {
-    final String physicalSource = new TopicPartition(record.topic(), record.partition()).toString();
-
-    // Why do we add +1 to the record's offset? All the other Kafka APIs involved here from position() to endOffsets()
-    // add +1. So, it is just a little more convenient to modify the position metadata we are storing here than it is
-    // to handle the way all the other Kafka APIs return values.
-    final String offset = Long.toString(record.offset() + 1);
-
-    // Update offset position. This is used to check for caught-up partitions when the response is actually returned.
-    // See getPositionResponse() for details.
-    PhysicalSourcePosition offsetPosition = _offsetPositions.get(physicalSource);
-    if (offsetPosition == null) {
-      offsetPosition = new PhysicalSourcePosition();
-      _offsetPositions.set(physicalSource, offsetPosition);
-    }
-    offsetPosition.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-    offsetPosition.setConsumerProcessedTimeMs(readTime.toEpochMilli());
-    offsetPosition.setConsumerPosition(offset);
-    LOG.debug("New offsetPosition for partition {} is {}", physicalSource, physicalSource);
-
-    PhysicalSourcePosition position = _positions.get(physicalSource);
-    if (position == null) {
-      position = new PhysicalSourcePosition();
-      _positions.set(physicalSource, position);
-    }
-    if (record.timestampType() != null && record.timestampType() == TimestampType.LOG_APPEND_TIME
-        && record.timestamp() >= 0) {
-      // If the event timestamp is available, let's use that.
-      position.setPositionType(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE);
-      position.setSourceQueriedTimeMs(readTime.toEpochMilli());
-      position.setSourcePosition(Long.toString(readTime.toEpochMilli()));
-      position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
-      position.setConsumerPosition(Long.toString(record.timestamp()));
-    } else {
-      // If the event timestamp isn't available, we'll use Kafka offset data instead.
-      position.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-      position.setSourceQueriedTimeMs(offsetPosition.getSourceQueriedTimeMs());
-      position.setSourcePosition(offsetPosition.getSourcePosition());
-      position.setConsumerProcessedTimeMs(readTime.toEpochMilli());
-      position.setConsumerPosition(offset);
-    }
-    LOG.debug("New position for partition {} is {}", physicalSource, position);
-  }
-
-  /**
-   * Gets a PhysicalSources object containing offset-based position data for the current task.
-   * @return the current offset-based position data
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  public PhysicalSources getOffsetPositions() {
-    return _offsetPositions;
-  }
-
-  /**
-   * Gets a PhysicalSources object containing time-based position data for the current task.
-   * @return the current time-based position data
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  public PhysicalSources getPositions() {
-    // Update the position data for any caught-up partitions
-    _offsetPositions.getPhysicalSourceToPosition().forEach((tp, offsetPosition) -> {
-      // Skip updating the position data if neither can be resolved
-      if (offsetPosition.getConsumerPosition() == null || offsetPosition.getSourcePosition() == null) {
-        return;
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void shutDown() {
+      if (_consumer != null) {
+        _consumer.close();
       }
+    }
 
-      final long consumerPosition = Long.parseLong(offsetPosition.getConsumerPosition()); // Our consumer's offset
-      final long sourcePosition = Long.parseLong(offsetPosition.getSourcePosition()); // The broker's last offset
-      final long consumerProcessedTimeMs = offsetPosition.getConsumerProcessedTimeMs(); // The last time we processed an event
-      final long sourceQueriedTimeMs = offsetPosition.getSourceQueriedTimeMs(); // The last time we fetched the broker's last offset data
-
-      if (sourceQueriedTimeMs > consumerProcessedTimeMs) {
-        if (sourcePosition == consumerPosition) {
-          LOG.debug("Detected that we are caught up for partition {} so updating position.", tp);
-
-          // We are caught-up -- our consumer position matches the broker position.
-
-          PhysicalSourcePosition position = _positions.get(tp);
-          if (position == null) {
-            // If this has occurred, the best we can do is match the data in our offset position
-            position = new PhysicalSourcePosition();
-            position.setPositionType(PhysicalSourcePosition.KAFKA_OFFSET_POSITION_TYPE);
-            position.setConsumerProcessedTimeMs(consumerProcessedTimeMs);
-            position.setConsumerPosition(String.valueOf(consumerPosition));
-            position.setSourceQueriedTimeMs(sourceQueriedTimeMs);
-            position.setSourcePosition(String.valueOf(sourcePosition));
-            _positions.set(tp, position);
-
-            LOG.debug("Position was missing for partition {} so we filled it in with the offset position data.", tp);
-            return;
-          }
-
-          LOG.debug("Current position for partition {} is {}", tp, position);
-
-          // Fill in/update the source position data
-          position.setSourceQueriedTimeMs(sourceQueriedTimeMs);
-          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE)) {
-            position.setSourcePosition(String.valueOf(sourceQueriedTimeMs));
-          } else {
-            position.setSourcePosition(String.valueOf(sourcePosition));
-          }
-
-          // We want to update our current position to describe this caught up state since our consumer position data is
-          // more stale than the broker position data we have. How do we do this?
-          //
-          // We imagine there is an imaginary 'heartbeat' event which doesn't have an offset (since it's imaginary)
-          // that's positioned at the last time we successfully fetched broker offsets, and we update the metadata
-          // accordingly.
-
-          if (position.getPositionType().equals(PhysicalSourcePosition.EVENT_TIME_POSITION_TYPE)) {
-            // If we are using event time positions, then we should update our event time position.
-            position.setConsumerPosition(Long.toString(sourceQueriedTimeMs));
-          }
-          // If we aren't using event times (we are using offsets), then we shouldn't modify the value.
-
-          // We update our last processed time to the last time we fetched the broker's position data.
-          position.setConsumerProcessedTimeMs(sourceQueriedTimeMs);
-
-          LOG.debug("After setting, position for partition {} is {}", tp, position);
-        }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected boolean hasLeaked() {
+      final boolean hasLeaked = !_isConnectorTaskAlive.get();
+      if (hasLeaked) {
+        _kafkaPositionTracker.onPartitionsRevoked(_kafkaPositionTracker._ownedKeys.keySet());
       }
-    });
-
-    return _positions;
-  }
-
-  /**
-   * Removes data for all but the specified topic partitions, called if partition get revoked
-   * @param topicPartitions the specified topic partitions
-   */
-  public synchronized void onPartitionsRevoked(final Collection<TopicPartition> topicPartitions) {
-    _assignedPartitions.clear();
-    _assignedPartitions.addAll(topicPartitions);
-    LOG.debug("Removing all topic partitions besides {} from positions and offsetPositions", topicPartitions);
-    _positions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));
-    _offsetPositions.retainAll(topicPartitions.stream().map(TopicPartition::toString).collect(Collectors.toList()));
+      return hasLeaked;
+    }
   }
 }

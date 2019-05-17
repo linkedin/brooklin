@@ -36,6 +36,7 @@ import com.google.common.base.Strings;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -199,6 +200,7 @@ public class ZkAdapter {
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
+    BrooklinInstanceInfo.setInstanceName(_instanceName);
 
     LOG.info("Coordinator instance " + _instanceName + " is online");
 

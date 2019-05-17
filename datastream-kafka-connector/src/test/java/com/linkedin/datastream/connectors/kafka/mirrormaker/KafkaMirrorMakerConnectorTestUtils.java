@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.Charsets;
@@ -84,6 +85,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
   static Datastream createDatastream(String name, String broker, String sourceRegex) {
     StringMap metadata = new StringMap();
     metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    metadata.put(DatastreamMetadataConstants.TASK_PREFIX, UUID.randomUUID().toString());
     Datastream datastream = createDatastream(name, broker, sourceRegex, metadata);
     DatastreamDestination destination = new DatastreamDestination();
     destination.setConnectionString(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER);

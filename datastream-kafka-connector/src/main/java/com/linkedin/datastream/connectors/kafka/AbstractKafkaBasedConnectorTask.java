@@ -21,8 +21,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -32,17 +31,18 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.InvalidOffsetException;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.linkedin.datastream.common.Datastream;
@@ -53,7 +53,6 @@ import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.diag.DatastreamPositionResponse;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -109,6 +108,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
+  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
   // Datastream task updates that need to be processed
@@ -121,8 +121,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Map<TopicPartition, PausedSourcePartitionMetadata> _autoPausedSourcePartitions = new ConcurrentHashMap<>();
 
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
-
-  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
 
   private volatile int _pollAttempts;
 
@@ -166,11 +164,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
-    _kafkaPositionTracker = config.getEnableKafkaPositionTracker() ? Optional.of(new KafkaPositionTracker(_taskName,
-        () -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()),
-        () -> createKafkaConsumer(_consumerProps))) : Optional.empty();
-
     _pollAttempts = 0;
+    _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config));
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -246,8 +241,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
     }
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.updatePositions(readTime, records, _consumer.metrics(),
-        records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp)))));
 
     if (shouldAddPausePartitionsTask) {
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -427,6 +420,33 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
       }
       _pollAttempts = 0;
+
+      try {
+        _kafkaPositionTracker.ifPresent(tracker -> {
+          // The calls to position() (needed for initializing the position data for these positions) are intentionally
+          // made after a poll() so that they will return very quickly
+          for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
+            try {
+              tracker.initializePartition(topicPartition, _consumer.position(topicPartition));
+            } catch (IllegalStateException e) {
+              // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
+              // In this case, there is nothing we can do but wait for onPartitionsRevoked().
+              _logger.trace("Got IllegalStateException when processing partition {}", topicPartition, e);
+            } catch (InvalidOffsetException e) {
+              // Occurs if no offset is defined for the partition and no offset reset policy is defined.
+              // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
+              // so it should be safe to ignore this exception and allow records processing to continue.
+              _logger.trace("Got InvalidOffsetException when processing partition {}", topicPartition, e);
+            }
+          }
+          tracker.onRecordsReceived(records, _consumer.metrics());
+        });
+      } catch (WakeupException | InterruptException e) {
+        throw e;
+      } catch (Exception e) {
+        _logger.warn("Got uncaught exception while processing position tracker code (swallowing and continuing)", e);
+      }
+
       return records;
     } catch (NoOffsetForPartitionException e) {
       handleNoOffsetForPartitionException(e);
@@ -438,6 +458,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       handlePollRecordsException(e);
       return ConsumerRecords.EMPTY;
     }
+  }
+
+  private void sendPollInfoToPositionTracker() {
+    _kafkaPositionTracker.ifPresent(tracker -> {
+      
+    });
   }
 
   protected long getLastPolledTimeMillis() {
@@ -622,6 +648,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(topicPartitions));
     if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
@@ -634,20 +661,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     updateConsumerAssignment(_consumer.assignment());
 
-    // Remove old position data
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(_consumerAssignment));
-
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    _consumerMetrics.updateRebalanceRate(1);
     _logger.info("Partition ownership assigned for {}.", partitions);
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
+    _consumerMetrics.updateRebalanceRate(1);
 
     updateConsumerAssignment(partitions);
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
 
     // update paused partitions, in case.
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
@@ -917,24 +941,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
-   * Gets a DatastreamPositionResponse containing time-based position data for the current task.
-   * @return the current time-based position data, or null if position tracker is disabled
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
+   * Creates a KafkaPositionTracker if enabled in the provided config.
+   *
+   * @param config the provided config
+   * @return a KafkaPositionTracker if enabled in config, or null
    */
-  public DatastreamPositionResponse getPositionResponse() {
-    return _kafkaPositionTracker.map(
-        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getPositions())))
-        .orElse(null);
-  }
-
-  /**
-   * Gets a DatastreamPositionResponse containing offset-based position data for the current task.
-   * @return the current offset-based position data, or null if position tracker is disabled
-   * @see com.linkedin.datastream.common.diag.PhysicalSourcePosition for information on what a position is
-   */
-  public DatastreamPositionResponse getOffsetPositionResponse() {
-    return _kafkaPositionTracker.map(
-        tracker -> new DatastreamPositionResponse(ImmutableMap.of(_datastreamName, tracker.getOffsetPositions())))
-        .orElse(null);
+  private KafkaPositionTracker createKafkaPositionTracker(KafkaBasedConnectorConfig config) {
+    if (config.getEnablePositionTracker()) {
+      final String brooklinConnectorName = _datastreamTask.getConnectorType();
+      final String brooklinTaskPrefix = _datastreamTask.getTaskPrefix();
+      final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
+      final Instant taskStartTime = Instant.now();
+      final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
+          && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
+      final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
+      return new KafkaPositionTracker(brooklinConnectorName, brooklinTaskPrefix, brooklinTaskId,
+          taskStartTime, config.getEnableBrokerOffsetFetcher(), isConnectorTaskAlive, consumerSupplier);
+    }
+    return null;
   }
 }
