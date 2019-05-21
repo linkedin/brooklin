@@ -35,11 +35,6 @@ public class KafkaPositionKey implements PositionKey {
   private final int partition;
 
   /**
-   * This Brooklin instance running the Kafka consumer.
-   */
-  private final String brooklinInstanceName;
-
-  /**
    * A String that matches the DatastreamTask's task prefix.
    */
   private final String datastreamTaskPrefix;
@@ -61,7 +56,6 @@ public class KafkaPositionKey implements PositionKey {
    *
    * @param topic the Kafka topic we are consuming from
    * @param partition the Kafka partition we are consuming from
-   * @param brooklinInstanceName the Brooklin instance that is running the Kafka consumer
    * @param datastreamTaskPrefix the task prefix for the DatastreamTask which is running the consumer
    * @param datastreamTaskName a unique identifier for the DatastreamTask which is running the consumer
    * @param connectorTaskStartTime the time at which consumption started
@@ -70,13 +64,11 @@ public class KafkaPositionKey implements PositionKey {
   public KafkaPositionKey(
       @JsonProperty("topic") @NotNull final String topic,
       @JsonProperty("partition") final int partition,
-      @JsonProperty("brooklinInstanceName") @NotNull final String brooklinInstanceName,
       @JsonProperty("datastreamTaskPrefix") @NotNull final String datastreamTaskPrefix,
       @JsonProperty("datastreamTaskName") @NotNull final String datastreamTaskName,
       @JsonProperty("connectorTaskStartTime") @NotNull final Instant connectorTaskStartTime) {
     this.topic = topic;
     this.partition = partition;
-    this.brooklinInstanceName = brooklinInstanceName;
     this.datastreamTaskPrefix = datastreamTaskPrefix;
     this.datastreamTaskName = datastreamTaskName;
     this.connectorTaskStartTime = connectorTaskStartTime;
@@ -99,17 +91,6 @@ public class KafkaPositionKey implements PositionKey {
    */
   public int getPartition() {
     return partition;
-  }
-
-  /**
-   * Returns the Brooklin instance that is running the Kafka consumer.
-   *
-   * @return the Brooklin instance that is running the Kafka consumer
-   */
-  @NotNull
-  @Override
-  public String getBrooklinInstanceName() {
-    return brooklinInstanceName;
   }
 
   /**
@@ -159,7 +140,6 @@ public class KafkaPositionKey implements PositionKey {
     final KafkaPositionKey other = (KafkaPositionKey) obj;
     return partition == other.partition
         && Objects.equals(topic, other.topic)
-        && Objects.equals(brooklinInstanceName, other.brooklinInstanceName)
         && Objects.equals(datastreamTaskPrefix, other.datastreamTaskPrefix)
         && Objects.equals(datastreamTaskName, other.datastreamTaskName)
         && Objects.equals(connectorTaskStartTime, other.connectorTaskStartTime);
@@ -170,7 +150,6 @@ public class KafkaPositionKey implements PositionKey {
    */
   @Override
   public int hashCode() {
-    return Objects.hash(topic, partition, brooklinInstanceName, datastreamTaskPrefix, datastreamTaskName,
-        connectorTaskStartTime);
+    return Objects.hash(topic, partition, datastreamTaskPrefix, datastreamTaskName, connectorTaskStartTime);
   }
 }

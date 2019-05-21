@@ -108,7 +108,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
-  protected final Optional<KafkaPositionTracker> _kafkaPositionTracker;
+  private final Optional<KafkaPositionTracker> _kafkaPositionTracker;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
   // Datastream task updates that need to be processed
@@ -422,25 +422,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _pollAttempts = 0;
 
       try {
-        _kafkaPositionTracker.ifPresent(tracker -> {
-          // The calls to position() (needed for initializing the position data for these positions) are intentionally
-          // made after a poll() so that they will return very quickly
-          for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
-            try {
-              tracker.initializePartition(topicPartition, _consumer.position(topicPartition));
-            } catch (IllegalStateException e) {
-              // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
-              // In this case, there is nothing we can do but wait for onPartitionsRevoked().
-              _logger.trace("Got IllegalStateException when processing partition {}", topicPartition, e);
-            } catch (InvalidOffsetException e) {
-              // Occurs if no offset is defined for the partition and no offset reset policy is defined.
-              // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
-              // so it should be safe to ignore this exception and allow records processing to continue.
-              _logger.trace("Got InvalidOffsetException when processing partition {}", topicPartition, e);
-            }
-          }
-          tracker.onRecordsReceived(records, _consumer.metrics());
-        });
+        sendPollInfoToPositionTracker(_consumer, records);
       } catch (WakeupException | InterruptException e) {
         throw e;
       } catch (Exception e) {
@@ -460,9 +442,31 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
-  private void sendPollInfoToPositionTracker() {
+  /**
+   * Sends the result of the consumer's {@link Consumer#poll(Duration)} to the position tracker.
+   *
+   * @param consumer the consumer that was used
+   * @param records the records the consumer received
+   */
+  private void sendPollInfoToPositionTracker(Consumer<?, ?> consumer, ConsumerRecords<?, ?> records) {
     _kafkaPositionTracker.ifPresent(tracker -> {
-      
+      // The calls to position() (needed for initializing the position data for these positions) are intentionally
+      // made after a poll() so that they will return very quickly
+      for (final TopicPartition topicPartition : tracker.getPartitionsNeedingInit()) {
+        try {
+          tracker.initializePartition(topicPartition, consumer.position(topicPartition));
+        } catch (IllegalStateException e) {
+          // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
+          // In this case, there is nothing we can do but wait for onPartitionsRevoked().
+          _logger.trace("Got IllegalStateException when processing partition {}", topicPartition, e);
+        } catch (InvalidOffsetException e) {
+          // Occurs if no offset is defined for the partition and no offset reset policy is defined.
+          // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
+          // so it should be safe to ignore this exception and allow records processing to continue.
+          _logger.trace("Got InvalidOffsetException when processing partition {}", topicPartition, e);
+        }
+      }
+      tracker.onRecordsReceived(records, consumer.metrics());
     });
   }
 
@@ -948,16 +952,24 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   private KafkaPositionTracker createKafkaPositionTracker(KafkaBasedConnectorConfig config) {
     if (config.getEnablePositionTracker()) {
-      final String brooklinConnectorName = _datastreamTask.getConnectorType();
       final String brooklinTaskPrefix = _datastreamTask.getTaskPrefix();
       final String brooklinTaskId = _datastreamTask.getDatastreamTaskName();
       final Instant taskStartTime = Instant.now();
       final Supplier<Boolean> isConnectorTaskAlive = () -> !_shutdown
           && (_connectorTaskThread == null || _connectorTaskThread.isAlive());
       final Supplier<Consumer<?, ?>> consumerSupplier = () -> createKafkaConsumer(_consumerProps);
-      return new KafkaPositionTracker(brooklinConnectorName, brooklinTaskPrefix, brooklinTaskId,
-          taskStartTime, config.getEnableBrokerOffsetFetcher(), isConnectorTaskAlive, consumerSupplier);
+      return new KafkaPositionTracker(brooklinTaskPrefix, brooklinTaskId, taskStartTime,
+          config.getEnableBrokerOffsetFetcher(), isConnectorTaskAlive, consumerSupplier);
     }
     return null;
+  }
+
+  /**
+   * Gets the KafkaPositionTracker for this instance, if it exists.
+   *
+   * @return the KafkaPositionTracker for this instance, if it exists
+   */
+  public Optional<KafkaPositionTracker> getKafkaPositionTracker() {
+    return _kafkaPositionTracker;
   }
 }

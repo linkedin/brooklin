@@ -22,14 +22,6 @@ import org.jetbrains.annotations.Nullable;
  */
 public interface PositionKey extends Serializable {
   /**
-   * Returns the instance of Brooklin joined to the cluster which the Connector's consumer is running on.
-   *
-   * @return the instance name that uniquely identifies this Brooklin instance
-   */
-  @Nullable
-  String getBrooklinInstanceName();
-
-  /**
    * Returns the task prefix of the DatastreamTask being consumed.
    *
    * @return the task prefix of the DatastreamTask.

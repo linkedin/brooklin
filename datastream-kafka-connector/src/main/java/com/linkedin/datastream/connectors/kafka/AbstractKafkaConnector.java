@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +45,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -378,16 +378,31 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Returns a JSON representation of the position data this connector has.
+   * Returns a JSON representation of the position data this connector has as a JSON list:
+   * [
+   *   {
+   *     "key": {...},
+   *     "value": {...}
+   *   },
+   *   ...
+   * ]
+   *
+   * Where the payload in "key" is a {@link com.linkedin.datastream.common.diag.KafkaPositionKey} and the payload in
+   * "value" is a {@link com.linkedin.datastream.common.diag.KafkaPositionValue}.
+   *
    * @return a JSON representation of the position data this connector has
    */
   private String processPositionRequest() {
-    return JsonUtils.toJson(ConnectorPositionsCache.getInstance()
-        .getOrDefault(_connectorName, new ConcurrentHashMap<>())
-        .entrySet()
-        .stream()
-        .map(e -> ImmutableMap.of("key", e.getKey(), "value", e.getValue()))
-        .collect(Collectors.toList()));
+    final List<Object> positions = _runningTasks.values().stream()
+        .map(AbstractKafkaBasedConnectorTask::getKafkaPositionTracker)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .map(KafkaPositionTracker::getPositions)
+        .map(Map::entrySet)
+        .flatMap(Collection::stream)
+        .map(position -> ImmutableMap.of("key", position.getKey(), "value", position.getValue()))
+        .collect(Collectors.toList());
+    return JsonUtils.toJson(positions);
   }
 
   /**
