@@ -7,7 +7,6 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -25,7 +24,6 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
-import static java.lang.Math.abs;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.mock;
