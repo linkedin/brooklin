@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -64,8 +65,8 @@ public class TestAbstractKafkaConnector {
 
     boolean found = false;
     for (int i = 0; i <= 3600 / 300; ++i) {
-      OffsetDateTime expectedFireTime = OffsetDateTime.now(ZoneId.of("UTC")).withMinute(0).plusMinutes(5 * i);
-      if (abs(expectedFireTime.toEpochSecond() - now.plusSeconds(fireDelay).toEpochSecond()) < 10) {
+      OffsetDateTime expectedFireTime = now.truncatedTo(ChronoUnit.HOURS).plusMinutes(5 * i);
+      if (Duration.between(expectedFireTime, now.plusSeconds(fireDelay)).abs().getSeconds() < 10) {
         found = true;
         break;
       }
