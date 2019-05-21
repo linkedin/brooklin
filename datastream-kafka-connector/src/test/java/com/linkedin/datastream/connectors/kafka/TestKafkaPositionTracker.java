@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 public class TestKafkaPositionTracker {
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaPositionTracker.class);
   private static final long POLL_PERIOD_MS = Duration.ofMillis(250).toMillis();
-  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(250).toMillis();
+  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(1_000).toMillis();
 
   private DatastreamTaskImpl _datastreamTask;
   private KafkaConnectorTask _connectorTask;
@@ -151,6 +151,8 @@ public class TestKafkaPositionTracker {
 
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() -> assignments.stream().allMatch(tp ->
+            isConsumerDataPopulated(tp, true) && isBrokerDataPopulated(tp)), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -194,9 +196,8 @@ public class TestKafkaPositionTracker {
     _connectorTask.onPartitionsAssigned(assignments);
 
     _state.allowNextPoll();
-    PollUtils.poll(() ->
-        getPositionData(new TopicPartition("cloves", 0)).isPresent()
-            && getPositionData(new TopicPartition("cloves", 1)).isPresent(), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() -> assignments.stream().allMatch(tp ->
+        isConsumerDataPopulated(tp, false)), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -209,6 +210,7 @@ public class TestKafkaPositionTracker {
     Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
 
     updateBrokerPositionData();
+    PollUtils.poll(() -> assignments.stream().allMatch(this::isBrokerDataPopulated), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -251,6 +253,8 @@ public class TestKafkaPositionTracker {
 
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() -> assignments.stream().allMatch(tp -> isConsumerDataPopulated(tp, true)), POLL_PERIOD_MS,
+        POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -267,6 +271,7 @@ public class TestKafkaPositionTracker {
     Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(8L));
 
     updateBrokerPositionData();
+    PollUtils.poll(() -> assignments.stream().allMatch(this::isBrokerDataPopulated), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -308,6 +313,8 @@ public class TestKafkaPositionTracker {
 
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() -> assignments.stream().allMatch(tp -> isConsumerDataPopulated(tp, true)), POLL_PERIOD_MS,
+        POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -324,6 +331,7 @@ public class TestKafkaPositionTracker {
     Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
 
     updateBrokerPositionData();
+    PollUtils.poll(() -> assignments.stream().allMatch(this::isBrokerDataPopulated), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -366,6 +374,8 @@ public class TestKafkaPositionTracker {
 
     _state.allowNextPoll();
     PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() -> assignments.stream().allMatch(tp -> isConsumerDataPopulated(tp, true)), POLL_PERIOD_MS,
+        POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -382,6 +392,7 @@ public class TestKafkaPositionTracker {
     Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
 
     updateBrokerPositionData();
+    PollUtils.poll(() -> assignments.stream().allMatch(this::isBrokerDataPopulated), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
@@ -422,6 +433,18 @@ public class TestKafkaPositionTracker {
     final KafkaPositionTracker positionTracker = _connectorTask.getKafkaPositionTracker()
         .orElseThrow(() -> new RuntimeException("Position tracker was not instantiated"));
     positionTracker.queryBrokerForLatestOffsets(_consumer, _consumer.assignment());
+  }
+
+  private boolean isConsumerDataPopulated(TopicPartition topicPartition, boolean withRecordTimestamp) {
+    Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+    return positionData.isPresent()
+        && positionData.get().getConsumerOffset() != null
+        && (!withRecordTimestamp || positionData.get().getLastRecordReceivedTimestamp() != null);
+  }
+
+  private boolean isBrokerDataPopulated(TopicPartition topicPartition) {
+    Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+    return positionData.isPresent() && positionData.get().getBrokerOffset() != null;
   }
 
   private KafkaConnectorTask createKafkaConnectorTask() {
