@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
@@ -63,8 +64,7 @@ public class TestAbstractKafkaConnector {
 
     boolean found = false;
     for (int i = 0; i <= 3600 / 300; ++i) {
-      OffsetDateTime expectedFireTime =
-          OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour() + (i * 5) / 60, (i * 5) % 60, 0, 0, ZoneOffset.UTC);
+      OffsetDateTime expectedFireTime = OffsetDateTime.now(ZoneId.of("UTC")).withMinute(0).plusMinutes(5 * i);
       if (abs(expectedFireTime.toEpochSecond() - now.plusSeconds(fireDelay).toEpochSecond()) < 10) {
         found = true;
         break;
