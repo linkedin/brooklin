@@ -194,7 +194,9 @@ public class TestKafkaPositionTracker {
     _connectorTask.onPartitionsAssigned(assignments);
 
     _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    PollUtils.poll(() ->
+        getPositionData(new TopicPartition("cloves", 0)).isPresent()
+            && getPositionData(new TopicPartition("cloves", 1)).isPresent(), POLL_PERIOD_MS, POLL_TIMEOUT_MS);
 
     Optional<KafkaPositionValue> positionData = getPositionData(new TopicPartition("cloves", 0));
     Assert.assertTrue(positionData.isPresent());
