@@ -72,10 +72,10 @@ public class TestAbstractKafkaConnector {
     OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
     OffsetDateTime end = start.plus(testPeriod);
 
-    // Calculate expected and actual run times over our test period for every minute
-    for (OffsetDateTime now = start; now.isBefore(end); now = now.plusMinutes(1)) {
+    // Calculate expected and actual run times over our test period for every second
+    for (OffsetDateTime now = start; now.isBefore(end); now = now.plusSeconds(1)) {
       OffsetDateTime currentTime = now;
-      OffsetDateTime expectedTime = Stream.iterate(start.truncatedTo(ChronoUnit.HOURS), time -> time.plus(threadDelay))
+      OffsetDateTime expectedTime = Stream.iterate(now.truncatedTo(ChronoUnit.HOURS), time -> time.plus(threadDelay))
           .filter(runTime -> runTime.isAfter(currentTime) && !runTime.isBefore(currentTime.plus(minDelay)))
           .findFirst()
           .orElseThrow(() -> new RuntimeException(String.format("Failed to find next expected thread runtime with "
@@ -83,12 +83,12 @@ public class TestAbstractKafkaConnector {
               currentTime)))
           .truncatedTo(ChronoUnit.SECONDS);
 
-      long actualDelaySeconds = connector.getThreadDelayTimeInSecond(currentTime, (int) threadDelay.getSeconds());
-      OffsetDateTime actualTime = currentTime.plusSeconds(actualDelaySeconds);
+      long actualDelaySeconds = connector.getThreadDelayTimeInSecond(now, (int) threadDelay.getSeconds());
+      OffsetDateTime actualTime = now.plusSeconds(actualDelaySeconds);
 
       Assert.assertEquals(actualTime, expectedTime, String.format("Actual = %s, Expected = %s, with base time of %s, "
               + "thread delay %s, min delay %s, and current time %s", actualTime, expectedTime, start, threadDelay,
-          minDelay, currentTime));
+          minDelay, now));
     }
   }
 
