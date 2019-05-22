@@ -193,7 +193,7 @@ class KafkaProducerWrapper<K, V> {
           if (exception == null) {
             onComplete.onCompletion(metadata, null);
           } else {
-            onComplete.onCompletion(metadata, generateSendFailure(task, exception));
+            onComplete.onCompletion(metadata, generateSendFailure(exception));
           }
         }));
 
@@ -214,7 +214,7 @@ class KafkaProducerWrapper<K, V> {
         // Set a max_send_attempts for KafkaException as it may be non-recoverable
         if (numberOfAttempt > MAX_SEND_ATTEMPTS || (cause != null && (cause instanceof Error || cause instanceof RuntimeException))) {
           _log.error("Send failed for partition {} with a non retriable exception", producerRecord.partition(), e);
-          throw generateSendFailure(task, e);
+          throw generateSendFailure(e);
         } else {
           _log.warn("Send failed for partition {} with retriable exception, retry {} out of {} in {} ms.",
               producerRecord.partition(), numberOfAttempt, MAX_SEND_ATTEMPTS, _sendFailureRetryWaitTimeMs, e);
@@ -222,7 +222,7 @@ class KafkaProducerWrapper<K, V> {
         }
       } catch (Exception e) {
         _log.error("Send failed for partition {} with an exception", producerRecord.partition(), e);
-        throw generateSendFailure(task, e);
+        throw generateSendFailure(e);
       }
     }
   }
@@ -238,7 +238,7 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
-  private DatastreamRuntimeException generateSendFailure(DatastreamTask task, Exception exception) {
+  private DatastreamRuntimeException generateSendFailure(Exception exception) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
       _log.warn("sent failure transiently, exception: ", exception);

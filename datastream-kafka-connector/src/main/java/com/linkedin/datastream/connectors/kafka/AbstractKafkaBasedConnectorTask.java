@@ -231,7 +231,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           }
         } catch (Exception e) {
           _logger.warn("Got exception while sending record {}", record);
-          rewindAndPauseTopicPartitionWhenException(topicPartition, e);
+          rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
         }
@@ -241,7 +241,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         records.partitions().stream().collect(Collectors.toMap(Function.identity(), tp -> _consumer.position(tp)))));
   }
 
-  protected void rewindAndPauseTopicPartitionWhenException(TopicPartition srcTopicPartition, Exception ex) {
+  protected void rewindAndPausePartitionOnException(TopicPartition srcTopicPartition, Exception ex) {
     _consumerMetrics.updateErrorRate(1);
     Instant start = Instant.now();
     // seek to previous checkpoints for this topic partition
@@ -278,9 +278,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       if (exception != null) {
         _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
           + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
-        rewindAndPauseTopicPartitionWhenException(srcTopicPartition, exception);
+        rewindAndPausePartitionOnException(srcTopicPartition, exception);
+      } else {
+        _consumerMetrics.updateBytesProcessedRate(numBytes);
       }
-      _consumerMetrics.updateBytesProcessedRate(numBytes);
     }));
   }
 
@@ -463,9 +464,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void handleNoOffsetForPartitionException(NoOffsetForPartitionException e) {
     _logger.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
     if (!_shutdown) {
-      //Seek to start position, by default we are starting from latest one as we just start consumption
+      // Seek to start position, by default we are starting from latest one as we just start consumption
       seekToStartPosition(_consumer, e.partitions(),
-          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST));
+          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST));
     }
   }
 
