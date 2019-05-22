@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.server.api.transport.SendCallback;
+
+
 
 /**
  * Wraps a {@link DatastreamEventProducer} and keeps track of the in-flight messages and the acknowledged checkpoints
@@ -60,7 +63,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    * @param sourceCheckpoint the sourceCheckpoint associated with this event. Multiple events could share the same
    *                         sourceCheckpoint.
    */
-  public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint) {
+  public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint, SendCallback callback) {
     SourcePartition sp = new SourcePartition(source, sourcePartition);
     CallbackStatus status = _callbackStatusMap.computeIfAbsent(sp, d -> new CallbackStatus());
     status.register(sourceCheckpoint);
@@ -69,6 +72,9 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
         LOG.error("Failed to send datastream record: " + metadata, exception);
       } else {
         status.ack(sourceCheckpoint);
+      }
+      if (callback != null) {
+        callback.onCompletion(metadata, exception);
       }
     }));
   }

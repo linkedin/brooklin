@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -66,9 +65,6 @@ class KafkaProducerWrapper<K, V> {
 
   // Set of datastream tasks assigned to the producer
   private Set<DatastreamTask> _tasks = ConcurrentHashMap.newKeySet();
-
-  // Last exception thrown by Kafka producer for that particular task
-  private Map<DatastreamTask, RuntimeException> _lastExceptionForTasks = new ConcurrentHashMap<>();
 
   // Producer is lazily initialized during the first send call.
   // Also, can be nullified in case of exceptions, and recreated by subsequent send calls.
@@ -157,18 +153,10 @@ class KafkaProducerWrapper<K, V> {
 
   void unassignTask(DatastreamTask task) {
     _tasks.remove(task);
-    _lastExceptionForTasks.remove(task);
   }
 
   int getTasksSize() {
     return _tasks.size();
-  }
-
-  private void notifyTaskForException(DatastreamTask task) {
-    RuntimeException exception = _lastExceptionForTasks.remove(task);
-    if (exception != null) {
-      throw exception;
-    }
   }
 
   /**
@@ -192,11 +180,9 @@ class KafkaProducerWrapper<K, V> {
 
   void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
       throws InterruptedException {
-    notifyTaskForException(task);
-
     // There are two known cases that lead to IllegalStateException and we should retry:
     //  1) number of brokers is less than minISR
-    //  2) producer is closed in handleSendFailure by another thread
+    //  2) producer is closed in generateSendFailure by another thread
     // For either condition, we should retry as broker comes back healthy or producer is recreated
     boolean retry = true;
     int numberOfAttempt = 0;
@@ -204,14 +190,16 @@ class KafkaProducerWrapper<K, V> {
       try {
         ++numberOfAttempt;
         maybeGetKafkaProducer(task).ifPresent(p -> p.send(producerRecord, (metadata, exception) -> {
-          if (exception != null) {
-            handleSendFailure(task, exception);
+          if (exception == null) {
+            onComplete.onCompletion(metadata, null);
+          } else {
+            onComplete.onCompletion(metadata, generateSendFailure(exception));
           }
-          onComplete.onCompletion(metadata, exception);
         }));
 
         retry = false;
       } catch (IllegalStateException e) {
+        //The following exception should be quite rare as most exceptions will be throw async callback
         _log.warn("Either send is called on a closed producer or broker count is less than minISR, retry in {} ms.",
             _sendFailureRetryWaitTimeMs, e);
         Thread.sleep(_sendFailureRetryWaitTimeMs);
@@ -226,8 +214,7 @@ class KafkaProducerWrapper<K, V> {
         // Set a max_send_attempts for KafkaException as it may be non-recoverable
         if (numberOfAttempt > MAX_SEND_ATTEMPTS || (cause != null && (cause instanceof Error || cause instanceof RuntimeException))) {
           _log.error("Send failed for partition {} with a non retriable exception", producerRecord.partition(), e);
-          handleSendFailure(task, e);
-          notifyTaskForException(task);
+          throw generateSendFailure(e);
         } else {
           _log.warn("Send failed for partition {} with retriable exception, retry {} out of {} in {} ms.",
               producerRecord.partition(), numberOfAttempt, MAX_SEND_ATTEMPTS, _sendFailureRetryWaitTimeMs, e);
@@ -235,8 +222,7 @@ class KafkaProducerWrapper<K, V> {
         }
       } catch (Exception e) {
         _log.error("Send failed for partition {} with an exception", producerRecord.partition(), e);
-        handleSendFailure(task, e);
-        notifyTaskForException(task);
+        throw generateSendFailure(e);
       }
     }
   }
@@ -252,21 +238,19 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
-  private void handleSendFailure(DatastreamTask task, Exception exception) {
+  private DatastreamRuntimeException generateSendFailure(Exception exception) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
-      _log.warn("sent failure transiently due to ", exception);
-      _lastExceptionForTasks.putIfAbsent(task, new DatastreamTransientException(exception));
+      _log.warn("sent failure transiently, exception: ", exception);
+      return new DatastreamTransientException(exception);
     } else {
-      _log.warn("sent failure due to ", exception);
-      _lastExceptionForTasks.putIfAbsent(task, new DatastreamRuntimeException(exception));
+      _log.warn("sent failure, restart producer, exception: ", exception);
       shutdownProducer();
+      return new DatastreamRuntimeException(exception);
     }
   }
 
-  synchronized void flush(DatastreamTask task) {
-    notifyTaskForException(task);
-
+  synchronized void flush() {
     if (_kafkaProducer != null) {
       _kafkaProducer.flush();
     }
@@ -274,7 +258,6 @@ class KafkaProducerWrapper<K, V> {
 
   synchronized void close(DatastreamTask task) {
     _tasks.remove(task);
-    _lastExceptionForTasks.remove(task);
     if (_kafkaProducer != null && _tasks.isEmpty()) {
       shutdownProducer();
     }
