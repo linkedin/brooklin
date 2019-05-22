@@ -67,7 +67,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
-  private static final long MIN_INITIAL_DELAY = 120L;
+  static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
 
   protected final String _connectorName;
@@ -181,7 +181,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         // see java doc of scheduleAtFixedRate
         _logger.warn("Failed to check status of kafka connector tasks.", e);
       }
-    }, getThreadDelayTimeInSecond(_config.getDaemonThreadIntervalSeconds()),
+    }, getThreadDelayTimeInSecond(OffsetDateTime.now(ZoneOffset.UTC), _config.getDaemonThreadIntervalSeconds()),
         _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
   }
 
@@ -249,15 +249,15 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   /**
    *  This will make the thread delay and fire until a certain timestamp, ex. 6:00, 6:05, 6:10..etc so that threads
    *  in different hosts are firing roughly at the same time. The initial delays will be larger than min_initial_delay
-   *  unless the threads interval is too small, so that a 5:99 task, will not fire at 6:00 but 6:05.
-   * @param daemonThreadIntervalSeconds
+   *  unless the threads interval is too small, so that a 5:59 task, will not fire at 6:00 but 6:05.
+   * @param now the current date time in UTC (exposed for testing)
+   * @param daemonThreadIntervalSeconds the frequency of the thread in seconds
    * @return the time thread need to be delayed in second
    */
   @VisibleForTesting
-  long getThreadDelayTimeInSecond(int daemonThreadIntervalSeconds) {
-    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+  long getThreadDelayTimeInSecond(OffsetDateTime now, int daemonThreadIntervalSeconds) {
     long truncatedTimestamp = now.truncatedTo(ChronoUnit.HOURS).toEpochSecond();
-    long minDelay = Math.min(MIN_INITIAL_DELAY, daemonThreadIntervalSeconds);
+    long minDelay = Math.min(MIN_DAEMON_THREAD_STARTUP_DELAY.getSeconds(), daemonThreadIntervalSeconds);
     while ((truncatedTimestamp - now.toEpochSecond()) < minDelay) {
       truncatedTimestamp += daemonThreadIntervalSeconds;
     }
