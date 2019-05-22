@@ -67,7 +67,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
-  static final Duration MIN_INITIAL_DELAY = Duration.ofMinutes(2);
+  static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
 
   protected final String _connectorName;
@@ -257,7 +257,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   @VisibleForTesting
   long getThreadDelayTimeInSecond(OffsetDateTime now, int daemonThreadIntervalSeconds) {
     long truncatedTimestamp = now.truncatedTo(ChronoUnit.HOURS).toEpochSecond();
-    long minDelay = Math.min(MIN_INITIAL_DELAY.getSeconds(), daemonThreadIntervalSeconds);
+    long minDelay = Math.min(MIN_DAEMON_THREAD_STARTUP_DELAY.getSeconds(), daemonThreadIntervalSeconds);
     while ((truncatedTimestamp - now.toEpochSecond()) < minDelay) {
       truncatedTimestamp += daemonThreadIntervalSeconds;
     }

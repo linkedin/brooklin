@@ -65,7 +65,7 @@ public class TestAbstractKafkaConnector {
     Duration threadDelay = Duration.ofMinutes(5);
 
     // The value of min initial delay means that we must wait at least this long in all circumstances before firing
-    Duration minDelay = AbstractKafkaConnector.MIN_INITIAL_DELAY;
+    Duration minDelay = AbstractKafkaConnector.MIN_DAEMON_THREAD_STARTUP_DELAY;
 
     // Period to test
     Duration testPeriod = Duration.ofDays(1).plusHours(2); // This should be long enough to handle all edge cases
