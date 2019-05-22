@@ -53,7 +53,8 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_CREATION_MS = SYSTEM_DESTINATION_PREFIX + "creation.ms";
 
   /**
-   * Duration in Epoch-millis before destination starts to delete messages
+   * Duration in Epoch-millis before destination starts to delete messages. This is not a configuration property but
+   * is meant to be informational based on what the underlying system configured it to be.
    */
   public static final String DESTINATION_RETENTION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
 

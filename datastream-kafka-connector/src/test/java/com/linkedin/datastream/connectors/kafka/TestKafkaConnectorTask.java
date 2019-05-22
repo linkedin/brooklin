@@ -5,14 +5,20 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -37,16 +43,15 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.diag.KafkaPositionValue;
 import com.linkedin.datastream.server.DatastreamEventProducer;
+import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
-import static com.linkedin.datastream.connectors.kafka.TestPositionResponse.getConsumerPositionFromPositionResponse;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -155,7 +160,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     LOG.info("Sending third set of events");
 
@@ -183,26 +188,28 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 200, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        new KafkaGroupIdConstructor(false, "test"));
+    // Set up a factory to create a Kafka consumer that tracks how many times commitSync is invoked
+    CountDownLatch remainingCommitSyncCalls = new CountDownLatch(3);
+    KafkaConsumerFactory<byte[], byte[]> kafkaConsumerFactory = new KafkaConsumerFactoryImpl() {
+        @Override
+        public Consumer<byte[], byte[]> createConsumer(Properties properties) {
+          Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
+          doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
+              .when(result).commitSync(any(Duration.class));
+          return result;
+        }
+      };
 
-    KafkaConnectorTask spiedTask = spy(connectorTask);
-    Thread t = new Thread(spiedTask, "connector thread");
-    t.setDaemon(true);
-    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
-    t.start();
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(kafkaConsumerFactory).build());
 
-    LOG.info("Sending third set of events");
+    // Wait for KafkaConnectorTask to invoke commitSync on Kafka consumer
+    Assert.assertTrue(remainingCommitSyncCalls.await(10, TimeUnit.SECONDS),
+        "Kafka consumer commitSync was not invoked as often as expected");
 
-    //Sleep 1 seconds to wait for maybeCommitOffsets being called
-    Thread.sleep(2000);
-    spiedTask.stop();
-    Assert.assertTrue(spiedTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
-    //we expect >=5 commit calls to be made even without any traffic
-    Mockito.verify(spiedTask, atLeast(5)).maybeCommitOffsets(any(), anyBoolean());
   }
 
   @Test
@@ -219,7 +226,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -228,24 +235,58 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
-    long consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
-        new TopicPartition(topic, 0)).orElse(0L);
-    long lastRecordTime = datastreamProducer.getEvents().get(datastreamProducer.getEvents().size() - 1)
-        .getEventsSourceTimestamp();
-    Assert.assertTrue(consumerPosition <= lastRecordTime,
-        String.format(
-            "Position response is newer than the events we have read so far. Expected consumer position of %s to be before time %s.",
-            consumerPosition, lastRecordTime));
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
 
-    long postProductionTime = System.currentTimeMillis();
-    connectorTask._kafkaPositionTracker.get().updateLatestBrokerOffsetsByRpc(connectorTask._consumer,
-        connectorTask._consumerAssignment, postProductionTime);
+  @Test
+  public void testConsumerPositionTracking() throws Exception {
+    // Clear position data set by previous tests
+    ConnectorPositionsCache.getInstance().clear();
 
-    consumerPosition = getConsumerPositionFromPositionResponse(connectorTask.getPositionResponse(), datastream.getName(),
-        new TopicPartition(topic, 0)).orElse(0L);
-    Assert.assertTrue(consumerPosition >= postProductionTime,
-        String.format("Position response is stale. Expected consumer position of %s to be after time %s.",
-            consumerPosition, postProductionTime));
+    final KafkaBasedConnectorConfig config = new KafkaBasedConnectorConfigBuilder().build();
+
+    final String topic = "ChicagoStylePizza";
+    createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first event, to avoid an empty topic.");
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+
+    LOG.info("Creating and Starting KafkaConnectorTask");
+    final Datastream datastream = getDatastream(_broker, topic);
+    final DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    final MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    final KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, config);
+
+    LOG.info("Producing 100 msgs to topic: " + topic);
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    Assert.assertTrue(connectorTask._kafkaPositionTracker.isPresent());
+    try (final Consumer<?, ?> consumer = connectorTask._kafkaPositionTracker.get().getConsumerSupplier().get()) {
+      // Test Kafka connector's position data
+      connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
+          Collections.singleton(new TopicPartition(topic, 0)));
+      final Optional<KafkaPositionValue> position = ConnectorPositionsCache.getInstance().values()
+          .stream()
+          .map(ConcurrentHashMap::values)
+          .flatMap(Collection::stream)
+          .map(value -> (KafkaPositionValue) value)
+          .findAny();
+      Assert.assertTrue(position.isPresent());
+      Assert.assertEquals(position.get().getBrokerOffset(), position.get().getConsumerOffset());
+      final DatastreamProducerRecord lastEvent = datastreamProducer.getEvents()
+          .get(datastreamProducer.getEvents().size() - 1);
+      Assert.assertNotNull(position.get().getLastRecordReceivedTimestamp());
+      Assert.assertEquals(lastEvent.getEventsSourceTimestamp(),
+          position.get().getLastRecordReceivedTimestamp().toEpochMilli());
+    }
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
@@ -315,7 +356,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, false, "testCluster");
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
@@ -345,10 +386,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        new KafkaGroupIdConstructor(false, "testCluster"));
+    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     KafkaConnectorTask spiedConnectorTask = Mockito.spy(connectorTask);
     KafkaConsumer mockKafkaConsumer = Mockito.mock(KafkaConsumer.class);
@@ -379,12 +417,15 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     return datastream;
   }
 
-  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task, boolean isGroupIdHashingEnabled,
-      String clusterName) throws InterruptedException {
-    KafkaConnectorTask connectorTask = new KafkaConnectorTask(
-        new KafkaBasedConnectorConfig(new KafkaConsumerFactoryImpl(), null, new Properties(), "", "", 1000, 5,
-            Duration.ofSeconds(0), false, Duration.ofSeconds(0)), task, "",
-        new KafkaGroupIdConstructor(isGroupIdHashingEnabled, clusterName));
+  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {
+    return createKafkaConnectorTask(task, new KafkaBasedConnectorConfigBuilder().build());
+  }
+
+  private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task, KafkaBasedConnectorConfig connectorConfig)
+      throws InterruptedException {
+
+    KafkaConnectorTask connectorTask = new KafkaConnectorTask(connectorConfig, task, "",
+        new KafkaGroupIdConstructor(false, "testCluster"));
 
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
