@@ -601,13 +601,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions, String strategy) {
+    // We would like to consume from latest when there is no offset. However, if we rewind due to exception, we want
+    // to rewind to earliest to make sure the messages which are added after we start consuming don't get skipped
     if (_startOffsets.isPresent()) {
       _logger.info("Datastream is configured with StartPosition. Trying to start from {}", _startOffsets.get());
       seekToOffset(consumer, partitions, _startOffsets.get());
     } else {
-      // means we have no saved offsets for some partitions, seek to end or beginning based on consumer config
-      // We set to the latest as default, i.e. we will start and consume the offset from latest one if there
-      // is offset presented
       if (CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST.equals(strategy)) {
         _logger.info("Datastream was not configured with StartPosition. Seeking to end for partitions: {}", partitions);
         consumer.seekToEnd(partitions);
