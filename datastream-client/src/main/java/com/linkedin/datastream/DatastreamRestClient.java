@@ -157,7 +157,8 @@ public class DatastreamRestClient {
         }
       }
     }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
-    LOG.info("getDatastream for datastream {} took {} ms", Duration.between(startTime, Instant.now()).toMillis());
+    LOG.info("getDatastream for datastream {} took {} ms", datastreamName,
+        Duration.between(startTime, Instant.now()).toMillis());
     return datastream;
   }
 
