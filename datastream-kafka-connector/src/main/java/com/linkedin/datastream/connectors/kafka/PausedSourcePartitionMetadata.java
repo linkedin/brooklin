@@ -10,11 +10,13 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.codehaus.jackson.annotate.JsonPropertyOrder;
 
 
 /**
- * Contains metadata about a paused partition, including the resume criteria and reason for pause.
+ * Contains metadata about a paused partition, including the resume criteria, reason, and the associated
+ * exception for pause.
  */
 @JsonPropertyOrder({"reason", "description"})
 public class PausedSourcePartitionMetadata {
@@ -41,6 +43,7 @@ public class PausedSourcePartitionMetadata {
   private BooleanSupplier _resumeCondition = null;
   private Reason _reason = null;
   private String _description = null;
+  private Exception _exception = null;
 
   /**
    * Empty constructor.
@@ -55,10 +58,18 @@ public class PausedSourcePartitionMetadata {
    *                        represents should now resume.
    * @param reason Reason for which partition that PausedSourcePartitionMetadata represents is being paused.
    */
-  public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason) {
+  public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason, Exception exception) {
     _resumeCondition = resumeCondition;
     _reason = reason;
     _description = reason.getDescription();
+    _exception = exception;
+  }
+
+  /**
+   * Constructor PausedSourcePartitionMetadata without an exception
+   */
+  public PausedSourcePartitionMetadata(BooleanSupplier resumeCondition, Reason reason) {
+    this(resumeCondition, reason, null);
   }
 
   /**
@@ -98,17 +109,25 @@ public class PausedSourcePartitionMetadata {
       return false;
     }
     PausedSourcePartitionMetadata that = (PausedSourcePartitionMetadata) o;
-    return _reason == that._reason && Objects.equals(_description, that._description);
+    return _reason == that._reason && Objects.equals(_description, that._description) && Objects.equals(_exception, that._exception);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_reason, _description);
+    return Objects.hash(_reason, _description, _exception);
   }
 
   @Override
   public String toString() {
-    return _description == null ? "" : _description.toString();
+    StringBuilder builder = new StringBuilder();
+    if (_description != null) {
+      builder.append(_description);
+    }
+    if (_exception != null) {
+      builder.append(", Exception StackTrace: ");
+      builder.append(ExceptionUtils.getStackTrace(_exception));
+    }
+    return builder.toString();
   }
 
   /**
@@ -117,9 +136,10 @@ public class PausedSourcePartitionMetadata {
    * @param start Start time when the partition was paused.
    * @param pauseDuration Duration for which the partition should be paused. The duration is used to check if partition
    *                      should be resumed.
+   * @param ex Exception related to this send error, if any
    */
-  public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration) {
+  public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration, Exception ex) {
     return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
-        Reason.SEND_ERROR);
+        Reason.SEND_ERROR, ex);
   }
 }

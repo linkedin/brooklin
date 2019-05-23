@@ -41,7 +41,7 @@ public class TestFlushlessEventProducerHandler {
     DatastreamProducerRecord record = getDatastreamProducerRecord(checkpoint, TOPIC, 1);
 
     Assert.assertEquals(handler.getAckCheckpoint(BIG_CHECKPOINT, Comparator.naturalOrder()).get(), BIG_CHECKPOINT);
-    handler.send(record, TOPIC, 1, checkpoint);
+    handler.send(record, TOPIC, 1, checkpoint, null);
     Assert.assertEquals(handler.getAckCheckpoint(BIG_CHECKPOINT, Comparator.naturalOrder()), Optional.empty());
     Assert.assertEquals(handler.getInFlightCount(TOPIC, 1), 1);
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, 1), Optional.empty());
@@ -173,7 +173,7 @@ public class TestFlushlessEventProducerHandler {
 
   private void sendEvent(SourcePartition tp, FlushlessEventProducerHandler<Long> handler, long checkpoint) {
     DatastreamProducerRecord record = getDatastreamProducerRecord(checkpoint, tp.getKey(), tp.getValue());
-    handler.send(record, tp.getSource(), tp.getPartition(), checkpoint);
+    handler.send(record, tp.getSource(), tp.getPartition(), checkpoint, null);
   }
 
   private DatastreamProducerRecord getDatastreamProducerRecord(Long checkpoint, String topic, int partition) {

@@ -8,9 +8,11 @@ package com.linkedin.datastream.connectors.kafka;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +25,6 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
-import static java.lang.Math.abs;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.mock;
@@ -58,19 +59,37 @@ public class TestAbstractKafkaConnector {
     Properties props = new Properties();
     props.setProperty("daemonThreadIntervalInSeconds", "30");
     TestKafkaConnector connector = new TestKafkaConnector(false, props);
-    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-    long fireDelay = connector.getThreadDelayTimeInSecond(300);
 
-    boolean found = false;
-    for (int i = 0; i <= 3600 / 300; ++i) {
-      OffsetDateTime expectedFireTime =
-          OffsetDateTime.of(now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour() + (i * 5) / 60, (i * 5) % 60, 0, 0, ZoneOffset.UTC);
-      if (abs(expectedFireTime.toEpochSecond() - now.plusSeconds(fireDelay).toEpochSecond()) < 10) {
-        found = true;
-        break;
-      }
+    // A delay of 5 minutes means that the delay should occur every 5 minutes after the hour (i.e. it should fire at
+    // 6:00, 6:05, 6:10, 6:15, etc. but should not fire at 6:07)
+    Duration threadDelay = Duration.ofMinutes(5);
+
+    // The value of min initial delay means that we must wait at least this long in all circumstances before firing
+    Duration minDelay = AbstractKafkaConnector.MIN_DAEMON_THREAD_STARTUP_DELAY;
+
+    // Period to test
+    Duration testPeriod = Duration.ofDays(1).plusHours(2); // This should be long enough to handle all edge cases
+    OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
+    OffsetDateTime end = start.plus(testPeriod);
+
+    // Calculate expected and actual run times over our test period for every second
+    for (OffsetDateTime now = start; now.isBefore(end); now = now.plusSeconds(1)) {
+      OffsetDateTime currentTime = now;
+      OffsetDateTime expectedTime = Stream.iterate(now.truncatedTo(ChronoUnit.HOURS), time -> time.plus(threadDelay))
+          .filter(runTime -> runTime.isAfter(currentTime) && !runTime.isBefore(currentTime.plus(minDelay)))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException(String.format("Failed to find next expected thread runtime with "
+                  + "base time of %s, thread delay %s, min delay %s, and current time %s", start, threadDelay, minDelay,
+              currentTime)))
+          .truncatedTo(ChronoUnit.SECONDS);
+
+      long actualDelaySeconds = connector.getThreadDelayTimeInSecond(now, (int) threadDelay.getSeconds());
+      OffsetDateTime actualTime = now.plusSeconds(actualDelaySeconds);
+
+      Assert.assertEquals(actualTime, expectedTime, String.format("Actual = %s, Expected = %s, with base time of %s, "
+              + "thread delay %s, min delay %s, and current time %s", actualTime, expectedTime, start, threadDelay,
+          minDelay, now));
     }
-    Assert.assertTrue(found);
   }
 
 

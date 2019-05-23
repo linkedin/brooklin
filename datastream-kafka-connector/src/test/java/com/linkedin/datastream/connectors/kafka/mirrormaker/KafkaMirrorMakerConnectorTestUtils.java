@@ -51,6 +51,11 @@ final class KafkaMirrorMakerConnectorTestUtils {
     return props;
   }
 
+  static void produceEvents(String topic, int destinationPartition, int numEvents,
+      DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+    produceEventsToPartition(topic, destinationPartition, numEvents, kafkaCluster);
+  }
+
   static void produceEvents(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     produceEventsToPartition(topic, null, numEvents, kafkaCluster);
   }

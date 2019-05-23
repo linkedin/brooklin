@@ -346,7 +346,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         throw new RuntimeException("Flaky Exception");
       }
       state.messagesProcessed++;
-      state.pendingErrors = 3;
       return null;
     }).when(datastreamProducer).send(any(), any());
 
@@ -360,7 +359,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     LOG.info("Producing 100 msgs to topic: " + topic);
     produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
 
-    if (!PollUtils.poll(() -> state.messagesProcessed == 100, 100, POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> state.messagesProcessed >= 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
     }
 

@@ -8,7 +8,6 @@ package com.linkedin.datastream.connectors.kafka;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -216,33 +215,44 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
   protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) {
-    boolean shouldAddPausePartitionsTask = false;
     // iterate through each topic partition one at a time, for better isolation
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
-          sendMessage(record, readTime);
-        } catch (Exception e) {
-          _consumerMetrics.updateErrorRate(1);
-          // seek to previous checkpoints for this topic partition
-          seekToLastCheckpoint(Collections.singleton(topicPartition));
-          if ((!containsTransientException(e)) && _pausePartitionOnError) {
-            // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
-            // add to auto-paused set
-            _logger.warn("Got exception while sending record {}, adding topic partition {} to auto-pause set", record,
-                topicPartition);
-            Instant start = Instant.now();
-            _autoPausedSourcePartitions.put(topicPartition,
-                PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration));
-            shouldAddPausePartitionsTask = true;
+          if (_autoPausedSourcePartitions.containsKey(topicPartition)) {
+            _logger.warn("Abort sending as {} is auto-paused", topicPartition);
+          } else {
+            DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
+            int numBytes = record.serializedKeySize() + record.serializedValueSize();
+            sendDatastreamProducerRecord(datastreamProducerRecord, topicPartition, numBytes);
           }
+        } catch (Exception e) {
+          _logger.warn("Got exception while sending record {}", record);
+          rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
         }
       }
     }
+  }
 
-    if (shouldAddPausePartitionsTask) {
+  protected void rewindAndPausePartitionOnException(TopicPartition srcTopicPartition, Exception ex) {
+    _consumerMetrics.updateErrorRate(1);
+    Instant start = Instant.now();
+    // seek to previous checkpoints for this topic partition
+    boolean partitionRewound = false;
+    try {
+      seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
+      partitionRewound = true;
+    } catch (Exception e) {
+      _logger.error("Partition rewind failed due to ", e);
+    }
+    if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
+      // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
+      // add to auto-paused set
+      _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
+      _autoPausedSourcePartitions.put(srcTopicPartition,
+          PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
     }
   }
@@ -257,33 +267,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return false;
   }
 
-
-  protected void sendMessage(ConsumerRecord<?, ?> record, Instant readTime) throws Exception {
-    int sendAttempts = 0;
-    DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
-    while (true) {
-      try {
-        sendAttempts++;
-        sendDatastreamProducerRecord(datastreamProducerRecord);
-        int numBytes = record.serializedKeySize() + record.serializedValueSize();
+  protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
+      TopicPartition srcTopicPartition, int numBytes) {
+    _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
+      if (exception != null) {
+        _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
+          + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
+        rewindAndPausePartitionOnException(srcTopicPartition, exception);
+      } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
-        return; // Break the retry loop and exit.
-      } catch (Exception e) {
-        _logger.error("Error sending Message. task: {} ; error: {};", _taskName, e.toString());
-        _logger.error("Stack Trace: {}", Arrays.toString(e.getStackTrace()));
-        if (_shutdown || sendAttempts >= _maxRetryCount) {
-          _logger.error("Send messages failed with exception: {}", e);
-          throw e;
-        }
-        _logger.warn("Sleeping for {} seconds before retrying. Retry {} of {}", _retrySleepDuration.getSeconds(),
-            sendAttempts, _maxRetryCount);
-        Thread.sleep(_retrySleepDuration.toMillis());
       }
-    }
-  }
-
-  protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord) throws Exception {
-    _producer.send(datastreamProducerRecord, null);
+    }));
   }
 
   @Override
@@ -306,7 +300,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         // read a batch of records
         records = pollRecords(pollInterval);
-
         // handle startup notification if this is the 1st poll call
         if (startingUp) {
           pollInterval = _pollTimeoutMillis;
@@ -505,7 +498,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void handleNoOffsetForPartitionException(NoOffsetForPartitionException e) {
     _logger.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
     if (!_shutdown) {
-      seekToStartPosition(_consumer, e.partitions());
+      // Seek to start position, by default we are starting from latest one as we just start consumption
+      seekToStartPosition(_consumer, e.partitions(),
+          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST));
     }
   }
 
@@ -602,23 +597,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     });
     _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
-    // reset consumer to last checkpoint
+    // reset consumer to last checkpoint, by default we will rewind the checkpoint
     lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
     if (!tpWithNoCommits.isEmpty()) {
       _logger.info("Seeking to start position for partitions: {}", tpWithNoCommits);
-      seekToStartPosition(_consumer, tpWithNoCommits);
+      seekToStartPosition(_consumer, tpWithNoCommits,
+          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST));
     }
   }
 
-  private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions) {
+  private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions, String strategy) {
+    // We would like to consume from latest when there is no offset. However, if we rewind due to exception, we want
+    // to rewind to earliest to make sure the messages which are added after we start consuming don't get skipped
     if (_startOffsets.isPresent()) {
       _logger.info("Datastream is configured with StartPosition. Trying to start from {}", _startOffsets.get());
       seekToOffset(consumer, partitions, _startOffsets.get());
     } else {
-      // means we have no saved offsets for some partitions, seek to end or beginning based on consumer config
-      if (CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST.equals(
-          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-              CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST))) {
+      if (CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST.equals(strategy)) {
         _logger.info("Datastream was not configured with StartPosition. Seeking to end for partitions: {}", partitions);
         consumer.seekToEnd(partitions);
       } else {
