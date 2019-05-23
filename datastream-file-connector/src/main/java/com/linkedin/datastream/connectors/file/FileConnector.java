@@ -28,8 +28,6 @@ import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
-import com.linkedin.datastream.connectors.file.diag.FilePositionKey;
-import com.linkedin.datastream.connectors.file.diag.FilePositionValue;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -177,7 +175,8 @@ public class FileConnector implements Connector, DiagnosticsAware {
    * ]
    * </pre>
    *
-   * Where the payload in "key" is a {@link FilePositionKey} and the payload in "value" is a {@link FilePositionValue}.
+   * Where the payload in "key" is a {@link com.linkedin.datastream.connectors.file.diag.FilePositionKey} and the
+   * payload in "value" is a {@link com.linkedin.datastream.connectors.file.diag.FilePositionValue}.
    *
    * @return a JSON representation of the position data this connector has
    */
