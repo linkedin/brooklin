@@ -602,7 +602,6 @@ public class KafkaPositionTracker implements Closeable {
     private String _datastreamTaskPrefix;
     private boolean _enableBrokerOffsetFetcher = true;
     private Supplier<Boolean> _isConnectorTaskAlive;
-    private volatile boolean _built = false;
 
     /**
      * Configures this builder with the time at which the associated DatastreamTask was started. This value is required
@@ -683,14 +682,9 @@ public class KafkaPositionTracker implements Closeable {
      * {@link KafkaPositionTracker} class.
      *
      * @return a {@link KafkaPositionTracker} object configured using the instance data from this builder
-     * @throws IllegalStateException if the builder is reused
      */
     @NotNull
-    public synchronized KafkaPositionTracker build() {
-      if (_built) {
-        throw new IllegalStateException("Builder already used");
-      }
-      _built = true;
+    public KafkaPositionTracker build() {
       return new KafkaPositionTracker(_datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime,
           _enableBrokerOffsetFetcher, _isConnectorTaskAlive, _consumerSupplier);
     }
