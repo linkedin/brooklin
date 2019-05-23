@@ -167,6 +167,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
 
   /**
    * Returns a JSON representation of the position data this connector has as a JSON list:
+   * <pre>
    * [
    *   {
    *     "key": {...},
@@ -174,6 +175,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
    *   },
    *   ...
    * ]
+   * </pre>
    *
    * Where the payload in "key" is a {@link FilePositionKey} and the payload in "value" is a {@link FilePositionValue}.
    *
@@ -181,11 +183,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
    */
   private String processPositionRequest() {
     final List<Object> positions = _fileProcessors.values().stream()
-        .map(fileProcessor -> {
-          final FilePositionKey key = fileProcessor.getPositionKey();
-          final FilePositionValue value = fileProcessor.getPositionValue();
-          return ImmutableMap.of("key", key, "value", value);
-        })
+        .map(processor -> ImmutableMap.of("key", processor.getPositionKey(), "value", processor.getPositionValue()))
         .collect(Collectors.toList());
     return JsonUtils.toJson(positions);
   }

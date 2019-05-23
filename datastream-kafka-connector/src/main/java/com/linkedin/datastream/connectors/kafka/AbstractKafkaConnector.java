@@ -379,6 +379,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   /**
    * Returns a JSON representation of the position data this connector has as a JSON list:
+   * <pre>
    * [
    *   {
    *     "key": {...},
@@ -386,6 +387,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    *   },
    *   ...
    * ]
+   * </pre>
    *
    * Where the payload in "key" is a {@link com.linkedin.datastream.common.diag.KafkaPositionKey} and the payload in
    * "value" is a {@link com.linkedin.datastream.common.diag.KafkaPositionValue}.
