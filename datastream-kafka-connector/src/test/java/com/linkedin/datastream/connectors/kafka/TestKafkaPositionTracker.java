@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,6 +23,10 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+import com.codahale.metrics.MetricRegistry;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -35,10 +38,9 @@ import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-
-import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -61,7 +63,6 @@ import static org.mockito.Mockito.when;
  * Tests the position data set by KafkaPositionTracker for a Kafka connector task.
  *
  * @see KafkaPositionTracker for the class which modifies/sets the position data
- * @see ConnectorPositionsCache for the class responsible for storing the position data
  * @see KafkaPositionKey for information on the PositionKey type used for Kafka
  * @see KafkaPositionValue for information on the PositionValue type used for Kafka
  */
@@ -69,23 +70,24 @@ import static org.mockito.Mockito.when;
 public class TestKafkaPositionTracker {
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaPositionTracker.class);
   private static final long POLL_PERIOD_MS = Duration.ofMillis(250).toMillis();
-  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(250).toMillis();
+  private static final long POLL_TIMEOUT_MS = Duration.ofMillis(1_000).toMillis();
 
-  private String _connectorName;
+  private static final TopicPartition DEFAULT_TEST_TOPIC_PARTITION = new TopicPartition("cloves", 0);
+  private static final Set<TopicPartition> DEFAULT_TEST_ASSIGNMENT = Collections.singleton(DEFAULT_TEST_TOPIC_PARTITION);
+
   private DatastreamTaskImpl _datastreamTask;
   private KafkaConnectorTask _connectorTask;
   private MockDatastreamEventProducer _producer;
   private KafkaConsumerState _state;
+  private KafkaConsumer<byte[], byte[]> _consumer;
   private KafkaConsumerFactory<byte[], byte[]> _factory;
 
   @BeforeMethod(alwaysRun = true)
-  public void beforeMethodSetup() {
-    ConnectorPositionsCache.getInstance().clear();
-    _connectorName = "CrushedTomatoes";
+  public void beforeTestSetup() {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
     Datastream datastream = new Datastream();
     datastream.setName("ChicagoStylePizza");
-    datastream.setConnectorName(_connectorName);
+    datastream.setConnectorName("CrushedTomatoes");
     datastream.setTransportProviderName("DriedOregano");
     datastream.setMetadata(new StringMap());
     datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MozzarellaCheese");
@@ -95,20 +97,20 @@ public class TestKafkaPositionTracker {
     _datastreamTask = new DatastreamTaskImpl(Collections.singletonList(datastream));
     _producer = new MockDatastreamEventProducer();
     _datastreamTask.setEventProducer(_producer);
-    KafkaConsumer<byte[], byte[]> consumer = Mockito.mock(ByteBasedKafkaConsumer.class);
-    when(consumer.poll(anyLong())).thenAnswer(invocation -> _state.poll());
-    when(consumer.assignment()).thenAnswer(invocation -> _state.getAllTopicPartitions());
-    when(consumer.position(any(TopicPartition.class))).thenAnswer(invocation -> {
+    _consumer = Mockito.mock(ByteBasedKafkaConsumer.class);
+    when(_consumer.poll(anyLong())).thenAnswer(invocation -> _state.poll());
+    when(_consumer.assignment()).thenAnswer(invocation -> _state.getAllTopicPartitions());
+    when(_consumer.position(any(TopicPartition.class))).thenAnswer(invocation -> {
       TopicPartition topicPartition = invocation.getArgumentAt(0, TopicPartition.class);
       return _state.getConsumerOffsets(Collections.singleton(topicPartition)).get(topicPartition);
     });
-    when(consumer.endOffsets(anyCollectionOf(TopicPartition.class))).thenAnswer(invocation -> {
+    when(_consumer.endOffsets(anyCollectionOf(TopicPartition.class))).thenAnswer(invocation -> {
       Collection<?> topicPartitionsRaw = invocation.getArgumentAt(0, Collection.class);
       Set<TopicPartition> topicPartitions =
           topicPartitionsRaw.stream().map(object -> (TopicPartition) object).collect(Collectors.toSet());
       return _state.getBrokerOffsets(topicPartitions);
     });
-    when(consumer.metrics()).thenAnswer(invocation -> _state.getMetricsConsumerLag(_state.getAllTopicPartitions())
+    when(_consumer.metrics()).thenAnswer(invocation -> _state.getMetricsConsumerLag(_state.getAllTopicPartitions())
         .entrySet()
         .stream()
         .map(e -> new Metric() {
@@ -117,6 +119,7 @@ public class TestKafkaPositionTracker {
             Map<String, String> tags = new HashMap<>();
             tags.put("topic", e.getKey().topic());
             tags.put("partition", String.valueOf(e.getKey().partition()));
+            tags.put("client-id", "MeltedCheese");
             return new MetricName("records-lag", "consumer-fetch-manager-metrics", "", tags);
           }
 
@@ -131,7 +134,14 @@ public class TestKafkaPositionTracker {
           }
         })
         .collect(Collectors.toMap(metric -> metric.metricName(), metric -> metric)));
-    _factory = properties -> consumer;
+    _factory = properties -> _consumer;
+  }
+
+  @AfterMethod(alwaysRun = true)
+  public void afterTestTeardown() {
+    if (_connectorTask != null) {
+      _connectorTask.stop();
+    }
   }
 
   /**
@@ -139,41 +149,20 @@ public class TestKafkaPositionTracker {
    */
   @Test
   public void testPollWithEvents() {
-    Set<TopicPartition> assignments =
-        new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
-    _state = new KafkaConsumerState(assignments);
+    _state = new KafkaConsumerState(DEFAULT_TEST_ASSIGNMENT);
 
     _connectorTask = createKafkaConnectorTask();
-    Thread consumerThread = new Thread(_connectorTask, "Consumer Thread");
-    consumerThread.setDaemon(true);
-    consumerThread.start();
+    _connectorTask.onPartitionsAssigned(DEFAULT_TEST_ASSIGNMENT);
 
-    _connectorTask.onPartitionsAssigned(assignments);
-    _state.push(new TopicPartition("cloves", 0), 5);
-    _state.push(new TopicPartition("cloves", 1), 6);
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(5));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    testConsumerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1, Instant.ofEpochMilli(5));
+    testBrokerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1);
 
-    ConnectorPositionsCache store = ConnectorPositionsCache.getInstance();
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(6));
 
-    Optional<KafkaPositionValue> positionData;
-    positionData = getPositionData(new TopicPartition("cloves", 0));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(5L));
-
-
-    positionData = getPositionData(new TopicPartition("cloves", 1));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
-
-    _connectorTask.stop();
+    testConsumerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 2, Instant.ofEpochMilli(6));
+    testBrokerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 2);
   }
 
   /**
@@ -181,48 +170,22 @@ public class TestKafkaPositionTracker {
    */
   @Test
   public void testCaughtUpPoll() {
-    Set<TopicPartition> assignments =
-        new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
-    _state = new KafkaConsumerState(assignments);
+    _state = new KafkaConsumerState(DEFAULT_TEST_ASSIGNMENT);
+
+    // Produce and expose the consumer to the events before we start the connector task up, so the consumer task will
+    // load a caught up checkpoint.
+    _state.push(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(5));
+    _state.allowNextPoll();
+    _state.poll();
 
     _connectorTask = createKafkaConnectorTask();
-    Thread consumerThread = new Thread(_connectorTask, "Consumer Thread");
-    consumerThread.setDaemon(true);
-    consumerThread.start();
-
-    _connectorTask.onPartitionsAssigned(assignments);
-    _state.push(new TopicPartition("cloves", 0), 5);
-    _state.push(new TopicPartition("cloves", 1), 6);
+    _connectorTask.onPartitionsAssigned(DEFAULT_TEST_ASSIGNMENT);
 
     _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    updateBrokerPositionData();
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    Assert.assertTrue(_connectorTask._kafkaPositionTracker.isPresent());
-    _connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(_factory.createConsumer(null), _state.getAllTopicPartitions());
-
-    Optional<KafkaPositionValue> positionData;
-    positionData = getPositionData(new TopicPartition("cloves", 0));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(5L));
-
-    positionData = getPositionData(new TopicPartition("cloves", 1));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
-
-    _connectorTask.stop();
+    testConsumerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1);
+    testBrokerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1);
   }
 
   /**
@@ -231,52 +194,29 @@ public class TestKafkaPositionTracker {
    */
   @Test
   public void testPollWithMissingPartition() {
-    Set<TopicPartition> assignments =
-        new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
-    _state = new KafkaConsumerState(assignments);
+    TopicPartition faultyPartition = DEFAULT_TEST_TOPIC_PARTITION;
+    TopicPartition goodPartition = new TopicPartition(DEFAULT_TEST_TOPIC_PARTITION.topic(),
+        DEFAULT_TEST_TOPIC_PARTITION.partition() + 1);
+    Set<TopicPartition> assignment = ImmutableSet.of(faultyPartition, goodPartition);
+    _state = new KafkaConsumerState(assignment);
 
     _connectorTask = createKafkaConnectorTask();
-    Thread consumerThread = new Thread(_connectorTask, "Consumer Thread");
-    consumerThread.setDaemon(true);
-    consumerThread.start();
+    _connectorTask.onPartitionsAssigned(assignment);
 
-    _connectorTask.onPartitionsAssigned(assignments);
-    _state.push(new TopicPartition("cloves", 0), 5);
-    _state.push(new TopicPartition("cloves", 1), 6);
+    produceAndPollEvents(ImmutableMap.of(
+        faultyPartition, Instant.ofEpochMilli(5),
+        goodPartition, Instant.ofEpochMilli(6)));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    _state.setDisabledPartitions(faultyPartition);
 
-    _state.push(new TopicPartition("cloves", 0), 7);
-    _state.push(new TopicPartition("cloves", 1), 8);
-    _state.setDisabledPartitions(Collections.singleton(new TopicPartition("cloves", 0)));
+    produceAndPollEvents(ImmutableMap.of(
+        faultyPartition, Instant.ofEpochMilli(7),
+        goodPartition, Instant.ofEpochMilli(8)));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    Assert.assertTrue(_connectorTask._kafkaPositionTracker.isPresent());
-    _connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(_factory.createConsumer(null), _state.getAllTopicPartitions());
-
-    Optional<KafkaPositionValue> positionData;
-    positionData = getPositionData(new TopicPartition("cloves", 0));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(5L));
-
-    positionData = getPositionData(new TopicPartition("cloves", 1));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(8L));
-
-    _connectorTask.stop();
+    testConsumerPositionData(faultyPartition, 1, Instant.ofEpochMilli(5));
+    testBrokerPositionData(faultyPartition, 2);
+    testConsumerPositionData(goodPartition, 2, Instant.ofEpochMilli(8));
+    testBrokerPositionData(goodPartition, 2);
   }
 
   /**
@@ -284,53 +224,18 @@ public class TestKafkaPositionTracker {
    */
   @Test
   public void testPollNoEvents() {
-    Set<TopicPartition> assignments =
-        new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
-    _state = new KafkaConsumerState(assignments);
+    _state = new KafkaConsumerState(DEFAULT_TEST_ASSIGNMENT);
 
     _connectorTask = createKafkaConnectorTask();
-    Thread consumerThread = new Thread(_connectorTask, "Consumer Thread");
-    consumerThread.setDaemon(true);
-    consumerThread.start();
+    _connectorTask.onPartitionsAssigned(DEFAULT_TEST_ASSIGNMENT);
 
-    _connectorTask.onPartitionsAssigned(assignments);
-    _state.push(new TopicPartition("cloves", 0), 5);
-    _state.push(new TopicPartition("cloves", 1), 6);
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(5));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    _state.setDisabledPartitions(DEFAULT_TEST_TOPIC_PARTITION);
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(6));
 
-    _state.push(new TopicPartition("cloves", 0), 7);
-    _state.push(new TopicPartition("cloves", 1), 8);
-    _state.setDisabledPartitions(assignments);
-
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    Assert.assertTrue(_connectorTask._kafkaPositionTracker.isPresent());
-    _connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(_factory.createConsumer(null), _state.getAllTopicPartitions());
-
-    Optional<KafkaPositionValue> positionData;
-    positionData = getPositionData(new TopicPartition("cloves", 0));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(5L));
-
-
-    positionData = getPositionData(new TopicPartition("cloves", 1));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
-
-    _connectorTask.stop();
+    testConsumerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1, Instant.ofEpochMilli(5));
+    testBrokerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 2);
   }
 
   /**
@@ -339,55 +244,19 @@ public class TestKafkaPositionTracker {
    */
   @Test
   public void testPollWithException() {
-    Set<TopicPartition> assignments =
-        new HashSet<>(Arrays.asList(new TopicPartition("cloves", 0), new TopicPartition("cloves", 1)));
-    _state = new KafkaConsumerState(assignments);
+    _state = new KafkaConsumerState(DEFAULT_TEST_ASSIGNMENT);
 
     _connectorTask = createKafkaConnectorTask();
-    Thread consumerThread = new Thread(_connectorTask, "Consumer Thread");
-    consumerThread.setDaemon(true);
-    consumerThread.start();
+    _connectorTask.onPartitionsAssigned(DEFAULT_TEST_ASSIGNMENT);
 
-    _connectorTask.onPartitionsAssigned(assignments);
-    _state.push(new TopicPartition("cloves", 0), 5);
-    _state.push(new TopicPartition("cloves", 1), 6);
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(5));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    _state.push(new TopicPartition("cloves", 0), 7);
-    _state.push(new TopicPartition("cloves", 1), 8);
     _state.makeFaulty();
+    produceAndPollEvent(DEFAULT_TEST_TOPIC_PARTITION, Instant.ofEpochMilli(6));
 
-    _state.allowNextPoll();
-    PollUtils.poll(() -> _producer.getEvents().size() == 0, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    Assert.assertTrue(_connectorTask._kafkaPositionTracker.isPresent());
-    _connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(_factory.createConsumer(null), _state.getAllTopicPartitions());
-
-    Optional<KafkaPositionValue> positionData;
-    positionData = getPositionData(new TopicPartition("cloves", 0));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(5L));
-
-
-    positionData = getPositionData(new TopicPartition("cloves", 1));
-    Assert.assertTrue(positionData.isPresent());
-    Assert.assertNotNull(positionData.get().getBrokerOffset());
-    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), 2L);
-    Assert.assertNotNull(positionData.get().getConsumerOffset());
-    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), 1L);
-    Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), Instant.ofEpochMilli(6L));
-
-    _connectorTask.stop();
+    testConsumerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 1, Instant.ofEpochMilli(5));
+    testBrokerPositionData(DEFAULT_TEST_TOPIC_PARTITION, 2);
   }
-
 
   /**
    * Gets the current position of the Connector's consumer for a given TopicPartition for a given Datastream group.
@@ -396,11 +265,9 @@ public class TestKafkaPositionTracker {
    * @return a KafkaPositionValue containing position data, if present
    */
   private Optional<KafkaPositionValue> getPositionData(TopicPartition topicPartition) {
-    Map<KafkaPositionKey, KafkaPositionValue> positionData = ConnectorPositionsCache.getInstance()
-        .get(_connectorName)
-        .entrySet()
-        .stream()
-        .collect(Collectors.toMap(e -> (KafkaPositionKey) e.getKey(), e -> (KafkaPositionValue) e.getValue()));
+    final Map<KafkaPositionKey, KafkaPositionValue> positionData = _connectorTask.getKafkaPositionTracker()
+            .map(KafkaPositionTracker::getPositions)
+            .orElse(Collections.emptyMap());
     return positionData.entrySet()
         .stream()
         .filter(e -> e.getKey().getTopic().equals(topicPartition.topic()))
@@ -409,12 +276,142 @@ public class TestKafkaPositionTracker {
         .findAny();
   }
 
+  /**
+   * Updates the broker position data on the KafkaPositionTracker by querying the latest offsets on the broker for our
+   * assigned topic partitions.
+   */
+  private void updateBrokerPositionData() {
+    final KafkaPositionTracker positionTracker = _connectorTask.getKafkaPositionTracker()
+        .orElseThrow(() -> new RuntimeException("Position tracker was not instantiated"));
+    positionTracker.queryBrokerForLatestOffsets(_consumer, _consumer.assignment());
+  }
+
+  /**
+   * Produces an event to the specified topic partition with the timestamp provided, and then has the consumer poll it.
+   * @param topicPartition the specified topic partition
+   * @param timestamp the timestamps to use when producing the event
+   */
+  private void produceAndPollEvent(TopicPartition topicPartition, Instant timestamp) {
+    produceAndPollEvents(ImmutableMap.of(topicPartition, timestamp));
+  }
+
+  /**
+   * Produces events per the event data provided: a map of TopicPartition to the timestamp of the message to produce,
+   * and then has the consumer poll it.
+   * @param events the event data provided
+   */
+  private void produceAndPollEvents(Map<TopicPartition, Instant> events) {
+    events.forEach((topicPartition, timestamp) -> _state.push(topicPartition, timestamp));
+    updateBrokerPositionData();
+    _state.allowNextPoll();
+
+    PollUtils.poll(() -> {
+      // Ensure all events are produced
+      for (Map.Entry<TopicPartition, Instant> entry : events.entrySet()) {
+        TopicPartition topicPartition = entry.getKey();
+        Instant timestamp = entry.getValue();
+        if (_state.getFaultyTopicPartitions().contains(topicPartition)) {
+          continue; // Don't wait for topics that will not be produced to show up
+        }
+        boolean eventProduced = _producer.getEvents()
+            .stream()
+            .flatMap(record -> record.getEvents().stream())
+            .anyMatch(event ->
+                event.getMetadata().get("kafka-origin-partition").equals(String.valueOf(topicPartition.partition()))
+                    && event.getMetadata().get("SourceTimestamp").equals(String.valueOf(timestamp.toEpochMilli())));
+        LOG.info("Checking for event with partition {} with timestamp {}", topicPartition, timestamp);
+        if (!eventProduced) {
+          LOG.info("Event with for partition {} with timestamp {} has not been produced yet", topicPartition, timestamp);
+          return false;
+        }
+      }
+      LOG.info("All events successfully produced");
+      return true;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+  }
+
+  /**
+   * Tests that the consumer position data matches our expected position data.
+   * @param topicPartition the topic partition to test position data for
+   * @param expectedConsumerOffset the expected consumer offset
+   */
+  private void testConsumerPositionData(TopicPartition topicPartition, long expectedConsumerOffset) {
+    testConsumerPositionData(topicPartition, expectedConsumerOffset, null);
+  }
+
+  /**
+   * Tests that the consumer position data matches our expected position data.
+   * @param topicPartition the topic partition to test position data for
+   * @param expectedConsumerOffset the expected consumer offset
+   * @param expectedRecordTimestamp the expected record timestamp
+   */
+  private void testConsumerPositionData(TopicPartition topicPartition, long expectedConsumerOffset,
+      Instant expectedRecordTimestamp) {
+    // Wait for data to be available
+    PollUtils.poll(() -> {
+      Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+      boolean available = positionData.isPresent()
+          && positionData.get().getConsumerOffset() != null
+          && (expectedRecordTimestamp == null || positionData.get().getLastRecordReceivedTimestamp() != null);
+      if (!available) {
+        LOG.info("Waiting for consumer position data to be set/available");
+      } else {
+        LOG.info("Consumer position data is set/available");
+      }
+      return available;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+
+    // Test data
+    Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+    Assert.assertTrue(positionData.isPresent());
+    Assert.assertNotNull(positionData.get().getConsumerOffset());
+    Assert.assertEquals(positionData.get().getConsumerOffset().longValue(), expectedConsumerOffset);
+    if (expectedRecordTimestamp != null) {
+      Assert.assertNotNull(positionData.get().getLastRecordReceivedTimestamp());
+      Assert.assertEquals(positionData.get().getLastRecordReceivedTimestamp(), expectedRecordTimestamp);
+    }
+  }
+
+  /**
+   * Tests that the broker position data matches our expected position data.
+   * @param topicPartition the topic partition to test position data for
+   * @param expectedBrokerOffset the expected broker offset
+   */
+  private void testBrokerPositionData(TopicPartition topicPartition, long expectedBrokerOffset) {
+    // Wait for data to be available
+    PollUtils.poll(() -> {
+      Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+      boolean available = positionData.isPresent() && positionData.get().getBrokerOffset() != null;
+      if (!available) {
+        LOG.info("Waiting for broker position data to be set/available");
+      } else {
+        LOG.info("Broker position data is set/available");
+      }
+      return available;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+
+    // Test data
+    Optional<KafkaPositionValue> positionData = getPositionData(topicPartition);
+    Assert.assertTrue(positionData.isPresent());
+    Assert.assertNotNull(positionData.get().getBrokerOffset());
+    Assert.assertEquals(positionData.get().getBrokerOffset().longValue(), expectedBrokerOffset);
+  }
+
+  /**
+   * Creates and starts a KafkaConnectorTask
+   * @return a started KafkaConnectorTask
+   */
   private KafkaConnectorTask createKafkaConnectorTask() {
     final KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
         .setConsumerFactory(_factory)
         .build();
-    return new KafkaConnectorTask(connectorConfig, _datastreamTask, "",
+    KafkaConnectorTask connectorTask = new KafkaConnectorTask(connectorConfig, _datastreamTask, "",
         new KafkaGroupIdConstructor(false, "testCluster"));
+    final Thread consumerThread = new Thread(connectorTask, "Consumer Thread");
+    consumerThread.setDaemon(true);
+    consumerThread.setUncaughtExceptionHandler((t, e) -> LOG.error("Got uncaught exception in consumer thread", e));
+    consumerThread.start();
+    return connectorTask;
   }
 
   /**
@@ -455,8 +452,12 @@ public class TestKafkaPositionTracker {
      * Configures a set of topic partition such that poll() will not return any results from them.
      * @param topicPartitions the set of topic partitions
      */
-    void setDisabledPartitions(Set<TopicPartition> topicPartitions) {
-      _disabledTopicPartitions = topicPartitions;
+    void setDisabledPartitions(TopicPartition... topicPartitions) {
+      if (topicPartitions == null) {
+        _disabledTopicPartitions = Collections.emptySet();
+      } else {
+        _disabledTopicPartitions = new HashSet<>(Arrays.asList(topicPartitions));
+      }
     }
 
     /**
@@ -512,15 +513,23 @@ public class TestKafkaPositionTracker {
     }
 
     /**
-     * Gets all topic partitions which are configured to be faulty.
+     * Gets all topic partitions which are working.
+     * @return all topic partitions which are working
+     */
+    Set<TopicPartition> getWorkingTopicPartitions() {
+      return getAllTopicPartitions()
+          .stream()
+          .filter(tp -> !_faulty) // if we are faulty, then no topic partitions match
+          .filter(tp -> !_disabledTopicPartitions.contains(tp))
+          .collect(Collectors.toSet());
+    }
+
+    /**
+     * Gets all topic partitions which are faulty.
      * @return all topic partitions which are faulty
      */
     Set<TopicPartition> getFaultyTopicPartitions() {
-      return getAllTopicPartitions()
-          .stream()
-          .filter(tp -> !_disabledTopicPartitions.contains(tp))
-          .filter(tp -> !_faulty)
-          .collect(Collectors.toSet());
+      return Sets.difference(getAllTopicPartitions(), getWorkingTopicPartitions());
     }
 
     /**
@@ -528,11 +537,11 @@ public class TestKafkaPositionTracker {
      * @param topicPartition the topic partition to add the event for
      * @param timestamp the timestamp of the event
      */
-    synchronized void push(TopicPartition topicPartition, long timestamp) {
+    synchronized void push(TopicPartition topicPartition, Instant timestamp) {
       ConsumerRecord<byte[], byte[]> consumerRecord =
           new ConsumerRecord<>(topicPartition.topic(), topicPartition.partition(),
-              _recordsOnBroker.get(topicPartition).size(), timestamp, TimestampType.LOG_APPEND_TIME, 0L,
-              // Does the checksum matter?
+              _recordsOnBroker.get(topicPartition).size(), timestamp.toEpochMilli(), TimestampType.LOG_APPEND_TIME,
+              0L, // Does the checksum matter?
               topicPartition.toString().length(), // Serialized Key Size
               topicPartition.toString().length(), // Serialized Value Size
               topicPartition.toString().getBytes(), // Key

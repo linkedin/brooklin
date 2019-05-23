@@ -16,6 +16,6 @@ import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 public class FileConnectorFactory implements ConnectorFactory<FileConnector> {
   @Override
   public FileConnector createConnector(String connectorName, Properties config, String clusterName) {
-    return new FileConnector(connectorName, config);
+    return new FileConnector(config);
   }
 }

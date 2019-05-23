@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.io.Closeable;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -36,17 +36,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import com.linkedin.datastream.common.DurableScheduledService;
-import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
 import com.linkedin.datastream.common.diag.KafkaPositionKey;
 import com.linkedin.datastream.common.diag.KafkaPositionValue;
-import com.linkedin.datastream.common.diag.PositionKey;
-import com.linkedin.datastream.common.diag.PositionValue;
+import com.linkedin.datastream.server.DatastreamTask;
 
 
 /**
  * KafkaPositionTracker is intended to be used with a Kafka-based Connector task to keep track of the current
- * offset/position of the Connector task's consumer. This data is stored in the globally instantiated
- * {@link ConnectorPositionsCache}.
+ * offset/position of the Connector task's consumer.
  *
  * The information stored can then be queried via the /diag endpoint for diagnostic and analytic purposes.
  */
@@ -86,23 +83,23 @@ public class KafkaPositionTracker implements Closeable {
   private final Instant _connectorTaskStartTime;
 
   /**
-   * The position data for this DatastreamTask as held by the {@link ConnectorPositionsCache}.
+   * The position data for this DatastreamTask.
    */
   @NotNull
-  private final ConcurrentHashMap<PositionKey, PositionValue> _positions;
+  private final ConcurrentMap<KafkaPositionKey, KafkaPositionValue> _positions = new ConcurrentHashMap<>();
 
   /**
    * A map of TopicPartitions to KafkaPositionKeys currently owned/operated on by this KafkaPositionTracker instance.
    */
   @NotNull
-  private final ConcurrentHashMap<TopicPartition, KafkaPositionKey> _ownedKeys = new ConcurrentHashMap<>();
+  private final ConcurrentMap<TopicPartition, KafkaPositionKey> _ownedKeys = new ConcurrentHashMap<>();
 
   /**
    * A set of TopicPartitions which are assigned to us, but for which we have not yet received any records or
    * consumer position data for.
    */
   @NotNull
-  private final Set<TopicPartition> _needingInit = ConcurrentHashMap.newKeySet();
+  private final Set<TopicPartition> _uninitializedPartitions = ConcurrentHashMap.newKeySet();
 
   /**
    * A look-up table of TopicPartition -> MetricName as they are encountered to speed consumer metric look up.
@@ -155,8 +152,6 @@ public class KafkaPositionTracker implements Closeable {
   /**
    * Constructor for a KafkaPositionTracker.
    *
-   * @param connectorName The name of the Connector for the given DatastreamTask
-   *                      {@see com.linkedin.datastream.server.DatastreamTask#getConnectorName()}
    * @param datastreamTaskPrefix The task prefix for the DatastreamTask
    *                             {@see com.linkedin.datastream.server.DatastreamTask#getTaskPrefix()}
    * @param datastreamTaskName The DatastreamTask name
@@ -168,14 +163,12 @@ public class KafkaPositionTracker implements Closeable {
    * @param consumerSupplier A Consumer supplier that is suitable for querying the brokers that the Connector task is
    *                         talking to
    */
-  public KafkaPositionTracker(@NotNull final String connectorName, @NotNull final String datastreamTaskPrefix,
-      @NotNull final String datastreamTaskName, @NotNull final Instant connectorTaskStartTime,
-      final boolean enableBrokerOffsetFetcher, @NotNull final Supplier<Boolean> isConnectorTaskAlive,
-      @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+  private KafkaPositionTracker(@NotNull final String datastreamTaskPrefix, @NotNull final String datastreamTaskName,
+      @NotNull final Instant connectorTaskStartTime, final boolean enableBrokerOffsetFetcher,
+      @NotNull final Supplier<Boolean> isConnectorTaskAlive, @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
     _datastreamTaskPrefix = datastreamTaskPrefix;
     _datastreamTaskName = datastreamTaskName;
     _connectorTaskStartTime = connectorTaskStartTime;
-    _positions = ConnectorPositionsCache.getInstance().computeIfAbsent(connectorName, s -> new ConcurrentHashMap<>());
     _consumerSupplier = consumerSupplier;
     if (enableBrokerOffsetFetcher) {
       _brokerOffsetFetcher = new BrokerOffsetFetcher(datastreamTaskName, this, isConnectorTaskAlive);
@@ -197,11 +190,10 @@ public class KafkaPositionTracker implements Closeable {
     final Instant assignmentTime = Instant.now();
     for (final TopicPartition topicPartition : topicPartitions) {
       final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-          BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime);
+          _datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime);
       _ownedKeys.put(topicPartition, key);
-      _needingInit.add(topicPartition);
-      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key, s ->
-          new KafkaPositionValue());
+      _uninitializedPartitions.add(topicPartition);
+      final KafkaPositionValue value = _positions.computeIfAbsent(key, s -> new KafkaPositionValue());
       value.setAssignmentTime(assignmentTime);
     }
   }
@@ -217,7 +209,7 @@ public class KafkaPositionTracker implements Closeable {
   public synchronized void onPartitionsRevoked(@NotNull final Collection<TopicPartition> topicPartitions) {
     for (final TopicPartition topicPartition : topicPartitions) {
       _metricNameCache.remove(topicPartition);
-      _needingInit.remove(topicPartition);
+      _uninitializedPartitions.remove(topicPartition);
       @Nullable final KafkaPositionKey key = _ownedKeys.remove(topicPartition);
       if (key != null) {
         _positions.remove(key);
@@ -242,11 +234,9 @@ public class KafkaPositionTracker implements Closeable {
       // with this topicPartition before then, but it should be safe to construct them here as this data should be
       // coming from the consumer thread without race conditions.
       final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
-          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-              BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName,
-              _connectorTaskStartTime));
-      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
-          s -> new KafkaPositionValue());
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(), _datastreamTaskPrefix,
+              _datastreamTaskName, _connectorTaskStartTime));
+      final KafkaPositionValue value = _positions.computeIfAbsent(key, s -> new KafkaPositionValue());
 
       // Derive the consumer offset and the last record polled timestamp from the records
       records.records(topicPartition).stream()
@@ -268,7 +258,7 @@ public class KafkaPositionTracker implements Closeable {
             value.setBrokerOffset(brokerOffset);
           }));
 
-      _needingInit.remove(topicPartition);
+      _uninitializedPartitions.remove(topicPartition);
     }
   }
 
@@ -315,6 +305,8 @@ public class KafkaPositionTracker implements Closeable {
     if (_clientId == null || _consumerMetricsSupport == null) {
       // Find a testable metric name in the collection
       metricNames.stream()
+          .filter(candidateMetricName -> candidateMetricName.name() != null)
+          .filter(candidateMetricName -> candidateMetricName.tags() != null)
           .filter(candidateMetricName -> candidateMetricName.name().endsWith(RECORDS_LAG_METRIC_NAME_SUFFIX))
           .findAny()
           .ifPresent(testableMetricName -> {
@@ -367,10 +359,12 @@ public class KafkaPositionTracker implements Closeable {
   /**
    * Returns a Set of TopicPartitions which are assigned to us, but for which we have not yet received any records or
    * consumer position data for.
+   *
+   * @return the Set of TopicPartitions which are not yet initialized
    */
   @NotNull
-  public synchronized Set<TopicPartition> getPartitionsNeedingInit() {
-    return Collections.unmodifiableSet(_needingInit);
+  public synchronized Set<TopicPartition> getUninitializedPartitions() {
+    return Collections.unmodifiableSet(_uninitializedPartitions);
   }
 
   /**
@@ -391,14 +385,21 @@ public class KafkaPositionTracker implements Closeable {
       // with this topicPartition before then, but it should be safe to construct them here as this data should be
       // coming from the consumer thread without race conditions.
       final KafkaPositionKey key = _ownedKeys.computeIfAbsent(topicPartition,
-          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
-              BrooklinInstanceInfo.getInstanceName(), _datastreamTaskPrefix, _datastreamTaskName,
-              _connectorTaskStartTime));
-      final KafkaPositionValue value = (KafkaPositionValue) _positions.computeIfAbsent(key,
-          s -> new KafkaPositionValue());
+          s -> new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(), _datastreamTaskPrefix,
+              _datastreamTaskName, _connectorTaskStartTime));
+      final KafkaPositionValue value = _positions.computeIfAbsent(key, s -> new KafkaPositionValue());
       value.setConsumerOffset(consumerOffset);
-      _needingInit.remove(topicPartition);
+      _uninitializedPartitions.remove(topicPartition);
     }
+  }
+
+  /**
+   * Returns the position data stored in this instance.
+   *
+   * @return the position data stored in this instance
+   */
+  public Map<KafkaPositionKey, KafkaPositionValue> getPositions() {
+    return Collections.unmodifiableMap(_positions);
   }
 
   /**
@@ -411,6 +412,15 @@ public class KafkaPositionTracker implements Closeable {
       brokerOffsetFetcher.stopAsync();
     }
     onPartitionsRevoked(_ownedKeys.keySet());
+  }
+
+  /**
+   * Returns a Builder which can be used to construct a {@link KafkaPositionTracker}.
+   *
+   * @return a Builder for this class
+   */
+  public static Builder builder() {
+    return new Builder();
   }
 
   /**
@@ -436,7 +446,7 @@ public class KafkaPositionTracker implements Closeable {
           // this thread, so do not create/initialize the key/value in the map.
           final KafkaPositionKey key = _ownedKeys.get(topicPartition);
           if (key != null) {
-            final KafkaPositionValue value = (KafkaPositionValue) _positions.get(key);
+            final KafkaPositionValue value = _positions.get(key);
             if (value != null) {
               value.setLastBrokerQueriedTime(queryTime);
               value.setBrokerOffset(offset);
@@ -524,7 +534,7 @@ public class KafkaPositionTracker implements Closeable {
       _kafkaPositionTracker._ownedKeys.forEach(((topicPartition, key) -> {
         // Race condition could exist where we might be unassigned the topic in a different thread while we are in
         // this thread, so do not create/initialize the value in the map.
-        @Nullable final KafkaPositionValue value = (KafkaPositionValue) _kafkaPositionTracker._positions.get(key);
+        @Nullable final KafkaPositionValue value = _kafkaPositionTracker._positions.get(key);
         if (value != null
             && (value.getLastBrokerQueriedTime() == null || value.getLastBrokerQueriedTime().isBefore(staleBy))) {
           partitionsNeedingUpdate.add(topicPartition);
@@ -579,6 +589,104 @@ public class KafkaPositionTracker implements Closeable {
         _kafkaPositionTracker.onPartitionsRevoked(_kafkaPositionTracker._ownedKeys.keySet());
       }
       return hasLeaked;
+    }
+  }
+
+  /**
+   * Builder which can be used to create an instance of {@link KafkaPositionTracker}.
+   */
+  public static class Builder {
+    private Instant _connectorTaskStartTime;
+    private Supplier<Consumer<?, ?>> _consumerSupplier;
+    private String _datastreamTaskName;
+    private String _datastreamTaskPrefix;
+    private boolean _enableBrokerOffsetFetcher = true;
+    private Supplier<Boolean> _isConnectorTaskAlive;
+
+    /**
+     * Configures this builder with the time at which the associated DatastreamTask was started. This value is required
+     * to construct a {@link KafkaPositionTracker} object and must be provided before {@link #build()} is called.
+     *
+     * @param connectorTaskStartTime the time at which the associated DatastreamTask was started
+     * @return a builder configured with the connectorTaskStartTime param
+     */
+    @NotNull
+    public Builder withConnectorTaskStartTime(@NotNull final Instant connectorTaskStartTime) {
+      _connectorTaskStartTime = connectorTaskStartTime;
+      return this;
+    }
+
+    /**
+     * Configures the builder with a Consumer supplier that is suitable for querying the brokers that the Connector task
+     * is talking to. This value is required to construct a {@link KafkaPositionTracker} object and must be provided
+     * before {@link #build()} is called.
+     *
+     * @param consumerSupplier A Consumer supplier that is suitable for querying the brokers that the Connector task is
+     *                         talking to
+     * @return a builder configured with the consumerSupplier param
+     */
+    @NotNull
+    public Builder withConsumerSupplier(@NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+      _consumerSupplier = consumerSupplier;
+      return this;
+    }
+
+    /**
+     * Configures the builder with the associated {@link DatastreamTask}. This class requires two pieces of data from
+     * the DatastreamTask it is associated with, the DatastreamTask's task prefix and task name, which it collects using
+     * {@link DatastreamTask#getTaskPrefix()} and {@link DatastreamTask#getDatastreamTaskName()} respectively. These
+     * values are required to construct a {@link KafkaPositionTracker} object and must be provided before
+     * {@link #build()} is called.
+     *
+     * @param datastreamTask The DatastreamTask associated with this position tracker
+     * @return a builder configured with the datastreamTaskPrefix and datastreamTaskName params acquired from the
+     *         provided DatastreamTask
+     */
+    @NotNull
+    public Builder withDatastreamTask(@NotNull final DatastreamTask datastreamTask) {
+      _datastreamTaskName = datastreamTask.getDatastreamTaskName();
+      _datastreamTaskPrefix = datastreamTask.getTaskPrefix();
+      return this;
+    }
+
+    /**
+     * Configures the builder with information on whether the broker offset fetcher feature should be enabled or not. It
+     * is enabled by default. If enabled, it will run a scheduled service that queries the brokers periodically to
+     * update any cached broker offset data which may be stale.
+     *
+     * @param enableBrokerOffsetFetcher True if we should fetch stale broker offset data periodically, false otherwise
+     * @return a builder configured with the enableBrokerOffsetFetcher param
+     */
+    @NotNull
+    public Builder withEnableBrokerOffsetFetcher(final boolean enableBrokerOffsetFetcher) {
+      _enableBrokerOffsetFetcher = enableBrokerOffsetFetcher;
+      return this;
+    }
+
+    /**
+     * Configures the builder with a function that allows us to check if the connector task is alive. If it is not
+     * alive, then we should ensure this position tracker is closed down properly. This value is required to construct a
+     * {@link KafkaPositionTracker} object and must be provided before {@link #build()} is called.
+     *
+     * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive
+     * @return a builder configured with the isConnectorTaskAlive param
+     */
+    @NotNull
+    public Builder withIsConnectorTaskAlive(@NotNull final Supplier<Boolean> isConnectorTaskAlive) {
+      _isConnectorTaskAlive = isConnectorTaskAlive;
+      return this;
+    }
+
+    /**
+     * Uses the information already provided to the current instantiation of the builder to create an instance of the
+     * {@link KafkaPositionTracker} class.
+     *
+     * @return a {@link KafkaPositionTracker} object configured using the instance data from this builder
+     */
+    @NotNull
+    public KafkaPositionTracker build() {
+      return new KafkaPositionTracker(_datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime,
+          _enableBrokerOffsetFetcher, _isConnectorTaskAlive, _consumerSupplier);
     }
   }
 }

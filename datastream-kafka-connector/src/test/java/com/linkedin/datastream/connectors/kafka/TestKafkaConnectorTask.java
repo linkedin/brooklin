@@ -5,16 +5,13 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -242,9 +239,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testConsumerPositionTracking() throws Exception {
-    // Clear position data set by previous tests
-    ConnectorPositionsCache.getInstance().clear();
-
     final KafkaBasedConnectorConfig config = new KafkaBasedConnectorConfigBuilder().build();
 
     final String topic = "ChicagoStylePizza";
@@ -268,25 +262,29 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 
-    Assert.assertTrue(connectorTask._kafkaPositionTracker.isPresent());
-    try (final Consumer<?, ?> consumer = connectorTask._kafkaPositionTracker.get().getConsumerSupplier().get()) {
-      // Test Kafka connector's position data
-      connectorTask._kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
-          Collections.singleton(new TopicPartition(topic, 0)));
-      final Optional<KafkaPositionValue> position = ConnectorPositionsCache.getInstance().values()
-          .stream()
-          .map(ConcurrentHashMap::values)
-          .flatMap(Collection::stream)
-          .map(value -> (KafkaPositionValue) value)
-          .findAny();
-      Assert.assertTrue(position.isPresent());
-      Assert.assertEquals(position.get().getBrokerOffset(), position.get().getConsumerOffset());
-      final DatastreamProducerRecord lastEvent = datastreamProducer.getEvents()
-          .get(datastreamProducer.getEvents().size() - 1);
-      Assert.assertNotNull(position.get().getLastRecordReceivedTimestamp());
-      Assert.assertEquals(lastEvent.getEventsSourceTimestamp(),
-          position.get().getLastRecordReceivedTimestamp().toEpochMilli());
+    // Update Kafka connector's position data
+    final Optional<KafkaPositionTracker> kafkaPositionTracker = connectorTask.getKafkaPositionTracker();
+    Assert.assertTrue(kafkaPositionTracker.isPresent());
+    try (final Consumer<?, ?> consumer = kafkaPositionTracker.get().getConsumerSupplier().get()) {
+      kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer, Collections.singleton(new TopicPartition(topic, 0)));
     }
+
+    // Test position data
+    final Optional<KafkaPositionValue> position = kafkaPositionTracker.get()
+        .getPositions()
+        .entrySet()
+        .stream()
+        .filter(e -> e.getKey().getTopic().equals(topic))
+        .filter(e -> e.getKey().getPartition() == 0)
+        .map(Map.Entry::getValue)
+        .findAny();
+    Assert.assertTrue(position.isPresent());
+    Assert.assertEquals(position.get().getBrokerOffset(), position.get().getConsumerOffset());
+    final DatastreamProducerRecord lastEvent = datastreamProducer.getEvents()
+        .get(datastreamProducer.getEvents().size() - 1);
+    Assert.assertNotNull(position.get().getLastRecordReceivedTimestamp());
+    Assert.assertEquals(lastEvent.getEventsSourceTimestamp(),
+        position.get().getLastRecordReceivedTimestamp().toEpochMilli());
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

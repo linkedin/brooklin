@@ -28,7 +28,6 @@ import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.ThreadUtils;
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -50,7 +49,6 @@ public class FileConnector implements Connector, DiagnosticsAware {
   private static final String DEFAULT_MAX_EXEC_PROCS = "5";
   private static final Duration SHUTDOWN_TIMEOUT = Duration.ofMillis(5000);
 
-  private final String _connectorName;
   private final ExecutorService _executorService;
   private final int _numPartitions;
   private final ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
@@ -63,8 +61,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
    * Constructor for FileConnector
    * @param config Connector configuration properties
    */
-  public FileConnector(String connectorName, Properties config) {
-    _connectorName = connectorName;
+  public FileConnector(Properties config) {
     _executorService =
         Executors.newFixedThreadPool(Integer.parseInt(config.getProperty(CFG_MAX_EXEC_PROCS, DEFAULT_MAX_EXEC_PROCS)));
 
@@ -167,16 +164,27 @@ public class FileConnector implements Connector, DiagnosticsAware {
   }
 
   /**
-   * Returns a JSON representation of the position data this connector has.
+   * Returns a JSON representation of the position data this connector has as a JSON list:
+   * <pre>
+   * [
+   *   {
+   *     "key": {...},
+   *     "value": {...}
+   *   },
+   *   ...
+   * ]
+   * </pre>
+   *
+   * Where the payload in "key" is a {@link com.linkedin.datastream.connectors.file.diag.FilePositionKey} and the
+   * payload in "value" is a {@link com.linkedin.datastream.connectors.file.diag.FilePositionValue}.
+   *
    * @return a JSON representation of the position data this connector has
    */
   private String processPositionRequest() {
-    return JsonUtils.toJson(ConnectorPositionsCache.getInstance()
-        .getOrDefault(_connectorName, new ConcurrentHashMap<>())
-        .entrySet()
-        .stream()
-        .map(e -> ImmutableMap.of("key", e.getKey(), "value", e.getValue()))
-        .collect(Collectors.toList()));
+    final List<Object> positions = _fileProcessors.values().stream()
+        .map(processor -> ImmutableMap.of("key", processor.getPositionKey(), "value", processor.getPositionValue()))
+        .collect(Collectors.toList());
+    return JsonUtils.toJson(positions);
   }
 
   /**

@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.io.CountingInputStream;
 
@@ -24,8 +23,6 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.common.diag.BrooklinInstanceInfo;
-import com.linkedin.datastream.common.diag.ConnectorPositionsCache;
 import com.linkedin.datastream.connectors.file.diag.FilePositionKey;
 import com.linkedin.datastream.connectors.file.diag.FilePositionValue;
 import com.linkedin.datastream.server.DatastreamEventProducer;
@@ -45,6 +42,7 @@ class FileProcessor implements Runnable {
   private final DatastreamEventProducer _producer;
   private final BufferedReader _fileReader;
   private final CountingInputStream _inputStream;
+  private final FilePositionKey _positionKey;
   private final FilePositionValue _positionValue;
   private boolean _cancelRequested;
   private boolean _isStopped;
@@ -54,12 +52,8 @@ class FileProcessor implements Runnable {
   public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
-
-    // Get reference to position data
-    _positionValue = (FilePositionValue) ConnectorPositionsCache.getInstance()
-        .computeIfAbsent(_task.getConnectorType(), s -> new ConcurrentHashMap<>())
-        .computeIfAbsent(new FilePositionKey(BrooklinInstanceInfo.getInstanceName(), _task.getTaskPrefix(),
-            _task.getDatastreamTaskName(), Instant.now(), _fileName), s -> new FilePositionValue());
+    _positionKey = new FilePositionKey(_task.getTaskPrefix(), _task.getDatastreamTaskName(), Instant.now(), _fileName);
+    _positionValue = new FilePositionValue();
 
     // Set up input streams/readers
     final File file = new File(_fileName);
@@ -173,5 +167,13 @@ class FileProcessor implements Runnable {
 
   public String getFileName() {
     return _fileName;
+  }
+
+  public FilePositionKey getPositionKey() {
+    return _positionKey;
+  }
+
+  public FilePositionValue getPositionValue() {
+    return _positionValue;
   }
 }

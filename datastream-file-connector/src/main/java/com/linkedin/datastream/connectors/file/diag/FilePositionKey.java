@@ -28,11 +28,6 @@ public class FilePositionKey implements PositionKey {
   private static final long serialVersionUID = 1L;
 
   /**
-   * The Brooklin server's cluster instance that is running the FileConnector.
-   */
-  private final String brooklinInstanceName;
-
-  /**
    * A String that matches the DatastreamTask's task prefix.
    */
   private final String datastreamTaskPrefix;
@@ -57,32 +52,20 @@ public class FilePositionKey implements PositionKey {
   /**
    * Constructs a FilePositionKey.
    *
-   * @param brooklinInstanceName the Brooklin server's cluster instance
    * @param datastreamTaskPrefix the task prefix for the DatastreamTask running on the FileConnector
    * @param datastreamTaskName a unique identifier for the DatastreamTask running on the FileConnector
    * @param connectorTaskStartTime time time at which consumption started
    * @param fileName the file name of the file being consumed
    */
   public FilePositionKey(
-      @JsonProperty("brooklinInstanceName") @NotNull final String brooklinInstanceName,
       @JsonProperty("datastreamTaskPrefix") @NotNull final String datastreamTaskPrefix,
       @JsonProperty("datastreamTaskName") @NotNull final String datastreamTaskName,
       @JsonProperty("connectorTaskStartTime") @NotNull final Instant connectorTaskStartTime,
       @JsonProperty("fileName") @NotNull final String fileName) {
-    this.brooklinInstanceName = brooklinInstanceName;
     this.datastreamTaskPrefix = datastreamTaskPrefix;
     this.datastreamTaskName = datastreamTaskName;
     this.connectorTaskStartTime = connectorTaskStartTime;
     this.fileName = fileName;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @NotNull
-  @Override
-  public String getBrooklinInstanceName() {
-    return brooklinInstanceName;
   }
 
   /**
@@ -133,8 +116,7 @@ public class FilePositionKey implements PositionKey {
       return false;
     }
     FilePositionKey that = (FilePositionKey) o;
-    return Objects.equals(brooklinInstanceName, that.brooklinInstanceName)
-        && Objects.equals(datastreamTaskPrefix, that.datastreamTaskPrefix)
+    return Objects.equals(datastreamTaskPrefix, that.datastreamTaskPrefix)
         && Objects.equals(datastreamTaskName, that.datastreamTaskName)
         && Objects.equals(connectorTaskStartTime, that.connectorTaskStartTime)
         && Objects.equals(fileName, that.fileName);
@@ -145,6 +127,6 @@ public class FilePositionKey implements PositionKey {
    */
   @Override
   public int hashCode() {
-    return Objects.hash(brooklinInstanceName, datastreamTaskPrefix, datastreamTaskName, connectorTaskStartTime, fileName);
+    return Objects.hash(datastreamTaskPrefix, datastreamTaskName, connectorTaskStartTime, fileName);
   }
 }
