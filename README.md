@@ -47,7 +47,7 @@ Select the topics to mirror using regular expression patterns against their name
 #### Pausing/Resuming Individual Partitions
 Through its [Datastream Management Service (DMS)](https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest-endpoints), Brooklin exposes REST APIs that allow finer control over replication pipelines, like being able to pause and resume individual partitions of a Kafka topic.
 
-> Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) wiki page to learn more about using Brooklin to mirror Kafka clusters.
+> Check out [Mirroring Kafka Clusters](https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters) to learn more about using Brooklin to mirror Kafka clusters.
 
 ### Change Data Capture
 - Brooklin supports propagating [Change Data Capture](https://en.wikipedia.org/wiki/Change_data_capture) events from data stores, e.g. RDBMS, KV stores ... etc. 
