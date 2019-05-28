@@ -207,10 +207,10 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     List<String> validations = new ArrayList<>();
     for (DatastreamGroup dg : datastreams) {
-      long numTask = getNumTasks(dg, instances.size());
-      long actualNumTask = taskCountByTaskPrefix.get(dg.getTaskPrefix());
-      if (numTask != actualNumTask) {
-        validations.add(String.format("Missing tasks for %s. Actual: %d, expected: %d", dg, actualNumTask, numTask));
+      long numTasks = getNumTasks(dg, instances.size());
+      long actualNumTasks = taskCountByTaskPrefix.get(dg.getTaskPrefix());
+      if (numTasks != actualNumTasks) {
+        validations.add(String.format("Missing tasks for %s. Actual: %d, expected: %d", dg, actualNumTasks, numTasks));
       }
     }
 

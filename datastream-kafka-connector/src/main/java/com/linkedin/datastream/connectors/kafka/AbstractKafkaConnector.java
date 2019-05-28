@@ -78,7 +78,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       new ConcurrentHashMap<>();
 
   private final Logger _logger;
-  private final AtomicInteger threadCounter = new AtomicInteger(0);
+  private final AtomicInteger _threadCounter = new AtomicInteger(0);
   private final ConcurrentHashMap<DatastreamTask, Thread> _taskThreads = new ConcurrentHashMap<>();
 
 
@@ -150,10 +150,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public Thread createTaskThread(AbstractKafkaBasedConnectorTask task) {
     Thread t = new Thread(task);
     t.setDaemon(true);
-    t.setName(String.format("%s task thread %s %d", _connectorName, task.getTaskName(), threadCounter.incrementAndGet()));
-    t.setUncaughtExceptionHandler((thread, e) -> {
-      _logger.error(String.format("thread %s has died due to uncaught exception.", thread.getName()), e);
-    });
+    t.setName(
+        String.format("%s task thread %s %d", _connectorName, task.getTaskName(), _threadCounter.incrementAndGet()));
+    t.setUncaughtExceptionHandler(
+        (thread, e) -> _logger.error(String.format("thread %s has died due to uncaught exception.", thread.getName()),
+            e));
     return t;
   }
 
@@ -240,7 +241,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public void stop() {
     _daemonThreadExecutorService.shutdown();
     // Try to stop the the tasks
-    _runningTasks.keySet().forEach(datastreamTask -> stopTask(datastreamTask));
+    _runningTasks.keySet().forEach(this::stopTask);
     _runningTasks.clear();
     _taskThreads.clear();
     _logger.info("Connector stopped.");

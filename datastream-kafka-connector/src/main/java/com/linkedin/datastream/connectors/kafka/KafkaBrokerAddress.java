@@ -113,7 +113,7 @@ public class KafkaBrokerAddress {
     if (trimmed.isEmpty()) {
       throw new IllegalArgumentException("empty host name");
     }
-    //we allow ipv4/6 addresses and RFC 1123 host names
+    // we allow ipv4/6 addresses and RFC 1123 host names
     InetAddressValidator inetAddressValidator = InetAddressValidator.getInstance();
     DomainValidator domainValidator = DomainValidator.getInstance(true);
     boolean valid =
@@ -127,6 +127,6 @@ public class KafkaBrokerAddress {
   }
 
   private static void badArg(String arg) throws IllegalArgumentException {
-    throw new IllegalArgumentException(String.valueOf(arg) + " is not a valid broker address");
+    throw new IllegalArgumentException(arg + " is not a valid broker address");
   }
 }
