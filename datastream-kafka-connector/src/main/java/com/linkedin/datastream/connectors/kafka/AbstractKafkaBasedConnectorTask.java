@@ -220,7 +220,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
           if (_autoPausedSourcePartitions.containsKey(topicPartition)) {
-            _logger.warn("Abort sending as {} is auto-paused", topicPartition);
+            _logger.warn("Abort sending as {} is auto-paused, rewind offset", topicPartition);
+            seekToLastCheckpoint(Collections.singleton(topicPartition));
+            break;
           } else {
             DatastreamProducerRecord datastreamProducerRecord = translate(record, readTime);
             int numBytes = record.serializedKeySize() + record.serializedValueSize();
@@ -582,7 +584,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Seek to the last checkpoint for the given topicPartitions.
    */
-  private void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+  void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
     _logger.info("Trying to seek to previous checkpoint for partitions: {}", topicPartitions);
     Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
     Set<TopicPartition> tpWithNoCommits = new HashSet<>();
