@@ -642,7 +642,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerAssignment.clear();
     _consumerAssignment.addAll(partitions);
     _consumerMetrics.updateNumPartitions(_consumerAssignment.size());
-    _consumerMetrics.updateNumTopics(_consumerAssignment.stream().map(tp -> tp.topic()).distinct().count());
+    _consumerMetrics.updateNumTopics(_consumerAssignment.stream().map(TopicPartition::topic).distinct().count());
     _logger.info("Current assignment is {}", _consumerAssignment);
   }
 
