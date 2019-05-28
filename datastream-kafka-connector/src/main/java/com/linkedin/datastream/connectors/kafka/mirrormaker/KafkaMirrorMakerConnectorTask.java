@@ -79,8 +79,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
   protected static final String CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD = "minInFlightMessagesThreshold";
   protected static final String CONFIG_FLOW_CONTROL_ENABLED = "flowControlEnabled";
-  protected static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
-  protected static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
+  private static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
+  private static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
 
   // constants for topic manager
   public static final String TOPIC_MANAGER_FACTORY = "topicManagerFactory";

@@ -6,6 +6,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Properties;
 
@@ -25,7 +26,7 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public class NoOpTopicManager implements TopicManager {
 
-  static HashSet<TopicPartition> _emptyPartitions = new HashSet<>();
+  static final HashSet<TopicPartition> EMPTY_PARTITIONS_SET = new HashSet<>();
 
   /**
    * Constructor for NoOpTopicManager. Note that since its no-op, the constructor doesn't do anything.
@@ -46,17 +47,17 @@ public class NoOpTopicManager implements TopicManager {
   }
 
   /**
-   * This method is called during a kafka rebalance, within kafka's onPartitionsAssigned callback. The method is a
-   * no-op for this topic manager.
+   * This method is called during a kafka rebalance, within kafka's onPartitionsAssigned callback. This is a no-op for
+   * this topic manager.
    * @param partitions Partitions which were assigned.
    */
   public Collection<TopicPartition> onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    return _emptyPartitions;
+    return Collections.unmodifiableSet(EMPTY_PARTITIONS_SET);
   }
 
   /**
-   * This method is called during a kafka rebalance, within kafka's onPartitionsRevoked callback. The method is a
-   * no-op for this topic manager.
+   * This method is called during a kafka rebalance, within kafka's onPartitionsRevoked callback. This is a no-op for
+   * this topic manager.
    * @param partitions Partitions which were revoked.
    */
   public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
@@ -65,16 +66,16 @@ public class NoOpTopicManager implements TopicManager {
   /**
    * Check if a partition that topic manager has paused should resume. It throws exception for this topic manager
    * as its a no-op topic manager; it is not expected to pause any partition to begin with.
-   * @param tp
+   * @param partition The partition to check whether to resume.
    * @return
    */
-  public boolean shouldResumePartition(TopicPartition tp) {
-    // This should not happen, as onPartitionsAssigned doesn't return any partitions to pause in onPartitionsAssigned().
-    throw new DatastreamRuntimeException("shouldResumePartition called in NoOpTopicManager for partition : " + tp);
+  public boolean shouldResumePartition(TopicPartition partition) {
+    // This should not happen, as this class's implementation of onPartitionsAssigned() returns an empty set.
+    throw new DatastreamRuntimeException("shouldResumePartition called in NoOpTopicManager for partition : " + partition);
   }
 
   /**
-   * Stop topic manager. Its a no-op for this topic manager.
+   * Stop topic manager. This is a no-op for this topic manager.
    */
   public void stop() {
   }

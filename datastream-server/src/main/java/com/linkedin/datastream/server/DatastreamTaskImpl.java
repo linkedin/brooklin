@@ -75,7 +75,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   private ZkAdapter _zkAdapter;
 
-  private Map<String, String> _properties = new HashMap<>();
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);

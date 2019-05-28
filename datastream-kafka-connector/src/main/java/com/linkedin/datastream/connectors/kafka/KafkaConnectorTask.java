@@ -72,7 +72,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     Properties props = new Properties();
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
     props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); //auto-commits are unsafe
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); // auto-commits are unsafe
     props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
     props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, connectionString.isSecure() ? "SSL" : "PLAINTEXT");
     props.putAll(consumerProps);
@@ -148,7 +148,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
-    builder.setPartition(partition); //assume source partition count is same as dest
+    builder.setPartition(partition); // assume source partition count is same as dest
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
