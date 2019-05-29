@@ -23,10 +23,10 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
-import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
-import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.SourceBasedDeduper;
+import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
