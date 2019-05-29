@@ -37,7 +37,6 @@ import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
 import kafka.utils.ZkUtils;
 
 import com.linkedin.data.template.StringMap;
@@ -53,8 +52,8 @@ import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
-import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;

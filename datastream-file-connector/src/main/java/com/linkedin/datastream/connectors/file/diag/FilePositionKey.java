@@ -6,8 +6,8 @@
 package com.linkedin.datastream.connectors.file.diag;
 
 import java.time.Instant;
-
 import java.util.Objects;
+
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.codehaus.jackson.map.annotate.JsonDeserialize;
 import org.codehaus.jackson.map.annotate.JsonSerialize;

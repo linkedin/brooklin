@@ -5,17 +5,14 @@
  */
 package com.linkedin.datastream.kafka;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
-
-import kafka.admin.AdminUtils;
-import kafka.utils.ZkUtils;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -23,6 +20,9 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+
+import kafka.admin.AdminUtils;
+import kafka.utils.ZkUtils;
 
 
 /**
