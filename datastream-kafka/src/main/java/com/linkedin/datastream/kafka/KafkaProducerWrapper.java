@@ -287,8 +287,7 @@ class KafkaProducerWrapper<K, V> {
   }
 
   /**
-   * get the metrics value from producer for monitoring
-   * @param metricName
+   * Get the metrics value from producer for monitoring
    */
   public Optional<Double> getProducerMetricValue(MetricName metricName) {
     return Optional.ofNullable(_kafkaProducer).map(p -> p.metrics().get(metricName)).map(Metric::value);
