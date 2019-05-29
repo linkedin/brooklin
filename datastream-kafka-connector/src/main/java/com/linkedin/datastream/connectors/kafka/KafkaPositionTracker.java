@@ -278,7 +278,7 @@ public class KafkaPositionTracker implements Closeable {
     @Nullable final MetricName metricName = Optional.ofNullable(_metricNameCache.get(topicPartition))
         .orElseGet(() -> tryCreateMetricName(topicPartition, metrics.keySet()).orElse(null));
     return Optional.ofNullable(metricName)
-        .map(metrics::get)
+        .map(name -> (Metric) metrics.get(name))
         .map(Metric::metricValue)
         .filter(value -> value instanceof Double)
         .map(value -> ((Double) value).longValue());
