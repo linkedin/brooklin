@@ -22,6 +22,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.Metric;
+import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -278,5 +280,24 @@ class KafkaProducerWrapper<K, V> {
     Properties props = new Properties();
     props.putAll(_props);
     return props;
+  }
+
+  public String getClientId() {
+    return _clientId;
+  }
+
+  /**
+   * get the metrics value from producer for monitoring
+   * @param metricName
+   */
+  public Optional<Double> getProducerMetricValue(MetricName metricName) {
+    Producer<?, ?> producer = _kafkaProducer;
+    if (producer != null) {
+      Metric metric = producer.metrics().get(metricName);
+      if (metric != null) {
+        return Optional.of(metric.value());
+      }
+    }
+    return Optional.empty();
   }
 }
