@@ -99,6 +99,16 @@ LinkedIn Java style.
     <!-- Eliminate unused imports -->
     <module name="UnusedImports"/>
 
+    <!-- Import ordering -->
+    <module name="ImportOrder">
+      <property name="groups" value="/^javax?\./,/^org\./,*,/^com\.linkedin\./" />
+      <property name="separated" value="true" />
+      <property name="ordered" value="true"/>
+      <property name="caseSensitive" value="true" />
+      <property name="sortStaticImportsAlphabetically" value="true"/>
+      <property name="option" value="bottom" />
+    </module>
+
     <!-- JAVADOC COMMENTS -->
 
     <!-- If you have a Javadoc comment, make sure it is properly formed -->
