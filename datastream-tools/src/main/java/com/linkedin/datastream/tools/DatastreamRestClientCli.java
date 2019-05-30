@@ -50,6 +50,7 @@ public class DatastreamRestClientCli {
     READ,
     PAUSE,
     RESUME,
+    UPDATE,
     DELETE,
     READALL
   }
@@ -182,6 +183,27 @@ public class DatastreamRestClientCli {
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.resume(datastreamName, force);
           System.out.println("Resume datastream successfully");
+          break;
+        case UPDATE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          final Map<String, String> toUpdateMetadata;
+          if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
+            toUpdateMetadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
+                new TypeReference<Map<String, String>>() {
+                });
+          } else {
+            toUpdateMetadata = new HashMap<>();
+          }
+          Datastream toUpdateDatastream = datastreamRestClient.getDatastream(datastreamName);
+          toUpdateMetadata.keySet().stream().forEach(k -> {
+            if (StringUtils.isNotEmpty(toUpdateMetadata.get(k))) {
+              toUpdateDatastream.getMetadata().put(k, toUpdateMetadata.get(k));
+            } else {
+              toUpdateDatastream.getMetadata().remove(k);
+            }
+          });
+          datastreamRestClient.updateDatastream(toUpdateDatastream);
+          System.out.println("update datasteam successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);

@@ -206,7 +206,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          String.format("Datastreams being updated do not form the same datastream group", datastreamsToUpdate));
+          String.format("Datastreams being updated do not form the same datastream group %s", datastreamsToUpdate));
     }
 
     // 4. check that the list of updated datastreams share the same destination and source
@@ -214,13 +214,13 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     if (!datastreamsToUpdate.stream().allMatch(ds -> source.equals(ds.getSource()))) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          String.format("Sources must be consistent ", datastreamsToUpdate));
+          String.format("Sources must be consistent %s", datastreamsToUpdate));
     }
     DatastreamDestination destination = datastreamsToUpdate.get(0).getDestination();
     if (!datastreamsToUpdate.stream().allMatch(ds -> destination.equals(ds.getDestination()))) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-          String.format("Destinations must be consistent ", datastreamsToUpdate));
+          String.format("Destinations must be consistent %s", datastreamsToUpdate));
     }
 
     // 5. check that the updated datastreams form the same datastream group as existing datastreams. Can't update
