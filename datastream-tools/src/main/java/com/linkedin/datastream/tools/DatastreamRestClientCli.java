@@ -203,7 +203,7 @@ public class DatastreamRestClientCli {
             }
           });
           datastreamRestClient.updateDatastream(toUpdateDatastream);
-          System.out.println("update datasteam successfully");
+          System.out.println("Update datasteam successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
