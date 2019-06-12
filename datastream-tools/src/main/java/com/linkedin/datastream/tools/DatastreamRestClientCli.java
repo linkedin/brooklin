@@ -195,15 +195,14 @@ public class DatastreamRestClientCli {
             toUpdateMetadata = new HashMap<>();
           }
           Datastream toUpdateDatastream = datastreamRestClient.getDatastream(datastreamName);
+          toUpdateDatastream.setMetadata(new StringMap());
           toUpdateMetadata.keySet().stream().forEach(k -> {
             if (StringUtils.isNotEmpty(toUpdateMetadata.get(k))) {
               toUpdateDatastream.getMetadata().put(k, toUpdateMetadata.get(k));
-            } else {
-              toUpdateDatastream.getMetadata().remove(k);
             }
           });
           datastreamRestClient.updateDatastream(toUpdateDatastream);
-          System.out.println("Update datasteam successfully");
+          System.out.println("Update datastream successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
