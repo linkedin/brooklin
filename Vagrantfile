@@ -84,13 +84,18 @@ Vagrant.configure("2") do |config|
     exitIfError "Encountered an error while installing jq"
 
     # Download and untar Kafka
+    SCALA_VERSION="2.12"
+    KAFKA_VERSION="2.2.0"
+    KAFKA_FILENAME="kafka_$SCALA_VERSION-$KAFKA_VERSION"
+    KAFKA_TGZ="$KAFKA_FILENAME.tgz"
+
     echo "Downloading Kafka"
-    curl -s -o kafka_2.12-2.2.0.tgz 'https://www-us.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz'
+    curl -s -o $KAFKA_TGZ 'https://www-us.apache.org/dist/kafka/'$KAFKA_VERSION'/'$KAFKA_TGZ
     exitIfError "Encountered an error while downloading Kafka"
 
-    tar -xzf kafka_2.12-2.2.0.tgz
+    tar -xzf $KAFKA_TGZ
     exitIfError "Encountered an error while uncompressing Kafka tarball"
-    cd kafka_2.12-2.2.0
+    cd $KAFKA_FILENAME
 
     # Start ZooKeeper
     echo "Starting ZooKeeper"
@@ -140,17 +145,20 @@ Vagrant.configure("2") do |config|
     done
 
     # Download and untar Brooklin
+    BROOKLIN_VERSION="1.0.0"
+    BROOKLIN_FILENAME="brooklin-$BROOKLIN_VERSION"
+    BROOKLIN_TGZ="$BROOKLIN_FILENAME.tgz"
+
     echo "Downloading Brooklin"
-    cd ..
-    cp /vagrant/brooklin-1.0.0-SNAPSHOT.tgz .
+    curl -s -o $BROOKLIN_TGZ 'https://github.com/linkedin/brooklin/releases/download/'$BROOKLIN_VERSION'/'$BROOKLIN_TGZ
     exitIfError "Encountered an error while downloading Brooklin"
 
-    tar -xzf brooklin-1.0.0-SNAPSHOT.tgz
+    tar -xzf $BROOKLIN_TGZ
     exitIfError "Encountered an error while uncompressing Brooklin tarball"
 
     # Start Brooklin server
     echo "Starting Brooklin"
-    cd brooklin-1.0.0-SNAPSHOT
+    cd $BROOKLIN_FILENAME
     bin/brooklin-server-start.sh config/server.properties > /dev/null 2>&1 &
     exitIfError "Encountered an error while starting Brooklin"
 
