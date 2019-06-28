@@ -5,14 +5,16 @@
  */
 package com.linkedin.datastream.kafka.factory;
 
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.kafka.clients.producer.LiKafkaProducerConfig;
-import com.linkedin.kafka.clients.producer.LiKafkaProducerImpl;
 import java.util.Properties;
+
 import org.apache.commons.lang.Validate;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
+
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.kafka.clients.producer.LiKafkaProducerConfig;
+import com.linkedin.kafka.clients.producer.LiKafkaProducerImpl;
 
 
 /**

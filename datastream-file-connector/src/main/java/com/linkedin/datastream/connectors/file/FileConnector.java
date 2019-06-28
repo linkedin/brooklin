@@ -18,9 +18,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamRuntimeException;

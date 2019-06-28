@@ -71,7 +71,7 @@ public class KafkaConnectionString {
       return false;
     }
     KafkaConnectionString that = (KafkaConnectionString) o;
-    //note this is order-sensitive
+    // note this is order-sensitive
     return Objects.equals(_brokers, that._brokers) && Objects.equals(_topicName, that._topicName)
         && Objects.equals(_isSecure, that._isSecure);
   }
@@ -88,7 +88,6 @@ public class KafkaConnectionString {
    */
   public static KafkaConnectionString valueOf(String connectionString) throws IllegalArgumentException {
     if (connectionString == null) {
-      //noinspection ConstantConditions
       badArg(connectionString);
     }
     String str = connectionString.trim();
@@ -133,6 +132,6 @@ public class KafkaConnectionString {
   }
 
   private static void badArg(String arg) throws IllegalArgumentException {
-    throw new IllegalArgumentException(String.valueOf(arg) + " is not a valid kafka connection string");
+    throw new IllegalArgumentException(arg + " is not a valid kafka connection string");
   }
 }

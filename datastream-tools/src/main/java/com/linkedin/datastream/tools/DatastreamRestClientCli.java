@@ -8,7 +8,6 @@ package com.linkedin.datastream.tools;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -266,7 +265,7 @@ public class DatastreamRestClientCli {
           new TypeReference<Map<String, String>>() {
           });
     }
-    return new HashMap<>();
+    return Collections.emptyMap();
   }
 
   private static Optional<String> getOptionalOptionValue(CommandLine cmd, String optShortKeySerdeName, Options options) {

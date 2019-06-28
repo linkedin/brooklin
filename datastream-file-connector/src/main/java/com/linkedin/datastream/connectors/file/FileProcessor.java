@@ -16,10 +16,10 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.io.CountingInputStream;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.io.CountingInputStream;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;

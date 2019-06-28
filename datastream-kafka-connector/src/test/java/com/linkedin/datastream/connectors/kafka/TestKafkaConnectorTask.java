@@ -9,14 +9,19 @@ import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -30,6 +35,8 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import kafka.utils.ZkUtils;
 
 import com.linkedin.data.template.StringMap;
@@ -45,13 +52,18 @@ import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
-import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
+import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anySetOf;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 
@@ -289,6 +301,51 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+
+  @Test
+  public void testRewindWhenSkippingMessage() throws Exception {
+    String topic = "pizza1";
+    createTopic(_zkUtils, topic);
+    AtomicInteger i = new AtomicInteger(0);
+
+    //Throw exactly one error message when sending the messages, causing partition to be paused for exactly once
+    MockDatastreamEventProducer datastreamProducer =
+        new MockDatastreamEventProducer(r -> (i.addAndGet(1) == 1));
+    Datastream datastream = getDatastream(_broker, topic);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    TopicPartition topicPartition = new TopicPartition("pizza1", 0);
+    KafkaConnectorTask connectorTask = spy(new KafkaConnectorTask(new KafkaBasedConnectorConfigBuilder()
+        .setPausePartitionOnError(true).setPauseErrorPartitionDuration(Duration.ofDays(1)).build(), task, "",
+        new KafkaGroupIdConstructor(false, "testCluster")));
+
+    Map<TopicPartition, List<ConsumerRecord<Object, Object>>> records =  new HashMap<>();
+    records.put(topicPartition, ImmutableList.of(
+        new ConsumerRecord<Object, Object>("pizza1", 0, 0, new Object(), new Object()),
+        new ConsumerRecord<Object, Object>("pizza1", 0, 0, new Object(), new Object())));
+
+    ConsumerRecords<?, ?> consumerRecords = new ConsumerRecords<Object, Object>(records);
+
+    doReturn(consumerRecords).when(connectorTask).pollRecords(anyLong());
+    doAnswer(a -> null).when(connectorTask).seekToLastCheckpoint(anySetOf(TopicPartition.class));
+    Thread t = new Thread(connectorTask, "connector thread");
+    t.setDaemon(true);
+    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
+    t.start();
+    if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
+      Assert.fail("connector did not start within timeout");
+    }
+
+    //Wait a small period of time that some messages will be skipped
+    Thread.sleep(1000);
+    verify(connectorTask, times(1)).rewindAndPausePartitionOnException(eq(topicPartition),
+        any(Exception.class));
+    //Verify that we have call at least seekToLastCheckpoint twice as the skip messages also trigger this
+    verify(connectorTask, atLeast(2)).seekToLastCheckpoint(ImmutableSet.of(topicPartition));
+    connectorTask.stop();
   }
 
   @Test
