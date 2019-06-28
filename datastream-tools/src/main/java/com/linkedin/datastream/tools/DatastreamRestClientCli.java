@@ -186,21 +186,9 @@ public class DatastreamRestClientCli {
           break;
         case UPDATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
-          final Map<String, String> toUpdateMetadata;
-          if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
-            toUpdateMetadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
-                new TypeReference<Map<String, String>>() {
-                });
-          } else {
-            toUpdateMetadata = new HashMap<>();
-          }
+          final Map<String, String> toUpdateMetadata = getMetadata(cmd, options);
           Datastream toUpdateDatastream = datastreamRestClient.getDatastream(datastreamName);
-          toUpdateDatastream.setMetadata(new StringMap());
-          toUpdateMetadata.keySet().stream().forEach(k -> {
-            if (StringUtils.isNotEmpty(toUpdateMetadata.get(k))) {
-              toUpdateDatastream.getMetadata().put(k, toUpdateMetadata.get(k));
-            }
-          });
+          toUpdateDatastream.setMetadata(new StringMap(toUpdateMetadata));
           datastreamRestClient.updateDatastream(toUpdateDatastream);
           System.out.println("Update datastream successfully");
           break;
@@ -222,12 +210,7 @@ public class DatastreamRestClientCli {
             maybePartitions = Optional.of(Integer.parseInt(getOptionValue(cmd,
                 OptionConstants.OPT_SHORT_NUM_PARTITION, options)));
           }
-          Map<String, String> metadata = new HashMap<>();
-          if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
-            metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
-                new TypeReference<Map<String, String>>() {
-                });
-          }
+          Map<String, String> metadata = getMetadata(cmd, options);
 
           Optional<String> keySerdeName =
               getOptionalOptionValue(cmd, OptionConstants.OPT_SHORT_KEY_SERDE_NAME, options);
@@ -274,6 +257,16 @@ public class DatastreamRestClientCli {
     } catch (Exception e) {
       System.out.println(e.toString());
     }
+  }
+
+
+  private static Map<String, String> getMetadata(CommandLine cmd, Options options) {
+    if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
+      return JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
+          new TypeReference<Map<String, String>>() {
+          });
+    }
+    return new HashMap<>();
   }
 
   private static Optional<String> getOptionalOptionValue(CommandLine cmd, String optShortKeySerdeName, Options options) {
