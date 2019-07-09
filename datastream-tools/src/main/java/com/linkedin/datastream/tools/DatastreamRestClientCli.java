@@ -8,7 +8,6 @@ package com.linkedin.datastream.tools;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,6 +49,7 @@ public class DatastreamRestClientCli {
     READ,
     PAUSE,
     RESUME,
+    UPDATE,
     DELETE,
     READALL
   }
@@ -155,7 +155,7 @@ public class DatastreamRestClientCli {
     Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
-    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE) ? true : false;
+    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE);
     try {
       datastreamRestClient = DatastreamRestClientFactory.getClient(dmsUri);
       String datastreamName;
@@ -171,17 +171,25 @@ public class DatastreamRestClientCli {
         case DELETE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
-          System.out.println("Delete datastream successfully");
+          System.out.println("Datastream deleted successfully");
           break;
         case PAUSE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.pause(datastreamName, force);
-          System.out.println("Pause datastream successfully");
+          System.out.println("Datastream paused successfully");
           break;
         case RESUME:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.resume(datastreamName, force);
-          System.out.println("Resume datastream successfully");
+          System.out.println("Datastream resumed successfully");
+          break;
+        case UPDATE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          final Map<String, String> toUpdateMetadata = getMetadata(cmd, options);
+          Datastream toUpdateDatastream = datastreamRestClient.getDatastream(datastreamName);
+          toUpdateDatastream.setMetadata(new StringMap(toUpdateMetadata));
+          datastreamRestClient.updateDatastream(toUpdateDatastream);
+          System.out.println("Datastream updated successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -201,12 +209,7 @@ public class DatastreamRestClientCli {
             maybePartitions = Optional.of(Integer.parseInt(getOptionValue(cmd,
                 OptionConstants.OPT_SHORT_NUM_PARTITION, options)));
           }
-          Map<String, String> metadata = new HashMap<>();
-          if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
-            metadata = JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
-                new TypeReference<Map<String, String>>() {
-                });
-          }
+          Map<String, String> metadata = getMetadata(cmd, options);
 
           Optional<String> keySerdeName =
               getOptionalOptionValue(cmd, OptionConstants.OPT_SHORT_KEY_SERDE_NAME, options);
@@ -253,6 +256,16 @@ public class DatastreamRestClientCli {
     } catch (Exception e) {
       System.out.println(e.toString());
     }
+  }
+
+
+  private static Map<String, String> getMetadata(CommandLine cmd, Options options) {
+    if (cmd.hasOption(OptionConstants.OPT_SHORT_METADATA)) {
+      return JsonUtils.fromJson(getOptionValue(cmd, OptionConstants.OPT_SHORT_METADATA, options),
+          new TypeReference<Map<String, String>>() {
+          });
+    }
+    return Collections.emptyMap();
   }
 
   private static Optional<String> getOptionalOptionValue(CommandLine cmd, String optShortKeySerdeName, Options options) {
