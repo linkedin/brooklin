@@ -134,7 +134,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
    * </ol>
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
-    LOG.info("Update datastream call with request: %s", datastreamMap);
+    LOG.info("Update datastream call with request: {}", datastreamMap);
     _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, UPDATE_CALL, 1);
     if (datastreamMap.isEmpty()) {
       LOG.warn("Update datastream call with empty input.");

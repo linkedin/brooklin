@@ -155,7 +155,7 @@ public class DatastreamRestClientCli {
     Operation op = Operation.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_OPERATION).toUpperCase());
     String dmsUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_MGMT_URI);
     DatastreamRestClient datastreamRestClient = null;
-    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE) ? true : false;
+    boolean force = cmd.hasOption(OptionConstants.OPT_SHORT_FORCE);
     try {
       datastreamRestClient = DatastreamRestClientFactory.getClient(dmsUri);
       String datastreamName;
@@ -171,17 +171,17 @@ public class DatastreamRestClientCli {
         case DELETE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.deleteDatastream(datastreamName);
-          System.out.println("Delete datastream successfully");
+          System.out.println("Datastream deleted successfully");
           break;
         case PAUSE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.pause(datastreamName, force);
-          System.out.println("Pause datastream successfully");
+          System.out.println("Datastream paused successfully");
           break;
         case RESUME:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           datastreamRestClient.resume(datastreamName, force);
-          System.out.println("Resume datastream successfully");
+          System.out.println("Datastream resumed successfully");
           break;
         case UPDATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
@@ -189,7 +189,7 @@ public class DatastreamRestClientCli {
           Datastream toUpdateDatastream = datastreamRestClient.getDatastream(datastreamName);
           toUpdateDatastream.setMetadata(new StringMap(toUpdateMetadata));
           datastreamRestClient.updateDatastream(toUpdateDatastream);
-          System.out.println("Update datastream successfully");
+          System.out.println("Datastream updated successfully");
           break;
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
