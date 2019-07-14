@@ -9,9 +9,9 @@ image::images/brooklin-overview.svg[Brooklin Overview]
 {empty} +
 Brooklin is a distributed system intended for streaming data between various heterogeneous source and destination systems with high reliability and throughput at scale. Designed for multitenancy, Brooklin can simultaneously power hundreds of data pipelines across different systems and can easily be extended to support new sources and destinations.
 
-== Distinguishing Features
+== Distinguishing features
 
-* *Extensible for Any Source and Destination*
+* *Extensible for any source and destination*
 +
 ** Brooklin offers a flexible API that can be extended to support a wide variety of source and destination systems. It is not confined to single type of source or destination system.
 ** Source and destination systems can be freely mixed and matched. They do not have to be the same.
@@ -21,33 +21,33 @@ Brooklin is a distributed system intended for streaming data between various het
 ** Brooklin supports partitioned data streams throughout its core implementation and APIs.
 ** Brooklin can be deployed to a cluster of machines (scale out) to support as many data streams as desired.
 
-* *Easy to Operate and Manage*
+* *Easy to operate and manage*
 ** Brooklin exposes a REST endpoint for managing data streams, that offers a rich set of operations on them in addition to CRUD (e.g. `pause` and `resume`).
 ** Brooklin also exposes a diagnostics REST endpoint that enables on-demand querying of a data stream's status.
 
-* *Battle-tested at Scale with Kafka*
+* *Battle-tested at scale with Kafka*
 ** While it is not limited to any particular system, Brooklin provides capabilities for reading/writing massive amounts of data to/from Kafka with high reliability at scale. You can learn more about this in the <<Use Cases>> section.
 
-* *Supports Change Data Capture with Bootstrap*
+* *Supports Change Data Capture with bootstrap*
 ** Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc. 
 ** Brooklin also supports streaming a snapshot of the existing data before propagating change events.
 
-== Use Cases
-=== Mirroring Kafka Clusters
+== Use cases
+=== Mirroring Kafka clusters
 
 * *Multitenancy*
 +
 A single Brooklin cluster can be used to mirror data across several Kafka clusters.
 
-* *Fault Isolation Across Topic Partitions*
+* *Fault isolation across topic partitions*
 +
 One bad partition will not affect an entire Kafka topic. Mirroring will continue for all the other healthy partitions.
 
-* *Whitelisting Topics Using Regular Expressions*
+* *Whitelisting topics using regular expressions*
 +
 Select the topics to mirror using regular expression patterns against their names.
 
-* *Pausing and Resuming Individual Partitions*
+* *Pausing and resuming individual partitions*
 +
 Through its https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest-endpoints[Datastream Management Service (DMS)], Brooklin exposes REST APIs that allow finer control over replication pipelines, like being able to pause and resume individual partitions of a Kafka topic.
 
@@ -58,7 +58,7 @@ Through its https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest
 * Brooklin supports bootstrapping data from a datastore, i.e. streaming a snapshot of the existing data before any change events.
 * MySQL support is currently under development.
 
-=== Stream Processing Bridge
+=== Stream processing bridge
 * Brooklin can be used as the underlying streaming infrastructure feeding data to Stream Processing systems, e.g. http://samza.apache.org/[Apache Samza], https://storm.apache.org/[Apache Storm], https://spark.apache.org/[Apache Spark], https://flink.apache.org/[Apache Flink].
 
 == Trying out Brooklin
