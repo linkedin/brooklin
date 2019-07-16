@@ -144,6 +144,8 @@ Vagrant.configure("2") do |config|
       exitIfError "Encountered an error while publishing data to $topic_name"
     done
 
+    cd ../
+
     # Download and untar Brooklin
     BROOKLIN_VERSION="1.0.0"
     BROOKLIN_FILENAME="brooklin-$BROOKLIN_VERSION"
