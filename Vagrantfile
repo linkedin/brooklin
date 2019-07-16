@@ -150,7 +150,7 @@ Vagrant.configure("2") do |config|
     BROOKLIN_TGZ="$BROOKLIN_FILENAME.tgz"
 
     echo "Downloading Brooklin"
-    curl -s -o $BROOKLIN_TGZ 'https://github.com/linkedin/brooklin/releases/download/'$BROOKLIN_VERSION'/'$BROOKLIN_TGZ
+    curl -sL -o $BROOKLIN_TGZ 'https://github.com/linkedin/brooklin/releases/download/'$BROOKLIN_VERSION'/'$BROOKLIN_TGZ
     exitIfError "Encountered an error while downloading Brooklin"
 
     tar -xzf $BROOKLIN_TGZ
