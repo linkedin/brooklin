@@ -1,3 +1,7 @@
+allprojects {
+  version = "1.0.1-SNAPSHOT"
+}
+
 subprojects {
   apply plugin: 'maven-publish'
   apply plugin: 'com.jfrog.bintray'
@@ -17,8 +21,6 @@ subprojects {
     classifier = "tests"
   }
 
-  def projectVersion = System.getProperty("projectVersion")
-
   publishing {
     publications {
       mavenJava(MavenPublication) {
@@ -28,7 +30,7 @@ subprojects {
         artifact javadocJar
         artifact testJar
 
-        version projectVersion
+        version project.version
 
         // we strive to meet https://central.sonatype.org/pages/requirements.html
         pom {
@@ -77,7 +79,7 @@ subprojects {
       vcsUrl = 'https://github.com/linkedin/brooklin'
       publicDownloadNumbers = true
       version {
-        name = projectVersion
+        name = project.version
       }
       publish = false
       override = false

@@ -12,7 +12,6 @@ buildscript {
 
 allprojects {
   group = "com.github.datastream"
-  version = System.getProperty("projectVersion")
 
   apply plugin: 'eclipse'
   apply plugin: 'idea'
