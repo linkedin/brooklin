@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -14,12 +15,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -74,6 +77,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_TOPIC = "kafka-origin-topic";
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
+  private static final Duration ACQUIRE_TIMEOUT = Duration.ofMinutes(5);
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -100,6 +104,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   // variables for flushless mode and flow control
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
+  private final boolean _enablePartitionAssignment;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
   private long _maxInFlightMessagesThreshold;
@@ -126,6 +131,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
+    _enablePartitionAssignment = config.getEnablePartitionAssignment();
+
+    if (_enablePartitionAssignment) {
+      LOG.info("Enable Brooklin partition assignment");
+    }
 
     if (_isFlushlessModeEnabled) {
       _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
@@ -175,8 +185,24 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected void consumerSubscribe() {
-    LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
-    _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
+    if (_enablePartitionAssignment) {
+      Set<TopicPartition> topicPartition  = getAssignedTopicPartitionFromTask();
+      updateConsumerAssignment(topicPartition);
+      _consumer.assign(_consumerAssignment);
+    } else {
+      LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
+      _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
+    }
+  }
+
+  private Set<TopicPartition> getAssignedTopicPartitionFromTask() {
+
+    return _datastreamTask.getPartitionsV2().stream().map(str -> {
+            int i = str.lastIndexOf("-");
+            int partition = Integer.valueOf(str.substring(i + 1));
+            String topic = str.substring(0, i);
+            return new TopicPartition(topic, partition);
+          }).collect(Collectors.toSet());
   }
 
   @Override
@@ -263,9 +289,20 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   @Override
+  public void run() {
+    if (_enablePartitionAssignment) {
+      _datastreamTask.acquire(ACQUIRE_TIMEOUT);
+    }
+    super.run();
+  }
+
+  @Override
   public void stop() {
     super.stop();
     _topicManager.stop();
+    if (_enablePartitionAssignment) {
+      _datastreamTask.release();
+    }
   }
 
   @Override
@@ -288,8 +325,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean hardCommit) {
+    boolean isTimeToCommit = System.currentTimeMillis() - _lastCommittedTime > _offsetCommitInterval;
     if (_isFlushlessModeEnabled) {
-      boolean isTimeToCommit = System.currentTimeMillis() - _lastCommittedTime > _offsetCommitInterval;
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         _datastreamTask.getEventProducer().flush();
@@ -305,6 +342,18 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
+  @Override
+  protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
+    if (_enablePartitionAssignment) {
+      if (!_consumerAssignment.isEmpty()) {
+        return _consumer.poll(pollInterval);
+      } else {
+        return ConsumerRecords.EMPTY;
+      }
+    } else {
+      return _consumer.poll(pollInterval);
+    }
+  }
   /**
    * Get all metrics info for the connector whose name is {@code connectorName}
    */

@@ -60,6 +60,7 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_DEDUPER_FACTORY;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_NAMES;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CSV_METRICS_DIR;
@@ -76,6 +77,7 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DEDUPER;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DIAG;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.STRATEGY_DOMAIN;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -336,9 +338,12 @@ public class DatastreamServer {
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
 
+    boolean enablePartitionAssignment =
+        Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT, "false"));
+
     String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing,
-        deduper, authorizerName);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper,
+        authorizerName, enablePartitionAssignment);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }

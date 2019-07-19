@@ -26,7 +26,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  *  When the Coordinator starts, it will start all connectors it manages by calling the <i>start</i> method. When the
  *  Coordinator is shutting down gracefully, it will stop all connectors by calling the <i>stop</i> method.
  */
-public interface Connector extends MetricsAware {
+public interface Connector extends MetricsAware, DatastreamChangeListener {
   /**
    * Method to start the connector.
    * This is called immediately after the connector is instantiated. This typically happens when brooklin server starts up.

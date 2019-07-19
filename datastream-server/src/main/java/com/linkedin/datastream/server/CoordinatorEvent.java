@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Optional;
+
+
 /**
  * Represents different event types inside {@link Coordinator}.
  */
@@ -15,6 +18,7 @@ public class CoordinatorEvent {
    */
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
+    LEADER_PARTITION_ASSIGNMENT,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
@@ -33,8 +37,16 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
   protected final EventType _eventType;
 
+  protected final Optional<String> _datastreamGroupName;
+
   private CoordinatorEvent(EventType eventType) {
     _eventType = eventType;
+    _datastreamGroupName = Optional.empty();
+  }
+
+  private CoordinatorEvent(EventType eventType, String datastreamGroupName) {
+    _eventType = eventType;
+    _datastreamGroupName = Optional.of(datastreamGroupName);
   }
 
   /**
@@ -59,6 +71,15 @@ public class CoordinatorEvent {
   }
 
   /**
+   * Retrun an event that indicates that partition need to be assigned for a datastream group
+   * @param datastreamGroupName the name of datastream group which receives partition changes
+   * @return
+   */
+  public static CoordinatorEvent createLeaderPartitionAssignmentEvent(String datastreamGroupName) {
+    return new CoordinatorEvent(EventType.LEADER_PARTITION_ASSIGNMENT, datastreamGroupName);
+  }
+
+  /**
    * Returns an event that indicates addition/deletion of new/existing datastream.
    */
   public static CoordinatorEvent createHandleDatastreamAddOrDeleteEvent() {
@@ -71,6 +92,10 @@ public class CoordinatorEvent {
    */
   public static HandleInstanceError createHandleInstanceErrorEvent(String errorMessage) {
     return new HandleInstanceError(errorMessage);
+  }
+
+  public Optional<String> getDatastreamGroupName() {
+    return _datastreamGroupName;
   }
 
   public EventType getType() {
