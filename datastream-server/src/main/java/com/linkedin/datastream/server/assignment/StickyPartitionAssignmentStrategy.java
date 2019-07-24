@@ -25,8 +25,8 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 /**
  * An partition assignment strategy. This StickyPartitionAssignmentStrategy creates new tasks and remove old tasks
- * to accommodate the change in partition assignment. The total number of tasks is unchanged during this process.
- * The strategy is also "Sticky", i.e., it minimize the potential partitions change between new tasks/old tasks
+ * to accommodate the change in partition assignment. The strategy is also "Sticky", i.e., it minimizes the potential
+ * task mutations. The total number of tasks is also unchanged during this process.
  */
 public class StickyPartitionAssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
@@ -35,13 +35,13 @@ public class StickyPartitionAssignmentStrategy {
    * assign partitions to a particular datastream group
    *
    * @param currentAssignment the old assignment
-   * @param allPartitions the subscribed partitions received from partition listener
+   * @param allPartitions the subscribed partitions received from connector
    * @return new assignment mapping
    */
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String,
       Set<DatastreamTask>> currentAssignment, DatastreamPartitionsMetadata allPartitions) {
 
-    LOG.info("old partition assignment info, assignment: {}", currentAssignment);
+    LOG.debug("old partition assignment info, assignment: {}", currentAssignment);
 
     String dgName = allPartitions.getDatastreamGroupName();
 
@@ -58,7 +58,7 @@ public class StickyPartitionAssignmentStrategy {
 
     int maxPartitionPerTask = allPartitions.getPartitions().size() / totalTaskCount;
     final AtomicInteger remainder = new AtomicInteger(allPartitions.getPartitions().size() % totalTaskCount);
-    LOG.info("maxPartitionPerTask {}, task count {}", maxPartitionPerTask, totalTaskCount);
+    LOG.debug("maxPartitionPerTask {}, task count {}", maxPartitionPerTask, totalTaskCount);
 
     Collections.shuffle(unassignedPartitions);
 

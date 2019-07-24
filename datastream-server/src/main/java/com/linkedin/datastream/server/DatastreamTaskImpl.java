@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
@@ -154,6 +155,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
     Validate.isTrue(partitionsV2.size() <= MAX_PARTITION_NUM, "Too many partitions allocated for a single task");
+    if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
+      throw new DatastreamRuntimeException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
+          + "the previous assignment has not be picked up");
+    }
 
     _datastreams = predecessor._datastreams;
     _taskPrefix = predecessor._taskPrefix;
@@ -171,9 +176,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     _dependencies = new ArrayList<>();
     _dependencies.add(predecessor.getDatastreamTaskName());
-    if (!predecessor.isLocked()) {
-      _dependencies.addAll(predecessor.getDependencies());
-    }
   }
 
     /**
@@ -441,7 +443,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     LOG.debug("Update checkpoint called for partition {} and checkpoint {}", partition, checkpoint);
     _checkpoints.put(partition, checkpoint);
   }
-  
+
   public List<String> getDependencies() {
     return _dependencies;
   }

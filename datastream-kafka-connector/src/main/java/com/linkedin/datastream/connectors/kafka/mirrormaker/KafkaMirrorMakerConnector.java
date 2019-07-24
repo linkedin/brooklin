@@ -255,7 +255,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         try {
           // If partition is changed
           List<String> newPartitionInfo = getPartitionsInfo();
-          LOG.info("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
+          LOG.debug("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
               , datastream.getName(), _subscribedPartitions, newPartitionInfo);
 
           if (!ListUtils.isEqualList(newPartitionInfo, _subscribedPartitions)) {

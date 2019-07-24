@@ -13,10 +13,12 @@ import java.util.HashSet;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
@@ -48,22 +50,22 @@ public class TestDatastreamTask {
     verify(mockZkAdapter, atLeastOnce()).waitForDependencies(any(DatastreamTaskImpl.class), any(Duration.class));
   }
 
-  @Test
-  public void testCreateNewTaskFromOldTask() throws Exception {
+  @Test(expectedExceptions = DatastreamRuntimeException.class)
+  public void testCreateNewTaskFromUnlockedTask() throws Exception {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
+    task.setPartitionsV2(ImmutableList.of("partition1"));
     task.addDependentTask("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
     when(mockZkAdapter.checkIfTaskLocked(anyString(), anyString())).thenReturn(false);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
-    Assert.assertEquals(new HashSet<String>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName(), "task0"));
   }
 
   @Test
-  public void testCreateNewTaskFromOldTaskWithoutDependencies() throws Exception {
+  public void testCreateNewTaskFromLockedTask() throws Exception {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 

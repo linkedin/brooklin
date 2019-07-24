@@ -1696,7 +1696,7 @@ public class TestCoordinator {
     TestHookConnector connector1a = new TestHookConnector("connector1a", connectorType1);
     TestHookConnector connector1b = new TestHookConnector("connector1b", connectorType2);
     instance1.addConnector(connectorType1, connector1a, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
-        null, false);
+        null);
     instance1.addConnector(connectorType2, connector1b, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     instance1.start();
@@ -1705,7 +1705,7 @@ public class TestCoordinator {
     TestHookConnector connector2a = new TestHookConnector("connector2a", connectorType1);
     TestHookConnector connector2b = new TestHookConnector("connector2b", connectorType2);
     instance2.addConnector(connectorType1, connector2a, new LoadbalancingStrategy(), false, new SourceBasedDeduper(),
-        null, false);
+        null);
     instance2.addConnector(connectorType2, connector2b, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     instance2.start();
