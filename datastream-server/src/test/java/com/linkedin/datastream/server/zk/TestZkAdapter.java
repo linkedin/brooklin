@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,10 +22,16 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
+import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.TargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
@@ -354,6 +361,37 @@ public class TestZkAdapter {
     //
     // cleanup
     //
+    zkClient.close();
+  }
+
+  @Test
+  public void testGetPartitionMovement() throws Exception {
+    String testCluster = "testUpdateAllInstanceAssignment";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
+
+    Datastream[] datastreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "datastream1");
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Arrays.asList(datastreams));
+
+    adapter1.connect();
+    PollUtils.poll(() -> adapter1.isLeader(), 50, 5000);
+    List<String> instances = adapter1.getLiveInstances();
+    String hostName = instances.get(0).substring(0, instances.get(0).lastIndexOf('-'));
+
+    long current = System.currentTimeMillis();
+    String path = KeyBuilder.getTargetAssignment(testCluster, datastreamGroup.getTaskPrefix());
+    TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("t-0", "t-1"), hostName);
+    zkClient.ensurePath(path);
+    if (zkClient.exists(path)) {
+      String json = targetAssignment.toJson();
+      zkClient.ensurePath(path + '/' + current);
+      zkClient.writeData(path + '/' + current, json);
+    }
+
+    Map<String, Set<String>> newAssignment = adapter1.getPartitionMovement(datastreamGroup.getTaskPrefix());
+    Assert.assertEquals(newAssignment.get(instances.get(0)), ImmutableSet.of("t-0", "t-1"));
+    adapter1.disconnect();
     zkClient.close();
   }
 

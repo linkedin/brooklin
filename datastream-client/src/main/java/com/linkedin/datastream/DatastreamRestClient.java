@@ -531,6 +531,41 @@ public class DatastreamRestClient {
   }
 
   /**
+   * move partitions to the target host
+   * @param datastreamName
+   *    Name of the datastream to resume.
+   * @param partitions
+   *    partitions that need to be moved
+   * @param host
+   *    the target host the partition assignment
+   * @throws RemoteInvocationException
+   */
+  public void movePartitions(String datastreamName, String partitions, String host) throws RemoteInvocationException {
+    Instant startTime = Instant.now();
+    PollUtils.poll(() -> {
+      try {
+        ActionRequest<Void> request = _builders.actionMovePartitions().id(datastreamName).
+            partitionsParam(partitions).hostParam(host).build();
+        ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
+        return datastreamResponseFuture.getResponse();
+      } catch (RemoteInvocationException e) {
+        if (ExceptionUtils.getRootCause(e) instanceof TimeoutException) {
+          LOG.warn("Timeout: movePartitions. May retry...", e);
+          return null;
+        }
+        if (isNotFoundHttpStatus(e)) {
+          LOG.warn(String.format("Datastream {%s} is not found", datastreamName), e);
+          throw new DatastreamNotFoundException(datastreamName, e);
+        } else {
+          String errorMessage = String.format("move partitions failed with error, Datastream {%s}.", datastreamName);
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+        }
+        return null; // not reachable
+      }
+    }, Objects::nonNull, getRetryPeriodMs(), getRetryTimeoutMs()).orElseThrow(RetriesExhaustedException::new);
+    LOG.info("move partitions for datastream {} took {} ms", datastreamName, Duration.between(startTime, Instant.now()).toMillis());
+  }
+  /**
    * Get all the datastream objects that are in the same group as the datastream whose name is "datastreamName".
    * This method makes a GET REST call to the Datastream management service which in turn fetches all the Datastream
    * objects from the store (ZooKeeper). Entries will be return in lexicographical based on their getName() property.

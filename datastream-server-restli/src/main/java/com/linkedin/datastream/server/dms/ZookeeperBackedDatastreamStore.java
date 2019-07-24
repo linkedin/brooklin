@@ -6,6 +6,8 @@
 package com.linkedin.datastream.server.dms;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang.Validate;
@@ -19,6 +21,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
+import com.linkedin.datastream.server.TargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 /**
@@ -111,6 +114,46 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     _zkClient.ensurePath(path);
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(path, json);
+  }
+
+  @Override
+  public void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment)
+      throws DatastreamException {
+    Validate.notNull(datastream, "null datastream");
+    Validate.notNull(key, "null key for datastream" + datastream);
+    verifyHostname(targetAssignment.getTargetHost());
+
+    long current = System.currentTimeMillis();
+    String datastreamGroupName = DatastreamUtils.getTaskPrefix(datastream);
+    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+    _zkClient.ensurePath(path);
+    if (_zkClient.exists(path)) {
+      String json = targetAssignment.toJson();
+      _zkClient.ensurePath(path + '/' + current);
+      _zkClient.writeData(path + '/' + current, json);
+    }
+
+    try {
+      _zkClient.writeData(KeyBuilder.getTargetAssignmentBase(_cluster), String.valueOf(System.currentTimeMillis()));
+    } catch (Exception e) {
+      // we don't need to do an atomic update; if the node gets update by others somehow or get deleted by
+      // leader, it's ok to ignore the failure
+      LOG.warn("Failed to touch the assignment update", e);
+    }
+  }
+
+  private void verifyHostname(String hostname) throws DatastreamException {
+    try {
+      String path = KeyBuilder.instances(_cluster);
+      _zkClient.ensurePath(path);
+      List<String> instances = _zkClient.getChildren(path);
+      Set<String> hostnames = instances.stream().map(s -> s.substring(0, s.lastIndexOf('-'))).collect(Collectors.toSet());
+      if (!hostnames.contains(hostname)) {
+        throw new DatastreamException("Hostname " + hostname + " is not valid");
+      }
+    } catch (Exception ex) {
+      throw new DatastreamException(ex);
+    }
   }
 
   @Override

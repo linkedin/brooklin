@@ -49,6 +49,7 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -211,6 +212,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean leaderPartitionAssignmentScheduled = new AtomicBoolean(false);
 
+  // make sure the scheduled retries are not duplicated
+  private final AtomicBoolean leaderPartitionMovementScheduled = new AtomicBoolean(false);
 
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
@@ -411,6 +414,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onDatastreamUpdate completed successfully");
   }
 
+  @Override
+  public void onPartitionMovement() {
+    _log.info("Coordinator::onPartitionMovement is called");
+    _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent());
+    _log.info("Coordinator::onPartitionMovement completed successfully");
+  }
   /**
    * {@inheritDoc}
    *
@@ -677,6 +686,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         case LEADER_PARTITION_ASSIGNMENT:
           performPartitionAssignment(event.getDatastreamGroupName());
+          break;
+
+        case LEADER_PARTITION_MOVEMENT:
+          performPartitionMovement();
           break;
 
         default:
@@ -1028,9 +1041,76 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, MAX_PARTITION_COUNT_IN_TASK, maxPartitionCount);
   }
 
+  private void performPartitionMovement() {
+    boolean shouldRetry = true;
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
+    List<String> datastreamGroups = new ArrayList<>();
+    try {
+      Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
+
+      // retrieve the datastreamGroups for validation
+      datastreamGroups.addAll(fetchDatastreamGroups().stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList()));
+
+      List<String> toProcessDatastreams = _adapter.getDatastreamsNeedPartitionMovement();
+
+      StickyPartitionAssignmentStrategy partitionAssignmentStrategy = new StickyPartitionAssignmentStrategy();
+
+      for (String connectorType : _connectors.keySet()) {
+        Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
+        Map<String, Optional<DatastreamPartitionsMetadata>> datastreamPartitions =
+            connectorInstance.getDatastreamPartitions();
+
+        datastreamGroups.retainAll(datastreamPartitions.keySet());
+        //Processe datastream with assignment info only
+        datastreamGroups.retainAll(toProcessDatastreams);
+
+        for (String dgName : datastreamGroups) {
+
+          DatastreamPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dgName)
+              .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dgName));
+          Map<String, Set<String>> suggestedAssignment = _adapter.getPartitionMovement(dgName);
+          assignmentByInstance = partitionAssignmentStrategy.movePartitions(assignmentByInstance, suggestedAssignment,
+              subscribedPartitions);
+        }
+      }
+
+      _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
+      for (String key : assignmentByInstance.keySet()) {
+        newAssignmentsByInstance.put(key, new ArrayList<>(assignmentByInstance.get(key)));
+      }
+
+      _adapter.updateAllAssignments(newAssignmentsByInstance);
+
+      //clean up stored target assignment after the assignment is updated
+      for (String dgName : datastreamGroups) {
+        _adapter.cleanUpPartitionMovement(dgName);
+      }
+      shouldRetry = false;
+    } catch (DatastreamTransientException ex) {
+      _log.info("Partition movement failed, retry again after a configurable period", ex);
+      shouldRetry = true;
+    } catch (Exception ex) {
+      //We don't retry if there is any exceptions
+      _log.info("Partition movement failed, Exception: ", ex);
+    }
+    if (!shouldRetry) {
+      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      getMaxPartitionCountInTask(newAssignmentsByInstance);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
+    }  else if (!leaderPartitionMovementScheduled.get()) {
+      _log.info("Schedule retry for leader movement tasks");
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_RETRIES, 1);
+      leaderPartitionMovementScheduled.set(true);
+      _executor.schedule(() -> {
+        _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent());
+        leaderPartitionMovementScheduled.set(false);
+      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+    }
+  }
 
   private void onDatastreamChange(List<DatastreamGroup> datastreamGroups) {
-    //We need to perform handleDatastream only active datastream for partition listening
+    //We need to perform onDatastreamChange only active datastream for partition listening
     List<DatastreamGroup> activeDataStreams = datastreamGroups.stream().filter(dg -> !dg.isPaused()).collect(Collectors.toList());
 
     for (String connectorType : _connectors.keySet()) {
@@ -1127,7 +1207,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to ZooKeeper.
    * @param deduper the deduper used by connector
-   * @param authorizerName name of the authorizer configured by connector
+   * @param authorizerName name of the authorizer configured by connector@
    * @param enablePartitionAssignment enable partition assignment for this connector
    *
    */
@@ -1487,3 +1567,4 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 }
+

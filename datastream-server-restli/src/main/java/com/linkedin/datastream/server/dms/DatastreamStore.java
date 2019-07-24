@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.server.TargetAssignment;
 
 
 /**
@@ -44,4 +45,10 @@ public interface DatastreamStore {
    * Deletes the datastream associated with the provided key.
    */
   void deleteDatastream(String key);
+
+  /**
+   * update the target assignment info for a particular datastream
+   * @throws DatastreamException
+   */
+  void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment) throws DatastreamException;
 }

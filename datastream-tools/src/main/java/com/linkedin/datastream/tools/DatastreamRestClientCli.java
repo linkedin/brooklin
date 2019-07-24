@@ -51,7 +51,8 @@ public class DatastreamRestClientCli {
     RESUME,
     UPDATE,
     DELETE,
-    READALL
+    READALL,
+    MOVE
   }
 
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
@@ -135,6 +136,14 @@ public class DatastreamRestClientCli {
         OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
             OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
 
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS, OptionConstants.OPT_LONG_MOVEMENT_SOURCE_PARTITIONS,
+            OptionConstants.OPT_ARG_MOVEMENT_SOURCE_PARTITIONS, false, OptionConstants.OPT_DESC_MOVEMENT_SOURCE_PARTITIONS));
+
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_HOST_NAME, OptionConstants.OPT_LONG_HOST_NAME,
+            OptionConstants.OPT_ARG_HOST_NAME, false, OptionConstants.OPT_DESC_HOST_NAME));
+
     CommandLineParser parser = new BasicParser();
     CommandLine cmd;
     try {
@@ -191,6 +200,14 @@ public class DatastreamRestClientCli {
           datastreamRestClient.updateDatastream(toUpdateDatastream);
           System.out.println("Datastream updated successfully");
           break;
+        case MOVE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          String partitions = getOptionValue(cmd, OptionConstants.OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS, options);
+          String host = getOptionValue(cmd, OptionConstants.OPT_SHORT_HOST_NAME, options);
+          datastreamRestClient.movePartitions(datastreamName, partitions, host);
+          System.out.println("move partitions " + partitions + " to host " + host + " successfully");
+          break;
+
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           String sourceUri = getOptionValue(cmd, OptionConstants.OPT_SHORT_SOURCE_URI, options);

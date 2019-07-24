@@ -72,6 +72,16 @@ public final class KeyBuilder {
   private static final String DATASTREAM_TASK_LOCK = DATASTREAM_TASK_LOCK_ROOT + "/%s";
 
   /**
+   * Base path to store partition movement info
+   */
+  private static final String TARGET_ASSIGNMENT_BASE = CLUSTER + "/targetAssignment";
+
+  /**
+   * partition movement info under cluster/targetAssignment/datastreamGroup
+   */
+  private static final String TARGET_ASSIGNMENTS = TARGET_ASSIGNMENT_BASE + "/%s";
+
+  /**
    * Get the root level ZooKeeper znode of a Brooklin cluster
    * @param clusterName Brooklin cluster name
    */
@@ -273,5 +283,24 @@ public final class KeyBuilder {
 \   */
   public static String datastreamTaskLock(String cluster, String connectorType, String datastreamTask) {
     return String.format(DATASTREAM_TASK_LOCK, cluster, connectorType, datastreamTask).replaceAll("//", "/");
+  }
+
+  /**
+   * Get the partition movement information for a specific datastream group
+   * @param cluster Brooklin cluster name
+   * @param datastreamGroupName Datastream group name
+   * @return
+   */
+  public static String getTargetAssignment(String cluster, String datastreamGroupName) {
+    return String.format(TARGET_ASSIGNMENTS, cluster, datastreamGroupName).replaceAll("//", "/'");
+  }
+
+  /**
+   * Get all partition movement information
+   * @param cluster Brooklin cluster name
+   * @return
+   */
+  public static String getTargetAssignmentBase(String cluster) {
+    return String.format(TARGET_ASSIGNMENT_BASE, cluster).replaceAll("//", "/'");
   }
 }

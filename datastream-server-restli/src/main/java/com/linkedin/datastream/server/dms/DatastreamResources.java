@@ -8,6 +8,7 @@ package com.linkedin.datastream.server.dms;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +46,7 @@ import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.ErrorLogger;
+import com.linkedin.datastream.server.TargetAssignment;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.restli.common.HttpStatus;
@@ -316,6 +318,45 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
 
     LOG.info("Completed request for pausing datastream {}", datastream);
+
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
+  /**
+   * Move partitions to a particular host
+   * @param pathKeys resource key containing the datastream name
+   * @param partitions partitions that need to move to
+   * @param host host to accommodate the partitions
+   * @return result HTTP status
+   */
+  @Action(name = "movePartitions", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> movePartitions(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("partitions") String partitions, @ActionParam("host") String host) {
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    Datastream datastream = _store.getDatastream(datastreamName);
+
+    LOG.info("Received request to move datastream {}", datastream);
+
+    if (datastream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream does not exist: " + datastreamName);
+    }
+
+    if (!DatastreamStatus.READY.equals(datastream.getStatus())) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
+          "Can only move partitions in a READY datastream state: " + datastreamName);
+    }
+
+    List<String> targetPartitions = Arrays.asList(partitions.split(","));
+    TargetAssignment targetAssignment = new TargetAssignment(targetPartitions, host);
+    try {
+      _store.updatePartitionAssignments(datastream.getName(), datastream, targetAssignment);
+    } catch (Exception ex) {
+      LOG.error("Error to move partitions", ex);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "ERROR");
+    }
+    LOG.info("Completed request for moving datastream {}", datastream);
 
     return new ActionResult<>(HttpStatus.S_200_OK);
   }

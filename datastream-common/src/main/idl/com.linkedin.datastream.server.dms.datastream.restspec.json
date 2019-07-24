@@ -34,6 +34,18 @@
     "entity" : {
       "path" : "/datastream/{datastreamId}",
       "actions" : [ {
+        "name" : "movePartitions",
+        "doc" : "Move partitions to a particular host\nService Returns: Result HTTP status",
+        "parameters" : [ {
+          "name" : "partitions",
+          "type" : "string",
+          "doc" : "partitions that need to move to"
+        }, {
+          "name" : "host",
+          "type" : "string",
+          "doc" : "host to accommodate the partitions"
+        } ]
+      }, {
         "name" : "pause",
         "doc" : "Pause a datastream\nService Returns: Result HTTP status",
         "parameters" : [ {

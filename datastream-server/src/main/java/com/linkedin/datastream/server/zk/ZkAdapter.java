@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.TargetAssignment;
 
 
 /**
@@ -62,8 +63,11 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  * │                     │          │                                         │         │   ┌───────────────────────┐
  * │                     │          │                                         │         │───▶ onLiveInstancesChange*│
  * │                     │          │                                         │         │   └───────────────────────┘
+ * │                     │          │                                         │         │   ┌───────────────────┐
+ * │                     │          │                                         │         │───▶ onDatastreamUpdate│
+ * │                     │          │                                         │         │   └───────────────────┘
  * │                     │          │                                         └─────────┤   ┌────────────────────┐
- * │                     │          │                                                   │───▶ onDatastreamUpdate │
+ * │                     │          │                                                   │───▶ onPartitionMovement|
  * │                     │          │                                                   │   └────────────────────┘
  * └─────────────────────┘          └───────────────────────────────────────────────────┘
  *
@@ -126,6 +130,7 @@ public class ZkAdapter {
   // only the leader should maintain this list and listen to the changes of live instances
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
+  private ZkTargetAssignmentProvider _targetAssignmentProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
@@ -219,6 +224,8 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
+    _targetAssignmentProvider = new ZkTargetAssignmentProvider();
+
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
@@ -242,6 +249,11 @@ public class ZkAdapter {
     if (_liveInstancesProvider != null) {
       _liveInstancesProvider.close();
       _liveInstancesProvider = null;
+    }
+
+    if (_targetAssignmentProvider != null) {
+      _targetAssignmentProvider.close();
+      _targetAssignmentProvider = null;
     }
 
     _isLeader = false;
@@ -899,6 +911,65 @@ public class ZkAdapter {
   }
 
   /**
+   * Clean up partition movement info for a particular datastream
+   */
+  public void cleanUpPartitionMovement(String datastreamGroupName) {
+    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+    if (_zkclient.exists(path)) {
+      _zkclient.deleteRecursive(path);
+    }
+  }
+
+  /**
+   * Get the datastream group which contains the partition movement info
+   * @return
+   */
+  public List<String> getDatastreamsNeedPartitionMovement() {
+    String path = KeyBuilder.getTargetAssignmentBase(_cluster);
+    if (_zkclient.exists(path)) {
+      return _zkclient.getChildren(path);
+    }
+    return Collections.emptyList();
+  }
+
+  /**
+   * Get a partition movement info for a particular datastream
+   * @param datastreamGroupName
+   * @return The target assignment mapping information with the partition names and its target instance name
+   */
+  public Map<String, Set<String>> getPartitionMovement(String datastreamGroupName) {
+    Map<String, Set<String>> result = new HashMap<>();
+
+    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+    if (_zkclient.exists(path)) {
+      List<String> nodes = _zkclient.getChildren(path);
+      for (String node : nodes) {
+        String content = _zkclient.readData(path + '/' + node);
+        TargetAssignment assignment = TargetAssignment.fromJson(content);
+
+        //Compute the correct instance
+        Map<String, String> hostInstanceMap = new HashMap<>();
+        if (_liveInstancesProvider.getLiveInstances() != null) {
+          _liveInstancesProvider.getLiveInstances().forEach(instance -> {
+            try {
+              hostInstanceMap.put(instance.substring(0, instance.lastIndexOf('-')), instance);
+            } catch (Exception ex) {
+              LOG.info("Fail to parse instance name {}", instance, ex);
+            }
+          });
+        }
+        if (hostInstanceMap.containsKey(assignment.getTargetHost()) && assignment.getPartitionNames() != null) {
+          LOG.info("Added assignment {} {}", assignment.getTargetHost(), assignment.getPartitionNames());
+          result.put(hostInstanceMap.get(assignment.getTargetHost()), new HashSet<>(assignment.getPartitionNames()));
+        } else {
+          LOG.warn("instance {} not found in the map {}", assignment.getTargetHost(), hostInstanceMap.keySet());
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
    * Check if the task is current locked
    */
   public boolean checkIfTaskLocked(String connectorType, String taskName) {
@@ -980,6 +1051,11 @@ public class ZkAdapter {
      * happen after a datastream update.
      */
     void onDatastreamUpdate();
+
+    /**
+     * onPartitionMovement is called when partition movement info has been put into zookeeper
+     */
+    void onPartitionMovement();
   }
 
   /**
@@ -1054,6 +1130,7 @@ public class ZkAdapter {
    */
   public class ZkBackedLiveInstanceListProvider implements IZkChildListener {
     private List<String> _liveInstances = new ArrayList<>();
+    private Map<String, String> _instancePartitionMap = new HashMap<>();
     private String _path;
 
     /**
@@ -1169,6 +1246,45 @@ public class ZkAdapter {
       if (_listener != null && data != null && !data.toString().isEmpty()) {
         // only care about the data change when there is an update in the data node
         _listener.onDatastreamUpdate();
+      }
+    }
+
+    @Override
+    public void handleDataDeleted(String dataPath) throws Exception {
+      // do nothing
+    }
+  }
+
+  /**
+   * ZkTargetAssignmentProvider detect if there is a partition movement being intiated from restful endpoint
+   */
+  public class ZkTargetAssignmentProvider implements IZkDataListener {
+    private final String _path;
+
+    /**
+     * Constructor
+     */
+    public ZkTargetAssignmentProvider() {
+      _path = KeyBuilder.getTargetAssignmentBase(_cluster);
+      LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + _path);
+
+      _zkclient.subscribeDataChanges(_path, this);
+    }
+
+    /**
+     * Unsubscribe to all changes to the task assignment for this instance.
+     */
+    public void close() {
+      LOG.info("ZkTargetAssignmentProvider::Unsubscribing to the changes under the path " + _path);
+      _zkclient.unsubscribeDataChanges(_path, this);
+    }
+
+    @Override
+    public void handleDataChange(String dataPath, Object data) throws Exception {
+      LOG.info("ZkTargetAssignmentProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
+      if (_listener != null && data != null && !data.toString().isEmpty()) {
+        // only care about the data change when there is an update in the data node
+        _listener.onPartitionMovement();
       }
     }
 
