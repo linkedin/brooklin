@@ -46,7 +46,7 @@ public class CoordinatorEvent {
 
   private CoordinatorEvent(EventType eventType, String datastreamGroupName) {
     _eventType = eventType;
-    _datastreamGroupName = Optional.of(datastreamGroupName);
+    _datastreamGroupName = Optional.ofNullable(datastreamGroupName);
   }
 
   /**

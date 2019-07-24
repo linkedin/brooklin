@@ -875,6 +875,7 @@ public class ZkAdapter {
    * @see #releaseTask(DatastreamTaskImpl)
    */
   public void acquireTask(DatastreamTaskImpl task, Duration timeout) {
+    _zkclient.ensurePath(KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType()));
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
     if (_zkclient.exists(lockPath)) {

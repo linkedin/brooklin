@@ -171,7 +171,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Coordinator coordinator =
         TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(), "testPopulateDatastreamDestination");
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
-        new SourceBasedDeduper(),  null);
+        new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
         TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
@@ -204,7 +204,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Coordinator coordinator = TestKafkaConnectorUtils.createCoordinator(_kafkaCluster.getZkConnection(),
         "testValidateDatastreamUpdatePausedPartitions");
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
-        new SourceBasedDeduper(),  null);
+        new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
     KafkaTransportProviderAdmin transportProviderAdmin =
         TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);

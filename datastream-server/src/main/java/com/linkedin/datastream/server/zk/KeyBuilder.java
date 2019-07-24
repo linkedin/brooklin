@@ -60,10 +60,16 @@ public final class KeyBuilder {
    */
   private static final String DATASTREAM_TASK_CONFIG = CONNECTOR + "/%s/config";
 
+
   /**
-   * Task lock node under connectorType/task
+   * Task lock root path under connectorType
    */
-  private static final String DATASTREAM_TASK_LOCK = CONNECTOR + "/%s/lock";
+  private static final String DATASTREAM_TASK_LOCK_ROOT = CONNECTOR + "/lock";
+
+  /**
+   * Task lock node under connectorType/lock
+   */
+  private static final String DATASTREAM_TASK_LOCK = DATASTREAM_TASK_LOCK_ROOT + "/%s";
 
   /**
    * Get the root level ZooKeeper znode of a Brooklin cluster
@@ -244,10 +250,23 @@ public final class KeyBuilder {
     return String.format(DATASTREAM_TASK_STATE_KEY, cluster, connectorType, datastreamTask, key).replaceAll("//", "/");
   }
 
+
+  /**
+   * Get the ZooKeeper path to store lock
+   *
+   * <pre>Example: /{cluster}/connectors/{connectorType}/lock</pre>
+   * @param cluster Brooklin cluster name
+   * @param connectorType Connector
+  \   */
+  public static String datastreamTaskLockRoot(String cluster, String connectorType) {
+    return String.format(DATASTREAM_TASK_LOCK_ROOT, cluster, connectorType).replaceAll("//", "/");
+  }
+
   /**
    * Get the ZooKeeper znode for a specific datastream task's lock
+   * The lock is ephemeral node and it should not be stored under task node
    *
-   * <pre>Example: /{cluster}/connectors/{connectorType}/{taskName}/config</pre>
+   * <pre>Example: /{cluster}/connectors/{connectorType}/lock/{taskName}</pre>
    * @param cluster Brooklin cluster name
    * @param connectorType Connector
    * @param datastreamTask Datastream task name

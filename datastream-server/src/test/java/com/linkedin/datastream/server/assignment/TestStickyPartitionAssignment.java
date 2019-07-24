@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -30,7 +31,9 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -45,7 +48,7 @@ public class TestStickyPartitionAssignment {
     StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3);
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
     assignment.put("instance1", taskSet);
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
@@ -60,11 +63,63 @@ public class TestStickyPartitionAssignment {
     }
   }
 
+
+  @Test
+  public void testAddPartitions() {
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
+    Set<DatastreamTask> taskSet = new HashSet<>();
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
+    assignment.put("instance1", taskSet);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+
+    DatastreamPartitionsMetadata partitionsMetadata =
+        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+
+    List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t2-1", "t2-2");
+    DatastreamPartitionsMetadata newPartitionsMetadata =
+        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), newPartitions);
+
+    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+
+    for (DatastreamTask task : assignment.get("instance1")) {
+      Assert.assertEquals(task.getPartitionsV2().size(), 2);
+    }
+  }
+
+
+  @Test(expectedExceptions = DatastreamRuntimeException.class)
+  public void testCreateAssignmentFailureDueToUnlockedTask() {
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
+    Set<DatastreamTask> taskSet = new HashSet<>();
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, false);
+    assignment.put("instance1", taskSet);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+
+    DatastreamPartitionsMetadata partitionsMetadata =
+        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+
+    // Generate partition assignment
+    List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0");
+    DatastreamPartitionsMetadata newPartitionsMetadata =
+        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), newPartitions);
+
+    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+  }
+
+
   @Test
   public void testRemovePartitions() {
     StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2);
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6");
     DatastreamPartitionsMetadata partitionsMetadata =
@@ -91,13 +146,15 @@ public class TestStickyPartitionAssignment {
   }
 
   private  Map<String, Set<DatastreamTask>> generateEmptyAssignment(List<DatastreamGroup> datastreams,
-      int instanceNum, int taskNum) {
+      int instanceNum, int taskNum, boolean isTaskLocked) {
     Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
     for (int i = 0; i < instanceNum; ++i) {
       Set<DatastreamTask> set = new HashSet<>();
       for (int j = 0; j < taskNum; ++j) {
         DatastreamTaskImpl task = new DatastreamTaskImpl(datastreams.get(0).getDatastreams());
-        task.setZkAdapter(mock(ZkAdapter.class));
+        ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
+        task.setZkAdapter(mockZkAdapter);
+        when(mockZkAdapter.checkIfTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
         set.add(task);
       }
       assignment.put("instance" + i, set);

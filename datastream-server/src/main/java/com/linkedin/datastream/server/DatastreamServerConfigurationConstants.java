@@ -20,7 +20,7 @@ public final class DatastreamServerConfigurationConstants {
   public static final String CONFIG_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
-  public static final String CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT = "useBrooklinForPartitionAssignment";
+  public static final String CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT = "enablePartitionAssignment";
   public static final String CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING = "customCheckpointing";
   public static final String CONFIG_CONNECTOR_PREFIX = CONFIG_PREFIX + "connector.";
   public static final String STRATEGY_DOMAIN = "strategy";

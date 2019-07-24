@@ -101,7 +101,6 @@ public class KafkaBasedConnectorConfig {
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
     _enablePositionTracker = verifiableProperties.getBoolean(CONFIG_ENABLE_POSITION_TRACKER, true);
     _enableBrokerOffsetFetcher = verifiableProperties.getBoolean(CONFIG_ENABLE_BROKER_OFFSET_FETCHER, true);
-
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =

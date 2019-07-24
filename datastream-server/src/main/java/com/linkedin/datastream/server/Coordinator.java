@@ -180,7 +180,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
-
   private final ThreadPoolExecutor _assignmentChangeThreadPool;
   private final String _clusterName;
   private final CoordinatorConfig _config;
@@ -961,6 +960,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private void performPartitionAssignment(Optional<String> datastreamGroupName) {
+    if (!datastreamGroupName.isPresent()) {
+      _log.error("Datastream group is not found when performing partition assignment");
+      return;
+    }
+
     boolean succeeded = false;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1004,7 +1008,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       getMaxPartitionCountInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
-    } else if (!leaderPartitionAssignmentScheduled.get() && datastreamGroupName.isPresent()) {
+    } else if (!leaderPartitionAssignmentScheduled.get()) {
       _log.info("Schedule retry for leader assigning tasks");
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionAssignment", NUM_RETRIES, 1);
       leaderPartitionAssignmentScheduled.set(true);
@@ -1123,7 +1127,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to ZooKeeper.
    * @param deduper the deduper used by connector
-   * @param authorizerName name of the authorizer configured by connector@
+   * @param authorizerName name of the authorizer configured by connector
    * @param enablePartitionAssignment enable partition assignment for this connector
    *
    */
