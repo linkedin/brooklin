@@ -562,6 +562,45 @@ public class TestZkAdapter {
     Assert.assertTrue(expectException(() -> task.acquire(Duration.ofMillis(100)), true));
   }
 
+
+  /**
+   * Test task acquire when there is dependencies
+   */
+  @Test
+  public void testTaskAcquireWithDependencies() throws Exception {
+    String testCluster = "testTaskAcquireReleaseOwnerUncleanBounce";
+    String connectorType = "connectorType";
+
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
+    adapter1.connect();
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setId("3");
+    task1.setConnectorType(connectorType);
+    task1.setZkAdapter(adapter1);
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(task1);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Assert.assertTrue(expectException(() -> task1.acquire(Duration.ofMillis(100)), false));
+
+    //The task2 cannot be acquired as the dependencies are not released
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl(task1, new ArrayList<>());
+    Assert.assertTrue(expectException(() -> task2.acquire(Duration.ofMillis(100)), true));
+
+    //Verify the task2 can be locked after task1 is released
+    Thread acquireThread = new Thread(() -> task2.acquire(Duration.ofSeconds(4)));
+    Thread releaseThread = new Thread(() -> task1.release());
+
+    acquireThread.start();
+    releaseThread.start();
+
+    Assert.assertTrue(PollUtils.poll(() -> task2.isLocked(), 100, 5000));
+  }
+
+
   /**
    * Update all datastream task assignments of a particular Brooklin instance
    * @param adapter ZooKeeper adapter to use

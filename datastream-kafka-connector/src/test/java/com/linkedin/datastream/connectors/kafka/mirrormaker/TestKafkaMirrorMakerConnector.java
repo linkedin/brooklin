@@ -603,8 +603,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastreamGroups1.add(group);
 
     AtomicInteger partitionChangeCalls = new AtomicInteger(0);
-    connector.onPartitionChange(groupName -> {
-      if (groupName.equals(group.getTaskPrefix())) {
+    connector.onPartitionChange(callbackGroup -> {
+      if (callbackGroup.equals(group)) {
         partitionChangeCalls.incrementAndGet();
       }
     });
@@ -612,7 +612,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     connector.start(null);
 
     connector.handleDatastream(datastreamGroups1);
-    PollUtils.poll(() -> partitionChangeCalls.get() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
     Map<String, Optional<DatastreamPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
     Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getDatastreamGroupName(), group.getTaskPrefix());
     Assert.assertEquals(new HashSet<String>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
@@ -621,7 +621,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String saltyTopic = "SaltyPizza";
     createTopic(_zkUtils, saltyTopic, 2);
 
-    PollUtils.poll(() -> partitionChangeCalls.get() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+    Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
     partitionInfo = connector.getDatastreamPartitions();
     Assert.assertEquals(new HashSet<String>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
         ImmutableSet.of(yummyTopic + "-0", saltyTopic + "-0", saltyTopic + "-1"));

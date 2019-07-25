@@ -174,12 +174,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     List<String> dgNames = datastreamGroups.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList());
     List<String> obsoleteDgs = new ArrayList<>(_partitionDiscoveryThreadMap.keySet());
     obsoleteDgs.removeAll(dgNames);
-    obsoleteDgs.stream().forEach(name -> {
+    obsoleteDgs.forEach(name -> {
       LOG.info("remove datastream group {}", name);
       Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(Thread::interrupt);
     });
 
-    datastreamGroups.stream().forEach(datastreamGroup -> {
+    datastreamGroups.forEach(datastreamGroup -> {
       String datastreamGroupName = datastreamGroup.getTaskPrefix();
       PartitionDiscoveryThread partitionDiscoveryThread;
       if (_partitionDiscoveryThreadMap.containsKey(datastreamGroupName)) {
@@ -244,9 +244,10 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     @Override
     public void run() {
       Datastream datastream = _datastreamGroup.getDatastreams().get(0);
-      String bootstrapValue = String.join(KafkaConnectionString.BROKER_LIST_DELIMITER,
-          KafkaConnectionString.valueOf(datastream.getSource().getConnectionString())
-              .getBrokers().stream().map(KafkaBrokerAddress::toString).collect(Collectors.toList()));
+      String bootstrapValue = KafkaConnectionString.valueOf(datastream.getSource().getConnectionString())
+          .getBrokers().stream()
+          .map(KafkaBrokerAddress::toString)
+          .collect(Collectors.joining(KafkaConnectionString.BROKER_LIST_DELIMITER));
       _consumer = createConsumer(_consumerProperties, bootstrapValue,
           _groupIdConstructor.constructGroupId(datastream) + DEST_CONSUMER_GROUP_ID_SUFFIX);
 

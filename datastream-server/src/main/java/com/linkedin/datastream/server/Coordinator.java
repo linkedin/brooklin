@@ -49,6 +49,7 @@ import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamStatus;
+import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -988,7 +989,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         datastreamGroupName.ifPresent(dg -> datastreamGroups.retainAll(ImmutableList.of(dg)));
         for (String dgName : datastreamGroups) {
           DatastreamPartitionsMetadata subscribes = connectorInstance.getDatastreamPartitions().get(dgName)
-              .orElseThrow(() -> new RuntimeException("Subscribed partition is not ready yet for datastream " + dgName));
+              .orElseThrow(() -> new DatastreamTransientException("Subscribed partition is not ready yet for datastream " + dgName));
           assignmentByInstance = partitionAssignmentStrategy.assignPartitions(assignmentByInstance, subscribes);
         }
     }
