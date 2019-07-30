@@ -77,7 +77,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_TOPIC = "kafka-origin-topic";
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
-  private static final Duration ACQUIRE_TIMEOUT = Duration.ofMinutes(5);
+  private static final Duration ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";

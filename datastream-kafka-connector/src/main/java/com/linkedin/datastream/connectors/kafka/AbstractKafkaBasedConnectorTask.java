@@ -666,9 +666,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     }
 
-    Set<TopicPartition> newAssignment = new HashSet<>(_consumerAssignment);
-    newAssignment.removeAll(topicPartitions);
-    updateConsumerAssignment(newAssignment);
+    updateConsumerAssignment(_consumer.assignment());
 
     // update paused partitions
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);

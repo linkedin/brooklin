@@ -564,7 +564,7 @@ public class TestZkAdapter {
 
 
   /**
-   * Test task acquire when there is dependencies
+   * Test task acquire when there are dependencies
    */
   @Test
   public void testTaskAcquireWithDependencies() throws Exception {

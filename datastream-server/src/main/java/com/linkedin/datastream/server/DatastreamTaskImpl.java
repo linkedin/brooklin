@@ -297,7 +297,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
       _zkAdapter.waitForDependencies(this, timeout);
     }
     try {
-    //Need to confirm the task are not locked for its dependencies
+      // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
            if (_zkAdapter.checkIfTaskLocked(this.getConnectorType(), predecessor)) {
              String msg = String.format("previous task %s is failed to release in %dms", predecessor,
