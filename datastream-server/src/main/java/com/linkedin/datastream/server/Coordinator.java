@@ -974,7 +974,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
 
       // retrieve the datastreamGroups for validation
-      List<String> datastreamGroups = fetchDatastreamGroups().stream().map(DatastreamGroup::getTaskPrefix)
+      List<String> datastreamGroups = fetchDatastreamGroups().stream().map(DatastreamGroup::getName)
           .collect(Collectors.toList());
 
       StickyPartitionAssignmentStrategy partitionAssignmentStrategy = new StickyPartitionAssignmentStrategy();
@@ -1153,7 +1153,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (enablePartitionAssignment) {
       connector.onPartitionChange(datastreamGroup ->
-        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getTaskPrefix()))
+        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getName()))
       );
     }
 

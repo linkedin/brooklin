@@ -42,8 +42,8 @@ public interface DatastreamChangeListener {
   }
 
   /**
-   * Get the partitions for all datastream group. Return Optional.empty() for that datastreamGroup if it has not fetch
-   * the partition info yet
+   * Get the partitions for all datastream group. Return Optional.empty() for that datastreamGroup if the
+   * datastreamGroup has been assigned but the partition info has not been fetched already
    */
   default Map<String, Optional<DatastreamPartitionsMetadata>> getDatastreamPartitions() {
     return new HashMap<String, Optional<DatastreamPartitionsMetadata>>();
