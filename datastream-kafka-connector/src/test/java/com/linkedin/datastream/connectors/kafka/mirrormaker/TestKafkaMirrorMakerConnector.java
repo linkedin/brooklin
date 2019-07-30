@@ -589,6 +589,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Properties config = getDefaultConfig(Optional.empty());
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     config.put(KafkaMirrorMakerConnector.PARTITION_FETCH_INTERVAL, "1000");
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
+
 
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
 
@@ -629,9 +631,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testDisablePartitionListener() throws Exception {
+  public void testDisableDatastreamChangeListener() throws Exception {
     String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Datastream datastream1 =
@@ -650,6 +653,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   public void testChangeDatatstreamAssignment() throws Exception {
     String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Datastream datastream1 =

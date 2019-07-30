@@ -571,7 +571,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinatorWithPartitionAssignment() throws Exception {
+  public void testCoordinationWithPartitionAssignment() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
@@ -588,19 +588,19 @@ public class TestCoordinator {
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
     instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null, true);
+        new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
     instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null, true);
+        new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
     instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null, true);
+        new SourceBasedDeduper(), null);
     instance3.start();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);

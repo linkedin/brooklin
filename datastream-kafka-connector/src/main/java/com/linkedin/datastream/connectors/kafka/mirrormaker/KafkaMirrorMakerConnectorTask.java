@@ -196,7 +196,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   private Set<TopicPartition> getAssignedTopicPartitionFromTask() {
-
     return _datastreamTask.getPartitionsV2().stream().map(str -> {
             int i = str.lastIndexOf("-");
             int partition = Integer.valueOf(str.substring(i + 1));

@@ -65,6 +65,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private final KafkaConsumerFactory<?, ?> _listenerConsumerFactory;
   private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new HashMap<>();
   private final Properties _consumerProperties;
+  private final boolean _enablePartitionAssignment;
+
   private java.util.function.Consumer<DatastreamGroup> _partitionChangeCallback;
   private volatile boolean _shutdown;
 
@@ -85,6 +87,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     _consumerProperties = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
     _listenerConsumerFactory = new KafkaConsumerFactoryImpl();
+    _enablePartitionAssignment = _config.getEnablePartitionAssignment();
     _shutdown = false;
   }
 
@@ -147,6 +150,9 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   @Override
   public void onPartitionChange(java.util.function.Consumer<DatastreamGroup> callback) {
+    if (!_enablePartitionAssignment) {
+      return;
+    }
     _partitionChangeCallback = callback;
   }
 
@@ -183,7 +189,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    */
   @Override
   public void handleDatastream(List<DatastreamGroup> datastreamGroups) {
-    if (_partitionChangeCallback == null) {
+    if (!_enablePartitionAssignment || _partitionChangeCallback == null) {
       // We do not need to handle the datastreamGroup if there is no callback registered
       return;
     }
@@ -194,17 +200,13 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     List<String> dgNames = datastreamGroups.stream().map(DatastreamGroup::getName).collect(Collectors.toList());
     List<String> obsoleteDgs = new ArrayList<>(_partitionDiscoveryThreadMap.keySet());
     obsoleteDgs.removeAll(dgNames);
-    obsoleteDgs.forEach(name -> {
-      Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(PartitionDiscoveryThread::shutdown);
-    });
+    obsoleteDgs.forEach(name ->
+        Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(PartitionDiscoveryThread::shutdown));
 
     datastreamGroups.forEach(datastreamGroup -> {
       String datastreamGroupName = datastreamGroup.getName();
       PartitionDiscoveryThread partitionDiscoveryThread;
-      if (_partitionDiscoveryThreadMap.containsKey(datastreamGroupName)) {
-        partitionDiscoveryThread = _partitionDiscoveryThreadMap.get(datastreamGroupName);
-        partitionDiscoveryThread.setDatastreamGroup(datastreamGroup);
-      } else {
+      if (!_partitionDiscoveryThreadMap.containsKey(datastreamGroupName)) {
         partitionDiscoveryThread =
             new PartitionDiscoveryThread(datastreamGroup);
         partitionDiscoveryThread.start();
@@ -222,10 +224,10 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    */
   class PartitionDiscoveryThread extends Thread {
     // The datastream group that this partitionDiscoveryThread is responsible to handle
-    private DatastreamGroup _datastreamGroup;
+    private final DatastreamGroup _datastreamGroup;
 
     // The topic regex which covers the topics that belong to this datastream group
-    private Pattern _topicPattern;
+    private final Pattern _topicPattern;
 
     // The partitions covered by this datastresm group, fetched from Kafka
     private volatile List<String> _subscribedPartitions = Collections.<String>emptyList();
@@ -241,12 +243,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       _topicPattern = Pattern.compile(
           KafkaConnectionString.valueOf(_datastreamGroup.getDatastreams().get(0).getSource().getConnectionString()).getTopicName());
       _initialized = false;
-    }
-
-    private void setDatastreamGroup(DatastreamGroup datastreamGroup) {
-      _datastreamGroup = datastreamGroup;
-      _topicPattern = Pattern.compile(
-          KafkaConnectionString.valueOf(_datastreamGroup.getDatastreams().get(0).getSource().getConnectionString()).getTopicName());
     }
 
 
@@ -301,6 +297,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           }
           Thread.sleep(_partitionFetchIntervalMs);
         } catch (Throwable t) {
+          // If the Broker goes down, consumer will receive a exception. However, there is no need to
+          // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
           LOG.error("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
         }
       }
