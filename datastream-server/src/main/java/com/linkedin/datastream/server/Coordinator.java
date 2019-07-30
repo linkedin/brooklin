@@ -986,7 +986,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
 
       // retrieve the datastreamGroups for validation
-      List<String> datastreamGroups = fetchDatastreamGroups().stream().map(DatastreamGroup::getTaskPrefix)
+      List<String> datastreamGroups = fetchDatastreamGroups().stream().map(DatastreamGroup::getName)
           .collect(Collectors.toList());
 
       StickyPartitionAssignmentStrategy partitionAssignmentStrategy = new StickyPartitionAssignmentStrategy();
@@ -1001,7 +1001,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         datastreamGroupName.ifPresent(dg -> datastreamGroups.retainAll(ImmutableList.of(dg)));
         for (String dgName : datastreamGroups) {
           DatastreamPartitionsMetadata subscribes = connectorInstance.getDatastreamPartitions().get(dgName)
-              .orElseThrow(() -> new RuntimeException("Subscribed partition is not ready yet for datastream " + dgName));
+              .orElseThrow(() -> new DatastreamTransientException("Subscribed partition is not ready yet for datastream " + dgName));
           assignmentByInstance = partitionAssignmentStrategy.assignPartitions(assignmentByInstance, subscribes);
         }
     }
@@ -1046,11 +1046,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
     List<String> datastreamGroups = new ArrayList<>();
+    List<String> toCleanup = new ArrayList<>();
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
 
       // retrieve the datastreamGroups for validation
-      datastreamGroups.addAll(fetchDatastreamGroups().stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList()));
+      datastreamGroups.addAll(fetchDatastreamGroups().stream().map(DatastreamGroup::getName).collect(Collectors.toList()));
 
       List<String> toProcessDatastreams = _adapter.getDatastreamsNeedPartitionMovement();
 
@@ -1072,6 +1073,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           Map<String, Set<String>> suggestedAssignment = _adapter.getPartitionMovement(dgName);
           assignmentByInstance = partitionAssignmentStrategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
+          toCleanup.add(dgName);
         }
       }
 
@@ -1083,7 +1085,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.updateAllAssignments(newAssignmentsByInstance);
 
       //clean up stored target assignment after the assignment is updated
-      for (String dgName : datastreamGroups) {
+      for (String dgName : toCleanup) {
         _adapter.cleanUpPartitionMovement(dgName);
       }
       shouldRetry = false;
@@ -1207,7 +1209,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
    *                            Coordinator will not perform checkpointing to ZooKeeper.
    * @param deduper the deduper used by connector
-   * @param authorizerName name of the authorizer configured by connector@
+   * @param authorizerName name of the authorizer configured by connector
    * @param enablePartitionAssignment enable partition assignment for this connector
    *
    */
@@ -1232,7 +1234,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (enablePartitionAssignment) {
       connector.onPartitionChange(datastreamGroup ->
-        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getTaskPrefix()))
+        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getName()))
       );
     }
 

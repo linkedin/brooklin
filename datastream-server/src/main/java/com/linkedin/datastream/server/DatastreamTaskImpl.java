@@ -27,6 +27,7 @@ import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
+import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.LogUtils;
@@ -156,7 +157,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
     Validate.isTrue(partitionsV2.size() <= MAX_PARTITION_NUM, "Too many partitions allocated for a single task");
     if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
-      throw new DatastreamRuntimeException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
+      throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
           + "the previous assignment has not be picked up");
     }
 
@@ -296,6 +297,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
       _zkAdapter.waitForDependencies(this, timeout);
     }
     try {
+    //Need to confirm the task are not locked for its dependencies
+      _dependencies.forEach(predecessor -> {
+           if (_zkAdapter.checkIfTaskLocked(this.getConnectorType(), predecessor)) {
+             String msg = String.format("previous task %s is failed to release in %dms", predecessor,
+                 timeout.toMillis());
+             throw new DatastreamRuntimeException(msg);
+           }
+        }
+      );
+
       _zkAdapter.acquireTask(this, timeout);
     } catch (Exception e) {
       LOG.error("Failed to acquire task: " + this, e);

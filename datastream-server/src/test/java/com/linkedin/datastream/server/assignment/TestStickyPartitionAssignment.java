@@ -55,7 +55,7 @@ public class TestStickyPartitionAssignment {
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
 
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
 
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
@@ -76,13 +76,13 @@ public class TestStickyPartitionAssignment {
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
 
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
 
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
     List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t2-1", "t2-2");
     DatastreamPartitionsMetadata newPartitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), newPartitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), newPartitions);
 
     assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
 
@@ -103,14 +103,14 @@ public class TestStickyPartitionAssignment {
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
 
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
 
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
     // Generate partition assignment
     List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0");
     DatastreamPartitionsMetadata newPartitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), newPartitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), newPartitions);
 
     assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
   }
@@ -123,7 +123,7 @@ public class TestStickyPartitionAssignment {
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
@@ -149,7 +149,7 @@ public class TestStickyPartitionAssignment {
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     assignment.put("empty", new HashSet<DatastreamTask>());
@@ -168,14 +168,14 @@ public class TestStickyPartitionAssignment {
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6");
     DatastreamPartitionsMetadata partitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), partitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), partitions);
 
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
     List<String> newPartitions = ImmutableList.of("t-1", "t-3", "t-4", "t-6");
     DatastreamPartitionsMetadata newPartitionsMetadata =
-        new DatastreamPartitionsMetadata(datastreams.get(0).getTaskPrefix(), newPartitions);
+        new DatastreamPartitionsMetadata(datastreams.get(0).getName(), newPartitions);
 
 
     assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);

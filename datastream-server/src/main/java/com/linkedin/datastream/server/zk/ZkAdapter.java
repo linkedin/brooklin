@@ -857,22 +857,22 @@ public class ZkAdapter {
     CountDownLatch busyLatch = new CountDownLatch(1);
 
     String lockNode = lockPath.substring(lockPath.lastIndexOf('/') + 1);
-    String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    String lockRootPath = KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType());
 
     if (_zkclient.exists(lockPath)) {
       IZkChildListener listener = (parentPath, currentChildren) -> {
-        if (!currentChildren.contains(lockNode)) {
+      if (!currentChildren.contains(lockNode)) {
           busyLatch.countDown();
         }
       };
 
       try {
-        _zkclient.subscribeChildChanges(taskPath, listener);
+        _zkclient.subscribeChildChanges(lockRootPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         LOG.warn("Unexpectedly interrupted during task acquire.", e);
       } finally {
-        _zkclient.unsubscribeChildChanges(taskPath, listener);
+        _zkclient.unsubscribeChildChanges(lockRootPath, listener);
       }
     }
   }
@@ -918,6 +918,7 @@ public class ZkAdapter {
     if (_zkclient.exists(path)) {
       _zkclient.deleteRecursive(path);
     }
+    LOG.info("clean up Target assignment info for {}", datastreamGroupName);
   }
 
   /**
@@ -943,6 +944,7 @@ public class ZkAdapter {
     String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
     if (_zkclient.exists(path)) {
       List<String> nodes = _zkclient.getChildren(path);
+      Collections.sort(nodes);
       for (String node : nodes) {
         String content = _zkclient.readData(path + '/' + node);
         TargetAssignment assignment = TargetAssignment.fromJson(content);

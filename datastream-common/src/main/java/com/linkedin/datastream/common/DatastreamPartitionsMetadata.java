@@ -10,7 +10,7 @@ import java.util.List;
 
 
 /**
- * wrap class to store partitions info for a datastreamv group
+ * wrap class to store partitions info for a datastream group
  */
 public class DatastreamPartitionsMetadata {
 
@@ -20,7 +20,7 @@ public class DatastreamPartitionsMetadata {
   /**
    * constructor
    * @param datastreamGroupName name of the datastream group
-   * @param partitions the partitions that subscribed by this datastream
+   * @param partitions the partitions that belong to this datastream
    */
   public DatastreamPartitionsMetadata(String datastreamGroupName, List<String> partitions) {
     _datastreamGroupName = datastreamGroupName;

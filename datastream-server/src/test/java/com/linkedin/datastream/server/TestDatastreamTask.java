@@ -18,7 +18,11 @@ import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+<<<<<<< HEAD
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+=======
+import com.linkedin.datastream.common.DatastreamTransientException;
+>>>>>>> origin/kafka_partition_management
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
@@ -50,7 +54,7 @@ public class TestDatastreamTask {
     verify(mockZkAdapter, atLeastOnce()).waitForDependencies(any(DatastreamTaskImpl.class), any(Duration.class));
   }
 
-  @Test(expectedExceptions = DatastreamRuntimeException.class)
+  @Test(expectedExceptions = DatastreamTransientException.class)
   public void testCreateNewTaskFromUnlockedTask() throws Exception {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));

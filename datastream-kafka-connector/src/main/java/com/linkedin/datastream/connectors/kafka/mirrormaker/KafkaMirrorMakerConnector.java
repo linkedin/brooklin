@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,13 +50,15 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  */
 public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
+  // This config controls how frequent connector fetch the source information from Kafka in order to perform
+  // partition management
   protected static final String PARTITION_FETCH_INTERVAL = "PartitionFetchIntervalMs";
   protected static final String MM_TOPIC_PLACEHOLDER = "*";
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
   private static final String DEST_CONSUMER_GROUP_ID_SUFFIX = "-topic-partition-listener";
   private static final String DOMAIN_KAFKA_CONSUMER = "consumer";
-  private static final long DEFAULT_PARTITION_FETCH_INTERVAL = 30000;
+  private static final long DEFAULT_PARTITION_FETCH_INTERVAL = Duration.ofSeconds(30).toMillis();
 
   private final boolean _isFlushlessModeEnabled;
   private final long _partitionFetchIntervalMs;
@@ -63,7 +66,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new HashMap<>();
   private final Properties _consumerProperties;
   private java.util.function.Consumer<DatastreamGroup> _partitionChangeCallback;
-  private boolean _shutdown;
+  private volatile boolean _shutdown;
 
   /**
    * Constructor for KafkaMirrorMakerConnector.
@@ -151,16 +154,21 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   public void stop() {
     super.stop();
     _shutdown = true;
-    _partitionDiscoveryThreadMap.values().forEach(Thread::interrupt);
+    _partitionDiscoveryThreadMap.values().forEach(PartitionDiscoveryThread::shutdown);
   }
 
+  /**
+   * Get the partitions for all datastream group. Return Optional.empty() for that datastreamGroup if the
+   * datastreamGroup has been assigned but the partition info has not been fetched already. This is only triggered
+   * in the LEADER_PARTITION_ASSIGNMENT thread so that it doesn't need to be thread safe.
+   */
   @Override
   public Map<String, Optional<DatastreamPartitionsMetadata>> getDatastreamPartitions() {
     Map<String, Optional<DatastreamPartitionsMetadata>> datastreams = new HashMap<>();
     _partitionDiscoveryThreadMap.forEach((s, partitionDiscoveryThread) -> {
-      if (partitionDiscoveryThread._initialized) {
+      if (partitionDiscoveryThread.isInitialized()) {
         datastreams.put(s, Optional.of(new DatastreamPartitionsMetadata(s,
-            partitionDiscoveryThread._subscribedPartitions)));
+            partitionDiscoveryThread.getSubscribedPartitions())));
       } else {
         datastreams.put(s, Optional.empty());
       }
@@ -169,45 +177,67 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   }
 
 
+  /**
+   * callback when the datastreamGroups assigned to this connector instance has been changed. This is only triggered
+   * in the LEADER_DO_ASSIGNMENT thread so that it doesn't need to be thread safe.
+   */
   @Override
   public void handleDatastream(List<DatastreamGroup> datastreamGroups) {
-    List<String> dgNames = datastreamGroups.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toList());
+    if (_partitionChangeCallback == null) {
+      // We do not need to handle the datastreamGroup if there is no callback registered
+      return;
+    }
+
+    LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",
+        _partitionDiscoveryThreadMap.keySet(), datastreamGroups);
+
+    List<String> dgNames = datastreamGroups.stream().map(DatastreamGroup::getName).collect(Collectors.toList());
     List<String> obsoleteDgs = new ArrayList<>(_partitionDiscoveryThreadMap.keySet());
     obsoleteDgs.removeAll(dgNames);
-    obsoleteDgs.stream().forEach(name -> {
-      LOG.info("remove datastream group {}", name);
-      Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(Thread::interrupt);
+    obsoleteDgs.forEach(name -> {
+      Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(PartitionDiscoveryThread::shutdown);
     });
 
-    datastreamGroups.stream().forEach(datastreamGroup -> {
-      String datastreamGroupName = datastreamGroup.getTaskPrefix();
+    datastreamGroups.forEach(datastreamGroup -> {
+      String datastreamGroupName = datastreamGroup.getName();
       PartitionDiscoveryThread partitionDiscoveryThread;
       if (_partitionDiscoveryThreadMap.containsKey(datastreamGroupName)) {
         partitionDiscoveryThread = _partitionDiscoveryThreadMap.get(datastreamGroupName);
         partitionDiscoveryThread.setDatastreamGroup(datastreamGroup);
       } else {
-        //We dont need to register the thread if no partition callback is available
-        if (_partitionChangeCallback != null) {
-          partitionDiscoveryThread =
-              new PartitionDiscoveryThread(datastreamGroup);
-          partitionDiscoveryThread.start();
-          _partitionDiscoveryThreadMap.put(datastreamGroupName, partitionDiscoveryThread);
-          LOG.info("DatastreamChangeListener for {} registered", datastreamGroupName);
-        }
+        partitionDiscoveryThread =
+            new PartitionDiscoveryThread(datastreamGroup);
+        partitionDiscoveryThread.start();
+        _partitionDiscoveryThreadMap.put(datastreamGroupName, partitionDiscoveryThread);
+        LOG.info("DatastreamChangeListener for {} registered", datastreamGroupName);
       }
     });
+    LOG.info("handleDatastream: new datastream groups: {}", _partitionDiscoveryThreadMap.keySet());
+
   }
 
+  /**
+   *  PartitionDiscoveryThread listens to Kafka partitions periodically using the _consumer.listTopic()
+   *  to fetch the latest subscribed partitions for a particular datastreamGroup
+   */
   class PartitionDiscoveryThread extends Thread {
-    private Consumer<?, ?> _consumer;
+    // The datastream group that this partitionDiscoveryThread is responsible to handle
     private DatastreamGroup _datastreamGroup;
-    private List<String> _subscribedPartitions = new ArrayList<>();
+
+    // The topic regex which covers the topics that belong to this datastream group
     private Pattern _topicPattern;
-    private boolean _initialized;
+
+    // The partitions covered by this datastresm group, fetched from Kafka
+    private volatile List<String> _subscribedPartitions = Collections.<String>emptyList();
+
+    // indicate if this thread has already fetch the partitions info from Kafka
+    private volatile boolean _initialized;
 
 
     private PartitionDiscoveryThread(DatastreamGroup datastreamGroup) {
       _datastreamGroup = datastreamGroup;
+      //Compile topic pattern so that it contains the topic regex from source KafkaConnectionString
+      //Example: source string:  kafka://HOST:9092/^test.*$, topic pattern: ^test.*$
       _topicPattern = Pattern.compile(
           KafkaConnectionString.valueOf(_datastreamGroup.getDatastreams().get(0).getSource().getConnectionString()).getTopicName());
       _initialized = false;
@@ -219,10 +249,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           KafkaConnectionString.valueOf(_datastreamGroup.getDatastreams().get(0).getSource().getConnectionString()).getTopicName());
     }
 
-    private List<String> getPartitionsInfo() {
-      Map<String, List<PartitionInfo>> sourceTopics = _consumer.listTopics();
+
+    private List<String> getPartitionsInfo(Consumer<?, ?> consumer) {
+      Map<String, List<PartitionInfo>> sourceTopics = consumer.listTopics();
       List<TopicPartition> topicPartitions = sourceTopics.keySet().stream()
-          .filter(t1 -> _topicPattern.matcher(t1).matches()).flatMap(t2 ->
+          .filter(t1 -> _topicPattern.matcher(t1).matches())
+          .flatMap(t2 ->
               sourceTopics.get(t2).stream().map(partitionInfo ->
                   new TopicPartition(partitionInfo.topic(), partitionInfo.partition()))).collect(Collectors.toList());
 
@@ -244,17 +276,18 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     @Override
     public void run() {
       Datastream datastream = _datastreamGroup.getDatastreams().get(0);
-      String bootstrapValue = String.join(KafkaConnectionString.BROKER_LIST_DELIMITER,
-          KafkaConnectionString.valueOf(datastream.getSource().getConnectionString())
-              .getBrokers().stream().map(KafkaBrokerAddress::toString).collect(Collectors.toList()));
-      _consumer = createConsumer(_consumerProperties, bootstrapValue,
+      String bootstrapValue = KafkaConnectionString.valueOf(datastream.getSource().getConnectionString())
+          .getBrokers().stream()
+          .map(KafkaBrokerAddress::toString)
+          .collect(Collectors.joining(KafkaConnectionString.BROKER_LIST_DELIMITER));
+      Consumer<?, ?> consumer = createConsumer(_consumerProperties, bootstrapValue,
           _groupIdConstructor.constructGroupId(datastream) + DEST_CONSUMER_GROUP_ID_SUFFIX);
 
-      LOG.info("Fetch thread for {} started", datastream.getName());
+      LOG.info("Fetch thread for {} started", _datastreamGroup.getName());
       while (!isInterrupted() && !_shutdown) {
         try {
           // If partition is changed
-          List<String> newPartitionInfo = getPartitionsInfo();
+          List<String> newPartitionInfo = getPartitionsInfo(consumer);
           LOG.debug("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
               , datastream.getName(), _subscribedPartitions, newPartitionInfo);
 
@@ -268,15 +301,29 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           }
           Thread.sleep(_partitionFetchIntervalMs);
         } catch (Throwable t) {
-          LOG.error("detect error for thread " + datastream.getName() + ", ex: ", t);
+          LOG.error("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
         }
       }
 
-      if (_consumer != null) {
-        _consumer.close();
+      if (consumer != null) {
+        consumer.close();
       }
-      _consumer = null;
-      LOG.info("Fetch thread for {} stopped", datastream.getName());
+
+      consumer = null;
+      LOG.info("PartitionDiscoveryThread for {} stopped", _datastreamGroup.getName());
+    }
+
+    public void shutdown() {
+      this.interrupt();
+      LOG.info("Shutdown datastream {}", _datastreamGroup.getName());
+    }
+
+    public List<String> getSubscribedPartitions() {
+      return _subscribedPartitions;
+    }
+
+    public boolean isInitialized() {
+      return _initialized;
     }
   }
 }

@@ -571,7 +571,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinationWithPartitionAssignment() throws Exception {
+  public void testCoordinatorWithPartitionAssignment() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
@@ -721,7 +721,7 @@ public class TestCoordinator {
 
       @Override
       public void handleDatastream(List<DatastreamGroup> datastreamGroup) {
-        datastreamGroup.stream().map(DatastreamGroup::getTaskPrefix).forEach(_datastremGroups::add);
+        datastreamGroup.stream().map(DatastreamGroup::getName).forEach(_datastremGroups::add);
         _callbackThread = new Thread(() -> {
           try {
             Thread.sleep(initialDelayMs);
