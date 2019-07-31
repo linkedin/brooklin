@@ -46,7 +46,6 @@ import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -70,7 +69,6 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
-import com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -976,8 +974,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     String datastreamGroupName = maybeDatastreamGroupName.get();
 
-    StickyPartitionAssignmentStrategy partitionAssignmentStrategy = new StickyPartitionAssignmentStrategy();
-
     try {
       previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
@@ -987,27 +983,30 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           fetchDatastreamGroups().stream().filter(dg -> datastreamGroupName.equals(dg.getName())).findFirst().orElse(null);
 
       if (toProcessDatastream != null) {
+        AssignmentStrategy strategy = _connectors.get(toProcessDatastream.getConnectorName()).getAssignmentStrategy();
         Connector connectorInstance = _connectors.get(toProcessDatastream.getConnectorName()).getConnector()
             .getConnectorInstance();
-        Map<String, Optional<DatastreamPartitionsMetadata>> datastreamPartitions =
+        Map<String, Optional<DatastreamGroupPartitionsMetadata>> datastreamPartitions =
             connectorInstance.getDatastreamPartitions();
 
         if (datastreamPartitions.containsKey(toProcessDatastream.getName())) {
-          DatastreamPartitionsMetadata subscribes = connectorInstance.getDatastreamPartitions()
+          DatastreamGroupPartitionsMetadata subscribes = connectorInstance.getDatastreamPartitions()
               .get(toProcessDatastream.getName())
               .orElseThrow(() ->
                   new DatastreamTransientException("Subscribed partition is not ready yet for datastream " +
                       toProcessDatastream.getName()));
-          assignmentByInstance = partitionAssignmentStrategy.assignPartitions(assignmentByInstance, subscribes);
+
+          assignmentByInstance = strategy.assignPartitions(assignmentByInstance, subscribes);
+        } else {
+          _log.warn("partitions for {} is not found, ignore the partition assignment", toProcessDatastream.getName());
         }
       }
 
-      _log.info("Partition assignment completed: datastreamGroup, assignment {} ", assignmentByInstance);
       for (String key : assignmentByInstance.keySet()) {
         newAssignmentsByInstance.put(key, new ArrayList<>(assignmentByInstance.get(key)));
       }
       _adapter.updateAllAssignments(newAssignmentsByInstance);
-
+      _log.info("Partition assignment completed: datastreamGroup, assignment {} ", assignmentByInstance);
       succeeded = true;
     } catch (Exception ex) {
       _log.info("Partition assignment failed, Exception: ", ex);

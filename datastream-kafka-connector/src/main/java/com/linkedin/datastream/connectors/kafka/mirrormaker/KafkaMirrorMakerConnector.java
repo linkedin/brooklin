@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -28,17 +29,19 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
+import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamGroup;
+import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
@@ -49,6 +52,8 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  * destination cluster.
  */
 public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
+  private static final String MODULE = KafkaMirrorMakerConnector.class.getSimpleName();
+
   protected static final String IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
   // This config controls how frequent the connector fetches the partition information from Kafka in order to perform
   // partition assignment
@@ -57,14 +62,16 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
   private static final String DEST_CONSUMER_GROUP_ID_SUFFIX = "-topic-partition-listener";
-  private static final String DOMAIN_KAFKA_CONSUMER = "consumer";
   private static final long DEFAULT_PARTITION_FETCH_INTERVAL = Duration.ofSeconds(30).toMillis();
+  private static final String NUM_PARTITION_FETCH_ERRORS = "numPartitionFetchErrors";
 
   private final boolean _isFlushlessModeEnabled;
   private final long _partitionFetchIntervalMs;
   private final KafkaConsumerFactory<?, ?> _listenerConsumerFactory;
-  private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new HashMap<>();
+  private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new ConcurrentHashMap<>();
   private final Properties _consumerProperties;
+  private final DynamicMetricsManager _dynamicMetricsManager;
+
   private final boolean _enablePartitionAssignment;
 
   private java.util.function.Consumer<DatastreamGroup> _partitionChangeCallback;
@@ -85,9 +92,10 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     _partitionFetchIntervalMs = Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL,
         Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
-    _consumerProperties = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
+    _consumerProperties = verifiableProperties.getDomainProperties(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER);
     _listenerConsumerFactory = new KafkaConsumerFactoryImpl();
     _enablePartitionAssignment = _config.getEnablePartitionAssignment();
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _shutdown = false;
   }
 
@@ -169,11 +177,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    * in the LEADER_PARTITION_ASSIGNMENT thread so that it doesn't need to be thread safe.
    */
   @Override
-  public Map<String, Optional<DatastreamPartitionsMetadata>> getDatastreamPartitions() {
-    Map<String, Optional<DatastreamPartitionsMetadata>> datastreams = new HashMap<>();
+  public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
+    Map<String, Optional<DatastreamGroupPartitionsMetadata>> datastreams = new HashMap<>();
     _partitionDiscoveryThreadMap.forEach((s, partitionDiscoveryThread) -> {
       if (partitionDiscoveryThread.isInitialized()) {
-        datastreams.put(s, Optional.of(new DatastreamPartitionsMetadata(s,
+        datastreams.put(s, Optional.of(new DatastreamGroupPartitionsMetadata(partitionDiscoveryThread.getDatastreamGroup(),
             partitionDiscoveryThread.getSubscribedPartitions())));
       } else {
         datastreams.put(s, Optional.empty());
@@ -300,6 +308,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           // If the Broker goes down, consumer will receive a exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
           LOG.error("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
+          _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);
         }
       }
 
@@ -325,6 +334,10 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
     public boolean isInitialized() {
       return _initialized;
+    }
+
+    public DatastreamGroup getDatastreamGroup() {
+      return _datastreamGroup;
     }
   }
 }

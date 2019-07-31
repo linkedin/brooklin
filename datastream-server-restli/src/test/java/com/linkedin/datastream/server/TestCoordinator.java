@@ -41,7 +41,6 @@ import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
@@ -60,6 +59,7 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdminFactor
 import com.linkedin.datastream.server.assignment.BroadcastStrategy;
 import com.linkedin.datastream.server.assignment.LoadbalancingStrategy;
 import com.linkedin.datastream.server.assignment.StickyMulticastStrategy;
+import com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy;
 import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
@@ -587,19 +587,19 @@ public class TestCoordinator {
     TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
-    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
         new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
         new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
-    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -608,11 +608,9 @@ public class TestCoordinator {
     connectors.add(connector1);
     connectors.add(connector2);
     connectors.add(connector3);
-    List<String> datastreamNames = ImmutableList.of("datastream1", "datastream2");
 
-    for (String name : datastreamNames) {
-      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, name);
-    }
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream1", "datastream2");
+
     waitTillAssignmentIsComplete(8, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
     final long interval = WAIT_TIMEOUT_MS < 100 ? WAIT_TIMEOUT_MS : 100;
@@ -635,7 +633,7 @@ public class TestCoordinator {
       Map<String, List<String>> partitions, int initialDelayMs) {
     return new TestHookConnector(name, connectorType) {
 
-      Set<String> _datastremGroups = new HashSet<>();
+      Map<String, DatastreamGroup> _datastremGroups = new HashMap<>();
       Consumer<DatastreamGroup> _callback;
       Thread _callbackThread = null;
 
@@ -646,24 +644,28 @@ public class TestCoordinator {
 
       @Override
       public void handleDatastream(List<DatastreamGroup> datastreamGroup) {
-        datastreamGroup.stream().map(DatastreamGroup::getName).forEach(_datastremGroups::add);
-        _callbackThread = new Thread(() -> {
-          try {
-            Thread.sleep(initialDelayMs);
-            for (DatastreamGroup ds : datastreamGroup) {
-              _callback.accept(ds);
-            }
-          } catch (Exception ex) {
+        if (datastreamGroup.size() > 0) {
+          datastreamGroup.forEach(dg -> _datastremGroups.put(dg.getName(), dg));
+          _callbackThread = new Thread(() -> {
+            try {
+              Thread.sleep(initialDelayMs);
+              for (DatastreamGroup ds : datastreamGroup) {
+                _callback.accept(ds);
+              }
+            } catch (Exception ex) {
 
-          }
-        });
-        _callbackThread.start();
+            }
+          });
+          _callbackThread.start();
+        }
       }
 
       @Override
-      public Map<String, Optional<DatastreamPartitionsMetadata>> getDatastreamPartitions() {
-        return partitions.keySet().stream().collect(Collectors.toMap(k -> k,
-            k -> Optional.of(new DatastreamPartitionsMetadata(k, partitions.get(k)))));
+      public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
+        LOG.info("YAYAYAYAYAYAYYA {}", _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
+            g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName()))))).keySet());
+        return _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
+            g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName())))));
       }
 
       @Override

@@ -119,6 +119,7 @@ project(':datastream-common') {
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"

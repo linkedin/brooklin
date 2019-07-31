@@ -111,7 +111,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
-
   /**
    * Constructor for DatastreamTaskImpl.
    * @param datastreams Datastreams associated with the task.
@@ -465,9 +464,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Add an dependent task to this task
+   * Add a precedent task to this task
    */
-  public void addDependentTask(String taskName) {
+  public void addDependency(String taskName) {
     _dependencies.add(taskName);
   }
 
