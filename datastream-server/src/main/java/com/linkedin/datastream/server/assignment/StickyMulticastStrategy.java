@@ -134,7 +134,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       }
       // As SticyAssignment, we want to recycle task from dead instances
       Set<DatastreamTask> unallocatedTasks = currentAssignmentCopy.values().stream().flatMap(Set::stream)
-          .collect(Collectors.toSet());
+          .filter(dg::belongsTo).collect(Collectors.toSet());
       unallocatedTasks.removeAll(allAliveTasks);
       tasksNeedToRelocate.put(dg, new ArrayList<>(unallocatedTasks));
       if (numTasks > 0) {
@@ -157,7 +157,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       while (pendingTasks > 0) {
         // round-robin to the instances
         for (String instance : instancesBySize) {
-          DatastreamTask task = unallocatedTasks.size() > 0 ? unallocatedTasks.remove(unallocated.size() - 1) :
+          DatastreamTask task = unallocatedTasks.size() > 0 ? unallocatedTasks.remove(unallocatedTasks.size() - 1) :
               new DatastreamTaskImpl(dg.getDatastreams());
           newAssignment.get(instance).add(task);
           pendingTasks--;

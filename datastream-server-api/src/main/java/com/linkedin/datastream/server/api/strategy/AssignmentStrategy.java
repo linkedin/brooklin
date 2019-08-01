@@ -82,6 +82,6 @@ public interface AssignmentStrategy {
    */
   default Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
-
+    return currentAssignment;
   }
 }

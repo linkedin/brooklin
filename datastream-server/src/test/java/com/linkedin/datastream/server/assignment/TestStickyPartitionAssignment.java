@@ -119,7 +119,7 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testMovePartition() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
@@ -145,7 +145,7 @@ public class TestStickyPartitionAssignment {
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testMovePartitionToInstanceWithoutTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy();
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");

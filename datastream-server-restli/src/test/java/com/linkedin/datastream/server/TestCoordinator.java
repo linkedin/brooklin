@@ -571,7 +571,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinatorWithPartitionAssignment() throws Exception {
+  public void testCoordinationWithPartitionAssignment() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
@@ -618,89 +618,14 @@ public class TestCoordinator {
 
     Assert.assertTrue(
         PollUtils.poll(() -> {
-      //Verify all the partitions are assigned
-      Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
-      return assignment2.get("datastream1").size() == partitions1.size() && assignment2.get("datastream2").size() == partitions2.size();
-    }, interval, WAIT_TIMEOUT_MS));
+          //Verify all the partitions are assigned
+          Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
+          return assignment2.get("datastream1").size() == partitions1.size() && assignment2.get("datastream2").size() == partitions2.size();
+        }, interval, WAIT_TIMEOUT_MS));
     instance1.stop();
     instance2.stop();
     instance3.stop();
 
-    zkClient.close();
-  }
-
-
-  @Test
-  public void testCoordinationWithPartitionMovement() throws Exception {
-    String testCluster = "testCoordinationSmoke";
-    String testConnectorType = "testConnectorType";
-    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
-
-    int initialDelays = 100;
-
-    List<String> partitions1 = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7", "t-8");
-    Map<String, List<String>> partitions = new HashMap<>();
-    partitions.put("datastream1", partitions1);
-
-    TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
-
-    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null, true);
-    instance1.start();
-
-    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
-    TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null, true);
-    instance2.start();
-
-
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
-    List<TestHookConnector> connectors = new ArrayList<>();
-    connectors.add(connector1);
-    connectors.add(connector2);
-
-    Datastream [] datastream1 = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream1");
-
-    waitTillAssignmentIsComplete(4, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
-
-    final long interval = WAIT_TIMEOUT_MS < 100 ? WAIT_TIMEOUT_MS : 100;
-
-    //Verify all the partitions are assigned
-    Assert.assertTrue(
-        PollUtils.poll(() -> {
-          Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
-          return assignment2.get("datastream1").size() == partitions1.size(); }, interval, WAIT_TIMEOUT_MS));
-
-
-    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
-    String host1 = instance1.getInstanceName().substring(0, instance1.getInstanceName().lastIndexOf('-'));
-    TargetAssignment targetAssignment =
-        new TargetAssignment(ImmutableList.of("t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7", "t-8"), host1);
-    store.updatePartitionAssignments(datastream1[0].getName(), datastream1[0], targetAssignment);
-
-    //Verify the target assignment is correct, unfortunately the instances are using same hostname
-    //so we dont know which one it moves to, but the logic should still move the partitions into same instance
-    Assert.assertTrue(
-        PollUtils.poll(() -> {
-          Set<String> p1 = new HashSet<>();
-          Set<String> p2 = new HashSet<>();
-
-          connector1.getTasks().stream().forEach(t -> p1.addAll(t.getPartitionsV2()));
-          connector2.getTasks().stream().forEach(t -> p2.addAll(t.getPartitionsV2()));
-
-          return p1.containsAll(new HashSet<>(targetAssignment.getPartitionNames()))
-              || p2.containsAll(new HashSet<>(targetAssignment.getPartitionNames()));
-        }, interval, WAIT_TIMEOUT_MS));
-
-    //Verify all the partitions are still get assigned
-    Assert.assertTrue(
-        PollUtils.poll(() -> {
-          Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
-          return assignment2.get("datastream1").size() == partitions1.size(); }, interval, WAIT_TIMEOUT_MS));
-
-    instance1.stop();
-    instance2.stop();
     zkClient.close();
   }
 
@@ -737,16 +662,8 @@ public class TestCoordinator {
 
       @Override
       public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
-        LOG.info("YAYAYAYAYAYAYYA {}", _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
-            g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName()))))).keySet());
         return _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
             g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName())))));
-      }
-
-      @Override
-      public void onAssignmentChange(List<DatastreamTask> tasks) {
-        super.onAssignmentChange(tasks);
-        tasks.forEach(t -> t.acquire(Duration.ofSeconds(1)));
       }
 
       @Override
