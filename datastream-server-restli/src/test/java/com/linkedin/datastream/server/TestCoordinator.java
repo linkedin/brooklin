@@ -599,7 +599,8 @@ public class TestCoordinator {
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
-    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
+    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 

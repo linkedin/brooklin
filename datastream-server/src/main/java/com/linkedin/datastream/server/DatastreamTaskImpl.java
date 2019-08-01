@@ -55,10 +55,6 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 public class DatastreamTaskImpl implements DatastreamTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
-  //As datastream task is stored into znode, the size of task size is limit into 1MB, we need to limit the number
-  //of partitionsv2 to about 2500
-
-  private static final int MAX_PARTITION_NUM = 2500;
 
   private static final String STATUS = "STATUS";
   private volatile List<Datastream> _datastreams;
@@ -180,10 +176,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     _dependencies = new ArrayList<>();
     _dependencies.add(predecessor.getDatastreamTaskName());
-    if (partitionsV2.size() > MAX_PARTITION_NUM) {
-      LOG.warn("It's suggest to keep the the size of parition v2 under {} to avoid hitting Znode size limit"
-          , MAX_PARTITION_NUM);
-    }
   }
 
     /**
@@ -253,7 +245,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Set partitions associated with the task. This setter is required for json
+   * Set partitions associated with the task. This setter is required for json deserialization
    * @param partitionsV2 List of partitions to associate with task.
    */
   public void setPartitionsV2(List<String> partitionsV2) {
@@ -306,7 +298,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     try {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
-           if (_zkAdapter.checkIfTaskLocked(this.getConnectorType(), predecessor)) {
+           if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), predecessor)) {
              String msg = String.format("previous task %s is failed to release in %dms", predecessor,
                  timeout.toMillis());
              throw new DatastreamRuntimeException(msg);
@@ -328,7 +320,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   public boolean isLocked() {
     Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
-    return _zkAdapter.checkIfTaskLocked(_connectorType, getDatastreamTaskName());
+    return _zkAdapter.checkIsTaskLocked(_connectorType, getDatastreamTaskName());
   }
 
   @Override
@@ -462,6 +454,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _checkpoints.put(partition, checkpoint);
   }
 
+  // required for json deserialization
   public List<String> getDependencies() {
     return _dependencies;
   }
@@ -473,4 +466,12 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _dependencies.add(taskName);
   }
 
+  /**
+   * return task version to decide if it uses partition (v1) or partition v2
+   */
+  @JsonIgnore
+  public int getTaskVersion() {
+    int version = _partitions.size() > 0 ? 1 : 2;
+    return version;
+  }
 }

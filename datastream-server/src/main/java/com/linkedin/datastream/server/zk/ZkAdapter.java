@@ -902,18 +902,18 @@ public class ZkAdapter {
   /**
    * Check if the task is current locked
    */
-  public boolean checkIfTaskLocked(String connectorType, String taskName) {
+  public boolean checkIsTaskLocked(String connectorType, String taskName) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, connectorType, taskName);
     return (_zkclient.exists(lockPath));
   }
 
   /**
-   * Wait for all dependencies to be cleared
+   * Wait for all dependencies to be cleared. It's a blocking call
    * @param task Datastream task whose dependencies need to be checked
    * @param timeout max wait time to wait for a locked task for releasing
    */
   public void waitForDependencies(DatastreamTaskImpl task, Duration timeout) {
-    task.getDependencies().stream().forEach(previousTask -> {
+    task.getDependencies().forEach(previousTask -> {
         String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), previousTask);
       if (_zkclient.exists(lockPath)) {
         waitForTaskRelease(task, timeout.toMillis(), lockPath);

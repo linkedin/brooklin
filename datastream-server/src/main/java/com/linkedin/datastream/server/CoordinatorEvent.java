@@ -5,8 +5,6 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.Optional;
-
 
 /**
  * Represents different event types inside {@link Coordinator}.

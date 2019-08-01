@@ -46,7 +46,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           instances, before triggering a rebalance. The default is
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
-   *                     If partitions count in task is larger than this number, Brooklin will throw an exception
+   *                            If partitions count in task is larger than this number, Brooklin will throw an exception
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
