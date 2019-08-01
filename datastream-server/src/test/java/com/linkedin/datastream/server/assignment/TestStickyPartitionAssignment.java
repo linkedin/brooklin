@@ -46,7 +46,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testCreateAssignmentAcrossAllTasks() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
@@ -67,7 +68,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testAddPartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
@@ -94,7 +96,8 @@ public class TestStickyPartitionAssignment {
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testCreateAssignmentFailureDueToUnlockedTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, false);
@@ -118,7 +121,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testRemovePartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
 

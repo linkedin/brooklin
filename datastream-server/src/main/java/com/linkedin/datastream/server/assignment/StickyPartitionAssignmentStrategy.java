@@ -33,6 +33,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  */
 public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
+  private final Integer _maxPartitionPerTask;
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -44,9 +45,14 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           between any two {@link com.linkedin.datastream.server.Coordinator}
    *                           instances, before triggering a rebalance. The default is
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
+   * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
+   *                     If partitions count in task is larger than this number, Brooklin will throw an exception
+   *
    */
-  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
+  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
+      Optional<Integer> maxPartitionPerTask) {
     super(maxTasks, imbalanceThreshold);
+    _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
   }
   /**
    * assign partitions to a particular datastream group
@@ -58,7 +64,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String,
       Set<DatastreamTask>> currentAssignment, DatastreamGroupPartitionsMetadata datastreamPartitions) {
 
-    LOG.debug("old partition assignment info, assignment: {}", currentAssignment);
+    LOG.info("old partition assignment info, assignment: {}", currentAssignment);
 
     String dgName = datastreamPartitions.getDatastreamGroup().getName();
 
@@ -108,6 +114,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
             remainder.decrementAndGet();
           }
 
+          if (newPartitions.size() > _maxPartitionPerTask) {
+            String errorMessage = String.format("Partition count %s is larger than %s for datastream %s, "
+                + "please increase the maxTask", newPartitions.size(), _maxPartitionPerTask, dgName);
+            throw new DatastreamRuntimeException(errorMessage);
+          }
           if (partitionChanged) {
             return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
           } else {
@@ -142,12 +153,16 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       }
     }
     if (total != allPartitions.getPartitions().size()) {
-      throw new DatastreamRuntimeException(String.format("Validation failed after assignment, assigned partitions "
-          + "size: {} is not equal to all partitions size: {}", total, allPartitions.getPartitions().size()));
+      String errorMsg = String.format(String.format("Validation failed after assignment, assigned partitions "
+          + "size: %s is not equal to all partitions size: %s", total, allPartitions.getPartitions().size()));
+      LOG.error(errorMsg);
+      throw new DatastreamRuntimeException(errorMsg);
     }
     if (unassignedPartitions.size() > 0) {
-      throw new DatastreamRuntimeException(String.format("Validation failed after assignment, "
-          + "unassigned partition: {}", unassignedPartitions));
+      String errorMsg = String.format("Validation failed after assignment, "
+          + "unassigned partition: %s", unassignedPartitions);
+      LOG.error(errorMsg);
+      throw new DatastreamRuntimeException(errorMsg);
     }
   }
 }

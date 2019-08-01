@@ -587,14 +587,14 @@ public class TestCoordinator {
     TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
-    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);

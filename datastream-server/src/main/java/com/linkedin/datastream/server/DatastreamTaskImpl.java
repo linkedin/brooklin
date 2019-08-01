@@ -159,7 +159,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * @param partitionsV2 new partitions for this task
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
-    Validate.isTrue(partitionsV2.size() <= MAX_PARTITION_NUM, "Too many partitions allocated for a single task");
     if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
       throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
           + "the previous assignment has not be picked up");
@@ -181,6 +180,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     _dependencies = new ArrayList<>();
     _dependencies.add(predecessor.getDatastreamTaskName());
+    if (partitionsV2.size() > MAX_PARTITION_NUM) {
+      LOG.warn("It's suggest to keep the the size of parition v2 under {} to avoid hitting Znode size limit"
+          , MAX_PARTITION_NUM);
+    }
   }
 
     /**

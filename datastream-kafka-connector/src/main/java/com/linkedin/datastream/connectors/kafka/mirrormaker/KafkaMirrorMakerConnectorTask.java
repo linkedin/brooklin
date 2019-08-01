@@ -194,6 +194,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_enablePartitionAssignment) {
       Set<TopicPartition> topicPartition  = getAssignedTopicPartitionFromTask();
       updateConsumerAssignment(topicPartition);
+      // Consumer can be assigned with an empty set, but it cannot run poll against it
+      // While it's allowed to assign an empty set here, the check on poll need to be performed
       _consumer.assign(_consumerAssignment);
     } else {
       LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
@@ -352,7 +354,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
     if (_enablePartitionAssignment && _consumerAssignment.isEmpty()) {
-      // Kafka may rejects a poll if there is empty assignment
+      // Kafka rejects a poll if there is empty assignment
       return ConsumerRecords.EMPTY;
     } else {
       return _consumer.poll(pollInterval);

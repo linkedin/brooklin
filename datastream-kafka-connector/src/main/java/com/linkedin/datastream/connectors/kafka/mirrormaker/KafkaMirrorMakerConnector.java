@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -99,6 +100,9 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     _enablePartitionAssignment = _config.getEnablePartitionAssignment();
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _shutdown = false;
+    if (_enablePartitionAssignment) {
+      LOG.info("PartitionAssignment enabled for KafkaMirrorConnector");
+    }
   }
 
   @Override
@@ -202,9 +206,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    */
   @Override
   public void handleDatastream(List<DatastreamGroup> datastreamGroups) {
-    if (!_enablePartitionAssignment || _partitionChangeCallback == null) {
+    if (!_enablePartitionAssignment) {
       // We do not need to handle the datastreamGroup if there is no callback registered
       return;
+    }
+    if (_partitionChangeCallback == null) {
+      throw new DatastreamRuntimeException("Partition change callback is not defined");
     }
 
     LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",

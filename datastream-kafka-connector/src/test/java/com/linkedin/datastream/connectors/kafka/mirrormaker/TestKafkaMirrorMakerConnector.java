@@ -634,7 +634,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   public void testDisableDatastreamChangeListener() throws Exception {
     String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
-    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(Boolean.FALSE));
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Datastream datastream1 =

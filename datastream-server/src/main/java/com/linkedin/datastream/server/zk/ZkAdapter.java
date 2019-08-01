@@ -858,7 +858,8 @@ public class ZkAdapter {
         _zkclient.subscribeChildChanges(lockRootPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        LOG.warn("Unexpectedly interrupted during task acquire.", e);
+        String errorMsg = "Unexpectedly interrupted during task acquire.";
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMsg, e);
       } finally {
         _zkclient.unsubscribeChildChanges(lockRootPath, listener);
       }

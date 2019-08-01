@@ -998,6 +998,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
           assignmentByInstance = strategy.assignPartitions(assignmentByInstance, subscribes);
         } else {
+          // The datastream group will not found only when the datastream was just paused/removed but we happened to
+          // handle the scheduled LEADER_PARTITION_EVENT. In either case we should just ignore and don't retry.
           _log.warn("partitions for {} is not found, ignore the partition assignment", toProcessDatastream.getName());
         }
       } else {

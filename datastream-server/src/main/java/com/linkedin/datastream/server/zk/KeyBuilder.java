@@ -67,7 +67,7 @@ public final class KeyBuilder {
   private static final String DATASTREAM_TASK_LOCK_ROOT = CONNECTOR + "/lock";
 
   /**
-   * Task lock node under connectorType/lock
+   * Task lock node under connectorType/lock/{taskName}
    */
   private static final String DATASTREAM_TASK_LOCK = DATASTREAM_TASK_LOCK_ROOT + "/%s";
 
