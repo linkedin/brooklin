@@ -674,7 +674,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
 
         case LEADER_PARTITION_ASSIGNMENT:
-          performPartitionAssignment(event.getDatastreamGroupName());
+          if (event.getEventMetadata() == null) {
+            _log.error("Datastream group is not found when performing partition assignment, ignore the assignment");
+          } else {
+            performPartitionAssignment((String) event.getEventMetadata());
+          }
           break;
 
         default:
@@ -960,19 +964,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   /**
    * assign the partition to tasks for a particular datastreamGroup
    *
-   * @param maybeDatastreamGroupName the datastreamGroup that needs to perform the partition assignment
+   * @param datastreamGroupName the datastreamGroup that needs to perform the partition assignment
    */
-  private void performPartitionAssignment(Optional<String> maybeDatastreamGroupName) {
-    if (!maybeDatastreamGroupName.isPresent()) {
-      _log.error("Datastream group is not found when performing partition assignment");
-      return;
-    }
-
+  private void performPartitionAssignment(String datastreamGroupName) {
     boolean succeeded = false;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
-
-    String datastreamGroupName = maybeDatastreamGroupName.get();
 
     try {
       previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
@@ -1026,7 +1023,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionAssignment", NUM_RETRIES, 1);
       leaderPartitionAssignmentScheduled.set(true);
       _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(maybeDatastreamGroupName.get()));
+        _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroupName));
         leaderPartitionAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }

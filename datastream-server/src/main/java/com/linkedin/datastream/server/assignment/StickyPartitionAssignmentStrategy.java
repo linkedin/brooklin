@@ -81,7 +81,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     unassignedPartitions.removeAll(assignedPartitions);
 
     int maxPartitionPerTask = datastreamPartitions.getPartitions().size() / totalTaskCount;
+
     // calculate how many tasks are allowed to have slightly more partitions
+    // Assume we have total N tasks, the maxPartitionsPerTask (ceiling) is k. R is the remainder.
+    // We will have R tasks with k partitions and (N-R) task with k -1 partitions.
+    // The code is written in a way a task will be iterate once so we need to knows
+    // if this task belongs to R(with k partitions) or (N-R) with (k-1) partitions.
+
     final AtomicInteger remainder = new AtomicInteger(datastreamPartitions.getPartitions().size() % totalTaskCount);
     LOG.debug("maxPartitionPerTask {}, task count {}", maxPartitionPerTask, totalTaskCount);
 

@@ -37,16 +37,17 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
   protected final EventType _eventType;
 
-  protected final Optional<String> _datastreamGroupName;
+  // metadata can be used by for the event, it can be null
+  protected final Object _eventMetadata;
 
   private CoordinatorEvent(EventType eventType) {
     _eventType = eventType;
-    _datastreamGroupName = Optional.empty();
+    _eventMetadata = null;
   }
 
-  private CoordinatorEvent(EventType eventType, String datastreamGroupName) {
+  private CoordinatorEvent(EventType eventType, Object eventMetadata) {
     _eventType = eventType;
-    _datastreamGroupName = Optional.ofNullable(datastreamGroupName);
+    _eventMetadata = eventMetadata;
   }
 
   /**
@@ -94,8 +95,8 @@ public class CoordinatorEvent {
     return new HandleInstanceError(errorMessage);
   }
 
-  public Optional<String> getDatastreamGroupName() {
-    return _datastreamGroupName;
+  public Object getEventMetadata() {
+    return _eventMetadata;
   }
 
   public EventType getType() {
