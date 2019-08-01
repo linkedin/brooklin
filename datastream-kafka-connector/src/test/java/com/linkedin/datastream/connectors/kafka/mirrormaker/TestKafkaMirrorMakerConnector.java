@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +35,6 @@ import kafka.admin.AdminUtils;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
@@ -50,6 +48,7 @@ import com.linkedin.datastream.connectors.kafka.TestKafkaConnectorUtils;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamGroup;
+import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
@@ -589,6 +588,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Properties config = getDefaultConfig(Optional.empty());
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     config.put(KafkaMirrorMakerConnector.PARTITION_FETCH_INTERVAL, "1000");
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
+
 
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
 
@@ -613,8 +614,9 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     connector.handleDatastream(datastreamGroups1);
     Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 1, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
-    Map<String, Optional<DatastreamPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
-    Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getDatastreamGroupName(), group.getTaskPrefix());
+    Map<String, Optional<DatastreamGroupPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
+    Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getDatastreamGroup().getName(),
+        group.getTaskPrefix());
     Assert.assertEquals(new HashSet<String>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
         ImmutableSet.of(yummyTopic + "-0"));
 
@@ -629,9 +631,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testDisablePartitionListener() throws Exception {
+  public void testDisableDatastreamChangeListener() throws Exception {
     String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Datastream datastream1 =
@@ -641,7 +644,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     //subscribe callback
     connector.handleDatastream(datastreamGroups1);
-    Map<String, Optional<DatastreamPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
+    Map<String, Optional<DatastreamGroupPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
 
     Assert.assertEquals(partitionInfo.keySet(), Collections.EMPTY_SET);
   }
@@ -650,6 +653,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   public void testChangeDatatstreamAssignment() throws Exception {
     String clusterName = "testGroupIdAssignment";
     Properties config = getDefaultConfig(Optional.empty());
+    config.put(KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(true));
     config.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(true));
     KafkaMirrorMakerConnector connector = new KafkaMirrorMakerConnector("MirrorMakerConnector", config, clusterName);
     Datastream datastream1 =
@@ -666,7 +670,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     connector.handleDatastream(datastreamGroups1);
 
-    Map<String, Optional<DatastreamPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
+    Map<String, Optional<DatastreamGroupPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
     Assert.assertEquals(partitionInfo.keySet(),
         datastreamGroups1.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toSet()));
 

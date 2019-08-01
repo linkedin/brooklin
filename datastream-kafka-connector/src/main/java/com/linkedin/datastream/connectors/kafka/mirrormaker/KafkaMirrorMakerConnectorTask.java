@@ -45,6 +45,7 @@ import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
+import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -77,7 +78,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_TOPIC = "kafka-origin-topic";
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
-  private static final Duration ACQUIRE_TIMEOUT = Duration.ofMinutes(5);
+  private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -196,13 +197,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   }
 
   private Set<TopicPartition> getAssignedTopicPartitionFromTask() {
-
-    return _datastreamTask.getPartitionsV2().stream().map(str -> {
-            int i = str.lastIndexOf("-");
-            int partition = Integer.valueOf(str.substring(i + 1));
-            String topic = str.substring(0, i);
-            return new TopicPartition(topic, partition);
-          }).collect(Collectors.toSet());
+    return _datastreamTask.getPartitionsV2().stream()
+        .map(TopicPartitionUtil::createTopicPartition).collect(Collectors.toSet());
   }
 
   @Override
@@ -291,7 +287,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   public void run() {
     if (_enablePartitionAssignment) {
-      _datastreamTask.acquire(ACQUIRE_TIMEOUT);
+      _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
     }
     super.run();
   }
@@ -344,16 +340,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
-    if (_enablePartitionAssignment) {
-      if (!_consumerAssignment.isEmpty()) {
-        return _consumer.poll(pollInterval);
-      } else {
-        return ConsumerRecords.EMPTY;
-      }
+    if (_enablePartitionAssignment && _consumerAssignment.isEmpty()) {
+      return ConsumerRecords.EMPTY;
     } else {
       return _consumer.poll(pollInterval);
     }
   }
+
   /**
    * Get all metrics info for the connector whose name is {@code connectorName}
    */

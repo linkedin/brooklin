@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 import org.codehaus.jackson.annotate.JsonIgnore;
@@ -110,7 +111,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     this(datastreams, UUID.randomUUID().toString(), new ArrayList<>());
   }
 
-
   /**
    * Constructor for DatastreamTaskImpl.
    * @param datastreams Datastreams associated with the task.
@@ -129,8 +129,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _id = id;
     _partitions = new ArrayList<>();
     _partitionsV2 = new ArrayList<>();
+
     if (partitions != null && partitions.size() > 0) {
       _partitions.addAll(partitions);
+      _partitionsV2.addAll(partitions.stream().map(i -> i.toString()).collect(Collectors.toList()));
     } else {
       // Add [0, N) if source has N partitions
       // Or add a default partition 0 otherwise
@@ -138,9 +140,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
         int numPartitions = datastream.getSource().getPartitions();
         for (int i = 0; i < numPartitions; i++) {
           _partitions.add(i);
+          _partitionsV2.add(String.valueOf(i));
         }
       } else {
         _partitions.add(0);
+        //partitionV2 doesn't require a default partition
       }
     }
     LOG.info("Created new DatastreamTask " + this);
@@ -297,7 +301,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
       _zkAdapter.waitForDependencies(this, timeout);
     }
     try {
-    //Need to confirm the task are not locked for its dependencies
+      // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
            if (_zkAdapter.checkIfTaskLocked(this.getConnectorType(), predecessor)) {
              String msg = String.format("previous task %s is failed to release in %dms", predecessor,
@@ -460,9 +464,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Add an dependent task to this task
+   * Add a precedent task to this task
    */
-  public void addDependentTask(String taskName) {
+  public void addDependency(String taskName) {
     _dependencies.add(taskName);
   }
 

@@ -60,7 +60,6 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_DEDUPER_FACTORY;
-import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_NAMES;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CSV_METRICS_DIR;
@@ -338,12 +337,10 @@ public class DatastreamServer {
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
 
-    boolean enablePartitionAssignment =
-        Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_ENABLE_PARTITION_ASSIGNMENT, "false"));
 
     String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
     _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper,
-        authorizerName, enablePartitionAssignment);
+        authorizerName);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }

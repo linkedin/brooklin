@@ -268,6 +268,21 @@ public class TestStickyMulticastStrategy {
   }
 
   @Test
+  public void testDontCreateNewTasksWhenInstanceChanged() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    instances = new String[]{"instance1", "instance2"};
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
+  }
+
+  @Test
   public void testRemoveDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);

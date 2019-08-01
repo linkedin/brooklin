@@ -11,8 +11,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-import com.linkedin.datastream.common.DatastreamPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamGroup;
+import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 
 
 /**
@@ -45,7 +45,7 @@ public interface DatastreamChangeListener {
    * Get the partitions for all datastream group. Return Optional.empty() for that datastreamGroup if the
    * datastreamGroup has been assigned but the partition info has not been fetched already
    */
-  default Map<String, Optional<DatastreamPartitionsMetadata>> getDatastreamPartitions() {
-    return new HashMap<String, Optional<DatastreamPartitionsMetadata>>();
+  default Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
+    return new HashMap<String, Optional<DatastreamGroupPartitionsMetadata>>();
   }
 }

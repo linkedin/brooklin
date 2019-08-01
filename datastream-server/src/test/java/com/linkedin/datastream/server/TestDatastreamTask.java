@@ -18,11 +18,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
-<<<<<<< HEAD
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-=======
 import com.linkedin.datastream.common.DatastreamTransientException;
->>>>>>> origin/kafka_partition_management
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
@@ -49,7 +45,7 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    task.addDependentTask("task0");
+    task.addDependency("task0");
     task.acquire(Duration.ofMillis(60));
     verify(mockZkAdapter, atLeastOnce()).waitForDependencies(any(DatastreamTaskImpl.class), any(Duration.class));
   }
@@ -61,7 +57,7 @@ public class TestDatastreamTask {
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
     task.setPartitionsV2(ImmutableList.of("partition1"));
-    task.addDependentTask("task0");
+    task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
     when(mockZkAdapter.checkIfTaskLocked(anyString(), anyString())).thenReturn(false);
@@ -74,7 +70,7 @@ public class TestDatastreamTask {
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
-    task.addDependentTask("task0");
+    task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
     when(mockZkAdapter.checkIfTaskLocked(anyString(), anyString())).thenReturn(true);

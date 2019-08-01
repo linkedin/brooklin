@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.linkedin.datastream.server.DatastreamGroup;
+import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 
 
@@ -48,4 +49,39 @@ public interface AssignmentStrategy {
    */
   Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment);
+
+
+  /**
+   * Assign partition for a particular datastream group to all the tasks in current assignment
+   * It return a map from instance -> tasks map with partition info stored in the task
+   * This interface needs to implemented if the Brooklin Coordinator is going to perform the
+   * partition assignment.
+   *
+   *
+   * @param currentAssignment the old assignment for all the datastream groups across all instances
+   * @param datastreamPartitions the subscribed partitions for the particular datastream group
+   * @return new assignment mapping
+   */
+  default Map<String, Set<DatastreamTask>> assignPartitions(Map<String,
+      Set<DatastreamTask>> currentAssignment, DatastreamGroupPartitionsMetadata datastreamPartitions) {
+    return currentAssignment;
+  }
+
+  /**
+   * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
+   * task once. It follow the steps
+   * Step 1) get the partitions that to be moved, and get their source task
+   * Step 2) If the instance is the instance we want to move, we figure the task that we want to assign the task
+   * Step 3) We mutate and compute new task if they belongs to these source tasks or if they are the
+   * target task we want to move to
+   *
+   * @param currentAssignment the old assignment
+   * @param targetAssignment the target assignment retrieved from Zookeeper
+   * @param partitionsMetadata the subscribed partitions metadata received from connector
+   * @return new assignment
+   */
+  default Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
+      Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
+
+  }
 }
