@@ -407,7 +407,7 @@ public class TestKafkaPositionTracker {
         .setConsumerFactory(_factory)
         .build();
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(connectorConfig, _datastreamTask, "",
-        new KafkaGroupIdConstructor(false, "testCluster"));
+        new KafkaGroupIdConstructor(false, "testCluster", true));
     final Thread consumerThread = new Thread(connectorTask, "Consumer Thread");
     consumerThread.setDaemon(true);
     consumerThread.setUncaughtExceptionHandler((t, e) -> LOG.error("Got uncaught exception in consumer thread", e));

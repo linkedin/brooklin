@@ -188,7 +188,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", false, new KafkaGroupIdConstructor(false, "testCluster"));
+        connectorConfig, task, "", false, new KafkaGroupIdConstructor(false, "testCluster", true));
 
     KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
@@ -236,7 +236,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", true, new KafkaGroupIdConstructor(false, "test"));
+        connectorConfig, task, "", true, new KafkaGroupIdConstructor(false, "test", true));
 
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 

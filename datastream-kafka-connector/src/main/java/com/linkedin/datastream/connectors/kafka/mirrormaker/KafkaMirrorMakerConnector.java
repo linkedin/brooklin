@@ -82,7 +82,8 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     }
 
     // verify that the source regular expression can be compiled
-    KafkaConnectionString connectionString = KafkaConnectionString.valueOf(stream.getSource().getConnectionString());
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf(stream.getSource().getConnectionString(),
+            _config.getEnableStrictHostCheck());
     try {
       Pattern pattern = Pattern.compile(connectionString.getTopicName());
       LOG.info("Successfully compiled topic name pattern {}", pattern);

@@ -34,6 +34,7 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
+  public static final String CONFIG_ENABLE_STRICT_HOST_CHECK = "enableStrictHostCheck";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
 
@@ -61,6 +62,7 @@ public class KafkaBasedConnectorConfig {
   private final long _processingDelayLogThresholdMillis;
   private final boolean _enablePositionTracker;
   private final boolean _enableBrokerOffsetFetcher;
+  private final boolean _enableStrictHostCheck;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -99,6 +101,7 @@ public class KafkaBasedConnectorConfig {
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
     _enablePositionTracker = verifiableProperties.getBoolean(CONFIG_ENABLE_POSITION_TRACKER, true);
     _enableBrokerOffsetFetcher = verifiableProperties.getBoolean(CONFIG_ENABLE_BROKER_OFFSET_FETCHER, true);
+    _enableStrictHostCheck = verifiableProperties.getBoolean(CONFIG_ENABLE_STRICT_HOST_CHECK, true);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -182,5 +185,9 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnableBrokerOffsetFetcher() {
     return _enableBrokerOffsetFetcher;
+  }
+
+  public boolean getEnableStrictHostCheck() {
+    return _enableStrictHostCheck;
   }
 }

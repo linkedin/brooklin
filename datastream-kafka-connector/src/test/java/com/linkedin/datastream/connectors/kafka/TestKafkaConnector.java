@@ -140,7 +140,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
 
     String clusterName = "testGroupIdAssignment";
     KafkaGroupIdConstructor groupIdConstructor =
-        new KafkaGroupIdConstructor(isGroupIdHashingEnabled, "testGroupIdAssignment");
+        new KafkaGroupIdConstructor(isGroupIdHashingEnabled, "testGroupIdAssignment", true);
 
     String topicName1 = "topic1";
     String topicName2 = "topic2";

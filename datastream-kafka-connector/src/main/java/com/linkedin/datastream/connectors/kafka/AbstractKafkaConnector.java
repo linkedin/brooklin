@@ -316,7 +316,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     DatastreamSource source = datastream.getSource();
     String connectionString = source.getConnectionString();
 
-    KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
+    KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString, _config.getEnableStrictHostCheck());
 
     try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
         _config.getConsumerProps(), "KafkaConnectorPartitionFinder", parsed)) {

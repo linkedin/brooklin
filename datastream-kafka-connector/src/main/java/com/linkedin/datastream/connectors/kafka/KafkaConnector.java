@@ -49,13 +49,14 @@ public class KafkaConnector extends AbstractKafkaConnector {
    */
   public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(
-            Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
+            Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName,
+                    Boolean.parseBoolean(config.getProperty(KafkaBasedConnectorConfig.CONFIG_ENABLE_STRICT_HOST_CHECK))),
         clusterName, LOG);
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =
         Optional.ofNullable(verifiableProperties.getString(CONFIG_WHITE_LISTED_CLUSTERS, null))
-            .map(KafkaConnectionString::parseBrokers)
+            .map(b -> KafkaConnectionString.parseBrokers(b, _config.getEnableStrictHostCheck()))
             .orElse(Collections.emptyList());
     _whiteListedBrokers = new HashSet<>(brokers);
   }
@@ -68,7 +69,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
     String connectionString = source.getConnectionString();
     
     try {
-      KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
+      KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString, _config.getEnableStrictHostCheck());
       source.setConnectionString(parsed.toString()); // ordered now
 
       if (stream.hasDestination()) {

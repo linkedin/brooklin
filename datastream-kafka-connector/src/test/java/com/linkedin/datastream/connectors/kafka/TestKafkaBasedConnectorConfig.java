@@ -42,7 +42,7 @@ public class TestKafkaBasedConnectorConfig {
 
     // verify that config entries are propagated to connectorTask
     Properties taskProps = KafkaConnectorTask.getKafkaConsumerProperties(configProps, "groupId",
-        KafkaConnectionString.valueOf("kafkassl://somewhere:777/topic"));
+        KafkaConnectionString.valueOf("kafkassl://somewhere:777/topic", true));
     Assert.assertEquals(taskProps.getProperty("someProperty"), "someValue");
     Assert.assertEquals(taskProps.getProperty("someProperty1"), "someValue1");
     Assert.assertEquals(taskProps.getProperty("someProperty2"), "someValue2");

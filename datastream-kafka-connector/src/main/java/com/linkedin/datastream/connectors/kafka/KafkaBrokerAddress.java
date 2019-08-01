@@ -32,9 +32,8 @@ public class KafkaBrokerAddress {
    * @param hostName Kafka broker hostname
    * @param portNumber Port number on Kafka broker
    */
-  public KafkaBrokerAddress(String hostName, int portNumber) {
-    validatePortNumber(portNumber);
-    this._hostName = validateHostname(hostName);
+  KafkaBrokerAddress(String hostName, int portNumber) {
+    this._hostName = hostName;
     this._portNumber = portNumber;
   }
 
@@ -69,11 +68,25 @@ public class KafkaBrokerAddress {
   }
 
   /**
-   * Create a KafkaBrokerAddress by parsing hostname and port from {@code brokerAddress}
+   * Create a KafkaBrokerAddress by parsing hostname and port from {@code brokerAddress}.
+   * Domain verification is performed by default.
+   *
    * @param brokerAddress
    *  brokerAddress in the form hostname:port
    */
-  public static KafkaBrokerAddress valueOf(String brokerAddress) throws IllegalArgumentException {
+  public static KafkaBrokerAddress valueOf(String brokerAddress) {
+    return valueOf(brokerAddress, true);
+  }
+
+  /**
+   * Create a KafkaBrokerAddress by parsing hostname and port from {@code brokerAddress}
+   *
+   * @param brokerAddress
+   *  brokerAddress in the form hostname:port
+   * @param strictHostCheck
+   *  should domain verification be performed
+   */
+  public static KafkaBrokerAddress valueOf(String brokerAddress, boolean strictHostCheck) throws IllegalArgumentException {
     if (brokerAddress == null) {
       //noinspection ConstantConditions
       badArg(brokerAddress);
@@ -94,7 +107,7 @@ public class KafkaBrokerAddress {
       badArg(brokerAddress);
     }
     String hostName = str.substring(0, lastColon);
-    hostName = validateHostname(hostName);
+    hostName = validateHostname(hostName, strictHostCheck);
 
     return new KafkaBrokerAddress(hostName, portNumber);
   }
@@ -105,7 +118,7 @@ public class KafkaBrokerAddress {
     }
   }
 
-  private static String validateHostname(String hostName) throws IllegalArgumentException {
+  private static String validateHostname(String hostName, boolean strictHostCheck) throws IllegalArgumentException {
     if (hostName == null) {
       throw new IllegalArgumentException("null host name");
     }
@@ -117,7 +130,7 @@ public class KafkaBrokerAddress {
     InetAddressValidator inetAddressValidator = InetAddressValidator.getInstance();
     DomainValidator domainValidator = DomainValidator.getInstance(true);
     boolean valid =
-        domainValidator.isValid(trimmed)
+            (!strictHostCheck || domainValidator.isValid(trimmed))
             || inetAddressValidator.isValidInet4Address(trimmed)
             || inetAddressValidator.isValidInet6Address(trimmed);
     if (!valid) {

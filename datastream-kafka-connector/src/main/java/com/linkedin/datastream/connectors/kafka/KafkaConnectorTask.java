@@ -42,7 +42,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
 
   private KafkaConnectionString _srcConnString =
-      KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
+      KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString(), _strictHostCheck);
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
   GroupIdConstructor _groupIdConstructor;
@@ -87,7 +87,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
   @Override
   protected void consumerSubscribe() {
     KafkaConnectionString srcConnString =
-        KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
+        KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString(), _strictHostCheck);
     _consumer.subscribe(Collections.singletonList(srcConnString.getTopicName()), this);
   }
 

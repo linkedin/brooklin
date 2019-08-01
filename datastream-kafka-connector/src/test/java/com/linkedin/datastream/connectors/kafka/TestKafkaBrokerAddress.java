@@ -49,6 +49,16 @@ public class TestKafkaBrokerAddress {
     KafkaBrokerAddress.valueOf("somewhere:65536");
   }
 
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testParseInvalidHostname() {
+    KafkaBrokerAddress.valueOf("abc-abc.invalid-tld:666");
+  }
+
+  @Test
+  public void testParseInvalidHostnameWithoutStrictHostnameCheck() {
+    Assert.assertEquals(new KafkaBrokerAddress("abc-abc.invalid-tld", 666), KafkaBrokerAddress.valueOf("abc-abc.invalid-tld:666", false));
+  }
+
   @Test
   public void testParseMaxPort() {
     Assert.assertEquals(new KafkaBrokerAddress("linkedin.com", 65535), KafkaBrokerAddress.valueOf("linkedin.com:65535"));

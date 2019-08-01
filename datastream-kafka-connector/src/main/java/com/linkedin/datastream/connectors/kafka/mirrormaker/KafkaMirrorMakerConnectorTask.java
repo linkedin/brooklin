@@ -121,7 +121,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
-    _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
+    _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString(),
+            config.getEnableStrictHostCheck());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);

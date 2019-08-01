@@ -19,42 +19,47 @@ public class TestKafkaConnectionString {
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseNull() {
-    KafkaConnectionString.valueOf(null);
+    KafkaConnectionString.valueOf(null, true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseEmpty() {
-    KafkaConnectionString.valueOf("  \t  \r\n  \r");
+    KafkaConnectionString.valueOf("  \t  \r\n  \r", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseNoPrefix() {
-    KafkaConnectionString.valueOf("hostname:666/topic");
+    KafkaConnectionString.valueOf("hostname:666/topic", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseWrongPrefix() {
-    KafkaConnectionString.valueOf("notKafka://hostname:666/topic");
+    KafkaConnectionString.valueOf("notKafka://hostname:666/topic", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseNoHost() {
-    KafkaConnectionString.valueOf("kafka://:666/topic");
+    KafkaConnectionString.valueOf("kafka://:666/topic", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseNoPort() {
-    KafkaConnectionString.valueOf("kafka://acme.com/topic");
+    KafkaConnectionString.valueOf("kafka://acme.com/topic", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseEmptyTopic() {
-    KafkaConnectionString.valueOf("kafka://acme.com/  ");
+    KafkaConnectionString.valueOf("kafka://acme.com/  ", true);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testParseNoTopic() {
-    KafkaConnectionString.valueOf("kafka://acme.com");
+    KafkaConnectionString.valueOf("kafka://acme.com", true);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testInvalidHostName() {
+    KafkaConnectionString.valueOf("kafka://abc-def.invalid-tld:666", true);
   }
 
   @Test
@@ -62,7 +67,7 @@ public class TestKafkaConnectionString {
     Assert.assertEquals(
         new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)),
             "topic", false),
-        KafkaConnectionString.valueOf("kafka://somewhere:666/topic"));
+        KafkaConnectionString.valueOf("kafka://somewhere:666/topic", true));
   }
 
   @Test
@@ -70,8 +75,16 @@ public class TestKafkaConnectionString {
     Assert.assertEquals(
         new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("somewhere", 666)),
             "topic", true),
-        KafkaConnectionString.valueOf("kafkassl://somewhere:666/topic"));
+        KafkaConnectionString.valueOf("kafkassl://somewhere:666/topic", true));
   }
+
+  @Test
+  public void testInvalidHostNameWithStrictHostCheckDisabled() {
+    Assert.assertEquals(
+        new KafkaConnectionString(Collections.singletonList(new KafkaBrokerAddress("abc-def.invalid-tld", 666)),
+            "topic", false),
+        KafkaConnectionString.valueOf("kafka://abc-def.invalid-tld:666/topic", false));
+}
 
   @Test
   public void testMultipleBrokers() {
@@ -84,24 +97,24 @@ public class TestKafkaConnectionString {
             "topic",
             false
         ),
-        KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse:667/topic")
+        KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse:667/topic", true)
     );
   }
 
   @Test
   public void testBrokerListSorting() {
-    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/topic");
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/topic", true);
     Assert.assertEquals(connectionString.toString(), "kafka://a:666,a:667,b:665/topic");
   }
 
   @Test
   public void testSslBrokerListSorting() {
-    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://a:667,b:665,a:666/topic");
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://a:667,b:665,a:666/topic", true);
     Assert.assertEquals(connectionString.toString(), "kafkassl://a:666,a:667,b:665/topic");
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testMultipleBrokersNoPort() {
-    KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse/topic");
+    KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse/topic", true);
   }
 }

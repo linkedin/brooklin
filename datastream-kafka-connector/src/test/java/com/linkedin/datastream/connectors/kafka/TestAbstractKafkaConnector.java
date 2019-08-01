@@ -125,7 +125,7 @@ public class TestAbstractKafkaConnector {
     public TestKafkaConnector(boolean restartThrows, Properties props) {
       super("test", props, new KafkaGroupIdConstructor(
           Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),
-          "TestkafkaConnectorCluster"), "TestkafkaConnectorCluster", LOG);
+          "TestkafkaConnectorCluster", true), "TestkafkaConnectorCluster", LOG);
       _restartThrows = restartThrows;
     }
 

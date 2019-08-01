@@ -109,7 +109,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testKafkaGroupId() throws Exception {
-    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(false, "testCluster");
+    KafkaGroupIdConstructor groupIdConstructor = new KafkaGroupIdConstructor(false, "testCluster", true);
     String topic = "MyTopicForGrpId";
     Datastream datastream1 = getDatastream(_broker, topic);
     Datastream datastream2 = getDatastream(_broker, topic);
@@ -320,7 +320,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     TopicPartition topicPartition = new TopicPartition("pizza1", 0);
     KafkaConnectorTask connectorTask = spy(new KafkaConnectorTask(new KafkaBasedConnectorConfigBuilder()
         .setPausePartitionOnError(true).setPauseErrorPartitionDuration(Duration.ofDays(1)).build(), task, "",
-        new KafkaGroupIdConstructor(false, "testCluster")));
+        new KafkaGroupIdConstructor(false, "testCluster", true)));
 
     Map<TopicPartition, List<ConsumerRecord<Object, Object>>> records =  new HashMap<>();
     records.put(topicPartition, ImmutableList.of(
@@ -352,7 +352,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   public void testConsumerProperties() {
     Properties overrides = new Properties();
     String groupId = "groupId";
-    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://MyBroker:10251/MyTopic");
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://MyBroker:10251/MyTopic", true);
     Properties actual = KafkaConnectorTask.getKafkaConsumerProperties(overrides, groupId, connectionString);
 
     Properties expected = new Properties();
@@ -369,7 +369,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   public void testSslConsumerProperties() {
     Properties overrides = new Properties();
     String groupId = "groupId";
-    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://MyBroker:10251/MyTopic");
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafkassl://MyBroker:10251/MyTopic", true);
     Properties actual = KafkaConnectorTask.getKafkaConsumerProperties(overrides, groupId, connectionString);
 
     Properties expected = new Properties();
@@ -480,7 +480,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       throws InterruptedException {
 
     KafkaConnectorTask connectorTask = new KafkaConnectorTask(connectorConfig, task, "",
-        new KafkaGroupIdConstructor(false, "testCluster"));
+        new KafkaGroupIdConstructor(false, "testCluster", true));
 
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);

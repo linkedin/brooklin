@@ -16,6 +16,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 public class KafkaGroupIdConstructor implements GroupIdConstructor {
 
   private final boolean _isGroupIdHashingEnabled;
+  private final boolean _isStrictHostCheckingEnabled;
   private final String _clusterName;
 
   /**
@@ -26,9 +27,10 @@ public class KafkaGroupIdConstructor implements GroupIdConstructor {
    *                    cluster where corresponding datastream server is running. The cluster name is used in
    *                    generating group ID if isGroupIdHashingEnabled argument is set to true.
    */
-  public KafkaGroupIdConstructor(boolean isGroupIdHashingEnabled, String clusterName) {
+  public KafkaGroupIdConstructor(boolean isGroupIdHashingEnabled, String clusterName, boolean isStrictHostCheckingEnabled) {
     _isGroupIdHashingEnabled = isGroupIdHashingEnabled;
     _clusterName = clusterName;
+    _isStrictHostCheckingEnabled = isStrictHostCheckingEnabled;
   }
 
   @Override
@@ -36,7 +38,7 @@ public class KafkaGroupIdConstructor implements GroupIdConstructor {
     if (_isGroupIdHashingEnabled) {
       return constructGroupId(DatastreamUtils.getTaskPrefix(datastream), _clusterName);
     } else {
-      return constructGroupId(KafkaConnectionString.valueOf(datastream.getSource().getConnectionString()),
+      return constructGroupId(KafkaConnectionString.valueOf(datastream.getSource().getConnectionString(), _isStrictHostCheckingEnabled),
           datastream.getDestination().getConnectionString());
     }
   }
@@ -46,7 +48,7 @@ public class KafkaGroupIdConstructor implements GroupIdConstructor {
     if (_isGroupIdHashingEnabled) {
       return constructGroupId(task.getTaskPrefix(), _clusterName);
     } else {
-      return constructGroupId(KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString()),
+      return constructGroupId(KafkaConnectionString.valueOf(task.getDatastreamSource().getConnectionString(), _isStrictHostCheckingEnabled),
           task.getDatastreamDestination().getConnectionString());
     }
   }

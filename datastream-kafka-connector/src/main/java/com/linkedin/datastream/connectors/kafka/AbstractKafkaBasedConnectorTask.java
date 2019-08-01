@@ -102,6 +102,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMillis;
   protected final Optional<Map<Integer, Long>> _startOffsets;
+  protected final boolean _strictHostCheck;
 
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
@@ -154,6 +155,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
+    config.getEnableStrictHostCheck();
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -161,6 +163,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _pollTimeoutMillis = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
+    _strictHostCheck = config.getEnableStrictHostCheck();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = 0;

@@ -86,7 +86,7 @@ public class KafkaConnectionString {
    * @param connectionString
    *  connection string in the form kafka://[host1:port1,host2:port2...]/topicName
    */
-  public static KafkaConnectionString valueOf(String connectionString) throws IllegalArgumentException {
+  public static KafkaConnectionString valueOf(String connectionString, boolean strictHostCheck) throws IllegalArgumentException {
     if (connectionString == null) {
       badArg(connectionString);
     }
@@ -110,7 +110,7 @@ public class KafkaConnectionString {
       badArg(connectionString);
     }
     str = str.substring(0, topicIndex);
-    List<KafkaBrokerAddress> brokers = parseBrokers(str);
+    List<KafkaBrokerAddress> brokers = parseBrokers(str, strictHostCheck);
     return new KafkaConnectionString(brokers, topicName, isSecure);
   }
 
@@ -119,14 +119,14 @@ public class KafkaConnectionString {
    * @param brokersValue
    *  example: [host1:port1,host2,port2]
    */
-  public static List<KafkaBrokerAddress> parseBrokers(String brokersValue) {
+  public static List<KafkaBrokerAddress> parseBrokers(String brokersValue, boolean strictHostCheck) {
     String[] hosts = brokersValue.split("\\s*,\\s*");
     if (hosts.length < 1) {
       badArg(brokersValue);
     }
     List<KafkaBrokerAddress> brokers = new ArrayList<>(hosts.length);
     for (String host : hosts) {
-      brokers.add(KafkaBrokerAddress.valueOf(host));
+      brokers.add(KafkaBrokerAddress.valueOf(host, strictHostCheck));
     }
     return brokers;
   }
