@@ -662,8 +662,6 @@ public class TestCoordinator {
 
       @Override
       public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
-        LOG.info("YAYAYAYAYAYAYYA {}", _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
-            g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName()))))).keySet());
         return _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
             g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName())))));
       }
