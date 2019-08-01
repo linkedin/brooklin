@@ -978,7 +978,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
 
-      // retrieve the datastreamGroups for validatio
+      // retrieve the datastreamGroups for validation
       DatastreamGroup toProcessDatastream =
           fetchDatastreamGroups().stream().filter(dg -> datastreamGroupName.equals(dg.getName())).findFirst().orElse(null);
 
@@ -1000,6 +1000,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         } else {
           _log.warn("partitions for {} is not found, ignore the partition assignment", toProcessDatastream.getName());
         }
+      } else {
+        _log.warn("datastream group {} is not active, ignore the partition assignment", datastreamGroupName);
       }
 
       for (String key : assignmentByInstance.keySet()) {
@@ -1010,11 +1012,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       succeeded = true;
     } catch (Exception ex) {
       _log.info("Partition assignment failed, Exception: ", ex);
+      succeeded = false;
     }
     // schedule retry if failure
     if (succeeded) {
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
-      getMaxPartitionCountInTask(newAssignmentsByInstance);
+      updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
     } else if (!leaderPartitionAssignmentScheduled.get()) {
       _log.info("Schedule retry for leader assigning tasks");
@@ -1027,13 +1030,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  private void getMaxPartitionCountInTask(Map<String, List<DatastreamTask>> assignments) {
+  private void updateCounterForMaxPartitionInTask(Map<String, List<DatastreamTask>> assignments) {
     long maxPartitionCount = 0;
     for (List<DatastreamTask> tasks : assignments.values()) {
       maxPartitionCount = Math.max(maxPartitionCount,
           tasks.stream().map(DatastreamTask::getPartitionsV2).map(List::size).mapToInt(v -> v).max().orElse(0));
     }
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, MAX_PARTITION_COUNT_IN_TASK, maxPartitionCount);
+    _dynamicMetricsManager.createOrUpdateCounter(MODULE, MAX_PARTITION_COUNT_IN_TASK, maxPartitionCount);
   }
 
 

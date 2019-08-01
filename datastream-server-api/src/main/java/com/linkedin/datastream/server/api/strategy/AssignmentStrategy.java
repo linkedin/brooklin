@@ -52,13 +52,13 @@ public interface AssignmentStrategy {
 
 
   /**
-   * Assign partition for a paritulcar datastream group to all the tasks in current assignment
+   * Assign partition for a particular datastream group to all the tasks in current assignment
    * It return a map from instance -> tasks map with partition info stored in the task
    * This interface needs to implemented if the Brooklin Coordinator is going to perform the
    * partition assignment.
    *
    *
-   * @param currentAssignment the old assignment
+   * @param currentAssignment the old assignment for all the datastream groups across all instances
    * @param datastreamPartitions the subscribed partitions for the particular datastream group
    * @return new assignment mapping
    */

@@ -45,6 +45,8 @@ import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
+import static com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask.CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST;
+
 
 /**
  * KafkaMirrorMakerConnector is similar to KafkaConnector but it has the ability to consume from multiple topics in a
@@ -192,8 +194,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
 
   /**
-   * callback when the datastreamGroups assigned to this connector instance has been changed. This is only triggered
-   * in the LEADER_DO_ASSIGNMENT thread so that it doesn't need to be thread safe.
+   * callback when the datastreamGroups belongs this connector instance has been changed.
+   * This happens 1) when a new datastream is created/unpaused for this connector.
+   * 2) when a followers becomes a leader
+   *
+   * This is only triggered in the LEADER_DO_ASSIGNMENT thread so that it doesn't need to be thread safe.
    */
   @Override
   public void handleDatastream(List<DatastreamGroup> datastreamGroups) {
@@ -255,6 +260,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
 
     private List<String> getPartitionsInfo(Consumer<?, ?> consumer) {
+      // By default, Kafka applied default.api.timeout = 60s to this _consumer.listTopics()
       Map<String, List<PartitionInfo>> sourceTopics = consumer.listTopics();
       List<TopicPartition> topicPartitions = sourceTopics.keySet().stream()
           .filter(t1 -> _topicPattern.matcher(t1).matches())
@@ -274,6 +280,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           ByteArrayDeserializer.class.getCanonicalName());
       properties.putIfAbsent(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
           ByteArrayDeserializer.class.getCanonicalName());
+      properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST);
       return _listenerConsumerFactory.createConsumer(properties);
     }
 
@@ -290,7 +297,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       LOG.info("Fetch thread for {} started", _datastreamGroup.getName());
       while (!isInterrupted() && !_shutdown) {
         try {
-          // If partition is changed
           List<String> newPartitionInfo = getPartitionsInfo(consumer);
           LOG.debug("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
               , datastream.getName(), _subscribedPartitions, newPartitionInfo);
@@ -307,7 +313,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         } catch (Throwable t) {
           // If the Broker goes down, consumer will receive a exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
-          LOG.error("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
+          LOG.warn("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
           _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);
         }
       }
@@ -325,7 +331,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
      */
     public void shutdown() {
       this.interrupt();
-      LOG.info("Shutdown datastream {}", _datastreamGroup.getName());
+      LOG.info("PartitionListenerThread Shutdown called for datastreamgroup {}", _datastreamGroup.getName());
     }
 
     public List<String> getSubscribedPartitions() {
