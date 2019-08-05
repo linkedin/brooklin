@@ -900,7 +900,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Check if the task is current locked
+   * Check if the task is currently locked
    */
   public boolean checkIsTaskLocked(String connectorType, String taskName) {
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, connectorType, taskName);

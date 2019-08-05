@@ -200,7 +200,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   /**
    * callback when the datastreamGroups belongs this connector instance has been changed.
    * This happens 1) when a new datastream is created/unpaused for this connector.
-   * 2) when a followers becomes a leader
+   * 2) when a follower becomes a leader
    *
    * This is only triggered in the LEADER_DO_ASSIGNMENT thread so that it doesn't need to be thread safe.
    */
@@ -318,7 +318,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           }
           Thread.sleep(_partitionFetchIntervalMs);
         } catch (Throwable t) {
-          // If the Broker goes down, consumer will receive a exception. However, there is no need to
+          // If the Broker goes down, the consumer will receive an exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
           LOG.warn("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
           _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);

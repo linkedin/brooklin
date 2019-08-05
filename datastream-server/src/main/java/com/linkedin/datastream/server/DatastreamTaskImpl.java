@@ -157,7 +157,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
     if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
       throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
-          + "the previous assignment has not be picked up");
+          + "the previous assignment has not been picked up");
     }
 
     _datastreams = predecessor._datastreams;
@@ -299,7 +299,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
            if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), predecessor)) {
-             String msg = String.format("previous task %s is failed to release in %dms", predecessor,
+             String msg = String.format("previous task %s failed to release lock in %dms", predecessor,
                  timeout.toMillis());
              throw new DatastreamRuntimeException(msg);
            }
@@ -466,12 +466,4 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _dependencies.add(taskName);
   }
 
-  /**
-   * return task version to decide if it uses partition (v1) or partition v2
-   */
-  @JsonIgnore
-  public int getTaskVersion() {
-    int version = _partitions.size() > 0 ? 1 : 2;
-    return version;
-  }
 }
