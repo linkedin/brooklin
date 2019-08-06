@@ -91,7 +91,7 @@ public final class KafkaTestUtils {
       consumer.subscribe(Collections.singleton(topic));
       while (Instant.now().isBefore(expiration)) {
         try {
-          consumer.poll(Duration.ofSeconds(1));
+          consumer.poll(Duration.ofSeconds(1).toMillis());
           return;
         } catch (Exception ignored) {
           // Exception should occur when we are waiting for the broker to be assigned this topic

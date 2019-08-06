@@ -51,6 +51,13 @@ public class DatastreamGroup {
     _datastreams = datastreams;
   }
 
+  /**
+   *  Get the name of datastream group, which is the same as taskPrefix
+   */
+  public String getName() {
+    return _taskPrefix;
+  }
+
   public String getTaskPrefix() {
     return _taskPrefix;
   }

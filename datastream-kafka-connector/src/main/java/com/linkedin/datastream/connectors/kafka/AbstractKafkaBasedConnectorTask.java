@@ -388,6 +388,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
+  protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
+    return _consumer.poll(pollInterval);
+  }
+
   /**
    * Poll the records from Kafka using the specified timeout (milliseconds). If poll() fails and if retryCount is
    * configured, this method will sleep for some duration and try polling again.
@@ -400,7 +404,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     try {
       long curPollTime = System.currentTimeMillis();
       _lastPolledTimeMillis = curPollTime;
-      records = _consumer.poll(pollInterval);
+      records = consumerPoll(pollInterval);
       long pollDurationMillis = System.currentTimeMillis() - curPollTime;
       if (pollDurationMillis > pollInterval + POLL_BUFFER_TIME_MILLIS) {
         // record poll time exceeding client poll timeout
@@ -640,12 +644,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Seek completed to the offsets.");
   }
 
-  private void updateConsumerAssignment(Collection<TopicPartition> partitions) {
+  protected void updateConsumerAssignment(Collection<TopicPartition> partitions) {
     _consumerAssignment.clear();
     _consumerAssignment.addAll(partitions);
     _consumerMetrics.updateNumPartitions(_consumerAssignment.size());
     _consumerMetrics.updateNumTopics(_consumerAssignment.stream().map(TopicPartition::topic).distinct().count());
-    _logger.info("Current assignment is {}", _consumerAssignment);
+    _logger.info("{} Current assignment is {}", _datastreamTask.getDatastreamTaskName(), _consumerAssignment);
   }
 
   @Override
@@ -670,7 +674,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    _logger.info("Partition ownership assigned for {}.", partitions);
+    _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
     _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
     _consumerMetrics.updateRebalanceRate(1);
 

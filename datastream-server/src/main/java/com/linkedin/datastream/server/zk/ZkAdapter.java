@@ -845,22 +845,23 @@ public class ZkAdapter {
     CountDownLatch busyLatch = new CountDownLatch(1);
 
     String lockNode = lockPath.substring(lockPath.lastIndexOf('/') + 1);
-    String taskPath = KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
+    String lockRootPath = KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType());
 
     if (_zkclient.exists(lockPath)) {
       IZkChildListener listener = (parentPath, currentChildren) -> {
-        if (!currentChildren.contains(lockNode)) {
+      if (!currentChildren.contains(lockNode)) {
           busyLatch.countDown();
         }
       };
 
       try {
-        _zkclient.subscribeChildChanges(taskPath, listener);
+        _zkclient.subscribeChildChanges(lockRootPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        LOG.warn("Unexpectedly interrupted during task acquire.", e);
+        String errorMsg = "Unexpectedly interrupted during task acquire.";
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMsg, e);
       } finally {
-        _zkclient.unsubscribeChildChanges(taskPath, listener);
+        _zkclient.unsubscribeChildChanges(lockRootPath, listener);
       }
     }
   }
@@ -875,6 +876,7 @@ public class ZkAdapter {
    * @see #releaseTask(DatastreamTaskImpl)
    */
   public void acquireTask(DatastreamTaskImpl task, Duration timeout) {
+    _zkclient.ensurePath(KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType()));
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
     if (_zkclient.exists(lockPath)) {
@@ -895,6 +897,28 @@ public class ZkAdapter {
           timeout.toMillis(), owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
+  }
+
+  /**
+   * Check if the task is currently locked
+   */
+  public boolean checkIsTaskLocked(String connectorType, String taskName) {
+    String lockPath = KeyBuilder.datastreamTaskLock(_cluster, connectorType, taskName);
+    return (_zkclient.exists(lockPath));
+  }
+
+  /**
+   * Wait for all dependencies to be cleared. It's a blocking call
+   * @param task Datastream task whose dependencies need to be checked
+   * @param timeout max wait time to wait for a locked task for releasing
+   */
+  public void waitForDependencies(DatastreamTaskImpl task, Duration timeout) {
+    task.getDependencies().forEach(previousTask -> {
+        String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), previousTask);
+      if (_zkclient.exists(lockPath)) {
+        waitForTaskRelease(task, timeout.toMillis(), lockPath);
+      }
+    });
   }
 
   /**

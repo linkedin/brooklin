@@ -101,6 +101,11 @@ public interface DatastreamTask {
   List<Integer> getPartitions();
 
   /**
+   * Get the list of named partitions this task covers.
+   */
+  List<String> getPartitionsV2();
+
+  /**
    * Get a map of safe checkpoints which are guaranteed
    * to have been flushed onto the transport. Key is partition
    * number, and value is the safe checkpoint for it.

@@ -76,6 +76,7 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DEDUPER;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DIAG;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.STRATEGY_DOMAIN;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -336,9 +337,10 @@ public class DatastreamServer {
     boolean customCheckpointing =
         Boolean.parseBoolean(connectorProperties.getProperty(CONFIG_CONNECTOR_CUSTOM_CHECKPOINTING, "false"));
 
+
     String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
-    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing,
-        deduper, authorizerName);
+    _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper,
+        authorizerName);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }

@@ -110,10 +110,12 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     // Data structure to keep track of the pending tasks to create
     Map<DatastreamGroup, Integer> unallocated = new HashMap<>();
+    Map<DatastreamGroup, List<DatastreamTask>> tasksNeedToRelocate = new HashMap<>();
 
     // STEP1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
       int numTasks = getNumTasks(dg, instances.size());
+      Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
         if (numTasks <= 0) {
           break; // exit loop;
@@ -122,12 +124,19 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
             .map(c -> c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix())).collect(Collectors.toList()))
             .orElse(Collections.emptyList());
 
+        allAliveTasks.addAll(foundDatastreamTasks);
+
         if (!foundDatastreamTasks.isEmpty()) {
           newAssignment.get(instance).addAll(foundDatastreamTasks);
           currentAssignmentCopy.get(instance).removeAll(foundDatastreamTasks);
           numTasks -= foundDatastreamTasks.size();
         }
       }
+      // As StickyAssignment, we want to recycle task from dead instances
+      Set<DatastreamTask> unallocatedTasks = currentAssignmentCopy.values().stream().flatMap(Set::stream)
+          .filter(dg::belongsTo).collect(Collectors.toSet());
+      unallocatedTasks.removeAll(allAliveTasks);
+      tasksNeedToRelocate.put(dg, new ArrayList<>(unallocatedTasks));
       if (numTasks > 0) {
         unallocated.put(dg, numTasks);
       }
@@ -144,11 +153,12 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     // STEP2: Distribute the unallocated tasks to the instances with the lowest number of tasks.
     for (DatastreamGroup dg : unallocated.keySet()) {
       int pendingTasks = unallocated.get(dg);
-
+      List<DatastreamTask> unallocatedTasks = tasksNeedToRelocate.get(dg);
       while (pendingTasks > 0) {
         // round-robin to the instances
         for (String instance : instancesBySize) {
-          DatastreamTask task = new DatastreamTaskImpl(dg.getDatastreams());
+          DatastreamTask task = unallocatedTasks.size() > 0 ? unallocatedTasks.remove(unallocatedTasks.size() - 1) :
+              new DatastreamTaskImpl(dg.getDatastreams());
           newAssignment.get(instance).add(task);
           pendingTasks--;
           if (pendingTasks == 0) {

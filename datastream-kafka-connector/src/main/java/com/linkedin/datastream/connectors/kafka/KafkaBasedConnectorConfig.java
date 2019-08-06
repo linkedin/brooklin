@@ -34,6 +34,8 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
+  // config value to enable Kafka partition management for KafkaMirrorConnector
+  public static final String ENABLE_PARTITION_ASSIGNMENT = "enablePartitionAssignment";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
 
@@ -64,6 +66,7 @@ public class KafkaBasedConnectorConfig {
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
+  private final boolean _enablePartitionAssignment;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -99,6 +102,7 @@ public class KafkaBasedConnectorConfig {
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
     _enablePositionTracker = verifiableProperties.getBoolean(CONFIG_ENABLE_POSITION_TRACKER, true);
     _enableBrokerOffsetFetcher = verifiableProperties.getBoolean(CONFIG_ENABLE_BROKER_OFFSET_FETCHER, true);
+    _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -182,5 +186,9 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnableBrokerOffsetFetcher() {
     return _enableBrokerOffsetFetcher;
+  }
+
+  public boolean getEnablePartitionAssignment() {
+    return _enablePartitionAssignment;
   }
 }
