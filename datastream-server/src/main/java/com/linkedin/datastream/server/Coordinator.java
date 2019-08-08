@@ -172,6 +172,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
 
+  private static AtomicLong _maxPartitionCount = new AtomicLong(0L);
+
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
   private final CheckpointProvider _cpProvider;
@@ -244,6 +246,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
     _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
+    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, () -> _maxPartitionCount.get());
 
     // Creating a separate thread pool for making the onAssignmentChange calls to the connector
     _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
@@ -1035,7 +1038,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       maxPartitionCount = Math.max(maxPartitionCount,
           tasks.stream().map(DatastreamTask::getPartitionsV2).map(List::size).mapToInt(v -> v).max().orElse(0));
     }
-    _dynamicMetricsManager.createOrUpdateCounter(MODULE, MAX_PARTITION_COUNT_IN_TASK, maxPartitionCount);
+    _log.info("Max partition count assigned in the task {}", maxPartitionCount);
+    _maxPartitionCount.getAndSet(maxPartitionCount);
   }
 
 
