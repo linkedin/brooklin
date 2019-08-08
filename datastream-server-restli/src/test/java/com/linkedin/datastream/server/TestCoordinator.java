@@ -92,7 +92,7 @@ import static org.mockito.Mockito.when;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
-  private static final int WAIT_TIMEOUT_MS = 30000;
+  private static final int WAIT_TIMEOUT_MS = 60000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
