@@ -19,11 +19,10 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -180,7 +179,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
   private final CoordinatorEventBlockingQueue _eventQueue;
   private final CoordinatorEventProcessor _eventThread;
-  private final ThreadPoolExecutor _assignmentChangeThreadPool;
+  private final Map<String, ExecutorService> _assignmentChangeThreadPool = new ConcurrentHashMap<>();
   private final String _clusterName;
   private final CoordinatorConfig _config;
   private final ZkAdapter _adapter;
@@ -248,10 +247,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
     _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, () -> _maxPartitionCount.get());
 
-    // Creating a separate thread pool for making the onAssignmentChange calls to the connector
-    _assignmentChangeThreadPool = new ThreadPoolExecutor(config.getAssignmentChangeThreadPoolThreadCount(),
-        config.getAssignmentChangeThreadPoolThreadCount(), 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
     _eventProducerConfig = coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN);
@@ -273,6 +268,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
       ConnectorWrapper connector = connectorInfo.getConnector();
+
+      // Creating a separate thread pool for making the onAssignmentChange calls to the connector
+      _assignmentChangeThreadPool.put(connectorType, Executors.newSingleThreadExecutor());
 
       // populate the instanceName. We only know the instance name after _adapter.connect()
       connector.setInstanceName(getInstanceName());
@@ -570,7 +568,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(this::initializeTask);
 
       // Dispatch the onAssignmentChange to the connector in a separate thread.
-      return _assignmentChangeThreadPool.submit(() -> {
+      return _assignmentChangeThreadPool.get(connectorType).submit(() -> {
         try {
           connector.onAssignmentChange(assignment);
           // Unassign tasks with producers
