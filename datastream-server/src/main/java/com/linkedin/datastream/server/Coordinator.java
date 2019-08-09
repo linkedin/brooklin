@@ -1381,7 +1381,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_ASSIGNMENT_CHANGES)));
     _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_PARTITION_ASSIGNMENTS)));
     _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_PARTITION_MOVEMENTS)));
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, MAX_PARTITION_COUNT_IN_TASK)));
+    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, MAX_PARTITION_COUNT_IN_TASK)));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_ERRORS));
     _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
     _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));
