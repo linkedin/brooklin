@@ -34,10 +34,6 @@ public final class CoordinatorConfig {
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
 
-  // As handleChangeAssignment currently uses a thread pool, there is a race condition that the previous assignment
-  // may actually process later than the new assignment. As a result, the size of thread pool is set to 1
-  private int _assignmentChangeThreadPoolThreadCount = 1;
-
   /**
    * Construct an instance of CoordinatorConfig
    * @param config configuration properties to load
@@ -77,10 +73,6 @@ public final class CoordinatorConfig {
 
   public int getRetryIntervalMs() {
     return _retryIntervalMs;
-  }
-
-  public int getAssignmentChangeThreadPoolThreadCount() {
-    return _assignmentChangeThreadPoolThreadCount;
   }
 
   public String getDefaultTransportProviderName() {
