@@ -139,14 +139,14 @@ public class TestZookeeperBackedDatastreamStore {
     TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("p-0", "p-1"), "instance1");
     _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
     long startTime = System.currentTimeMillis();
-    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment);
+    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
     long endTime = System.currentTimeMillis();
 
-    String nodePath = KeyBuilder.getTargetAssignment(clusterName, datastreamGroupName);
+    String nodePath = KeyBuilder.getTargetAssignment(clusterName, ds.getConnectorName(), datastreamGroupName);
     List<String> nodes = _zkClient.getChildren(nodePath);
     Assert.assertTrue(nodes.size() > 0);
 
-    String touchedTimestamp = _zkClient.readData(KeyBuilder.getTargetAssignmentBase(clusterName));
+    String touchedTimestamp = _zkClient.readData(KeyBuilder.getTargetAssignmentBase(clusterName, ds.getConnectorName()));
     long touchedTime = Long.valueOf(touchedTimestamp);
     Assert.assertTrue(endTime >= touchedTime && touchedTime >= startTime);
   }
@@ -161,7 +161,7 @@ public class TestZookeeperBackedDatastreamStore {
 
     TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("p-0", "p-1"), "instance2");
     _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
-    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment);
+    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
   }
 
   /**

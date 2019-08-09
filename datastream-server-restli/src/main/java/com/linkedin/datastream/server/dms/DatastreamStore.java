@@ -48,7 +48,11 @@ public interface DatastreamStore {
 
   /**
    * update the target assignment info for a particular datastream
-   * @throws DatastreamException
+   * @param key datastream name of the original datastream to be updated
+   * @param datastream content of the updated datastream
+   * @param targetAssignment content of the updated datastream
+   * @param notifyLeader whether to notify leader about the update
    */
-  void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment) throws DatastreamException;
+  void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment,
+      boolean notifyLeader) throws DatastreamException;
 }

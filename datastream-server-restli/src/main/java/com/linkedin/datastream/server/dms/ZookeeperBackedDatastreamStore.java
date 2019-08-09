@@ -117,7 +117,8 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   }
 
   @Override
-  public void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment)
+  public void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment,
+      boolean notifyLeader)
       throws DatastreamException {
     Validate.notNull(datastream, "null datastream");
     Validate.notNull(key, "null key for datastream" + datastream);
@@ -125,7 +126,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
     long current = System.currentTimeMillis();
     String datastreamGroupName = DatastreamUtils.getTaskPrefix(datastream);
-    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+    String path = KeyBuilder.getTargetAssignment(_cluster, datastream.getConnectorName(), datastreamGroupName);
     _zkClient.ensurePath(path);
     if (_zkClient.exists(path)) {
       String json = targetAssignment.toJson();
@@ -133,12 +134,15 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       _zkClient.writeData(path + '/' + current, json);
     }
 
-    try {
-      _zkClient.writeData(KeyBuilder.getTargetAssignmentBase(_cluster), String.valueOf(System.currentTimeMillis()));
-    } catch (Exception e) {
-      // we don't need to do an atomic update; if the node gets update by others somehow or get deleted by
-      // leader, it's ok to ignore the failure
-      LOG.warn("Failed to touch the assignment update", e);
+    if (notifyLeader) {
+      try {
+        _zkClient.writeData(KeyBuilder.getTargetAssignmentBase(_cluster, datastream.getConnectorName()),
+            String.valueOf(System.currentTimeMillis()));
+      } catch (Exception e) {
+        // we don't need to do an atomic update; if the node gets update by others somehow or get deleted by
+        // leader, it's ok to ignore the failure
+        LOG.warn("Failed to touch the assignment update", e);
+      }
     }
   }
 
