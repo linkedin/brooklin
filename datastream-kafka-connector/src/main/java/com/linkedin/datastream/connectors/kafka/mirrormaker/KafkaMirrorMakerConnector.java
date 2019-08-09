@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
@@ -99,6 +100,9 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     _enablePartitionAssignment = _config.getEnablePartitionAssignment();
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _shutdown = false;
+    if (_enablePartitionAssignment) {
+      LOG.info("PartitionAssignment enabled for KafkaMirrorConnector");
+    }
   }
 
   @Override
@@ -196,16 +200,20 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   /**
    * callback when the datastreamGroups belongs this connector instance has been changed.
    * This happens 1) when a new datastream is created/unpaused for this connector.
-   * 2) when a followers becomes a leader
+   * 2) when a follower becomes a leader
    *
    * This is only triggered in the LEADER_DO_ASSIGNMENT thread so that it doesn't need to be thread safe.
    */
   @Override
   public void handleDatastream(List<DatastreamGroup> datastreamGroups) {
-    if (!_enablePartitionAssignment || _partitionChangeCallback == null) {
+    if (!_enablePartitionAssignment) {
       // We do not need to handle the datastreamGroup if there is no callback registered
       return;
     }
+    if (_partitionChangeCallback == null) {
+      throw new DatastreamRuntimeException("Partition change callback is not defined");
+    }
+
 
     LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",
         _partitionDiscoveryThreadMap.keySet(), datastreamGroups);
@@ -311,7 +319,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
           }
           Thread.sleep(_partitionFetchIntervalMs);
         } catch (Throwable t) {
-          // If the Broker goes down, consumer will receive a exception. However, there is no need to
+          // If the Broker goes down, the consumer will receive an exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
           LOG.warn("detect error for thread " + _datastreamGroup.getName() + ", ex: ", t);
           _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);

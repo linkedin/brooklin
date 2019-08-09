@@ -132,7 +132,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
           numTasks -= foundDatastreamTasks.size();
         }
       }
-      // As SticyAssignment, we want to recycle task from dead instances
+      // As StickyAssignment, we want to recycle task from dead instances
       Set<DatastreamTask> unallocatedTasks = currentAssignmentCopy.values().stream().flatMap(Set::stream)
           .filter(dg::belongsTo).collect(Collectors.toSet());
       unallocatedTasks.removeAll(allAliveTasks);

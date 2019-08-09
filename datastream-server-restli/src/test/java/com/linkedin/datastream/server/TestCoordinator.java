@@ -92,7 +92,7 @@ import static org.mockito.Mockito.when;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
-  private static final int WAIT_TIMEOUT_MS = 30000;
+  private static final int WAIT_TIMEOUT_MS = 60000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -587,19 +587,20 @@ public class TestCoordinator {
     TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
-    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
-        new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
-    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.of(2)), false,
+    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4),
+            Optional.of(2), Optional.empty()), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -618,10 +619,10 @@ public class TestCoordinator {
 
     Assert.assertTrue(
         PollUtils.poll(() -> {
-          //Verify all the partitions are assigned
-          Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
-          return assignment2.get("datastream1").size() == partitions1.size() && assignment2.get("datastream2").size() == partitions2.size();
-        }, interval, WAIT_TIMEOUT_MS));
+      //Verify all the partitions are assigned
+      Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
+      return assignment2.get("datastream1").size() == partitions1.size() && assignment2.get("datastream2").size() == partitions2.size();
+    }, interval, WAIT_TIMEOUT_MS));
     instance1.stop();
     instance2.stop();
     instance3.stop();

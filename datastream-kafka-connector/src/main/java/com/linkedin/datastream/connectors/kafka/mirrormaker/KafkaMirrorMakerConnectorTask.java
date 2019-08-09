@@ -34,6 +34,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
@@ -49,6 +50,7 @@ import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
@@ -79,6 +81,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
+  private static final String NUM_LOCK_FAILS = "numLockFails";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -96,6 +99,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
+  private final DynamicMetricsManager _dynamicMetricsManager;
 
   // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
   // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
@@ -133,6 +137,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
@@ -189,6 +194,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_enablePartitionAssignment) {
       Set<TopicPartition> topicPartition  = getAssignedTopicPartitionFromTask();
       updateConsumerAssignment(topicPartition);
+      // Consumer can be assigned with an empty set, but it cannot run poll against it
+      // While it's allowed to assign an empty set here, the check on poll need to be performed
       _consumer.assign(_consumerAssignment);
     } else {
       LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
@@ -287,7 +294,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   public void run() {
     if (_enablePartitionAssignment) {
-      _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
+      try {
+        _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
+      } catch (DatastreamRuntimeException ex) {
+        LOG.error("Failed to acquire lock for datastreamTask {}", _datastreamTask);
+        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, NUM_LOCK_FAILS, 1);
+        throw ex;
+      }
     }
     super.run();
   }
@@ -341,6 +354,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
     if (_enablePartitionAssignment && _consumerAssignment.isEmpty()) {
+      // Kafka rejects a poll if there is empty assignment
       return ConsumerRecords.EMPTY;
     } else {
       return _consumer.poll(pollInterval);

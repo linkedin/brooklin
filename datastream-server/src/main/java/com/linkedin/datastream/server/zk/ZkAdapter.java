@@ -870,7 +870,8 @@ public class ZkAdapter {
         _zkclient.subscribeChildChanges(lockRootPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        LOG.warn("Unexpectedly interrupted during task acquire.", e);
+        String errorMsg = "Unexpectedly interrupted during task acquire.";
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMsg, e);
       } finally {
         _zkclient.unsubscribeChildChanges(lockRootPath, listener);
       }
@@ -908,6 +909,28 @@ public class ZkAdapter {
           timeout.toMillis(), owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
     }
+  }
+
+  /**
+   * Check if the task is currently locked
+   */
+  public boolean checkIsTaskLocked(String connectorType, String taskName) {
+    String lockPath = KeyBuilder.datastreamTaskLock(_cluster, connectorType, taskName);
+    return (_zkclient.exists(lockPath));
+  }
+
+  /**
+   * Wait for all dependencies to be cleared. It's a blocking call
+   * @param task Datastream task whose dependencies need to be checked
+   * @param timeout max wait time to wait for a locked task for releasing
+   */
+  public void waitForDependencies(DatastreamTaskImpl task, Duration timeout) {
+    task.getDependencies().forEach(previousTask -> {
+        String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), previousTask);
+      if (_zkclient.exists(lockPath)) {
+        waitForTaskRelease(task, timeout.toMillis(), lockPath);
+      }
+    });
   }
 
   /**
@@ -969,28 +992,6 @@ public class ZkAdapter {
       }
     }
     return result;
-  }
-
-  /**
-   * Check if the task is current locked
-   */
-  public boolean checkIfTaskLocked(String connectorType, String taskName) {
-    String lockPath = KeyBuilder.datastreamTaskLock(_cluster, connectorType, taskName);
-    return (_zkclient.exists(lockPath));
-  }
-
-  /**
-   * Wait for all dependencies to be cleared
-   * @param task Datastream task whose dependencies need to be checked
-   * @param timeout max wait time to wait for a locked task for releasing
-   */
-  public void waitForDependencies(DatastreamTaskImpl task, Duration timeout) {
-    task.getDependencies().stream().forEach(previousTask -> {
-        String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), previousTask);
-      if (_zkclient.exists(lockPath)) {
-        waitForTaskRelease(task, timeout.toMillis(), lockPath);
-      }
-    });
   }
 
   /**
@@ -1132,7 +1133,6 @@ public class ZkAdapter {
    */
   public class ZkBackedLiveInstanceListProvider implements IZkChildListener {
     private List<String> _liveInstances = new ArrayList<>();
-    private Map<String, String> _instancePartitionMap = new HashMap<>();
     private String _path;
 
     /**

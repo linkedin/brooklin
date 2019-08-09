@@ -55,10 +55,6 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 public class DatastreamTaskImpl implements DatastreamTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamTask.class.getName());
-  //As datastream task is stored into znode, the size of task size is limit into 1MB, we need to limit the number
-  //of partitionsv2 to about 2500
-
-  private static final int MAX_PARTITION_NUM = 2500;
 
   private static final String STATUS = "STATUS";
   private volatile List<Datastream> _datastreams;
@@ -159,10 +155,9 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * @param partitionsV2 new partitions for this task
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
-    Validate.isTrue(partitionsV2.size() <= MAX_PARTITION_NUM, "Too many partitions allocated for a single task");
     if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
       throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
-          + "the previous assignment has not be picked up");
+          + "the previous assignment has not been picked up");
     }
 
     _datastreams = predecessor._datastreams;
@@ -250,7 +245,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   }
 
   /**
-   * Set partitions associated with the task. This setter is required for json
+   * Set partitions associated with the task. This setter is required for json deserialization
    * @param partitionsV2 List of partitions to associate with task.
    */
   public void setPartitionsV2(List<String> partitionsV2) {
@@ -303,8 +298,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
     try {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
-           if (_zkAdapter.checkIfTaskLocked(this.getConnectorType(), predecessor)) {
-             String msg = String.format("previous task %s is failed to release in %dms", predecessor,
+           if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), predecessor)) {
+             String msg = String.format("previous task %s failed to release lock in %dms", predecessor,
                  timeout.toMillis());
              throw new DatastreamRuntimeException(msg);
            }
@@ -325,7 +320,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   public boolean isLocked() {
     Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
-    return _zkAdapter.checkIfTaskLocked(_connectorType, getDatastreamTaskName());
+    return _zkAdapter.checkIsTaskLocked(_connectorType, getDatastreamTaskName());
   }
 
   @Override
@@ -459,6 +454,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _checkpoints.put(partition, checkpoint);
   }
 
+  // required for json deserialization
   public List<String> getDependencies() {
     return _dependencies;
   }

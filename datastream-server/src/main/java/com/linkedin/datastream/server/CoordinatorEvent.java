@@ -5,8 +5,6 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.Optional;
-
 
 /**
  * Represents different event types inside {@link Coordinator}.
@@ -38,16 +36,17 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
   protected final EventType _eventType;
 
-  protected final Optional<String> _datastreamGroupName;
+  // metadata can be used by for the event, it can be null
+  protected final Object _eventMetadata;
 
   private CoordinatorEvent(EventType eventType) {
     _eventType = eventType;
-    _datastreamGroupName = Optional.empty();
+    _eventMetadata = null;
   }
 
-  private CoordinatorEvent(EventType eventType, String datastreamGroupName) {
+  private CoordinatorEvent(EventType eventType, Object eventMetadata) {
     _eventType = eventType;
-    _datastreamGroupName = Optional.ofNullable(datastreamGroupName);
+    _eventMetadata = eventMetadata;
   }
 
   /**
@@ -72,19 +71,19 @@ public class CoordinatorEvent {
   }
 
   /**
-   * Return an event that indicates a partition movement has been received
-   */
-  public static CoordinatorEvent createPartitionMovementEvent() {
-    return new CoordinatorEvent(EventType.LEADER_PARTITION_MOVEMENT);
-  }
-
-  /**
    * Retrun an event that indicates that partition need to be assigned for a datastream group
    * @param datastreamGroupName the name of datastream group which receives partition changes
    * @return
    */
   public static CoordinatorEvent createLeaderPartitionAssignmentEvent(String datastreamGroupName) {
     return new CoordinatorEvent(EventType.LEADER_PARTITION_ASSIGNMENT, datastreamGroupName);
+  }
+
+  /**
+   * Return an event that indicates a partition movement has been received
+   */
+  public static CoordinatorEvent createPartitionMovementEvent() {
+    return new CoordinatorEvent(EventType.LEADER_PARTITION_MOVEMENT);
   }
 
   /**
@@ -102,8 +101,8 @@ public class CoordinatorEvent {
     return new HandleInstanceError(errorMessage);
   }
 
-  public Optional<String> getDatastreamGroupName() {
-    return _datastreamGroupName;
+  public Object getEventMetadata() {
+    return _eventMetadata;
   }
 
   public EventType getType() {

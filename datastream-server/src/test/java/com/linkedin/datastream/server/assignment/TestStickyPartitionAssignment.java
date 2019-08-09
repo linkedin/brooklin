@@ -47,7 +47,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testCreateAssignmentAcrossAllTasks() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
@@ -68,7 +69,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testAddPartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
@@ -95,7 +97,8 @@ public class TestStickyPartitionAssignment {
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testCreateAssignmentFailureDueToUnlockedTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     Set<DatastreamTask> taskSet = new HashSet<>();
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, false);
@@ -119,7 +122,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testMovePartition() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
@@ -145,7 +149,8 @@ public class TestStickyPartitionAssignment {
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testMovePartitionToInstanceWithoutTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
@@ -163,7 +168,8 @@ public class TestStickyPartitionAssignment {
 
   @Test
   public void testRemovePartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty());
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
 
@@ -200,7 +206,7 @@ public class TestStickyPartitionAssignment {
         DatastreamTaskImpl task = new DatastreamTaskImpl(datastreams.get(0).getDatastreams());
         ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
         task.setZkAdapter(mockZkAdapter);
-        when(mockZkAdapter.checkIfTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
+        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
         set.add(task);
       }
       assignment.put("instance" + i, set);

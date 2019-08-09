@@ -119,7 +119,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
 
   @Override
-  public void onAssignmentChange(List<DatastreamTask> tasks) {
+  public synchronized void onAssignmentChange(List<DatastreamTask> tasks) {
     _logger.info("onAssignmentChange called with tasks {}", tasks);
 
     HashSet<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());

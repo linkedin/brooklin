@@ -67,7 +67,7 @@ public final class KeyBuilder {
   private static final String DATASTREAM_TASK_LOCK_ROOT = CONNECTOR + "/lock";
 
   /**
-   * Task lock node under connectorType/lock
+   * Task lock node under connectorType/lock/{taskName}
    */
   private static final String DATASTREAM_TASK_LOCK = DATASTREAM_TASK_LOCK_ROOT + "/%s";
 
@@ -284,6 +284,7 @@ public final class KeyBuilder {
   public static String datastreamTaskLock(String cluster, String connectorType, String datastreamTask) {
     return String.format(DATASTREAM_TASK_LOCK, cluster, connectorType, datastreamTask).replaceAll("//", "/");
   }
+
 
   /**
    * Get the partition movement information for a specific datastream group

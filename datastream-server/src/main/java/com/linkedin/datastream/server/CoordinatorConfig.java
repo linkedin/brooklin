@@ -34,8 +34,6 @@ public final class CoordinatorConfig {
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
 
-  private int _assignmentChangeThreadPoolThreadCount = 3;
-
   /**
    * Construct an instance of CoordinatorConfig
    * @param config configuration properties to load
@@ -75,14 +73,6 @@ public final class CoordinatorConfig {
 
   public int getRetryIntervalMs() {
     return _retryIntervalMs;
-  }
-
-  public int getAssignmentChangeThreadPoolThreadCount() {
-    return _assignmentChangeThreadPoolThreadCount;
-  }
-
-  public void setAssignmentChangeThreadPoolThreadCount(int count) {
-    _assignmentChangeThreadPoolThreadCount = count;
   }
 
   public String getDefaultTransportProviderName() {
