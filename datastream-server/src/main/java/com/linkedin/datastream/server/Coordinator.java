@@ -1068,42 +1068,45 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
+  /**
+   * move the partitions based on targetAssignmentInfo stored in the Zookeeper
+   */
   private void performPartitionMovement() {
     boolean shouldRetry = true;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
-    List<String> datastreamGroups = new ArrayList<>();
-    List<String> toCleanup = new ArrayList<>();
+
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
+      List<DatastreamGroup> toCleanup = new ArrayList<>();
 
-      // retrieve the datastreamGroups for validation
-      datastreamGroups.addAll(fetchDatastreamGroups().stream().map(DatastreamGroup::getName).collect(Collectors.toList()));
-
-      List<String> toProcessDatastreams = _adapter.getDatastreamsNeedPartitionMovement();
 
       for (String connectorType : _connectors.keySet()) {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
         Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
+
         Map<String, Optional<DatastreamGroupPartitionsMetadata>> datastreamPartitions =
             connectorInstance.getDatastreamPartitions();
 
-        datastreamGroups.retainAll(datastreamPartitions.keySet());
-        //Processe datastream with assignment info only
-        datastreamGroups.retainAll(toProcessDatastreams);
+        List<String> toMoveDatastream = _adapter.getDatastreamsNeedPartitionMovement(connectorType);
 
-        for (String dgName : datastreamGroups) {
+        // retrieve the live datastreamGroups for validation
+        List<DatastreamGroup> toProcessedDatastreamGroups =
+            fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName()))
+                .filter(group2 -> toMoveDatastream.contains(group2.getName()))
+                .filter(group3 -> datastreamPartitions.keySet().contains(group3.getName()))
+                .collect(Collectors.toList());
 
-          DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dgName)
-              .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dgName));
-          Map<String, Set<String>> suggestedAssignment = _adapter.getPartitionMovement(dgName);
+        for (DatastreamGroup dg : toProcessedDatastreamGroups) {
+          DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dg.getName())
+              .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dg.getName()));
+          Map<String, Set<String>> suggestedAssignment = _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName());
           assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
-          toCleanup.add(dgName);
+          toCleanup.add(dg);
         }
       }
 
-      _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
       for (String key : assignmentByInstance.keySet()) {
         newAssignmentsByInstance.put(key, new ArrayList<>(assignmentByInstance.get(key)));
       }
@@ -1111,15 +1114,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.updateAllAssignments(newAssignmentsByInstance);
 
       //clean up stored target assignment after the assignment is updated
-      for (String dgName : toCleanup) {
-        _adapter.cleanUpPartitionMovement(dgName);
+      for (DatastreamGroup dg : toCleanup) {
+        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName());
       }
+
+      _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
+
       shouldRetry = false;
     } catch (DatastreamTransientException ex) {
       _log.info("Partition movement failed, retry again after a configurable period", ex);
       shouldRetry = true;
     } catch (Exception ex) {
-      //We don't retry if there is any exceptions
+      //We do not retry if it is not transient exception
       _log.info("Partition movement failed, Exception: ", ex);
     }
     if (!shouldRetry) {

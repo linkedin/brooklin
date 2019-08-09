@@ -74,10 +74,10 @@ public final class KeyBuilder {
   /**
    * Base path to store partition movement info
    */
-  private static final String TARGET_ASSIGNMENT_BASE = CLUSTER + "/targetAssignment";
+  private static final String TARGET_ASSIGNMENT_BASE = CONNECTOR + "/targetAssignment";
 
   /**
-   * partition movement info under cluster/targetAssignment/datastreamGroup
+   * partition movement info under connectorType/targetAssignment/datastreamGroup
    */
   private static final String TARGET_ASSIGNMENTS = TARGET_ASSIGNMENT_BASE + "/%s";
 
@@ -289,19 +289,21 @@ public final class KeyBuilder {
   /**
    * Get the partition movement information for a specific datastream group
    * @param cluster Brooklin cluster name
+   * @param connectorType Connector
    * @param datastreamGroupName Datastream group name
    * @return
    */
-  public static String getTargetAssignment(String cluster, String datastreamGroupName) {
-    return String.format(TARGET_ASSIGNMENTS, cluster, datastreamGroupName).replaceAll("//", "/'");
+  public static String getTargetAssignment(String cluster, String connectorType, String datastreamGroupName) {
+    return String.format(TARGET_ASSIGNMENTS, cluster, connectorType, datastreamGroupName).replaceAll("//", "/'");
   }
 
   /**
    * Get all partition movement information
    * @param cluster Brooklin cluster name
+   * @param connectorType Connector
    * @return
    */
-  public static String getTargetAssignmentBase(String cluster) {
-    return String.format(TARGET_ASSIGNMENT_BASE, cluster).replaceAll("//", "/'");
+  public static String getTargetAssignmentBase(String cluster, String connectorType) {
+    return String.format(TARGET_ASSIGNMENT_BASE, cluster, connectorType).replaceAll("//", "/'");
   }
 }

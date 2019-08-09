@@ -134,6 +134,11 @@
             "name" : "host",
             "type" : "string",
             "doc" : "host to accommodate the partitions"
+          }, {
+            "name" : "notify",
+            "type" : "boolean",
+            "default" : "true",
+            "doc" : "specify if we should notify the leader, we can stage the update without proceed\n               by setting notify to false"
           } ]
         }, {
           "name" : "pause",

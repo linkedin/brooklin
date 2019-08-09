@@ -366,7 +366,7 @@ public class TestZkAdapter {
 
   @Test
   public void testGetPartitionMovement() throws Exception {
-    String testCluster = "testUpdateAllInstanceAssignment";
+    String testCluster = "testGetPartitionMovement";
     String connectorType = "connectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     ZkAdapter adapter1 = createZkAdapter(testCluster);
@@ -380,7 +380,7 @@ public class TestZkAdapter {
     String hostName = instances.get(0).substring(0, instances.get(0).lastIndexOf('-'));
 
     long current = System.currentTimeMillis();
-    String path = KeyBuilder.getTargetAssignment(testCluster, datastreamGroup.getName());
+    String path = KeyBuilder.getTargetAssignment(testCluster, connectorType, datastreamGroup.getName());
     TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("t-0", "t-1"), hostName);
     zkClient.ensurePath(path);
     if (zkClient.exists(path)) {
@@ -389,7 +389,8 @@ public class TestZkAdapter {
       zkClient.writeData(path + '/' + current, json);
     }
 
-    Map<String, Set<String>> newAssignment = adapter1.getPartitionMovement(datastreamGroup.getName());
+    Map<String, Set<String>> newAssignment = adapter1.getPartitionMovement(datastreamGroup.getConnectorName(),
+        datastreamGroup.getName());
     Assert.assertEquals(newAssignment.get(instances.get(0)), ImmutableSet.of("t-0", "t-1"));
     adapter1.disconnect();
     zkClient.close();
@@ -398,7 +399,7 @@ public class TestZkAdapter {
   @Test
   // CHECKSTYLE:OFF
   public void testInstanceAssignmentWithPartitions() throws Exception {
-    String testCluster = "testUpdateInstanceAssignment";
+    String testCluster = "testInstanceAssignmentWithPartitions";
     String connectorType = "connectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     ZkAdapter adapter = createZkAdapter(testCluster);

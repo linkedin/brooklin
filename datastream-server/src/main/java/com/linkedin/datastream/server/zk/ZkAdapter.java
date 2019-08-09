@@ -115,6 +115,7 @@ public class ZkAdapter {
   private String _instanceName;
   private String _liveInstanceName;
   private String _hostname;
+  private Set<String> _connectorTypes = new HashSet<>();
 
   private volatile boolean _isLeader = false;
   private ZkAdapterListener _listener;
@@ -224,8 +225,7 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
-    _targetAssignmentProvider = new ZkTargetAssignmentProvider();
-
+    _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
@@ -747,6 +747,10 @@ public class ZkAdapter {
   public void ensureConnectorZNode(String connectorType) {
     String path = KeyBuilder.connector(_cluster, connectorType);
     _zkclient.ensurePath(path);
+    if (_targetAssignmentProvider != null) {
+      _targetAssignmentProvider.addListener(connectorType);
+    }
+    _connectorTypes.add(connectorType);
   }
 
   /**
@@ -935,9 +939,11 @@ public class ZkAdapter {
 
   /**
    * Clean up partition movement info for a particular datastream
+   * @param connectorType Connector name
+   * @param datastreamGroupName the name of datastream group
    */
-  public void cleanUpPartitionMovement(String datastreamGroupName) {
-    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+  public void cleanUpPartitionMovement(String connectorType, String datastreamGroupName) {
+    String path = KeyBuilder.getTargetAssignment(_cluster, connectorType, datastreamGroupName);
     if (_zkclient.exists(path)) {
       _zkclient.deleteRecursive(path);
     }
@@ -946,10 +952,10 @@ public class ZkAdapter {
 
   /**
    * Get the datastream group which contains the partition movement info
-   * @return
+   * @param connectorType Connector name
    */
-  public List<String> getDatastreamsNeedPartitionMovement() {
-    String path = KeyBuilder.getTargetAssignmentBase(_cluster);
+  public List<String> getDatastreamsNeedPartitionMovement(String connectorType) {
+    String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
     if (_zkclient.exists(path)) {
       return _zkclient.getChildren(path);
     }
@@ -958,13 +964,14 @@ public class ZkAdapter {
 
   /**
    * Get a partition movement info for a particular datastream
-   * @param datastreamGroupName
+   * @param connectorType Connector name
+   * @param datastreamGroupName the name of datastream group
    * @return The target assignment mapping information with the partition names and its target instance name
    */
-  public Map<String, Set<String>> getPartitionMovement(String datastreamGroupName) {
+  public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName) {
     Map<String, Set<String>> result = new HashMap<>();
 
-    String path = KeyBuilder.getTargetAssignment(_cluster, datastreamGroupName);
+    String path = KeyBuilder.getTargetAssignment(_cluster, connectorType, datastreamGroupName);
     if (_zkclient.exists(path)) {
       List<String> nodes = _zkclient.getChildren(path);
       Collections.sort(nodes);
@@ -1261,24 +1268,40 @@ public class ZkAdapter {
    * ZkTargetAssignmentProvider detect if there is a partition movement being intiated from restful endpoint
    */
   public class ZkTargetAssignmentProvider implements IZkDataListener {
-    private final String _path;
-
+    Set<String> _listenedConnectors = new HashSet<>();
     /**
      * Constructor
      */
-    public ZkTargetAssignmentProvider() {
-      _path = KeyBuilder.getTargetAssignmentBase(_cluster);
-      LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + _path);
+    public ZkTargetAssignmentProvider(Set<String> connectorTypes) {
+      for (String connectorType : connectorTypes) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.subscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + path);
+      }
+      _listenedConnectors.addAll(connectorTypes);
+    }
 
-      _zkclient.subscribeDataChanges(_path, this);
+    /**
+     * add listener for the connector
+     */
+    public void addListener(String connectorType) {
+      if (!_listenedConnectors.contains(connectorType)) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.subscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + path);
+        _listenedConnectors.add(connectorType);
+      }
     }
 
     /**
      * Unsubscribe to all changes to the task assignment for this instance.
      */
     public void close() {
-      LOG.info("ZkTargetAssignmentProvider::Unsubscribing to the changes under the path " + _path);
-      _zkclient.unsubscribeDataChanges(_path, this);
+      for (String connectorType : _listenedConnectors) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.unsubscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Unsubscribing to the changes under the path " + path);
+      }
     }
 
     @Override

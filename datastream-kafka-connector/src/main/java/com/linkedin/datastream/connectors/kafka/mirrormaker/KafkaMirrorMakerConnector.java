@@ -213,8 +213,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     if (_partitionChangeCallback == null) {
       throw new DatastreamRuntimeException("Partition change callback is not defined");
     }
-
-
+    
     LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",
         _partitionDiscoveryThreadMap.keySet(), datastreamGroups);
 

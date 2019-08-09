@@ -68,12 +68,11 @@ public interface AssignmentStrategy {
   }
 
   /**
-   * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
-   * task once. It follow the steps
-   * Step 1) get the partitions that to be moved, and get their source task
-   * Step 2) If the instance is the instance we want to move, we figure the task that we want to assign the task
-   * Step 3) We mutate and compute new task if they belongs to these source tasks or if they are the
-   * target task we want to move to
+   * Move a partition for a datastream group according to the targetAssignment.
+   * It returns a map from instance -> tasks map with partition info stored in the task.
+   *
+   * This interface needs to be implemented if the Brooklin Coordinator is going to perform the
+   * partition movement.
    *
    * @param currentAssignment the old assignment
    * @param targetAssignment the target assignment retrieved from Zookeeper

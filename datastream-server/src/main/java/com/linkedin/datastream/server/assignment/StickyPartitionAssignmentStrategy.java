@@ -145,8 +145,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
    * task once. It follow the steps
    * Step 1) get the partitions that to be moved, and get their source task
-   * Step 2) If the instance is the instance we want to move, we figure the task that we want to assign the task
-   * Step 3) We mutate and compute new task if they belongs to these source tasks or if they are the
+   * Step 2) If the instance is the instance we want to move, we find out the task that we want to assign the task
+   * Step 3) We scan the old task, compute new task if the old task belongs to these source tasks or if it is the
    * target task we want to move to
    *
    * @param currentAssignment the old assignment

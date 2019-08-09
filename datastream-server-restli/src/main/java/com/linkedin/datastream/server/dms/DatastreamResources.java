@@ -327,11 +327,15 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
    * @param pathKeys resource key containing the datastream name
    * @param partitions partitions that need to move to
    * @param host host to accommodate the partitions
+   * @param notify specify if we should notify the leader to start process the assignment, we can stage the update
+   *               and batch it later by setting it into false
    * @return result HTTP status
    */
   @Action(name = "movePartitions", resourceLevel = ResourceLevel.ENTITY)
   public ActionResult<Void> movePartitions(@PathKeysParam PathKeys pathKeys,
-      @ActionParam("partitions") String partitions, @ActionParam("host") String host) {
+      @ActionParam("partitions") String partitions,
+      @ActionParam("host") String host,
+      @ActionParam("notify") @Optional("true") boolean notify) {
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
@@ -350,7 +354,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     List<String> targetPartitions = Arrays.asList(partitions.split(","));
     TargetAssignment targetAssignment = new TargetAssignment(targetPartitions, host);
     try {
-      _store.updatePartitionAssignments(datastream.getName(), datastream, targetAssignment);
+      _store.updatePartitionAssignments(datastream.getName(), datastream, targetAssignment, notify);
     } catch (Exception ex) {
       LOG.error("Error to move partitions", ex);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,

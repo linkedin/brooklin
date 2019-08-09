@@ -338,7 +338,7 @@ public class TestStickyMulticastStrategy {
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size() + 1, newAssignmentTasks.size());
       Assert.assertTrue(oldAssignmentTasks.stream()
-          .allMatch(x -> x.getTaskPrefix().equals(newDatastream.getName()) || newAssignmentTasks.contains(x)));
+          .allMatch(x -> x.getTaskPrefix().equals(newDatastream.getTaskPrefix()) || newAssignmentTasks.contains(x)));
     }
 
     // test with strategy where dsTaskLimitPerInstance is greater than 1
@@ -360,7 +360,7 @@ public class TestStickyMulticastStrategy {
       Assert.assertEquals(oldAssignmentTasks.size() + (maxTasksConfig / instances.size()),
           newAssignmentTasks.size());
       Assert.assertTrue(oldAssignmentTasks.stream()
-          .allMatch(x -> x.getTaskPrefix().equals(newDatastream1.getName()) || newAssignmentTasks.contains(x)));
+          .allMatch(x -> x.getTaskPrefix().equals(newDatastream1.getTaskPrefix()) || newAssignmentTasks.contains(x)));
     }
   }
 
