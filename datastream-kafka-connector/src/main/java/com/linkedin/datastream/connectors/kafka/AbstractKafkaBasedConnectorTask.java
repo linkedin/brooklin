@@ -955,9 +955,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   private KafkaPositionTracker createKafkaPositionTracker(KafkaBasedConnectorConfig config) {
     if (config.getEnablePositionTracker()) {
+      // Change the consumer group id for our position tracker's consumer as we do not want the position tracker to
+      // be subscribing or assigning itself to any topics
+      Properties positionTrackerConsumerProps = new Properties(_consumerProps);
+      positionTrackerConsumerProps.remove(ConsumerConfig.GROUP_ID_CONFIG);
+
       return KafkaPositionTracker.builder()
           .withConnectorTaskStartTime(Instant.now())
-          .withConsumerSupplier(() -> createKafkaConsumer(_consumerProps))
+          .withConsumerSupplier(() -> createKafkaConsumer(positionTrackerConsumerProps))
           .withDatastreamTask(_datastreamTask)
           .withEnableBrokerOffsetFetcher(config.getEnableBrokerOffsetFetcher())
           .withIsConnectorTaskAlive(() -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()))
