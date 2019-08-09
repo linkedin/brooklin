@@ -149,7 +149,6 @@ public class DatastreamServer {
     }
 
     CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
-    coordinatorConfig.setAssignmentChangeThreadPoolThreadCount(connectorTypes.size());
 
     LOG.info("Setting up DMS endpoint server.");
     ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
