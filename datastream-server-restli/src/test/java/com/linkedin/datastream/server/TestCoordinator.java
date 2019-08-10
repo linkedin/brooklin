@@ -572,7 +572,7 @@ public class TestCoordinator {
 
   @Test
   public void testCoordinationWithPartitionAssignment() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationWithPartitionAssignment";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
 
