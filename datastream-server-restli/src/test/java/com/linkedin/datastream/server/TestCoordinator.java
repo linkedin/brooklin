@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,7 +93,7 @@ import static org.mockito.Mockito.when;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
-  private static final int WAIT_TIMEOUT_MS = 60000;
+  private static final int WAIT_TIMEOUT_MS = 30000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -572,11 +573,11 @@ public class TestCoordinator {
 
   @Test
   public void testCoordinationWithPartitionAssignment() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationWithPartitionAssignment";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
 
-    int initialDelays = 100;
+    int initialDelays = 200;
 
     List<String> partitions1 = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7", "t-8");
     List<String> partitions2 = ImmutableList.of("p-0", "p-1", "p-2", "p-3", "t-0");
@@ -634,9 +635,9 @@ public class TestCoordinator {
       Map<String, List<String>> partitions, int initialDelayMs) {
     return new TestHookConnector(name, connectorType) {
 
-      Map<String, DatastreamGroup> _datastremGroups = new HashMap<>();
+      Map<String, DatastreamGroup> _datastremGroups = new ConcurrentHashMap<>();
+      Map<String, Thread> _callbackThread = new ConcurrentHashMap<>();
       Consumer<DatastreamGroup> _callback;
-      Thread _callbackThread = null;
 
       @Override
       public void onPartitionChange(Consumer<DatastreamGroup> callback) {
@@ -646,18 +647,20 @@ public class TestCoordinator {
       @Override
       public void handleDatastream(List<DatastreamGroup> datastreamGroup) {
         if (datastreamGroup.size() > 0) {
-          datastreamGroup.forEach(dg -> _datastremGroups.put(dg.getName(), dg));
-          _callbackThread = new Thread(() -> {
-            try {
-              Thread.sleep(initialDelayMs);
-              for (DatastreamGroup ds : datastreamGroup) {
-                _callback.accept(ds);
-              }
-            } catch (Exception ex) {
+          datastreamGroup.forEach(dg -> {
+            _datastremGroups.putIfAbsent(dg.getName(), dg);
+            if (!_callbackThread.containsKey(dg.getName())) {
+              _callbackThread.put(dg.getName(), new Thread(() -> {
+                try {
+                  Thread.sleep(initialDelayMs);
+                  _callback.accept(dg);
+                } catch (Exception ex) {
 
+                }
+              }));
+              _callbackThread.get(dg.getName()).start();
             }
           });
-          _callbackThread.start();
         }
       }
 
@@ -670,9 +673,7 @@ public class TestCoordinator {
       @Override
       public void stop() {
         super.stop();
-        if (_callbackThread != null) {
-          _callbackThread.interrupt();
-        }
+        _callbackThread.values().stream().forEach(Thread::interrupt);
       }
     };
   }
