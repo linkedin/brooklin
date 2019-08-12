@@ -8,11 +8,13 @@ package com.linkedin.datastream.server;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-
+/**
+ * Tests for {@link CoordinatorEventBlockingQueue}
+ */
 public class TestCoordinatorEventBlockingQueue {
 
   @Test
-  public void testHappyPath() throws Exception{
+  public void testHappyPath() throws Exception {
     CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue();
     eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
@@ -26,7 +28,7 @@ public class TestCoordinatorEventBlockingQueue {
 
 
   @Test
-  public void testEventWithMetadata() throws Exception{
+  public void testEventWithMetadata() throws Exception {
     CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue();
     eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
@@ -37,11 +39,11 @@ public class TestCoordinatorEventBlockingQueue {
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-    
+
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    Assert.assertEquals((String)eventBlockingQueue.take().getEventMetadata(), "test1");
-    Assert.assertEquals((String)eventBlockingQueue.take().getEventMetadata(), "test1");
-    Assert.assertEquals((String)eventBlockingQueue.take().getEventMetadata(), "test2");
+    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test1");
+    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test1");
+    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test2");
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
   }
 }
