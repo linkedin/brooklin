@@ -8,6 +8,9 @@ package com.linkedin.datastream.server;
 
 /**
  * Represents different event types inside {@link Coordinator}.
+ *
+ * CoordinatorEvent will be deduped in the event queue {@link CoordinatorEventBlockingQueue}
+ * based on the event type. However, any event with eventMetadata will not get deduped
  */
 public class CoordinatorEvent {
 
@@ -35,7 +38,8 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
   protected final EventType _eventType;
 
-  // metadata can be used by for the event, it can be null
+  // metadata can be used by for the event, it can be null.
+  // The event with metadata will not get deduped
   protected final Object _eventMetadata;
 
   private CoordinatorEvent(EventType eventType) {

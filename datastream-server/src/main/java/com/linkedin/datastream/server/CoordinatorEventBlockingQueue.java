@@ -46,8 +46,11 @@ public class CoordinatorEventBlockingQueue {
       }
     }
 
-    // always overwrite the event in the map
-    _eventMap.put(event.getType(), event);
+    // we put into the eventMap for dedup only if there is no metadata
+    if (event.getEventMetadata() == null) {
+      _eventMap.put(event.getType(), event);
+    }
+
     LOG.debug("Event queue size %d", _eventQueue.size());
     notify();
   }
@@ -71,7 +74,8 @@ public class CoordinatorEventBlockingQueue {
     if (queuedEvent != null) {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: %d", _eventQueue.size());
-      return _eventMap.remove(queuedEvent.getType());
+      _eventMap.remove(queuedEvent.getType());
+      return queuedEvent;
     }
 
     return null;
