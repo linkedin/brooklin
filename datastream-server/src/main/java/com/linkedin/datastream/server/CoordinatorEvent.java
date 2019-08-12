@@ -9,8 +9,8 @@ package com.linkedin.datastream.server;
 /**
  * Represents different event types inside {@link Coordinator}.
  *
- * CoordinatorEvent will be deduped in the event queue based on the event type
- * However, any event with eventMetadata will not get deduped
+ * CoordinatorEvent will be deduped in the event queue {@link CoordinatorEventBlockingQueue}
+ * based on the event type. However, any event with eventMetadata will not get deduped
  */
 public class CoordinatorEvent {
 
