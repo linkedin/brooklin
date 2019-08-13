@@ -139,8 +139,8 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
         _zkClient.writeData(KeyBuilder.getTargetAssignmentBase(_cluster, datastream.getConnectorName()),
             String.valueOf(System.currentTimeMillis()));
       } catch (Exception e) {
-        // we don't need to do an atomic update; if the node gets update by others somehow or get deleted by
-        // leader, it's ok to ignore the failure
+        // The failure can be ignored here as the assignment is stored and it could still be processed
+        // in the next attempt
         LOG.warn("Failed to touch the assignment update", e);
       }
     }
@@ -153,9 +153,13 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       List<String> instances = _zkClient.getChildren(path);
       Set<String> hostnames = instances.stream().map(s -> s.substring(0, s.lastIndexOf('-'))).collect(Collectors.toSet());
       if (!hostnames.contains(hostname)) {
-        throw new DatastreamException("Hostname " + hostname + " is not valid");
+        String msg = "Hostname " + hostname + " is not valid";
+        LOG.error(msg);
+        throw new DatastreamException(msg);
       }
     } catch (Exception ex) {
+      LOG.error("Fail to verify the hostname", ex);
+
       throw new DatastreamException(ex);
     }
   }

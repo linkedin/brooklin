@@ -225,8 +225,9 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
-    _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
-
+    if (_connectorTypes != null && _connectorTypes.size() > 0) {
+      _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
+    }
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
     loadAllDatastreamTasks();
@@ -966,7 +967,7 @@ public class ZkAdapter {
    * Get a partition movement info for a particular datastream
    * @param connectorType Connector name
    * @param datastreamGroupName the name of datastream group
-   * @return The target assignment mapping information with the partition names and its target instance name
+   * @return The target assignment mapping information with the instance name -> topicPartition
    */
   public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName) {
     Map<String, Set<String>> result = new HashMap<>();

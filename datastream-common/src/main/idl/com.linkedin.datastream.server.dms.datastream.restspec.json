@@ -48,7 +48,7 @@
           "name" : "notify",
           "type" : "boolean",
           "default" : "true",
-          "doc" : "specify if we should notify the leader, we can stage the update without proceed\n               by setting notify to false"
+          "doc" : "specify if we should notify the leader to start process the assignment, we can stage the update\n               and batch it later by setting it into false"
         } ]
       }, {
         "name" : "pause",

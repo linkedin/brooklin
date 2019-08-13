@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang.NotImplementedException;
+
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -68,19 +70,22 @@ public interface AssignmentStrategy {
   }
 
   /**
-   * Move a partition for a datastream group according to the targetAssignment.
+   * Move a partition for a datastream group according to the targetAssignment. While It moves a single datastream
+   * group, it can move multiple partitions to different hosts which are from multiple calls
+   *
    * It returns a map from instance -> tasks map with partition info stored in the task.
    *
    * This interface needs to be implemented if the Brooklin Coordinator is going to perform the
    * partition movement.
    *
-   * @param currentAssignment the old assignment
-   * @param targetAssignment the target assignment retrieved from Zookeeper
+   * @param currentAssignment the old assignment, it is a mapping from instance name -> datastream task
+   * @param targetAssignment the target assignment retrieved from Zookeeper, it is a mapping
+   *                         from instance name -> topicPartition
    * @param partitionsMetadata the subscribed partitions metadata received from connector
    * @return new assignment
    */
   default Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
-    return currentAssignment;
+    throw new NotImplementedException("movePartitions are not implemented");
   }
 }

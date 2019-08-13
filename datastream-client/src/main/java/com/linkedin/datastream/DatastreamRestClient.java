@@ -533,9 +533,9 @@ public class DatastreamRestClient {
   /**
    * move partitions to the target host
    * @param datastreamName
-   *    Name of the datastream to resume.
+   *    Name of the datastream to move.
    * @param partitions
-   *    partitions that need to be moved
+   *    partitions that need to be moved, separate by comma, ex topicA-0,topicB-1
    * @param host
    *    the target host the partition assignment
    * @throws RemoteInvocationException

@@ -351,6 +351,15 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Can only move partitions in a READY datastream state: " + datastreamName);
     }
 
+    // validate that partition assignment is supported for the datastream
+    try {
+      _coordinator.validatePartitionAssignmentSupported(datastream);
+    } catch (DatastreamValidationException e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          "Partition assignment is not supported for this datastream ", e);
+    }
+
     List<String> targetPartitions = Arrays.asList(partitions.split(","));
     TargetAssignment targetAssignment = new TargetAssignment(targetPartitions, host);
     try {

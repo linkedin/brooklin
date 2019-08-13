@@ -68,6 +68,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
+import com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -1293,6 +1294,28 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw e;
     }
   }
+
+  /**
+   * Validate if the partition assignment is supported for the datastream
+   * @param datastream datastream which needs the verification
+   * @throws DatastreamValidationException if partition assignment is not supported
+   */
+  public void validatePartitionAssignmentSupported(Datastream datastream) throws DatastreamValidationException {
+    try {
+      String connectorName = datastream.getConnectorName();
+      ConnectorInfo connectorInfo = _connectors.get(connectorName);
+      if (connectorInfo == null) {
+        throw new DatastreamValidationException("Invalid connector: " + connectorName);
+      }
+      if (!(connectorInfo.getAssignmentStrategy() instanceof StickyPartitionAssignmentStrategy)) {
+        throw new DatastreamValidationException("Invalid Partition assignment strategy " + connectorName);
+      }
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isPartitionAssignmentSupported", NUM_ERRORS, 1);
+      throw e;
+    }
+  }
+
 
   /**
    * Checks if given datastream update type is supported by connector for given datastream.

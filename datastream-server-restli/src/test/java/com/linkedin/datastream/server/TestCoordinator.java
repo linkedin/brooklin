@@ -871,6 +871,36 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testValidatePartitionAssignmentSupported() throws Exception {
+    String testCluster = "testValidatePartitionAssignmentSupported";
+
+    String connectorType1 = "connectorType1";
+    String connectorType2 = "connectorType2";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType1);
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.addConnector(connectorType1, connector1, new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    Datastream datastream1 = DatastreamTestUtils.createDatastream(connectorType1, "name1", "source1");
+    Datastream datastream2 = DatastreamTestUtils.createDatastream(connectorType2, "name2", "source2");
+
+    coordinator.validatePartitionAssignmentSupported(datastream1);
+
+    try {
+      coordinator.validatePartitionAssignmentSupported(datastream2);
+      Assert.fail("Should fail validation when partition assignment is not supported");
+    } catch (DatastreamValidationException e) {
+      LOG.info("Caught exception as partition assignment is not supported");
+    }
+  }
+
+  @Test
   public void testValidateDatastreamsUpdate() throws Exception {
     String testCluster = "testValidateDatastreamsUpdate";
 
