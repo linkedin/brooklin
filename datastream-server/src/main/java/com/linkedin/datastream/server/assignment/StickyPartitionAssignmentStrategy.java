@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -144,10 +145,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   /**
    * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
    * task once. It follow the steps
-   * Step 1) get the partitions that to be moved, and get their source task
-   * Step 2) If the instance is the instance we want to move, we find out the task that we want to assign the task
-   * Step 3) We scan the old task, compute new task if the old task belongs to these source tasks or if it is the
-   * target task we want to move to
+   * Step 1) get the partitions that to be moved, and find out their source task
+   * Step 2) If the instance is the one we want to move, we find out the task which we should assign the partition
+   *         from that instance
+   * Step 3) Scan the current assignment, compute new task if the old task belongs to these source tasks or if it
+   *         is the target task we want to move to
    *
    * @param currentAssignment the old assignment
    * @param targetAssignment the target assignment retrieved from Zookeeper
@@ -157,81 +159,90 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   public Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
 
-    LOG.info("Move partition, task: {}, target assignment: {}, all partitions: {}", currentAssignment,
+    LOG.info("Move partition, current assignment: {}, target assignment: {}, all partitions: {}", currentAssignment,
         targetAssignment, partitionsMetadata.getPartitions());
 
-    String dgName = partitionsMetadata.getDatastreamGroup().getName();
+    DatastreamGroup dg = partitionsMetadata.getDatastreamGroup();
 
     Set<String> allToReassignPartitions = new HashSet<>();
-    targetAssignment.values().stream().forEach(allToReassignPartitions::addAll);
+    targetAssignment.values().forEach(allToReassignPartitions::addAll);
     allToReassignPartitions.retainAll(partitionsMetadata.getPartitions());
 
-    //construct a map to store the tasks and if it contain the partitions that need to be released
-    //map: <taskName, partitions that need to be released>
-    Map<String, Set<String>> toReleasePartitionsTaskMap = new HashMap<>();
+    // construct a map to store the tasks and if it contain the partitions that can be released
+    // map: <source taskName, partitions that need to be released>
+    Map<String, Set<String>> confirmedPartitionsTaskMap = new HashMap<>();
+
+    // construct a map to store the partition and its source task
+    // map: <partitions that need to be released, source taskName>
     Map<String, String> partitionToSourceTaskMap = new HashMap<>();
 
-    //We first confirmed that the partitions in the target assignment can be removed, and we found its source task
-    currentAssignment.keySet().stream().forEach(instance -> {
+    // We first confirm that the partitions in the target assignment which can be removed, and we find out its source task
+    // If the partitions cannot be found from any task, we ignore these partitions
+    currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
       tasks.forEach(task -> {
-        if (dgName.equals(task.getTaskPrefix())) {
+        if (dg.belongsTo(task)) {
           Set<String> toMovePartitions = new HashSet<>(task.getPartitionsV2());
           toMovePartitions.retainAll(allToReassignPartitions);
-          toReleasePartitionsTaskMap.put(task.getDatastreamTaskName(), toMovePartitions);
+          confirmedPartitionsTaskMap.put(task.getDatastreamTaskName(), toMovePartitions);
           toMovePartitions.forEach(p -> partitionToSourceTaskMap.put(p, task.getDatastreamTaskName()));
         }
       });
     });
 
-    Set<String> tasksToMutate = toReleasePartitionsTaskMap.keySet();
+    Set<String> tasksToMutate = confirmedPartitionsTaskMap.keySet();
     Set<String> toReleasePartitions = new HashSet<>();
-    toReleasePartitionsTaskMap.values().forEach(v -> toReleasePartitions.addAll(v));
+    confirmedPartitionsTaskMap.values().forEach(v -> toReleasePartitions.addAll(v));
 
-    //Compute new assignment from the current assignment
+    // Compute new assignment from the current assignment
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
-    currentAssignment.keySet().stream().forEach(instance -> {
+    currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
 
-      // check if this instance has any partition to be moved
-      final Set<String> toMovedPartitions = new HashSet<>();
+      // check if this instance has any partition to be added
+      final Set<String> toAddedPartitions = new HashSet<>();
       if (targetAssignment.containsKey(instance)) {
-        toMovedPartitions.addAll(targetAssignment.get(instance).stream().filter(toReleasePartitions::contains).collect(Collectors.toSet()));
+        // filter the target assignment by the partitions which have a confirmed source
+        Set<String> p = targetAssignment.get(instance).stream()
+            .filter(toReleasePartitions::contains).collect(Collectors.toSet());
+        toAddedPartitions.addAll(p);
       }
 
-      Set<DatastreamTask> dgTasks = tasks.stream().filter(t -> dgName.equals(t.getTaskPrefix()))
+      Set<DatastreamTask> dgTasks = tasks.stream().filter(dg::belongsTo)
           .collect(Collectors.toSet());
-      if (toMovedPartitions.size() > 0 && dgTasks.isEmpty()) {
-        throw new DatastreamRuntimeException("No task is available in the target instance " + instance);
+      if (toAddedPartitions.size() > 0 && dgTasks.isEmpty()) {
+        String errorMsg = String.format("No task is available in the target instance %s", instance);
+        LOG.error(errorMsg);
+        throw new DatastreamRuntimeException(errorMsg);
       }
 
-      //find the target task to store the moved partition to store the target partitions
-      final DatastreamTask targetTask = toMovedPartitions.size() > 0 ? dgTasks.stream()
+      // find the task with minimum number of partitions on that instance to store the moved partitions
+      final DatastreamTask targetTask = toAddedPartitions.size() > 0 ? dgTasks.stream()
           .reduce((task1, task2) -> task1.getPartitionsV2().size() < task2.getPartitionsV2().size() ? task1 : task2)
           .get() : null;
 
-        //compute new assignment for that instance
+        // compute new assignment for that instance
         Set<DatastreamTask> newAssignedTask = tasks.stream().map(task -> {
-          if (!dgName.equals(task.getTaskPrefix())) {
+          if (!dg.belongsTo(task)) {
             return task;
           }
           boolean partitionChanged = false;
           List<String> newPartitions = new ArrayList<>(task.getPartitionsV2());
           Set<String> extraDependencies = new HashSet<>();
 
-          // Release the partitions
+          // release the partitions
           if (tasksToMutate.contains(task.getDatastreamTaskName())) {
             newPartitions.removeAll(toReleasePartitions);
             partitionChanged = true;
           }
 
-          // move new partitions
+          // add new partitions
           if (targetTask != null && task.getDatastreamTaskName().equals(targetTask.getDatastreamTaskName())) {
-            newPartitions.addAll(toMovedPartitions);
+            newPartitions.addAll(toAddedPartitions);
             partitionChanged = true;
-            // Add source task for these partitions into extra dependency
-            toReleasePartitions.stream().forEach(p -> extraDependencies.add(partitionToSourceTaskMap.get(p)));
+            // add source task for these partitions into extra dependency
+            toReleasePartitions.forEach(p -> extraDependencies.add(partitionToSourceTaskMap.get(p)));
           }
 
           if (partitionChanged) {

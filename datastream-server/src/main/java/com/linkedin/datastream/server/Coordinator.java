@@ -1134,6 +1134,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     } catch (Exception ex) {
       //We do not retry if it is not transient exception
       _log.info("Partition movement failed, Exception: ", ex);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_ERRORS, 1);
+
     }
     if (!shouldRetry) {
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
