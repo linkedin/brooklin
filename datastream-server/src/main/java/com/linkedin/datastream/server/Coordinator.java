@@ -413,6 +413,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onDatastreamUpdate completed successfully");
   }
 
+  /**
+   * onPartitionMovement is called when partition movement info has been put into zookeeper
+   */
   @Override
   public void onPartitionMovement() {
     _log.info("Coordinator::onPartitionMovement is called");
@@ -1086,12 +1089,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
         Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
 
+        // Get the partition assignment information
         Map<String, Optional<DatastreamGroupPartitionsMetadata>> datastreamPartitions =
             connectorInstance.getDatastreamPartitions();
 
+        // Get the datastream Group name which have the target assignment
         List<String> toMoveDatastream = _adapter.getDatastreamsNeedPartitionMovement(connectorType);
 
-        // retrieve the live datastreamGroups for validation
+        // retrieve the all live datastreamGroups and filtered them as we process only datastream which have
+        // both partition assignment info and the target assignment
         List<DatastreamGroup> toProcessedDatastreamGroups =
             fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName()))
                 .filter(group2 -> toMoveDatastream.contains(group2.getName()))

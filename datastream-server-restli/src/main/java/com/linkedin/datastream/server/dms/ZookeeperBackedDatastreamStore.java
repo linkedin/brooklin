@@ -116,6 +116,13 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     _zkClient.writeData(path, json);
   }
 
+  /**
+   * update the target assignment info for a particular datastream
+   * @param key datastream name of the original datastream to be updated
+   * @param datastream content of the updated datastream
+   * @param targetAssignment the target partition assignment
+   * @param notifyLeader whether to notify leader about the update
+   */
   @Override
   public void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment,
       boolean notifyLeader)
@@ -139,9 +146,8 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
         _zkClient.writeData(KeyBuilder.getTargetAssignmentBase(_cluster, datastream.getConnectorName()),
             String.valueOf(System.currentTimeMillis()));
       } catch (Exception e) {
-        // The failure can be ignored here as the assignment is stored and it could still be processed
-        // in the next attempt
         LOG.warn("Failed to touch the assignment update", e);
+        throw new DatastreamException(e);
       }
     }
   }

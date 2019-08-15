@@ -733,12 +733,12 @@ public class ZkAdapter {
     // create instance node /{cluster}/instance/{instanceName} for keeping instance
     // states, including instance assignments and errors
     //
-    String instanceName = _hostname + "-" + _liveInstanceName;
+    String instanceName = formatZkInstance(_hostname, _liveInstanceName);
     _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
     _zkclient.ensurePath(KeyBuilder.instanceAssignments(_cluster, instanceName));
     _zkclient.ensurePath(KeyBuilder.instanceErrors(_cluster, instanceName));
 
-    return _hostname + "-" + _liveInstanceName;
+    return formatZkInstance(_hostname, _liveInstanceName);
   }
 
   /**
@@ -975,27 +975,21 @@ public class ZkAdapter {
     String path = KeyBuilder.getTargetAssignment(_cluster, connectorType, datastreamGroupName);
     if (_zkclient.exists(path)) {
       List<String> nodes = _zkclient.getChildren(path);
+      // Node contains the timestamp info for each assignment, we sort them so that last write win
       Collections.sort(nodes);
+
+      Map<String, String> hostInstanceMap = getHostInstanceMap();
+
       for (String node : nodes) {
         String content = _zkclient.readData(path + '/' + node);
         TargetAssignment assignment = TargetAssignment.fromJson(content);
 
-        //Compute the correct instance
-        Map<String, String> hostInstanceMap = new HashMap<>();
-        if (_liveInstancesProvider.getLiveInstances() != null) {
-          _liveInstancesProvider.getLiveInstances().forEach(instance -> {
-            try {
-              hostInstanceMap.put(instance.substring(0, instance.lastIndexOf('-')), instance);
-            } catch (Exception ex) {
-              LOG.info("Fail to parse instance name {}", instance, ex);
-            }
-          });
-        }
+        // Map the hostname to correct Zookeeper instance name
         if (hostInstanceMap.containsKey(assignment.getTargetHost()) && assignment.getPartitionNames() != null) {
           LOG.info("Added assignment {} {}", assignment.getTargetHost(), assignment.getPartitionNames());
           result.put(hostInstanceMap.get(assignment.getTargetHost()), new HashSet<>(assignment.getPartitionNames()));
         } else {
-          LOG.warn("instance {} not found in the map {}", assignment.getTargetHost(), hostInstanceMap.keySet());
+          LOG.warn("assignment target host {} not found from the live instances {}", assignment.getTargetHost(), hostInstanceMap.keySet());
         }
       }
     }
@@ -1022,6 +1016,24 @@ public class ZkAdapter {
 
     _zkclient.delete(lockPath);
     LOG.info("{} successfully released the lock on {}", _instanceName, task);
+  }
+
+  private Map<String, String> getHostInstanceMap() {
+    Map<String, String> hostInstanceMap = new HashMap<>();
+    if (_liveInstancesProvider.getLiveInstances() != null) {
+      _liveInstancesProvider.getLiveInstances().forEach(instance ->
+          hostInstanceMap.put(parseHostnameFromZkInstance(instance), instance)
+      );
+    }
+    return hostInstanceMap;
+  }
+
+  private static String formatZkInstance(String hostname, String instanceName) {
+    return String.format("%s-%s", hostname, instanceName);
+  }
+
+  private static String parseHostnameFromZkInstance(String instance) {
+    return instance.substring(0, instance.lastIndexOf('-'));
   }
 
   /**
@@ -1164,7 +1176,7 @@ public class ZkAdapter {
         if (hostname != null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
-          liveInstances.add(hostname + "-" + n);
+          liveInstances.add(formatZkInstance(hostname, n));
         }
       }
       return liveInstances;
