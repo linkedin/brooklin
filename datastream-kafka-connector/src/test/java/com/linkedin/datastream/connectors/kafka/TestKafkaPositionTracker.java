@@ -111,6 +111,12 @@ public class TestKafkaPositionTracker {
           topicPartitionsRaw.stream().map(object -> (TopicPartition) object).collect(Collectors.toSet());
       return _state.getBrokerOffsets(topicPartitions);
     });
+    when(_consumer.endOffsets(anyCollectionOf(TopicPartition.class), any(Duration.class))).thenAnswer(invocation -> {
+      Collection<?> topicPartitionsRaw = invocation.getArgumentAt(0, Collection.class);
+      Set<TopicPartition> topicPartitions =
+          topicPartitionsRaw.stream().map(object -> (TopicPartition) object).collect(Collectors.toSet());
+      return _state.getBrokerOffsets(topicPartitions);
+    });
     when(_consumer.metrics()).thenAnswer(invocation -> _state.getMetricsConsumerLag(_state.getAllTopicPartitions())
         .entrySet()
         .stream()
@@ -284,7 +290,7 @@ public class TestKafkaPositionTracker {
   private void updateBrokerPositionData() {
     final KafkaPositionTracker positionTracker = _connectorTask.getKafkaPositionTracker()
         .orElseThrow(() -> new RuntimeException("Position tracker was not instantiated"));
-    positionTracker.queryBrokerForLatestOffsets(_consumer, _consumer.assignment());
+    positionTracker.queryBrokerForLatestOffsets(_consumer, _consumer.assignment(), Duration.ofSeconds(30));
   }
 
   /**

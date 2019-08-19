@@ -280,7 +280,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     final Optional<KafkaPositionTracker> kafkaPositionTracker = connectorTask.getKafkaPositionTracker();
     Assert.assertTrue(kafkaPositionTracker.isPresent());
     try (final Consumer<?, ?> consumer = kafkaPositionTracker.get().getConsumerSupplier().get()) {
-      kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer, Collections.singleton(new TopicPartition(topic, 0)));
+      kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
+          Collections.singleton(new TopicPartition(topic, 0)), Duration.ofSeconds(30));
     }
 
     // Test position data
