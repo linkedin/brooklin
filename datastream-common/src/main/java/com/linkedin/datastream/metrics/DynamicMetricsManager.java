@@ -405,7 +405,6 @@ public class DynamicMetricsManager {
 
   /**
    * Get metricRegistry object, it allows other module like Kafka client to wire in the same metricRegistry
-   * @return
    */
   public MetricRegistry getMetricRegistry() {
     return _metricRegistry;
