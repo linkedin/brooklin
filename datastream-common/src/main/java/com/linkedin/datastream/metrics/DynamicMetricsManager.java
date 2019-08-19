@@ -402,4 +402,11 @@ public class DynamicMetricsManager {
     Validate.notNull(classSimpleName, "classSimpleName argument is null.");
     Validate.notNull(metricName, "metricName argument is null.");
   }
+
+  /**
+   * Get metricRegistry object, it allows other module like Kafka client to wire in the same metricRegistry
+   */
+  public MetricRegistry getMetricRegistry() {
+    return _metricRegistry;
+  }
 }
