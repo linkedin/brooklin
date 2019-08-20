@@ -742,16 +742,17 @@ public class ZkAdapter {
   }
 
   /**
-   * Recursively create the znodes in ZooKeeper for the {@code /{cluster}/{connectorType}} node if it doesn't exist
+   * Add connector type to this ZkAdapter, it also recursively create the znodes in ZooKeeper for
+   * the {@code /{cluster}/{connectorType}} node if it doesn't exist
    * @param connectorType Connector type
    */
-  public void ensureConnectorZNode(String connectorType) {
+  public void addConnectorType(String connectorType) {
+    _connectorTypes.add(connectorType);
     String path = KeyBuilder.connector(_cluster, connectorType);
     _zkclient.ensurePath(path);
     if (_targetAssignmentProvider != null) {
       _targetAssignmentProvider.addListener(connectorType);
     }
-    _connectorTypes.add(connectorType);
   }
 
   /**

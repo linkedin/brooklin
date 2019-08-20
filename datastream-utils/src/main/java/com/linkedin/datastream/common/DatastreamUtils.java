@@ -98,6 +98,13 @@ public final class DatastreamUtils {
   }
 
   /**
+   * Get the Group Name of a Datastream object, it is the same of task prefix
+   */
+  public static String getGroupName(Datastream datastream) {
+    return getTaskPrefix(datastream);
+  }
+
+  /**
    * Check if the task prefix of a Datastream object is set
    */
   public static boolean containsTaskPrefix(Datastream datastream) {

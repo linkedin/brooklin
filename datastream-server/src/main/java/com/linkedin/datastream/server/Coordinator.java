@@ -68,7 +68,6 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
-import com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -280,7 +279,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // make sure connector znode exists upon instance start. This way in a brand new cluster
       // we can inspect ZooKeeper and know what connectors are created
-      _adapter.ensureConnectorZNode(connector.getConnectorType());
+      _adapter.addConnectorType(connector.getConnectorType());
 
       // call connector::start API
       connector.start(connectorInfo.getCheckpointProvider());
@@ -1096,11 +1095,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // Get the datastream Group name which have the target assignment
         List<String> toMoveDatastream = _adapter.getDatastreamsNeedPartitionMovement(connectorType);
 
-        // retrieve the all live datastreamGroups and filtered them as we process only datastream which have
+        // Fetch all live datastreamGroups
+        List<DatastreamGroup> liveDatastreamGroups =
+            fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName())).collect(
+                Collectors.toList());
+
+        // clean up the datastreams if they are not in live datastream
+        toMoveDatastream.stream().filter(dgName -> !liveDatastreamGroups.stream().map(DatastreamGroup::getName)
+            .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs -> _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs));
+
+        // Filtered all live datastreamGrou as we process only datastream which have
         // both partition assignment info and the target assignment
         List<DatastreamGroup> toProcessedDatastreamGroups =
-            fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName()))
-                .filter(group2 -> toMoveDatastream.contains(group2.getName()))
+            liveDatastreamGroups.stream().filter(group2 -> toMoveDatastream.contains(group2.getName()))
                 .filter(group3 -> datastreamPartitions.keySet().contains(group3.getName()))
                 .collect(Collectors.toList());
 
@@ -1129,11 +1136,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       shouldRetry = false;
     } catch (DatastreamTransientException ex) {
-      _log.info("Partition movement failed, retry again after a configurable period", ex);
+      _log.warn("Partition movement failed, retry again after a configurable period", ex);
       shouldRetry = true;
     } catch (Exception ex) {
       //We do not retry if it is not transient exception
-      _log.info("Partition movement failed, Exception: ", ex);
+      _log.error("Partition movement failed, Exception: ", ex);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_ERRORS, 1);
 
     }
@@ -1315,9 +1322,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (connectorInfo == null) {
         throw new DatastreamValidationException("Invalid connector: " + connectorName);
       }
-      if (!(connectorInfo.getAssignmentStrategy() instanceof StickyPartitionAssignmentStrategy)) {
-        throw new DatastreamValidationException("Invalid Partition assignment strategy " + connectorName);
+
+      Connector connectorInstance = connectorInfo.getConnector().getConnectorInstance();
+
+      if (!(connectorInstance.getDatastreamPartitions().containsKey(DatastreamUtils.getGroupName(datastream)))) {
+        throw new DatastreamValidationException("Partition assignment is not enabled for datastream " + datastream.getName());
       }
+
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isPartitionAssignmentSupported", NUM_ERRORS, 1);
       throw e;

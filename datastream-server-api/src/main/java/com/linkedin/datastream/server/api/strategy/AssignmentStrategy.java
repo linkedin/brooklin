@@ -78,7 +78,8 @@ public interface AssignmentStrategy {
    * This interface needs to be implemented if the Brooklin Coordinator is going to perform the
    * partition movement.
    *
-   * @param currentAssignment the old assignment, it is a mapping from instance name -> datastream task
+   * @param currentAssignment the old assignment, it is a mapping from instance name -> datastream task. The mapping
+   *                          should cover all datastream groups across all instances
    * @param targetAssignment the target assignment retrieved from Zookeeper, it is a mapping
    *                         from instance name -> topicPartition
    * @param partitionsMetadata the subscribed partitions metadata received from connector
