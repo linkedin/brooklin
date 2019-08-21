@@ -742,7 +742,7 @@ public class ZkAdapter {
   }
 
   /**
-   * Add connector type to this ZkAdapter, it also recursively create the znodes in ZooKeeper for
+   * Add connector type to this ZkAdapter, it also recursively creates the znodes in ZooKeeper for
    * the {@code /{cluster}/{connectorType}} node if it doesn't exist
    * @param connectorType Connector type
    */

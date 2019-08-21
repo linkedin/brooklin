@@ -98,7 +98,7 @@ public final class DatastreamUtils {
   }
 
   /**
-   * Get the Group Name of a Datastream object, it is the same of task prefix
+   * Get the group name of a Datastream object, it is the same as task prefix
    */
   public static String getGroupName(Datastream datastream) {
     return getTaskPrefix(datastream);
