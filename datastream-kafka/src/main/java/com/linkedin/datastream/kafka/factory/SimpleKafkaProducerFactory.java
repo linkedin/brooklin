@@ -17,13 +17,13 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
  * Factory class for SimpleKafkaProducerFactory
  */
 public class SimpleKafkaProducerFactory implements KafkaProducerFactory<byte[], byte[]> {
-  private static final String KEY_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
-  private static final String VAL_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
+  private static final String DEFAULT_KEY_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
+  private static final String DEFAULT_VAL_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
 
   /* Package Visible */
   static Properties addProducerDefaultProperties(Properties properties) {
-    properties.putIfAbsent(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KEY_SERIALIZER);
-    properties.putIfAbsent(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, VAL_SERIALIZER);
+    properties.putIfAbsent(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, DEFAULT_KEY_SERIALIZER);
+    properties.putIfAbsent(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, DEFAULT_VAL_SERIALIZER);
     return properties;
   }
 

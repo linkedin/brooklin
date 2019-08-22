@@ -16,8 +16,8 @@ import org.testng.annotations.Test;
  * Tests for {@link KafkaConsumerFactoryImpl}
  */
 public class TestKafkaConsumerFactoryImpl {
-    private static final String KEY_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
-    private static final String VAL_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
+    private static final String DEFAULT_KEY_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
+    private static final String DEFAULT_VAL_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
 
     /**
      * Assert if we are adding default properties
@@ -35,9 +35,9 @@ public class TestKafkaConsumerFactoryImpl {
         Properties expected = new Properties();
         expected.putAll(properties);
         expected.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-                KEY_DESERIALIZER);
+                DEFAULT_KEY_DESERIALIZER);
         expected.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-                VAL_DESERIALIZER);
+                DEFAULT_VAL_DESERIALIZER);
 
         Assert.assertEquals(actual, expected);
     }

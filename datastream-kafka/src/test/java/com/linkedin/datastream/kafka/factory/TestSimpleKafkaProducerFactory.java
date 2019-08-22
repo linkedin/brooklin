@@ -16,8 +16,8 @@ import org.testng.annotations.Test;
  * Tests for {@link com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory}
  */
 public class TestSimpleKafkaProducerFactory {
-    private static final String KEY_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
-    private static final String VAL_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
+    private static final String DEFAULT_KEY_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
+    private static final String DEFAULT_VAL_SERIALIZER = ByteArraySerializer.class.getCanonicalName();
 
     /**
      * Assert if we are adding default properties
@@ -32,9 +32,9 @@ public class TestSimpleKafkaProducerFactory {
         Properties expected = new Properties();
         expected.putAll(properties);
         expected.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-                KEY_SERIALIZER);
+                DEFAULT_KEY_SERIALIZER);
         expected.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                VAL_SERIALIZER);
+                DEFAULT_VAL_SERIALIZER);
 
         Assert.assertEquals(actual, expected);
     }

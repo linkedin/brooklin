@@ -17,15 +17,15 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
  * A factory for creating Kafka {@link Consumer} instances
  */
 public class KafkaConsumerFactoryImpl implements KafkaConsumerFactory<byte[], byte[]> {
-  private static final String KEY_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
-  private static final String VAL_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
+  private static final String DEFAULT_KEY_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
+  private static final String DEFAULT_VAL_DESERIALIZER = ByteArrayDeserializer.class.getCanonicalName();
 
   /* Package Visible */
   static Properties addConsumerDefaultProperties(Properties properties) {
     properties.putIfAbsent(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-            KEY_DESERIALIZER);
+            DEFAULT_KEY_DESERIALIZER);
     properties.putIfAbsent(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-            VAL_DESERIALIZER);
+            DEFAULT_VAL_DESERIALIZER);
     return properties;
   }
 
