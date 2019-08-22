@@ -118,8 +118,14 @@ public class KafkaTransportProvider implements TransportProvider {
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
-      keyValue = record.getPartitionKey().isPresent() ? record.getPartitionKey().get().getBytes() : keyValue;
-      return new ProducerRecord<>(topicName, keyValue, payloadValue);
+      ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, payloadValue);
+
+      if (record.getPartitionKey().isPresent()) {
+        keyValue = record.getPartitionKey().get().getBytes();
+        producerRecord = new ProducerRecord<>(topicName, keyValue, payloadValue);
+      }
+
+      return producerRecord;
     }
   }
 
@@ -142,8 +148,11 @@ public class KafkaTransportProvider implements TransportProvider {
           LOG.error(errorMessage, e);
           throw new DatastreamRuntimeException(errorMessage, e);
         }
+        // Update topic-specific metrics and aggregate metrics
+        int numBytes = outgoing.key() != null ? outgoing.key().length : 0 + outgoing.value().length;
+
         _eventWriteRate.mark();
-        _eventByteWriteRate.mark(outgoing.key().length + outgoing.value().length);
+        _eventByteWriteRate.mark(numBytes);
 
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
@@ -157,8 +166,6 @@ public class KafkaTransportProvider implements TransportProvider {
           doOnSendCallback(record, onSendComplete, metadata, exception);
         });
 
-        // Update topic-specific metrics and aggregate metrics
-        int numBytes = outgoing.key().length + outgoing.value().length;
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE,
             1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName,
