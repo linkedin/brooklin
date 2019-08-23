@@ -215,7 +215,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     long eventsSourceTimestamp =
         fromKafka.timestampType() == TimestampType.LOG_APPEND_TIME ? fromKafka.timestamp() : readTime.toEpochMilli();
     HashMap<String, String> metadata = new HashMap<>();
-    metadata.put(KAFKA_ORIGIN_CLUSTER, _mirrorMakerSource.toString());
+    metadata.put(KAFKA_ORIGIN_CLUSTER, _mirrorMakerSource.getBrokerListString());
     String topic = fromKafka.topic();
     metadata.put(KAFKA_ORIGIN_TOPIC, topic);
     int partition = fromKafka.partition();

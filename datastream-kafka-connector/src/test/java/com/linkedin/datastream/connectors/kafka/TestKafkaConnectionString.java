@@ -104,4 +104,13 @@ public class TestKafkaConnectionString {
   public void testMultipleBrokersNoPort() {
     KafkaConnectionString.valueOf("kafka://somewhere:666,somewhereElse/topic");
   }
+
+  @Test
+  public void testBrokerListString() {
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf("kafka://somewhere:666/topic");
+    Assert.assertEquals(connectionString.getBrokerListString(), "somewhere:666");
+
+    connectionString = KafkaConnectionString.valueOf("kafka://a:667,b:665,a:666/topic");
+    Assert.assertEquals(connectionString.getBrokerListString(), "a:666,a:667,b:665");
+  }
 }

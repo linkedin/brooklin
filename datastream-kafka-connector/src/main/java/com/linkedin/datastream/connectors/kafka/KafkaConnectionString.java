@@ -55,11 +55,18 @@ public class KafkaConnectionString {
     return _isSecure;
   }
 
-  @Override
-  public String toString() {
+  /**
+   * Returns a comma-separated list of the Kafka broker addresses.
+   */
+  public String getBrokerListString() {
     StringJoiner joiner = new StringJoiner(",");
     _brokers.forEach(kafkaBrokerAddress -> joiner.add(kafkaBrokerAddress.toString()));
-    return (_isSecure ? PREFIX_SCHEME_SECURE_KAFKA : PREFIX_SCHEME_KAFKA) + joiner.toString() + "/" + _topicName;
+    return joiner.toString();
+  }
+
+  @Override
+  public String toString() {
+    return (_isSecure ? PREFIX_SCHEME_SECURE_KAFKA : PREFIX_SCHEME_KAFKA) + getBrokerListString() + "/" + _topicName;
   }
 
   @Override
