@@ -21,7 +21,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
-import com.linkedin.datastream.server.TargetAssignment;
+import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 /**
@@ -124,21 +124,21 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
    * @param notifyLeader whether to notify leader about the update
    */
   @Override
-  public void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment,
+  public void updatePartitionAssignments(String key, Datastream datastream, HostTargetAssignment targetAssignment,
       boolean notifyLeader)
       throws DatastreamException {
     Validate.notNull(datastream, "null datastream");
     Validate.notNull(key, "null key for datastream" + datastream);
     verifyHostname(targetAssignment.getTargetHost());
 
-    long current = System.currentTimeMillis();
+    long currentTime = System.currentTimeMillis();
     String datastreamGroupName = DatastreamUtils.getTaskPrefix(datastream);
-    String path = KeyBuilder.getTargetAssignment(_cluster, datastream.getConnectorName(), datastreamGroupName);
+    String path = KeyBuilder.getTargetAssignmentPath(_cluster, datastream.getConnectorName(), datastreamGroupName);
     _zkClient.ensurePath(path);
     if (_zkClient.exists(path)) {
       String json = targetAssignment.toJson();
-      _zkClient.ensurePath(path + '/' + current);
-      _zkClient.writeData(path + '/' + current, json);
+      _zkClient.ensurePath(path + '/' + currentTime);
+      _zkClient.writeData(path + '/' + currentTime, json);
     }
 
     if (notifyLeader) {

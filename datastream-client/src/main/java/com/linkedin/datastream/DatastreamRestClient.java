@@ -536,16 +536,16 @@ public class DatastreamRestClient {
    *    Name of the datastream to move.
    * @param partitions
    *    partitions that need to be moved, separate by comma, ex topicA-0,topicB-1
-   * @param host
+   * @param targetHost
    *    the target host the partition assignment
    * @throws RemoteInvocationException
    */
-  public void movePartitions(String datastreamName, String partitions, String host) throws RemoteInvocationException {
+  public void movePartitions(String datastreamName, String partitions, String targetHost) throws RemoteInvocationException {
     Instant startTime = Instant.now();
     PollUtils.poll(() -> {
       try {
         ActionRequest<Void> request = _builders.actionMovePartitions().id(datastreamName).
-            partitionsParam(partitions).hostParam(host).build();
+            partitionsParam(partitions).targetHostParam(targetHost).build();
         ResponseFuture<Void> datastreamResponseFuture = _restClient.sendRequest(request);
         return datastreamResponseFuture.getResponse();
       } catch (RemoteInvocationException e) {

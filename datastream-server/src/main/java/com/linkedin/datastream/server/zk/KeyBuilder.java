@@ -293,7 +293,7 @@ public final class KeyBuilder {
    * @param datastreamGroupName Datastream group name
    * @return
    */
-  public static String getTargetAssignment(String cluster, String connectorType, String datastreamGroupName) {
+  public static String getTargetAssignmentPath(String cluster, String connectorType, String datastreamGroupName) {
     return String.format(TARGET_ASSIGNMENTS, cluster, connectorType, datastreamGroupName).replaceAll("//", "/'");
   }
 

@@ -131,9 +131,9 @@
             "type" : "string",
             "doc" : "partitions that need to move to"
           }, {
-            "name" : "host",
+            "name" : "targetHost",
             "type" : "string",
-            "doc" : "host to accommodate the partitions"
+            "doc" : "target host to accommodate the partitions"
           }, {
             "name" : "notify",
             "type" : "boolean",

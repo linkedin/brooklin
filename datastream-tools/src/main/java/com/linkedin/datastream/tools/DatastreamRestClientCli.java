@@ -141,8 +141,8 @@ public class DatastreamRestClientCli {
             OptionConstants.OPT_ARG_MOVEMENT_SOURCE_PARTITIONS, false, OptionConstants.OPT_DESC_MOVEMENT_SOURCE_PARTITIONS));
 
     options.addOption(
-        OptionUtils.createOption(OptionConstants.OPT_SHORT_HOST_NAME, OptionConstants.OPT_LONG_HOST_NAME,
-            OptionConstants.OPT_ARG_HOST_NAME, false, OptionConstants.OPT_DESC_HOST_NAME));
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_TARGET_HOST_NAME, OptionConstants.OPT_LONG_TARGET_HOST_NAME,
+            OptionConstants.OPT_ARG_TARGET_OST_NAME, false, OptionConstants.OPT_DESC_TARGET_HOST_NAME));
 
     CommandLineParser parser = new BasicParser();
     CommandLine cmd;
@@ -203,9 +203,9 @@ public class DatastreamRestClientCli {
         case MOVE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           String partitions = getOptionValue(cmd, OptionConstants.OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS, options);
-          String host = getOptionValue(cmd, OptionConstants.OPT_SHORT_HOST_NAME, options);
-          datastreamRestClient.movePartitions(datastreamName, partitions, host);
-          System.out.println("move partitions " + partitions + " to host " + host + " successfully");
+          String targetHost = getOptionValue(cmd, OptionConstants.OPT_SHORT_TARGET_HOST_NAME, options);
+          datastreamRestClient.movePartitions(datastreamName, partitions, targetHost);
+          System.out.println("move partitions " + partitions + " to host " + targetHost + " successfully");
           break;
 
         case CREATE:

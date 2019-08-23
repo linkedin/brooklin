@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.server.TargetAssignment;
+import com.linkedin.datastream.server.HostTargetAssignment;
 
 
 /**
@@ -50,9 +50,9 @@ public interface DatastreamStore {
    * update the target assignment info for a particular datastream
    * @param key datastream name of the original datastream to be updated
    * @param datastream content of the updated datastream
-   * @param targetAssignment the target partition assignment
+   * @param hostTargetAssignment the target partition assignment
    * @param notifyLeader whether to notify leader about the update
    */
-  void updatePartitionAssignments(String key, Datastream datastream, TargetAssignment targetAssignment,
+  void updatePartitionAssignments(String key, Datastream datastream, HostTargetAssignment hostTargetAssignment,
       boolean notifyLeader) throws DatastreamException;
 }

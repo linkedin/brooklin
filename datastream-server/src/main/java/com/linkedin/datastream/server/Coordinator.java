@@ -1079,11 +1079,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
+    long startTimestamp = System.currentTimeMillis();
+
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
       List<DatastreamGroup> toCleanup = new ArrayList<>();
-
-
+      
       for (String connectorType : _connectors.keySet()) {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
         Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
@@ -1100,9 +1101,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName())).collect(
                 Collectors.toList());
 
-        // clean up the datastreams if they are not in live datastream
+        // clean up the datastreams if they are not in the live datastreams
         toMoveDatastream.stream().filter(dgName -> !liveDatastreamGroups.stream().map(DatastreamGroup::getName)
-            .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs -> _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs));
+            .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs ->
+            _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs, startTimestamp));
 
         // Filtered all live datastreamGrou as we process only datastream which have
         // both partition assignment info and the target assignment
@@ -1114,7 +1116,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         for (DatastreamGroup dg : toProcessedDatastreamGroups) {
           DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dg.getName())
               .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dg.getName()));
-          Map<String, Set<String>> suggestedAssignment = _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName());
+          Map<String, Set<String>> suggestedAssignment =
+              _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), startTimestamp);
           assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
           toCleanup.add(dg);
@@ -1129,7 +1132,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       //clean up stored target assignment after the assignment is updated
       for (DatastreamGroup dg : toCleanup) {
-        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName());
+        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), startTimestamp);
       }
 
       _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
@@ -1311,7 +1314,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * Validate if the partition assignment is supported for the datastream
+   * Validate the partition is managed by connector for this datastream
    * @param datastream datastream which needs the verification
    * @throws DatastreamValidationException if partition assignment is not supported
    */
@@ -1326,7 +1329,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Connector connectorInstance = connectorInfo.getConnector().getConnectorInstance();
 
       if (!(connectorInstance.getDatastreamPartitions().containsKey(DatastreamUtils.getGroupName(datastream)))) {
-        throw new DatastreamValidationException("Partition assignment is not enabled for datastream " + datastream.getName());
+        throw new DatastreamValidationException("Partition assignment is not managed by connector, datastream " + datastream.getName());
       }
 
     } catch (Exception e) {

@@ -39,7 +39,7 @@ import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.server.TargetAssignment;
+import com.linkedin.datastream.server.HostTargetAssignment;
 
 
 /**
@@ -943,11 +943,17 @@ public class ZkAdapter {
    * Clean up partition movement info for a particular datastream
    * @param connectorType Connector name
    * @param datastreamGroupName the name of datastream group
+   * @param timestamp timestamp of the partition movement, we only removed node before this timestamp
    */
-  public void cleanUpPartitionMovement(String connectorType, String datastreamGroupName) {
-    String path = KeyBuilder.getTargetAssignment(_cluster, connectorType, datastreamGroupName);
+  public void cleanUpPartitionMovement(String connectorType, String datastreamGroupName, long timestamp) {
+    String path = KeyBuilder.getTargetAssignmentPath(_cluster, connectorType, datastreamGroupName);
     if (_zkclient.exists(path)) {
-      _zkclient.deleteRecursive(path);
+      List<String> nodes = _zkclient.getChildren(path);
+      for (String node : nodes) {
+        if (Long.valueOf(node) < timestamp) {
+          _zkclient.deleteRecursive(path + '/' + node);
+        }
+      }
     }
     LOG.info("clean up Target assignment info for {}", datastreamGroupName);
   }
@@ -965,30 +971,51 @@ public class ZkAdapter {
   }
 
   /**
-   * Get a partition movement info for a particular datastream
+   * Get a partition movement info for a particular datastream, if there are multiple assignment for the a single
+   * partition, we process the one which has the last timestamp (last write win)
+   *
    * @param connectorType Connector name
    * @param datastreamGroupName the name of datastream group
+   * @param timestamp timestamp of this partition movement, we only processed the node before this timestamp
    * @return The target assignment mapping information with the instance name -> topicPartition
    */
-  public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName) {
+  public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName,
+      long timestamp) {
     Map<String, Set<String>> result = new HashMap<>();
 
-    String path = KeyBuilder.getTargetAssignment(_cluster, connectorType, datastreamGroupName);
+    String path = KeyBuilder.getTargetAssignmentPath(_cluster, connectorType, datastreamGroupName);
     if (_zkclient.exists(path)) {
       List<String> nodes = _zkclient.getChildren(path);
+
       // Node contains the timestamp info for each assignment, we sort them so that last write win
-      Collections.sort(nodes);
+      Collections.sort(nodes, Collections.reverseOrder());
 
       Map<String, String> hostInstanceMap = getHostInstanceMap();
 
+      // keep remember processed partitions so that the same partition will not be assigned twice
+      Set<String> processedPartitions = new HashSet<>();
+
       for (String node : nodes) {
+        // ignore nodes after this timestamp, which is the staged after the movement request
+        if (Long.valueOf(node) > timestamp) {
+          continue;
+        }
+
         String content = _zkclient.readData(path + '/' + node);
-        TargetAssignment assignment = TargetAssignment.fromJson(content);
+        HostTargetAssignment assignment = HostTargetAssignment.fromJson(content);
+        List<String> hostPartitions = new ArrayList<>(assignment.getPartitionNames());
+        // Remove partitions which has been processed already
+        hostPartitions.removeAll(processedPartitions);
+        processedPartitions.addAll(assignment.getPartitionNames());
 
         // Map the hostname to correct Zookeeper instance name
         if (hostInstanceMap.containsKey(assignment.getTargetHost()) && assignment.getPartitionNames() != null) {
-          LOG.info("Added assignment {} {}", assignment.getTargetHost(), assignment.getPartitionNames());
-          result.put(hostInstanceMap.get(assignment.getTargetHost()), new HashSet<>(assignment.getPartitionNames()));
+          LOG.info("Added assignment {} {}", assignment.getTargetHost(), hostPartitions);
+          if (result.containsKey(hostInstanceMap.get(assignment.getTargetHost()))) {
+            result.get(hostInstanceMap.get(assignment.getTargetHost())).addAll(hostPartitions);
+          } else {
+            result.put(hostInstanceMap.get(assignment.getTargetHost()), new HashSet<>(hostPartitions));
+          }
         } else {
           LOG.warn("assignment target host {} not found from the live instances {}", assignment.getTargetHost(), hostInstanceMap.keySet());
         }
@@ -1021,8 +1048,8 @@ public class ZkAdapter {
 
   private Map<String, String> getHostInstanceMap() {
     Map<String, String> hostInstanceMap = new HashMap<>();
-    if (_liveInstancesProvider.getLiveInstances() != null) {
-      _liveInstancesProvider.getLiveInstances().forEach(instance ->
+    if (this.getLiveInstances() != null) {
+      this.getLiveInstances().forEach(instance ->
           hostInstanceMap.put(parseHostnameFromZkInstance(instance), instance)
       );
     }

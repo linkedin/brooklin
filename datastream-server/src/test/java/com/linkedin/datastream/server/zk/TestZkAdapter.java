@@ -31,9 +31,13 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
-import com.linkedin.datastream.server.TargetAssignment;
+import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+
+
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 
 /**
@@ -380,8 +384,8 @@ public class TestZkAdapter {
     String hostName = instances.get(0).substring(0, instances.get(0).lastIndexOf('-'));
 
     long current = System.currentTimeMillis();
-    String path = KeyBuilder.getTargetAssignment(testCluster, connectorType, datastreamGroup.getName());
-    TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("t-0", "t-1"), hostName);
+    String path = KeyBuilder.getTargetAssignmentPath(testCluster, connectorType, datastreamGroup.getName());
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("t-0", "t-1"), hostName);
     zkClient.ensurePath(path);
     if (zkClient.exists(path)) {
       String json = targetAssignment.toJson();
@@ -389,12 +393,62 @@ public class TestZkAdapter {
       zkClient.writeData(path + '/' + current, json);
     }
 
+    long current2 = System.currentTimeMillis();
+
     Map<String, Set<String>> newAssignment = adapter1.getPartitionMovement(datastreamGroup.getConnectorName(),
-        datastreamGroup.getName());
+        datastreamGroup.getName(), current2);
     Assert.assertEquals(newAssignment.get(instances.get(0)), ImmutableSet.of("t-0", "t-1"));
     adapter1.disconnect();
     zkClient.close();
   }
+
+  @Test
+  public void testMultiplePartitionMovement() throws Exception {
+    String testCluster = "testGetPartitionMovement";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter1 = spy(createZkAdapter(testCluster));
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
+
+    Datastream[] datastreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "datastream1");
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Arrays.asList(datastreams));
+
+    adapter1.connect();
+    adapter2.connect();
+    PollUtils.poll(() -> adapter1.isLeader(), 50, 5000);
+    PollUtils.poll(() -> !adapter2.isLeader(), 50, 5000);
+
+    List<String> hostnames = ImmutableList.of("host000-000", "host001-000");
+    doReturn(hostnames).when(adapter1).getLiveInstances();
+    List<String> instances = adapter1.getLiveInstances();
+    String hostName1 = instances.get(0).substring(0, instances.get(0).lastIndexOf('-'));
+    String hostName2 = instances.get(1).substring(0, instances.get(0).lastIndexOf('-'));
+
+    String path = KeyBuilder.getTargetAssignmentPath(testCluster, connectorType, datastreamGroup.getName());
+    List<HostTargetAssignment> assignments = ImmutableList.of(new HostTargetAssignment(ImmutableList.of("t-0", "t-1"), hostName1),
+        new HostTargetAssignment(ImmutableList.of("t-1", "t-3"), hostName2),
+        new HostTargetAssignment(ImmutableList.of("t-2", "t-4"), hostName1));
+    
+    zkClient.ensurePath(path);
+    if (zkClient.exists(path)) {
+      for (HostTargetAssignment assignment : assignments) {
+        long current1 = System.currentTimeMillis();
+        zkClient.ensurePath(path + '/' + current1);
+        zkClient.writeData(path + '/' + current1,  assignment.toJson());
+        Thread.sleep(100);
+      }
+    }
+
+    long current2 = System.currentTimeMillis();
+
+    Map<String, Set<String>> newAssignment = adapter1.getPartitionMovement(datastreamGroup.getConnectorName(),
+        datastreamGroup.getName(), current2);
+    Assert.assertEquals(newAssignment.get(instances.get(0)), ImmutableSet.of("t-0", "t-2", "t-4"));
+    Assert.assertEquals(newAssignment.get(instances.get(1)), ImmutableSet.of("t-1", "t-3"));
+    adapter1.disconnect();
+    zkClient.close();
+  }
+
 
   @Test
   // CHECKSTYLE:OFF

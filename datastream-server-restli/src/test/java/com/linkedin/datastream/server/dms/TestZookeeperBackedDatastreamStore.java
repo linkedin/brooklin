@@ -25,7 +25,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
-import com.linkedin.datastream.server.TargetAssignment;
+import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
@@ -136,13 +136,13 @@ public class TestZookeeperBackedDatastreamStore {
     ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamGroupName);
     String clusterName = "testcluster";
 
-    TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("p-0", "p-1"), "instance1");
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("p-0", "p-1"), "instance1");
     _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
     long startTime = System.currentTimeMillis();
     _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
     long endTime = System.currentTimeMillis();
 
-    String nodePath = KeyBuilder.getTargetAssignment(clusterName, ds.getConnectorName(), datastreamGroupName);
+    String nodePath = KeyBuilder.getTargetAssignmentPath(clusterName, ds.getConnectorName(), datastreamGroupName);
     List<String> nodes = _zkClient.getChildren(nodePath);
     Assert.assertTrue(nodes.size() > 0);
 
@@ -159,7 +159,7 @@ public class TestZookeeperBackedDatastreamStore {
     ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamGroupName);
     String clusterName = "testcluster";
 
-    TargetAssignment targetAssignment = new TargetAssignment(ImmutableList.of("p-0", "p-1"), "instance2");
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("p-0", "p-1"), "instance2");
     _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
     _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
   }

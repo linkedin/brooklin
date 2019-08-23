@@ -11,32 +11,32 @@ import com.linkedin.datastream.common.JsonUtils;
 
 
 /**
- * Data structure to store the target assignment for partitions
+ * Data structure to store the target assignment for partitions for a particular host
  */
-public class TargetAssignment {
+public class HostTargetAssignment {
   private List<String> _partitionNames;
   private String _targetHost;
 
   /**
-   * Constructor for TargetAssignment
+   * Constructor for HostTargetAssignment
    */
-  public TargetAssignment(List<String> partitionName, String targetHost) {
+  public HostTargetAssignment(List<String> partitionName, String targetHost) {
     _partitionNames = partitionName;
     _targetHost = targetHost;
   }
 
   /**
-   * Constructor for TargetAssignment, required for json
+   * Constructor for HostTargetAssignment, required for json
    */
-  public TargetAssignment() {
+  public HostTargetAssignment() {
 
   }
 
   /**
-   * create TargetAssignment from json
+   * create HostTargetAssignment from json
    */
-  public static TargetAssignment fromJson(String json) {
-    TargetAssignment assignment = JsonUtils.fromJson(json, TargetAssignment.class);
+  public static HostTargetAssignment fromJson(String json) {
+    HostTargetAssignment assignment = JsonUtils.fromJson(json, HostTargetAssignment.class);
     return assignment;
   }
 
