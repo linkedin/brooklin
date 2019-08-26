@@ -118,14 +118,8 @@ public class KafkaTransportProvider implements TransportProvider {
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
-      ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, payloadValue);
-
-      if (record.getPartitionKey().isPresent()) {
-        keyValue = record.getPartitionKey().get().getBytes();
-        producerRecord = new ProducerRecord<>(topicName, keyValue, payloadValue);
-      }
-
-      return producerRecord;
+      keyValue = record.getPartitionKey().isPresent() ? record.getPartitionKey().get().getBytes() : null;
+      return new ProducerRecord<>(topicName, keyValue, payloadValue);
     }
   }
 
@@ -149,8 +143,8 @@ public class KafkaTransportProvider implements TransportProvider {
           throw new DatastreamRuntimeException(errorMessage, e);
         }
         // Update topic-specific metrics and aggregate metrics
-        int numBytes = outgoing.key() != null ? outgoing.key().length : 0 + outgoing.value().length;
-
+        int numBytes = (outgoing.key() != null ? outgoing.key().length : 0) + outgoing.value().length;
+        
         _eventWriteRate.mark();
         _eventByteWriteRate.mark(numBytes);
 
