@@ -225,9 +225,8 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
-    if (_connectorTypes != null && _connectorTypes.size() > 0) {
-      _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
-    }
+    _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
+
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
     loadAllDatastreamTasks();
@@ -976,7 +975,7 @@ public class ZkAdapter {
    *
    * @param connectorType Connector name
    * @param datastreamGroupName the name of datastream group
-   * @param timestamp timestamp of this partition movement, we only processed the node before this timestamp
+   * @param timestamp timestamp of this partition movement request, we only processed the node before this timestamp
    * @return The target assignment mapping information with the instance name -> topicPartition
    */
   public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName,
@@ -1105,8 +1104,9 @@ public class ZkAdapter {
 
     /**
      * onPartitionMovement is called when partition movement info has been put into zookeeper
+     * @param notifyTimestamp the timestamp that partitionMovement is triggered
      */
-    void onPartitionMovement();
+    void onPartitionMovement(Long notifyTimestamp);
   }
 
   /**
@@ -1349,8 +1349,8 @@ public class ZkAdapter {
     public void handleDataChange(String dataPath, Object data) throws Exception {
       LOG.info("ZkTargetAssignmentProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
       if (_listener != null && data != null && !data.toString().isEmpty()) {
-        // only care about the data change when there is an update in the data node
-        _listener.onPartitionMovement();
+        // data consists of the timestamp when partition movement is triggered from the client
+        _listener.onPartitionMovement(Long.valueOf(data.toString()));
       }
     }
 

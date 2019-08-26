@@ -81,9 +81,10 @@ public class CoordinatorEvent {
 
   /**
    * Return an event that indicates a partition movement has been received
+   * @param notifyTimestamp the timestamp that partition movement is triggered
    */
-  public static CoordinatorEvent createPartitionMovementEvent() {
-    return new CoordinatorEvent(EventType.LEADER_PARTITION_MOVEMENT);
+  public static CoordinatorEvent createPartitionMovementEvent(Long notifyTimestamp) {
+    return new CoordinatorEvent(EventType.LEADER_PARTITION_MOVEMENT, notifyTimestamp);
   }
 
   /**

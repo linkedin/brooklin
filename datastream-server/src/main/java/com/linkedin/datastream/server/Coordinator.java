@@ -416,9 +416,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * onPartitionMovement is called when partition movement info has been put into zookeeper
    */
   @Override
-  public void onPartitionMovement() {
+  public void onPartitionMovement(Long notifyTimestamp) {
     _log.info("Coordinator::onPartitionMovement is called");
-    _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent());
+    _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
     _log.info("Coordinator::onPartitionMovement completed successfully");
   }
   /**
@@ -694,7 +694,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
 
         case LEADER_PARTITION_MOVEMENT:
-          performPartitionMovement();
+          performPartitionMovement((Long) event.getEventMetadata());
           break;
 
         default:
@@ -1073,18 +1073,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * move the partitions based on targetAssignmentInfo stored in the Zookeeper
+   * @param notifyTimestamp the timestamp when partition movement is triggered
    */
-  private void performPartitionMovement() {
+  private void performPartitionMovement(Long notifyTimestamp) {
     boolean shouldRetry = true;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
-    long startTimestamp = System.currentTimeMillis();
-
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
       List<DatastreamGroup> toCleanup = new ArrayList<>();
-      
+
       for (String connectorType : _connectors.keySet()) {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
         Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
@@ -1104,7 +1103,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // clean up the datastreams if they are not in the live datastreams
         toMoveDatastream.stream().filter(dgName -> !liveDatastreamGroups.stream().map(DatastreamGroup::getName)
             .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs ->
-            _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs, startTimestamp));
+            _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs, notifyTimestamp));
 
         // Filtered all live datastreamGrou as we process only datastream which have
         // both partition assignment info and the target assignment
@@ -1117,7 +1116,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dg.getName())
               .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dg.getName()));
           Map<String, Set<String>> suggestedAssignment =
-              _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), startTimestamp);
+              _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
           assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
           toCleanup.add(dg);
@@ -1132,7 +1131,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       //clean up stored target assignment after the assignment is updated
       for (DatastreamGroup dg : toCleanup) {
-        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), startTimestamp);
+        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
       }
 
       _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
@@ -1156,7 +1155,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_RETRIES, 1);
       leaderPartitionMovementScheduled.set(true);
       _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent());
+        _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
         leaderPartitionMovementScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
