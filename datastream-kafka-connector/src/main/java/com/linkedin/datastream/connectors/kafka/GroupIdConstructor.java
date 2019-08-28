@@ -65,7 +65,7 @@ public interface GroupIdConstructor {
     String datastreamTaskPrefix = DatastreamUtils.getTaskPrefix(datastream);
     List<Datastream> existingDatastreamsWithGroupIdOverride = allDatastreams.stream()
         .filter(DatastreamUtils::containsTaskPrefix)
-        .filter(ds -> DatastreamUtils.getTaskPrefix(ds) == datastreamTaskPrefix)
+        .filter(ds -> DatastreamUtils.getTaskPrefix(ds).equals(datastreamTaskPrefix))
         .filter(ds -> ds.getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID))
         .collect(Collectors.toList());
 
