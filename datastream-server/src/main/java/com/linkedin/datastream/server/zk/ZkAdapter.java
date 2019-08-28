@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.HostTargetAssignment;
 
 
 /**
@@ -62,8 +63,11 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
  * │                     │          │                                         │         │   ┌───────────────────────┐
  * │                     │          │                                         │         │───▶ onLiveInstancesChange*│
  * │                     │          │                                         │         │   └───────────────────────┘
+ * │                     │          │                                         │         │   ┌───────────────────┐
+ * │                     │          │                                         │         │───▶ onDatastreamUpdate│
+ * │                     │          │                                         │         │   └───────────────────┘
  * │                     │          │                                         └─────────┤   ┌────────────────────┐
- * │                     │          │                                                   │───▶ onDatastreamUpdate │
+ * │                     │          │                                                   │───▶ onPartitionMovement|
  * │                     │          │                                                   │   └────────────────────┘
  * └─────────────────────┘          └───────────────────────────────────────────────────┘
  *
@@ -111,6 +115,7 @@ public class ZkAdapter {
   private String _instanceName;
   private String _liveInstanceName;
   private String _hostname;
+  private Set<String> _connectorTypes = new HashSet<>();
 
   private volatile boolean _isLeader = false;
   private ZkAdapterListener _listener;
@@ -126,6 +131,7 @@ public class ZkAdapter {
   // only the leader should maintain this list and listen to the changes of live instances
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
+  private ZkTargetAssignmentProvider _targetAssignmentProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
@@ -219,6 +225,7 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
+    _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
@@ -242,6 +249,11 @@ public class ZkAdapter {
     if (_liveInstancesProvider != null) {
       _liveInstancesProvider.close();
       _liveInstancesProvider = null;
+    }
+
+    if (_targetAssignmentProvider != null) {
+      _targetAssignmentProvider.close();
+      _targetAssignmentProvider = null;
     }
 
     _isLeader = false;
@@ -720,21 +732,26 @@ public class ZkAdapter {
     // create instance node /{cluster}/instance/{instanceName} for keeping instance
     // states, including instance assignments and errors
     //
-    String instanceName = _hostname + "-" + _liveInstanceName;
+    String instanceName = formatZkInstance(_hostname, _liveInstanceName);
     _zkclient.ensurePath(KeyBuilder.instance(_cluster, instanceName));
     _zkclient.ensurePath(KeyBuilder.instanceAssignments(_cluster, instanceName));
     _zkclient.ensurePath(KeyBuilder.instanceErrors(_cluster, instanceName));
 
-    return _hostname + "-" + _liveInstanceName;
+    return formatZkInstance(_hostname, _liveInstanceName);
   }
 
   /**
-   * Recursively create the znodes in ZooKeeper for the {@code /{cluster}/{connectorType}} node if it doesn't exist
+   * Add connector type to this ZkAdapter, it also recursively creates the znodes in ZooKeeper for
+   * the {@code /{cluster}/{connectorType}} node if it doesn't exist
    * @param connectorType Connector type
    */
-  public void ensureConnectorZNode(String connectorType) {
+  public void addConnectorType(String connectorType) {
+    _connectorTypes.add(connectorType);
     String path = KeyBuilder.connector(_cluster, connectorType);
     _zkclient.ensurePath(path);
+    if (_targetAssignmentProvider != null) {
+      _targetAssignmentProvider.addListener(connectorType);
+    }
   }
 
   /**
@@ -922,6 +939,91 @@ public class ZkAdapter {
   }
 
   /**
+   * Clean up partition movement info for a particular datastream
+   * @param connectorType Connector name
+   * @param datastreamGroupName the name of datastream group
+   * @param timestamp timestamp of the partition movement, we only removed node before this timestamp
+   */
+  public void cleanUpPartitionMovement(String connectorType, String datastreamGroupName, long timestamp) {
+    String path = KeyBuilder.getTargetAssignmentPath(_cluster, connectorType, datastreamGroupName);
+    if (_zkclient.exists(path)) {
+      List<String> nodes = _zkclient.getChildren(path);
+      for (String node : nodes) {
+        if (Long.valueOf(node) < timestamp) {
+          _zkclient.deleteRecursive(path + '/' + node);
+        }
+      }
+    }
+    LOG.info("clean up Target assignment info for {}", datastreamGroupName);
+  }
+
+  /**
+   * Get the datastream group which contains the partition movement info
+   * @param connectorType Connector name
+   */
+  public List<String> getDatastreamsNeedPartitionMovement(String connectorType) {
+    String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+    if (_zkclient.exists(path)) {
+      return _zkclient.getChildren(path);
+    }
+    return Collections.emptyList();
+  }
+
+  /**
+   * Get a partition movement info for a particular datastream, if there are multiple assignment for the a single
+   * partition, we process the one which has the last timestamp (last write win)
+   *
+   * @param connectorType Connector name
+   * @param datastreamGroupName the name of datastream group
+   * @param timestamp timestamp of this partition movement request, we only processed the node before this timestamp
+   * @return The target assignment mapping information with the instance name -> topicPartition
+   */
+  public Map<String, Set<String>> getPartitionMovement(String connectorType, String datastreamGroupName,
+      long timestamp) {
+    Map<String, Set<String>> result = new HashMap<>();
+
+    String path = KeyBuilder.getTargetAssignmentPath(_cluster, connectorType, datastreamGroupName);
+    if (_zkclient.exists(path)) {
+      List<String> nodes = _zkclient.getChildren(path);
+
+      // Node contains the timestamp info for each assignment, we sort them so that last write win
+      Collections.sort(nodes, Collections.reverseOrder());
+
+      Map<String, String> hostInstanceMap = getHostInstanceMap();
+
+      // keep remember processed partitions so that the same partition will not be assigned twice
+      Set<String> processedPartitions = new HashSet<>();
+
+      for (String node : nodes) {
+        // ignore nodes after this timestamp, which is the staged after the movement request
+        if (Long.valueOf(node) > timestamp) {
+          continue;
+        }
+
+        String content = _zkclient.readData(path + '/' + node);
+        HostTargetAssignment assignment = HostTargetAssignment.fromJson(content);
+        List<String> hostPartitions = new ArrayList<>(assignment.getPartitionNames());
+        // Remove partitions which has been processed already
+        hostPartitions.removeAll(processedPartitions);
+        processedPartitions.addAll(assignment.getPartitionNames());
+
+        // Map the hostname to correct Zookeeper instance name
+        if (hostInstanceMap.containsKey(assignment.getTargetHost()) && assignment.getPartitionNames() != null) {
+          LOG.info("Added assignment {} {}", assignment.getTargetHost(), hostPartitions);
+          if (result.containsKey(hostInstanceMap.get(assignment.getTargetHost()))) {
+            result.get(hostInstanceMap.get(assignment.getTargetHost())).addAll(hostPartitions);
+          } else {
+            result.put(hostInstanceMap.get(assignment.getTargetHost()), new HashSet<>(hostPartitions));
+          }
+        } else {
+          LOG.warn("assignment target host {} not found from the live instances {}", assignment.getTargetHost(), hostInstanceMap.keySet());
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
    * Release the datastream task lock previously acquired
    * @param task Datastream task to release exclusive access for
    * @see #acquireTask(DatastreamTaskImpl, Duration)
@@ -941,6 +1043,24 @@ public class ZkAdapter {
 
     _zkclient.delete(lockPath);
     LOG.info("{} successfully released the lock on {}", _instanceName, task);
+  }
+
+  private Map<String, String> getHostInstanceMap() {
+    Map<String, String> hostInstanceMap = new HashMap<>();
+    if (this.getLiveInstances() != null) {
+      this.getLiveInstances().forEach(instance ->
+          hostInstanceMap.put(parseHostnameFromZkInstance(instance), instance)
+      );
+    }
+    return hostInstanceMap;
+  }
+
+  private static String formatZkInstance(String hostname, String instanceName) {
+    return String.format("%s-%s", hostname, instanceName);
+  }
+
+  private static String parseHostnameFromZkInstance(String instance) {
+    return instance.substring(0, instance.lastIndexOf('-'));
   }
 
   /**
@@ -981,6 +1101,12 @@ public class ZkAdapter {
      * happen after a datastream update.
      */
     void onDatastreamUpdate();
+
+    /**
+     * onPartitionMovement is called when partition movement info has been put into zookeeper
+     * @param notifyTimestamp the timestamp that partitionMovement is triggered
+     */
+    void onPartitionMovement(Long notifyTimestamp);
   }
 
   /**
@@ -1078,7 +1204,7 @@ public class ZkAdapter {
         if (hostname != null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
-          liveInstances.add(hostname + "-" + n);
+          liveInstances.add(formatZkInstance(hostname, n));
         }
       }
       return liveInstances;
@@ -1170,6 +1296,61 @@ public class ZkAdapter {
       if (_listener != null && data != null && !data.toString().isEmpty()) {
         // only care about the data change when there is an update in the data node
         _listener.onDatastreamUpdate();
+      }
+    }
+
+    @Override
+    public void handleDataDeleted(String dataPath) throws Exception {
+      // do nothing
+    }
+  }
+
+  /**
+   * ZkTargetAssignmentProvider detect if there is a partition movement being intiated from restful endpoint
+   */
+  public class ZkTargetAssignmentProvider implements IZkDataListener {
+    Set<String> _listenedConnectors = new HashSet<>();
+    /**
+     * Constructor
+     */
+    public ZkTargetAssignmentProvider(Set<String> connectorTypes) {
+      for (String connectorType : connectorTypes) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.subscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + path);
+      }
+      _listenedConnectors.addAll(connectorTypes);
+    }
+
+    /**
+     * add listener for the connector
+     */
+    public void addListener(String connectorType) {
+      if (!_listenedConnectors.contains(connectorType)) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.subscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Subscribing to the changes under the path " + path);
+        _listenedConnectors.add(connectorType);
+      }
+    }
+
+    /**
+     * Unsubscribe to all changes to the task assignment for this instance.
+     */
+    public void close() {
+      for (String connectorType : _listenedConnectors) {
+        String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
+        _zkclient.unsubscribeDataChanges(path, this);
+        LOG.info("ZkTargetAssignmentProvider::Unsubscribing to the changes under the path " + path);
+      }
+    }
+
+    @Override
+    public void handleDataChange(String dataPath, Object data) throws Exception {
+      LOG.info("ZkTargetAssignmentProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
+      if (_listener != null && data != null && !data.toString().isEmpty()) {
+        // data consists of the timestamp when partition movement is triggered from the client
+        _listener.onPartitionMovement(Long.valueOf(data.toString()));
       }
     }
 

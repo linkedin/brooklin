@@ -20,6 +20,7 @@ public class CoordinatorEvent {
   public enum EventType {
     LEADER_DO_ASSIGNMENT,
     LEADER_PARTITION_ASSIGNMENT,
+    LEADER_PARTITION_MOVEMENT,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
@@ -80,6 +81,14 @@ public class CoordinatorEvent {
    */
   public static CoordinatorEvent createLeaderPartitionAssignmentEvent(String datastreamGroupName) {
     return new CoordinatorEvent(EventType.LEADER_PARTITION_ASSIGNMENT, datastreamGroupName);
+  }
+
+  /**
+   * Return an event that indicates a partition movement has been received
+   * @param notifyTimestamp the timestamp that partition movement is triggered
+   */
+  public static CoordinatorEvent createPartitionMovementEvent(Long notifyTimestamp) {
+    return new CoordinatorEvent(EventType.LEADER_PARTITION_MOVEMENT, notifyTimestamp);
   }
 
   /**

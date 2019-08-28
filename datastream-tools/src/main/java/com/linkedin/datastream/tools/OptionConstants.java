@@ -88,4 +88,14 @@ public class OptionConstants {
   public static final String OPT_SHORT_FORCE = "f";
   public static final String OPT_LONG_FORCE = "force";
   public static final String OPT_DESC_FORCE = "force the entire datastream group to be paused/resumed";
+
+  public static final String OPT_SHORT_TARGET_HOST_NAME = "th";
+  public static final String OPT_LONG_TARGET_HOST_NAME = "targethost";
+  public static final String OPT_ARG_TARGET_OST_NAME = "TARGET_HOST";
+  public static final String OPT_DESC_TARGET_HOST_NAME = "Name of the target host";
+
+  public static final String OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS = "sp";
+  public static final String OPT_LONG_MOVEMENT_SOURCE_PARTITIONS = "sourcepartitions";
+  public static final String OPT_ARG_MOVEMENT_SOURCE_PARTITIONS = "SOURCE_PARTITIONS";
+  public static final String OPT_DESC_MOVEMENT_SOURCE_PARTITIONS = "the partitions which need to be moved";
 }

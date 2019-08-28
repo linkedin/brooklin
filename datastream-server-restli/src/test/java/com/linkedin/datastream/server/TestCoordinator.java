@@ -871,6 +871,57 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testValidatePartitionAssignmentSupported() throws Exception {
+    String testCluster = "testValidatePartitionAssignmentSupported";
+
+    String connectorType1 = "connectorType1";
+    String connectorType2 = "connectorType2";
+
+    int initialDelays = 100;
+
+    List<String> partitions1 = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7", "t-8");
+    Map<String, List<String>> partitions = new HashMap<>();
+    partitions.put("datastream1", partitions1);
+
+    TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", connectorType1, partitions, initialDelays);
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType2);
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+
+    coordinator.addConnector(connectorType1, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4), Optional.empty(), Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    List<TestHookConnector> connectors = new ArrayList<>();
+    connectors.add(connector1);
+    connectors.add(connector2);
+    Datastream [] datastream1  = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType1, "datastream1");
+    Datastream [] datastream2  = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType2, "datastream2");
+
+
+    Assert.assertTrue(PollUtils.poll(() -> {
+      try {
+        coordinator.validatePartitionAssignmentSupported(datastream1[0]);
+        return true;
+      } catch (Exception ex) {
+        return false;
+      }
+    }, 200, WAIT_TIMEOUT_MS));
+
+    try {
+      coordinator.validatePartitionAssignmentSupported(datastream2[0]);
+      Assert.fail("Should fail validation when partition assignment is not supported");
+    } catch (DatastreamValidationException e) {
+      LOG.info("Caught exception as partition assignment is not supported");
+    }
+  }
+
+  @Test
   public void testValidateDatastreamsUpdate() throws Exception {
     String testCluster = "testValidateDatastreamsUpdate";
 
