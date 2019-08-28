@@ -210,9 +210,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean leaderPartitionAssignmentScheduled = new AtomicBoolean(false);
 
-  // make sure the scheduled retries are not duplicated
-  private final AtomicBoolean leaderPartitionMovementScheduled = new AtomicBoolean(false);
-
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
 
@@ -1105,7 +1102,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs ->
             _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs, notifyTimestamp));
 
-        // Filtered all live datastreamGrou as we process only datastream which have
+        // Filtered all live datastreamGroup as we process only datastream which have
         // both partition assignment info and the target assignment
         List<DatastreamGroup> toProcessedDatastreamGroups =
             liveDatastreamGroups.stream().filter(group2 -> toMoveDatastream.contains(group2.getName()))
@@ -1113,6 +1110,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
                 .collect(Collectors.toList());
 
         for (DatastreamGroup dg : toProcessedDatastreamGroups) {
+          // Right now we fails the entire partition movement if any failure is encountered in any datastreamGroup
+          // The behavior can be improved to enhance the isolation in partition movement from different datastreamGroups
           DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dg.getName())
               .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dg.getName()));
           Map<String, Set<String>> suggestedAssignment =
@@ -1141,7 +1140,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.warn("Partition movement failed, retry again after a configurable period", ex);
       shouldRetry = true;
     } catch (Exception ex) {
-      //We do not retry if it is not transient exception
+      // We do not retry if it is not transient exception. Unfortunately we don't have a good way to communicate to the
+      // caller about individual failure as partition movement is an async process. A caller could only verify if the
+      // request is completed by query the assignment
+
       _log.error("Partition movement failed, Exception: ", ex);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_ERRORS, 1);
 
@@ -1150,13 +1152,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
-    }  else if (!leaderPartitionMovementScheduled.get()) {
+    }  else {
       _log.info("Schedule retry for leader movement tasks");
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_RETRIES, 1);
-      leaderPartitionMovementScheduled.set(true);
       _executor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
-        leaderPartitionMovementScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
   }
@@ -1327,8 +1327,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       Connector connectorInstance = connectorInfo.getConnector().getConnectorInstance();
 
+      // connectorInstance.getDatastreamPartitions() will contain the datastream group as key as long as this datastream
+      // is active and leader has assigned the datastream to the connector, regardless of the state of partition listener
+      // As a result, we can use this the key from this map to verify if the partition assignment is supported.
       if (!(connectorInstance.getDatastreamPartitions().containsKey(DatastreamUtils.getGroupName(datastream)))) {
-        throw new DatastreamValidationException("Partition assignment is not managed by connector, datastream " + datastream.getName());
+        String msg = String.format("Partition assignment is not managed by connector, datastream %s",
+            datastream.getName());
+        _log.error(msg);
+        throw new DatastreamValidationException(msg);
       }
 
     } catch (Exception e) {
