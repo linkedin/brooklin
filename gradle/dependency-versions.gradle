@@ -12,7 +12,7 @@ ext {
     jacksonVersion = "1.8.5"
     kafkaVersion = "2.0.0"
     log4jVersion = "1.2.17"
-    metricsCoreVersion = "3.1.2"
+    metricsCoreVersion = "4.1.0"
     mockitoVersion = "1.10.19"
     pegasusVersion = "20.0.4"
     scalaVersion = "2.11"
