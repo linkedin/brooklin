@@ -37,7 +37,7 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
     @Override
     public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
       DatastreamRecordMetadata metadata =  new DatastreamRecordMetadata(
-          record.getCheckpoint(), null, record.getPartition().orElse(null));
+          record.getCheckpoint(), null, record.getPartition().orElse(0));
       onComplete.onCompletion(metadata, null);
     }
 

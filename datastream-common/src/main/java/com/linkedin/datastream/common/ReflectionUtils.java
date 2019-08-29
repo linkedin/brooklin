@@ -121,9 +121,9 @@ public class ReflectionUtils {
   }
 
   private static <S, T> boolean isCompatiblePrimitive(Class<S> type1, Class<T> type2) {
-    for (int i = 0; i < COMPATIBLE_TYPES.length; i++) {
-      if ((type1.equals(COMPATIBLE_TYPES[i][0]) && type2.equals(COMPATIBLE_TYPES[i][1])) ||
-          (type1.equals(COMPATIBLE_TYPES[i][1]) && type2.equals(COMPATIBLE_TYPES[i][0]))) {
+    for (Class<?>[] compatibleType : COMPATIBLE_TYPES) {
+      if ((type1.equals(compatibleType[0]) && type2.equals(compatibleType[1])) ||
+          (type1.equals(compatibleType[1]) && type2.equals(compatibleType[0]))) {
         return true;
       }
     }

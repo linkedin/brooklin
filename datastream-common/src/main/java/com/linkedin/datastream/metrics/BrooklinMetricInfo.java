@@ -16,8 +16,8 @@ import org.apache.commons.lang.Validate;
  */
 public abstract class BrooklinMetricInfo {
 
-  protected String _nameOrRegex;
-  protected Optional<List<String>> _attributes;
+  protected final String _nameOrRegex;
+  protected final Optional<List<String>> _attributes;
 
   protected BrooklinMetricInfo(String nameOrRegex, Optional<List<String>> attributes) {
     Validate.notNull(nameOrRegex, "Metric name/regex must be non-null");

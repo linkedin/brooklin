@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,14 +30,14 @@ public class ConnectorWrapper {
   private final String _connectorType;
 
   private String _instanceName;
-  private Connector _connector;
+  private final Connector _connector;
   private String _lastError;
 
   private long _startTime;
   private long _endTime;
 
-  private AtomicLong _numDatastreams;
-  private AtomicLong _numDatastreamTasks;
+  private final AtomicLong _numDatastreams;
+  private final AtomicLong _numDatastreamTasks;
 
   /**
    * Create ConnectorWrapper that wraps the provided Connector
@@ -76,7 +77,7 @@ public class ConnectorWrapper {
   private void logErrorAndException(String method, Exception ex) {
     String msg = "Failed to call connector API: Connector::" + method;
     _log.error(msg, ex);
-    _lastError = msg + "\n" + ex.getMessage() + "\n" + ex.getStackTrace().toString();
+    _lastError = msg + "\n" + ex.getMessage() + "\n" + Arrays.toString(ex.getStackTrace());
   }
 
   private void logApiStart(String method) {

@@ -97,7 +97,7 @@ public final class PollUtils {
      *                  which may be {@code null}
      */
     static <T> InterruptablePredicate<T> isEqual(Object targetRef) {
-      return (null == targetRef) ? Objects::isNull : object -> targetRef.equals(object);
+      return (null == targetRef) ? Objects::isNull : targetRef::equals;
     }
   }
 

@@ -19,5 +19,5 @@ public interface SchemaRegistryClientFactory {
    * @param props - properties containing information such as registry URI and mode
    * @return SchemaRegistryClient implementation
    */
-  public SchemaRegistryClient createSchemaRegistryClient(Properties props);
+  SchemaRegistryClient createSchemaRegistryClient(Properties props);
 }

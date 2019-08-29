@@ -115,10 +115,10 @@ public abstract class DatabaseSource {
    * Metadata of a Collection
    */
   public static class CollectionMetadata {
-    private String _fieldName;
-    private String _schemaName;
-    private int _precision;
-    private int _scale;
+    private final String _fieldName;
+    private final String _schemaName;
+    private final int _precision;
+    private final int _scale;
 
     /**
      * Constructor for CollectionMetadata
@@ -151,11 +151,11 @@ public abstract class DatabaseSource {
    * Metadata of a Struct
    */
   public static class StructMetadata {
-    private String _fieldTypeName;
-    private String _schemaName;
-    private String _colName;
-    private int _precision;
-    private int _scale;
+    private final String _fieldTypeName;
+    private final String _schemaName;
+    private final String _colName;
+    private final int _precision;
+    private final int _scale;
 
     /**
      * Constructor for StructMetadata
@@ -197,12 +197,12 @@ public abstract class DatabaseSource {
     public static final String NULLABLE = "Y";
     public static final String NOT_NULLABLE = "N";
 
-    private String _columnSchemaName;
-    private String _columnFieldTypeName;
-    private String _colName;
-    private int _precision;
-    private int _scale;
-    private String _nullable;
+    private final String _columnSchemaName;
+    private final String _columnFieldTypeName;
+    private final String _colName;
+    private final int _precision;
+    private final int _scale;
+    private final String _nullable;
 
     /**
      * Constructor for TableMetadata

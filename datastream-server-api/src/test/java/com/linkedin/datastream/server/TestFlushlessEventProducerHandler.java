@@ -30,7 +30,7 @@ import static com.linkedin.datastream.server.FlushlessEventProducerHandler.Sourc
 public class TestFlushlessEventProducerHandler {
   private static final Long BIG_CHECKPOINT = Long.MAX_VALUE;
   private static final String TOPIC = "MyTopic";
-  private static Random _rnd = new Random();
+  private static final Random RANDOM = new Random();
 
   @Test
   public void testSingleRecord() throws Exception {
@@ -190,7 +190,7 @@ public class TestFlushlessEventProducerHandler {
   private static class RandomEventProducer implements DatastreamEventProducer {
     Map<SourcePartition, List<Pair<DatastreamProducerRecord, SendCallback>>> _queue = new HashMap<>();
     List<SourcePartition> tps = new ArrayList<>();
-    private double _exceptionProb;
+    private final double _exceptionProb;
 
     public RandomEventProducer() {
       this(0.0);
@@ -210,7 +210,7 @@ public class TestFlushlessEventProducerHandler {
     }
 
     public synchronized void processOne() {
-      int start = _rnd.nextInt(tps.size());
+      int start = RANDOM.nextInt(tps.size());
       for (int i = 0; i < tps.size(); i++) {
         SourcePartition tp = tps.get((i + start) % tps.size());
         if (!_queue.get(tp).isEmpty()) {
@@ -221,7 +221,7 @@ public class TestFlushlessEventProducerHandler {
           DatastreamRecordMetadata metadata =
               new DatastreamRecordMetadata(record.getCheckpoint(), TOPIC, record.getPartition().orElse(0));
           Exception exception = null;
-          if (_rnd.nextDouble() < _exceptionProb) {
+          if (RANDOM.nextDouble() < _exceptionProb) {
             exception = new RuntimeException("Simulating Flakiness sending messages");
           }
           callback.onCompletion(metadata, exception);

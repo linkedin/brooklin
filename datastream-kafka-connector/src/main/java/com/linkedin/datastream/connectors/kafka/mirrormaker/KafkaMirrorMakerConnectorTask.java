@@ -118,7 +118,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
 
-  private GroupIdConstructor _groupIdConstructor;
+  private final GroupIdConstructor _groupIdConstructor;
 
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
@@ -179,8 +179,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
     Properties properties = new Properties();
     properties.putAll(consumerProps);
-    String bootstrapValue = String.join(KafkaConnectionString.BROKER_LIST_DELIMITER,
-        _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString).collect(Collectors.toList()));
+    String bootstrapValue =
+        _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString).collect(
+            Collectors.joining(KafkaConnectionString.BROKER_LIST_DELIMITER));
     properties.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe

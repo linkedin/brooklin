@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -515,7 +516,7 @@ public class TestCoordinator {
 
     //Verify the assignment, each datastream should be assigned to four tasks
     Map<String, List<Connector>> assignment1 = collectDatastreamAssignment(connectors);
-    assignment1.values().stream().forEach(set -> Assert.assertEquals(set.size(), 4));
+    assignment1.values().forEach(set -> Assert.assertEquals(set.size(), 4));
 
     //Pause datastream 3
     Datastream ds3 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream3");
@@ -614,7 +615,7 @@ public class TestCoordinator {
 
     waitTillAssignmentIsComplete(8, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    final long interval = WAIT_TIMEOUT_MS < 100 ? WAIT_TIMEOUT_MS : 100;
+    final long interval = Math.min(WAIT_TIMEOUT_MS, 100);
     Map<String, List<String>> assignment = collectDatastreamPartitions(connectors);
 
     Assert.assertTrue(
@@ -663,7 +664,7 @@ public class TestCoordinator {
 
       @Override
       public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
-        return _datastremGroups.values().stream().collect(Collectors.toMap(g -> g.getName(),
+        return _datastremGroups.values().stream().collect(Collectors.toMap(DatastreamGroup::getName,
             g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName())))));
       }
 
@@ -681,7 +682,7 @@ public class TestCoordinator {
   private Map<String, List<Connector>> collectDatastreamAssignment(List<TestHookConnector> connectors) {
     Map<String, List<Connector>> datastreamMap = new HashMap<>();
     for (TestHookConnector testHookConnector : connectors) {
-      testHookConnector.getTasks().stream().forEach(task -> {
+      testHookConnector.getTasks().forEach(task -> {
         String datastream = task.getDatastreams().get(0).getName();
         if (!datastreamMap.containsKey(datastream)) {
           datastreamMap.put(datastream, new ArrayList<>());
@@ -695,7 +696,7 @@ public class TestCoordinator {
   private Map<String, List<String>> collectDatastreamPartitions(List<TestHookConnector> connectors) {
     Map<String, List<String>> datastreamMap = new HashMap<>();
     for (TestHookConnector testHookConnector : connectors) {
-      testHookConnector.getTasks().stream().forEach(task -> {
+      testHookConnector.getTasks().forEach(task -> {
         String datastream = task.getDatastreams().get(0).getName();
         datastreamMap.putIfAbsent(datastream, new ArrayList<>());
         LOG.info("{}", task);
@@ -949,7 +950,7 @@ public class TestCoordinator {
     datastreams.add(DatastreamTestUtils.createDatastream(connectorType2, "name3", "source3"));
     datastreams.add(DatastreamTestUtils.createDatastream(connectorType2, "name4", "source4"));
 
-    datastreams.forEach(ds -> resource.create(ds));
+    datastreams.forEach(resource::create);
     Assert.assertTrue(PollUtils.poll(() -> resource.getAll(new PagingContext(0, 4)).size() >= 4,
         100, 10000));
 
@@ -1366,7 +1367,7 @@ public class TestCoordinator {
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
-    Collections.sort(tasks1, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    tasks1.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
 
     LOG.info("Take the instance2 offline");
 
@@ -1385,7 +1386,7 @@ public class TestCoordinator {
 
     // Make sure strategy reused all tasks as opposed to creating new ones
     List<DatastreamTask> tasks2 = new ArrayList<>(connector1.getTasks());
-    Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    tasks2.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
 
     LOG.info("Tasks1: " + tasks1.toString());
     LOG.info("Tasks2: " + tasks2.toString());
@@ -1531,7 +1532,7 @@ public class TestCoordinator {
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
     tasks1.addAll(connector3.getTasks());
-    Collections.sort(tasks1, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    tasks1.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
 
     LOG.info("Stop the instance1 and delete the live instance");
 
@@ -1568,7 +1569,7 @@ public class TestCoordinator {
 
     // Make sure strategy reused all tasks as opposed to creating new ones
     List<DatastreamTask> tasks2 = new ArrayList<>(connector3.getTasks());
-    Collections.sort(tasks2, (o1, o2) -> o1.getDatastreamTaskName().compareTo(o2.getDatastreamTaskName()));
+    tasks2.sort(Comparator.comparing(DatastreamTask::getDatastreamTaskName));
 
     LOG.info("Tasks1: " + tasks1.toString());
     LOG.info("Tasks2: " + tasks2.toString());
@@ -1576,8 +1577,8 @@ public class TestCoordinator {
     Assert.assertEquals(tasks1, tasks2);
 
     // Verify dead instance assignments have been removed
-    Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName())));
-    Assert.assertTrue(!zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName())));
+    Assert.assertFalse(zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName())));
+    Assert.assertFalse(zkClient.exists(KeyBuilder.instanceAssignments(testCluster, instance2.getInstanceName())));
 
     //
     // clean up
@@ -1845,9 +1846,8 @@ public class TestCoordinator {
   }
 
   private void doTestTaskAssignmentAfterDestinationDedupe(String testName, boolean compat) throws Exception {
-    String testCluster = testName;
     String connectorName = "TestConnector";
-    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testName);
     TestHookConnector connector = new TestHookConnector("connector1", connectorName);
     coordinator.addConnector(connectorName, connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -1878,7 +1878,7 @@ public class TestCoordinator {
     // Create 2nd datastream with name alphabetically "smaller" than 1st datastream and same destination
     Datastream stream2 = stream1.clone();
     stream2.setName("stream12345");
-    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, stream2);
+    DatastreamTestUtils.storeDatastreams(zkClient, testName, stream2);
 
     // Wait for new assignment is done
     Assert.assertTrue(PollUtils.poll(() -> (numRebals.getCount() > numAssign1), 50, WAIT_TIMEOUT_MS));
@@ -2542,10 +2542,7 @@ public class TestCoordinator {
 
     @Override
     public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
-      if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
-        return true;
-      }
-      return false;
+      return DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType;
     }
   }
 

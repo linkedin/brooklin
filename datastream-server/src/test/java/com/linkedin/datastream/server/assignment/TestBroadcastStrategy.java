@@ -248,7 +248,7 @@ public class TestBroadcastStrategy {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
-      Assert.assertTrue(oldAssignmentTasks.stream().allMatch(newAssignmentTasks::contains));
+      Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
     }
 
     Assert.assertEquals(newAssignment.get(instance4).size(), datastreams.size());
@@ -274,7 +274,7 @@ public class TestBroadcastStrategy {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(newAssignmentTasks.size(), expectedNumTasksPerInstance);
-      Assert.assertTrue(newAssignmentTasks.stream().allMatch(oldAssignmentTasks::contains));
+      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
     }
 
     Assert.assertEquals(newAssignment.get(instance4).size(), expectedNumTasksPerInstance);

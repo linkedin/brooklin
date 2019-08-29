@@ -36,9 +36,9 @@ public class MockJDBCConnection implements Connection {
   private PreparedStatement _nextStmt;
 
   // Call count -> ParameterIndex -> Value
-  private Map<Integer, Map<Integer, Object>> _keyMap;
+  private final Map<Integer, Map<Integer, Object>> _keyMap;
   // Call count -> ResultSet data list
-  private Map<Integer, List<DatabaseRow>> _dataMap;
+  private final Map<Integer, List<DatabaseRow>> _dataMap;
   private boolean _firstCall = true;
 
   /**

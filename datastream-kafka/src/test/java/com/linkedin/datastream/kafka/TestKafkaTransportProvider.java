@@ -53,7 +53,7 @@ import static org.mockito.Mockito.mock;
 public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   private static final Integer NUM_PARTITIONS = 10;
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaTransportProvider.class);
-  private static AtomicInteger _topicCounter = new AtomicInteger();
+  private static final AtomicInteger TOPIC_COUNTER = new AtomicInteger();
 
   private Properties _transportProviderProperties;
 
@@ -149,7 +149,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(stream));
     KafkaTransportProvider transportProvider = (KafkaTransportProvider) provider.assignTransportProvider(task);
-    transportProvider.getProducers().stream().
+    transportProvider.getProducers().
         forEach(p -> Assert.assertEquals("badLocations:1234", p.getProperties().get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)));
 
     AtomicBoolean sentCompleted = new AtomicBoolean(false);
@@ -175,7 +175,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
             .mapToObj(x -> ((KafkaTransportProvider) provider.assignTransportProvider(
                 new DatastreamTaskImpl(Collections.singletonList(stream2)))).getProducers().get(0))
             .collect(Collectors.toSet());
-    newProducers.stream().forEach(p ->
+    newProducers.forEach(p ->
         Assert.assertEquals("goodLocation:1234", p.getProperties().get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)));
 
   }
@@ -333,6 +333,6 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
 
   private String getUniqueTopicName() {
-    return "testTopic_" + _topicCounter.incrementAndGet();
+    return "testTopic_" + TOPIC_COUNTER.incrementAndGet();
   }
 }

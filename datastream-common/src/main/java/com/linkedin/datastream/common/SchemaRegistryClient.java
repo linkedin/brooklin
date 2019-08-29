@@ -21,7 +21,7 @@ public interface SchemaRegistryClient {
    * @param id - MD5 hash of the schema id
    * @return The schema object
    */
-  public Schema getSchemaByID(String id);
+  Schema getSchemaByID(String id);
 
   /**
    * Register schema in the Schema Repository, returns the schema id of the registered schema
@@ -31,5 +31,5 @@ public interface SchemaRegistryClient {
    * @param schema          The schema object
    * @return MD5 hash of the registered schema's id
    */
-  public String registerSchema(String topic, Schema schema) throws IOException;
+  String registerSchema(String topic, Schema schema) throws IOException;
 }

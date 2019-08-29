@@ -26,10 +26,10 @@ import com.linkedin.datastream.server.api.transport.TransportProvider;
 public class InMemoryTransportProvider implements TransportProvider {
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryTransportProvider.class);
 
-  private HashMap<String, Integer> _topics = new HashMap<>();
+  private final HashMap<String, Integer> _topics = new HashMap<>();
 
   // Map of destination connection string to the list of events.
-  private Map<String, List<DatastreamProducerRecord>> _recordsReceived = new ConcurrentHashMap<>();
+  private final Map<String, List<DatastreamProducerRecord>> _recordsReceived = new ConcurrentHashMap<>();
 
   /**
    * Get the topic name corresponding to the provided destination

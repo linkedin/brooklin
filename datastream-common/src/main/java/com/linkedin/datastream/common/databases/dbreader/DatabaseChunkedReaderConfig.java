@@ -43,7 +43,7 @@ public class DatabaseChunkedReaderConfig {
   private final int _fetchSize;
   private final long _rowCountLimit;
   private ChunkedQueryManager _chunkedQueryManager;
-  private boolean _shouldSkipBadMessage;
+  private final boolean _shouldSkipBadMessage;
 
   /**
    * Constructor for DatabaseChunkedReaderConfig

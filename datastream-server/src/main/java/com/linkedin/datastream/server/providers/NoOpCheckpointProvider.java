@@ -21,7 +21,6 @@ public class NoOpCheckpointProvider implements CheckpointProvider {
 
   @Override
   public void updateCheckpoint(DatastreamTask task, int partition, String checkpoint) {
-    return;
   }
 
   @Override

@@ -66,7 +66,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
     LOG.info("Initialize datastream {}", stream);
     DatastreamSource source = stream.getSource();
     String connectionString = source.getConnectionString();
-    
+
     try {
       KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
       source.setConnectionString(parsed.toString()); // ordered now
@@ -125,6 +125,8 @@ public class KafkaConnector extends AbstractKafkaConnector {
           }
         }
       }
+    } catch (DatastreamValidationException e) {
+      throw e;
     } catch (Exception e) {
       LOG.error("Initialization threw an exception.", e);
       throw new DatastreamValidationException(e);

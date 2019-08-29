@@ -88,10 +88,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   private static final String CALL_ERROR = "callError";
   private static final String FINDER_CALL = "finderCall";
 
-  private static AtomicLong _createCallLatencyMs = new AtomicLong(0L);
-  private static AtomicLong _deleteCallLatencyMs = new AtomicLong(0L);
-  private static final Supplier<Long> CREATE_CALL_LATENCY_MS = () -> _createCallLatencyMs.get();
-  private static final Supplier<Long> DELETE_CALL_LATENCY_MS = () -> _deleteCallLatencyMs.get();
+  private static final AtomicLong CREATE_CALL_LATENCY_MS = new AtomicLong(0L);
+  private static final AtomicLong DELETE_CALL_LATENCY_MS = new AtomicLong(0L);
+  private static final Supplier<Long> CREATE_CALL_LATENCY_MS_SUPPLIER = CREATE_CALL_LATENCY_MS::get;
+  private static final Supplier<Long> DELETE_CALL_LATENCY_MS_SUPPLIER = DELETE_CALL_LATENCY_MS::get;
   private static final String CREATE_CALL_LATENCY_MS_STRING = "createCallLatencyMs";
   private static final String DELETE_CALL_LATENCY_MS_STRING = "deleteCallLatencyMs";
 
@@ -120,8 +120,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     _errorLogger = new ErrorLogger(LOG, _coordinator.getInstanceName());
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerGauge(CLASS_NAME, CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS);
-    _dynamicMetricsManager.registerGauge(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS);
+    _dynamicMetricsManager.registerGauge(CLASS_NAME, CREATE_CALL_LATENCY_MS_STRING, CREATE_CALL_LATENCY_MS_SUPPLIER);
+    _dynamicMetricsManager.registerGauge(CLASS_NAME, DELETE_CALL_LATENCY_MS_STRING, DELETE_CALL_LATENCY_MS_SUPPLIER);
   }
 
   /**
@@ -200,7 +200,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
     });
 
-    List<Datastream> datastreamsToUpdate = datastreamMap.values().stream().collect(Collectors.toList());
+    List<Datastream> datastreamsToUpdate = new ArrayList<>(datastreamMap.values());
 
     // 3. datastreams should all form part of same datastream group
     try {
@@ -652,7 +652,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, DELETE_CALL, 1);
       Instant startTime = Instant.now();
       _store.deleteDatastream(datastreamName);
-      _deleteCallLatencyMs.set(Duration.between(startTime, Instant.now()).toMillis());
+      DELETE_CALL_LATENCY_MS.set(Duration.between(startTime, Instant.now()).toMillis());
 
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
@@ -778,7 +778,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _store.createDatastream(datastream.getName(), datastream);
 
       Duration delta = Duration.between(startTime, Instant.now());
-      _createCallLatencyMs.set(delta.toMillis());
+      CREATE_CALL_LATENCY_MS.set(delta.toMillis());
 
       LOG.info("Datastream persisted to zookeeper, total time used: {} ms", delta.toMillis());
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);

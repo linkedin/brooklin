@@ -27,7 +27,7 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   public static final String VALID_DUMMY_SOURCE = "DummyConnector://DummySource";
   public static final String CONNECTOR_TYPE = "DummyConnector";
 
-  private Properties _properties;
+  private final Properties _properties;
 
   /**
    * Constructor for DummyConnector
@@ -89,9 +89,6 @@ public class DummyConnector implements Connector, DiagnosticsAware {
 
   @Override
   public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
-    if (DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType) {
-      return true;
-    }
-    return false;
+    return DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS == updateType;
   }
 }

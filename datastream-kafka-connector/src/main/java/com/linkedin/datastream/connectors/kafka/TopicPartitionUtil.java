@@ -18,7 +18,7 @@ public class TopicPartitionUtil {
    */
   public static TopicPartition createTopicPartition(String str) {
     int i = str.lastIndexOf("-");
-    int partition = Integer.valueOf(str.substring(i + 1));
+    int partition = Integer.parseInt(str.substring(i + 1));
     String topic = str.substring(0, i);
     return new TopicPartition(topic, partition);
   }

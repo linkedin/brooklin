@@ -14,6 +14,6 @@ public class DatastreamConstants {
    */
   public enum UpdateType {
     // Indicates change in set of paused partitions in datastream.
-    PAUSE_RESUME_PARTITIONS;
+    PAUSE_RESUME_PARTITIONS
   }
 }

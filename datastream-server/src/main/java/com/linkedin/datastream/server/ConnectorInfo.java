@@ -20,20 +20,20 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  */
 public class ConnectorInfo {
 
-  private ConnectorWrapper _connector;
+  private final ConnectorWrapper _connector;
 
-  private AssignmentStrategy _assignmentStrategy;
+  private final AssignmentStrategy _assignmentStrategy;
 
-  private boolean _customCheckpointing;
+  private final boolean _customCheckpointing;
 
-  private DatastreamDeduper _datastreamDeduper;
+  private final DatastreamDeduper _datastreamDeduper;
 
-  private CheckpointProvider _checkpointProvider;
+  private final CheckpointProvider _checkpointProvider;
 
   /**
    * Store authorizerName because authorizer might be initialized later
    */
-  private Optional<String> _authorizerName;
+  private final Optional<String> _authorizerName;
 
   /**
    * Constructor for ConnectorInfo

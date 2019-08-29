@@ -136,8 +136,7 @@ public class LoadbalancingStrategy implements AssignmentStrategy {
 
   private Set<DatastreamTask> createTasksForDatastream(DatastreamGroup datastream, int maxTasksPerDatastream) {
     int numberOfDatastreamPartitions = datastream.getSourcePartitions().orElse(1);
-    int tasksPerDatastream =
-        maxTasksPerDatastream < numberOfDatastreamPartitions ? maxTasksPerDatastream : numberOfDatastreamPartitions;
+    int tasksPerDatastream = Math.min(maxTasksPerDatastream, numberOfDatastreamPartitions);
     Set<DatastreamTask> tasks = new HashSet<>();
     for (int index = 0; index < tasksPerDatastream; index++) {
       tasks.add(new DatastreamTaskImpl(datastream.getDatastreams(), Integer.toString(index),

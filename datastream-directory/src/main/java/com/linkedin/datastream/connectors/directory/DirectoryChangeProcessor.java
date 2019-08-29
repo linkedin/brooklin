@@ -152,7 +152,7 @@ public class DirectoryChangeProcessor implements Runnable, AutoCloseable {
     } catch (ClosedWatchServiceException e) {
       LOG.info("WatchService closed");
     } catch (Exception e) {
-      LOG.error("Unexpected exception {}", e);
+      LOG.error("Unexpected exception", e);
     } finally {
       _task.release();
     }

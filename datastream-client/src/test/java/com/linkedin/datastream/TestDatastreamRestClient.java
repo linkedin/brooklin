@@ -267,7 +267,7 @@ public class TestDatastreamRestClient extends TestRestliClientBase {
   }
 
   private void deleteAllDatastreams(DatastreamRestClient restClient) throws Exception {
-    restClient.getAllDatastreams().stream().forEach(ds -> restClient.deleteDatastream(ds.getName()));
+    restClient.getAllDatastreams().forEach(ds -> restClient.deleteDatastream(ds.getName()));
     long retryMillis = Duration.ofMillis(100).toMillis();
     long timeoutMillis = Duration.ofSeconds(30).toMillis();
 

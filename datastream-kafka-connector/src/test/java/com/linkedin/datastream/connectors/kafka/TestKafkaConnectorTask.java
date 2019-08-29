@@ -6,6 +6,7 @@
 package com.linkedin.datastream.connectors.kafka;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -93,7 +94,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
       for (int i = 0; i < numEvents; i++) {
         final int finalIndex = index;
         producer.send(
-            new ProducerRecord<>(topic, ("key-" + index).getBytes("UTF-8"), ("value-" + index).getBytes("UTF-8")),
+            new ProducerRecord<>(topic, ("key-" + index).getBytes(StandardCharsets.UTF_8), ("value-" + index).getBytes(
+                StandardCharsets.UTF_8)),
             (metadata, exception) -> {
               if (exception == null) {
                 LOG.info("send completed for event {} at offset {}", finalIndex, metadata.offset());
@@ -323,11 +325,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         new KafkaGroupIdConstructor(false, "testCluster")));
 
     Map<TopicPartition, List<ConsumerRecord<Object, Object>>> records =  new HashMap<>();
-    records.put(topicPartition, ImmutableList.of(
-        new ConsumerRecord<Object, Object>("pizza1", 0, 0, new Object(), new Object()),
-        new ConsumerRecord<Object, Object>("pizza1", 0, 0, new Object(), new Object())));
+    records.put(topicPartition, ImmutableList.of(new ConsumerRecord<>("pizza1", 0, 0, new Object(), new Object()),
+        new ConsumerRecord<>("pizza1", 0, 0, new Object(), new Object())));
 
-    ConsumerRecords<?, ?> consumerRecords = new ConsumerRecords<Object, Object>(records);
+    ConsumerRecords<?, ?> consumerRecords = new ConsumerRecords<>(records);
 
     doReturn(consumerRecords).when(connectorTask).pollRecords(anyLong());
     doAnswer(a -> null).when(connectorTask).seekToLastCheckpoint(anySetOf(TopicPartition.class));

@@ -142,7 +142,7 @@ public class DatabaseChunkedReader implements Closeable {
     _numPartitions = _databaseSource.getPartitionCount();
     partitions.forEach(p -> Validate.isTrue(p >= 0 && p < _numPartitions));
 
-    _databaseSource.getPrimaryKeyFields(_table).stream().forEach(k -> _chunkingKeys.put(k, null));
+    _databaseSource.getPrimaryKeyFields(_table).forEach(k -> _chunkingKeys.put(k, null));
     if (_chunkingKeys.isEmpty()) {
       _metrics.updateErrorRate();
 
@@ -163,14 +163,14 @@ public class DatabaseChunkedReader implements Closeable {
 
   private void generateChunkedQueries() throws SQLException {
     String firstQuery =
-        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<String>(_chunkingKeys.keySet()), _rowCountLimit,
+        _chunkedQueryManager.generateFirstQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
             _numPartitions, _partitions);
     _firstStmt = _connection.prepareStatement(firstQuery);
     _firstStmt.setFetchSize(_fetchSize);
     _firstStmt.setQueryTimeout(_queryTimeoutSecs);
 
     _chunkedQuery =
-        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<String>(_chunkingKeys.keySet()), _rowCountLimit,
+        _chunkedQueryManager.generateChunkedQuery(_sourceQuery, new ArrayList<>(_chunkingKeys.keySet()), _rowCountLimit,
             _numPartitions, _partitions);
     _queryStmt = _connection.prepareStatement(_chunkedQuery);
     _queryStmt.setFetchSize(_fetchSize);
