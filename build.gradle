@@ -99,6 +99,7 @@ subprojects {
     compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
     compile "io.dropwizard.metrics:metrics-core:$metricsCoreVersion"
+    compile "io.dropwizard.metrics:metrics-jmx:$metricsCoreVersion"
     testCompile "org.testng:testng:$testngVersion"
   }
 
