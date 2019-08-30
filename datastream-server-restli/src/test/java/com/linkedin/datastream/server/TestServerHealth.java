@@ -53,10 +53,8 @@ public class TestServerHealth {
   public static EmbeddedDatastreamCluster initializeTestDatastreamServer(Properties override) throws Exception {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(TestDatastreamServer.DUMMY_CONNECTOR, getDummyConnectorProperties(false));
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(),
-            connectorProperties, override);
-    return datastreamKafkaCluster;
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(),
+        connectorProperties, override);
   }
 
   private static Properties getDummyConnectorProperties(boolean bootstrap) {

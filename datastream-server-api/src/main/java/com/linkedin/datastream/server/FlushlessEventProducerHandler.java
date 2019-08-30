@@ -165,8 +165,8 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     private T _currentCheckpoint = null;
     private T _highWaterMark = null;
 
-    private Queue<T> _acked = new PriorityQueue<>();
-    private Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Queue<T> _acked = new PriorityQueue<>();
+    private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
 
     public T getAckCheckpoint() {
       return _currentCheckpoint;

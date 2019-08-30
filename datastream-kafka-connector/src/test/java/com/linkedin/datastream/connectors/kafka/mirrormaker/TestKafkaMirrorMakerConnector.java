@@ -551,7 +551,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String resultJson = connector.reduce(DATASTREAM_STATE_QUERY, responseMap);
     Map<String, String> reducedResults = JsonUtils.fromJson(resultJson, new TypeReference<HashMap<String, String>>() {
     });
-    Assert.assertTrue(reducedResults.keySet().size() == 2, "Should have received states from 2 instances");
+    Assert.assertEquals(reducedResults.keySet().size(), 2, "Should have received states from 2 instances");
 
     // Validate instance1 states response
     KafkaDatastreamStatesResponse response1 = KafkaDatastreamStatesResponse.fromJson(responseMap.get(instance1));
@@ -617,7 +617,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Map<String, Optional<DatastreamGroupPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
     Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getDatastreamGroup().getName(),
         group.getTaskPrefix());
-    Assert.assertEquals(new HashSet<String>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
+    Assert.assertEquals(new HashSet<>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
         ImmutableSet.of(yummyTopic + "-0"));
 
     String saltyTopic = "SaltyPizza";
@@ -625,7 +625,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
     partitionInfo = connector.getDatastreamPartitions();
-    Assert.assertEquals(new HashSet<String>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
+    Assert.assertEquals(new HashSet<>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
         ImmutableSet.of(yummyTopic + "-0", saltyTopic + "-0", saltyTopic + "-1"));
     connector.stop();
   }

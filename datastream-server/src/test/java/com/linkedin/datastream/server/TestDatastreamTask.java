@@ -75,7 +75,7 @@ public class TestDatastreamTask {
     task.setZkAdapter(mockZkAdapter);
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(true);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
-    Assert.assertEquals(new HashSet<String>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
+    Assert.assertEquals(new HashSet<>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
   }
 
   @Test

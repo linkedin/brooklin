@@ -235,7 +235,7 @@ public class TestDatabaseChunkedReader {
       try (DatabaseChunkedReader reader =
           new DatabaseChunkedReader(props, mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
               TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
-        reader.subscribe(Collections.singletonList(new Integer(0)), null);
+        reader.subscribe(Collections.singletonList(0), null);
         for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
           data.get(i).add(row);
         }
@@ -243,7 +243,7 @@ public class TestDatabaseChunkedReader {
 
       // Coalesce the per call row data into a single list to compared against received data
       List<DatabaseRow> expected = new ArrayList<>();
-      dataMapList.get(i).values().forEach(sublist -> expected.addAll(sublist));
+      dataMapList.get(i).values().forEach(expected::addAll);
       verifyData(data.get(i), expected);
     }
   }
@@ -287,7 +287,7 @@ public class TestDatabaseChunkedReader {
     int count = 0;
     DatabaseChunkedReader reader =
         new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
-    reader.subscribe(Collections.singletonList(new Integer(0)), null);
+    reader.subscribe(Collections.singletonList(0), null);
     for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
       Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
       count++;
@@ -327,7 +327,7 @@ public class TestDatabaseChunkedReader {
             "TEST_CHECKPOINT");
     Map<String, Object> checkpoint = new HashMap<>();
     checkpoint.put("key1", 99);
-    reader.subscribe(Collections.singletonList(new Integer(0)), checkpoint);
+    reader.subscribe(Collections.singletonList(0), checkpoint);
     reader.poll();
     // Verify that a call to setObject was done with supplied key value
     Mockito.verify(mockStmt, Mockito.times(1)).setObject(1, 99);

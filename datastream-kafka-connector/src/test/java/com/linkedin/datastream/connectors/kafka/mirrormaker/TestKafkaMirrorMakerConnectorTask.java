@@ -156,7 +156,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
     for (DatastreamProducerRecord record : records) {
       String destinationTopic = record.getDestination().get();
-      record.getPartition().ifPresent(p -> expectedPartitionsWithData.remove(p));
+      record.getPartition().ifPresent(expectedPartitionsWithData::remove);
     }
 
     // verify that the records were sent to the right partition
@@ -761,7 +761,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       Gauge<Long> metric = DynamicMetricsManager.getInstance()
           .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + ".pizzaStream."
               + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
-      return connectorTask.getAutoPausedSourcePartitions().size() == 1 && metric.getValue().equals(Long.valueOf(1));
+      return connectorTask.getAutoPausedSourcePartitions().size() == 1 && metric.getValue().equals(1L);
     }, POLL_PERIOD_MS, POLL_TIMEOUT_MS), "partition should have been auto-paused after sending 5 messages");
     // verify that flow control was triggered
     Assert.assertEquals(connectorTask.getFlowControlTriggerCount(), 1, "Flow control should have been triggered");

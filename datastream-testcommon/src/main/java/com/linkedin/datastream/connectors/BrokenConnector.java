@@ -27,7 +27,7 @@ public class BrokenConnector implements Connector, DiagnosticsAware {
   public static final String VALID_DUMMY_SOURCE = "BrokenConnector://DummySource";
   public static final String CONNECTOR_TYPE = "BrokenConnector";
 
-  private Properties _properties;
+  private final Properties _properties;
 
   /**
    * Constructor for BrokenConnector

@@ -24,7 +24,7 @@ public class InMemoryCheckpointProvider implements CheckpointProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryCheckpointProvider.class);
 
-  private Map<DatastreamTask, Map<Integer, String>> _cpMap = new HashMap<>();
+  private final Map<DatastreamTask, Map<Integer, String>> _cpMap = new HashMap<>();
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {

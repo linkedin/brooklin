@@ -29,8 +29,8 @@ public class FieldMetadata {
   private final Optional<Integer> _numberPrecision;
   private final Optional<Integer> _numberScale;
 
-  private int _dbFieldPosition;
-  private Types _dbFieldType;
+  private final int _dbFieldPosition;
+  private final Types _dbFieldType;
 
   /**
    * Constructor for FieldMetadata
@@ -86,16 +86,16 @@ public class FieldMetadata {
     // field name, field position, and field type are mandatory
     String fieldName = Preconditions.checkNotNull(metas.get(COL_NAME),
         String.format("Missing metadata %s from meta string %s", COL_NAME, meta));
-    int fieldPosition = Integer.valueOf(Preconditions.checkNotNull(metas.get(COL_POSITION),
+    int fieldPosition = Integer.parseInt(Preconditions.checkNotNull(metas.get(COL_POSITION),
         String.format("Missing metadata %s from meta string %s", COL_POSITION, meta)));
     Types fieldType = Types.fromString(Preconditions.checkNotNull(metas.get(FieldType.FIELD_TYPE_NAME),
         String.format("Missing metadata %s from meta string %s", FieldType.FIELD_TYPE_NAME, meta)));
     String nullable = Optional.ofNullable(metas.get(FieldType.NULLABLE)).orElse("");
 
     Optional<Integer> numberPrecision =
-        Optional.ofNullable(metas.get(FieldType.PRECISION)).map(s -> Integer.valueOf(s));
+        Optional.ofNullable(metas.get(FieldType.PRECISION)).map(Integer::valueOf);
     Optional<Integer> numberScale =
-        Optional.ofNullable(metas.get(FieldType.SCALE)).map(s -> Integer.valueOf(s));
+        Optional.ofNullable(metas.get(FieldType.SCALE)).map(Integer::valueOf);
 
     return new FieldMetadata(fieldName, nullable, fieldPosition, fieldType, numberPrecision, numberScale);
   }

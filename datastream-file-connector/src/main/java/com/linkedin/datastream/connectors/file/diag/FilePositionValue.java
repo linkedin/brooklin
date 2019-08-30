@@ -51,7 +51,7 @@ public class FilePositionValue implements PositionValue {
    * @param bytes the number of bytes read
    */
   public void setBytesRead(final Long bytes) {
-    this.bytesRead = bytesRead;
+    this.bytesRead = bytes;
   }
 
   /**

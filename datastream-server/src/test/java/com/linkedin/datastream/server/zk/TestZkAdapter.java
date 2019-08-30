@@ -47,7 +47,7 @@ public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
 
-  private String defaultTransportProviderName = "test";
+  private final String defaultTransportProviderName = "test";
   private EmbeddedZookeeper _embeddedZookeeper;
   private String _zkConnectionString;
 
@@ -338,7 +338,7 @@ public class TestZkAdapter {
     task3.setConnectorType(connectorType);
 
     Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
-    assignmentsByInstance.put(adapter1.getInstanceName(), Arrays.asList(task1));
+    assignmentsByInstance.put(adapter1.getInstanceName(), Collections.singletonList(task1));
     assignmentsByInstance.put(adapter2.getInstanceName(), Arrays.asList(task2, task3));
 
     // Single call to update all assignments.
@@ -520,7 +520,7 @@ public class TestZkAdapter {
     } catch (Throwable t) {
       exceptionSeen = true;
     }
-    return exception ? exceptionSeen : !exceptionSeen;
+    return exception == exceptionSeen;
   }
 
   @Test
@@ -638,7 +638,7 @@ public class TestZkAdapter {
     adapter1.disconnect();
 
     LOG.info("Waiting up to 5 seconds for instance2 to become leader");
-    PollUtils.poll(() -> adapter2.isLeader(), 50, 5000);
+    PollUtils.poll(adapter2::isLeader, 50, 5000);
 
     LOG.info("Wait up to 5 seconds for the ephemeral node to be gone");
     PollUtils.poll(() -> !adapter2.getLiveInstances().contains(instanceName1), 50, 5000);
@@ -685,12 +685,12 @@ public class TestZkAdapter {
 
     //Verify the task2 can be locked after task1 is released
     Thread acquireThread = new Thread(() -> task2.acquire(Duration.ofSeconds(4)));
-    Thread releaseThread = new Thread(() -> task1.release());
+    Thread releaseThread = new Thread(task1::release);
 
     acquireThread.start();
     releaseThread.start();
 
-    Assert.assertTrue(PollUtils.poll(() -> task2.isLocked(), 100, 5000));
+    Assert.assertTrue(PollUtils.poll(task2::isLocked, 100, 5000));
   }
 
 

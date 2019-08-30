@@ -19,12 +19,9 @@ public class NetworkUtils {
    */
   public synchronized static int getAvailablePort() {
     try {
-      ServerSocket socket = new ServerSocket(0);
-      try {
+      try (ServerSocket socket = new ServerSocket(0)) {
         socket.setReuseAddress(true);
         return socket.getLocalPort();
-      } finally {
-        socket.close();
       }
     } catch (IOException e) {
       throw new IllegalStateException("Cannot find available port: " + e.getMessage(), e);

@@ -162,7 +162,7 @@ public class DynamicMetricsManager {
 
     Metric metric = getMetric(fullMetricName, metricClass);
 
-    if (metric != null && metric instanceof ResettableGauge) {
+    if (metric instanceof ResettableGauge) {
       Validate.notNull(supplier, "null supplier to Gauge");
       ((ResettableGauge) metric).setSupplier(supplier);
 

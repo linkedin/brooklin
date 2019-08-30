@@ -194,7 +194,7 @@ public class TestStickyPartitionAssignment {
       }
     }
 
-    Assert.assertEquals(new HashSet<String>(remainingPartitions), new HashSet<String>(newPartitions));
+    Assert.assertEquals(new HashSet<>(remainingPartitions), new HashSet<>(newPartitions));
   }
 
   private  Map<String, Set<DatastreamTask>> generateEmptyAssignment(List<DatastreamGroup> datastreams,
@@ -216,7 +216,7 @@ public class TestStickyPartitionAssignment {
 
   private Set<String> getPartitionsFromTask(Set<DatastreamTask> tasks) {
     Set<String> partitions = new HashSet<>();
-    tasks.stream().forEach(t -> partitions.addAll(t.getPartitionsV2()));
+    tasks.forEach(t -> partitions.addAll(t.getPartitionsV2()));
     return partitions;
   }
 

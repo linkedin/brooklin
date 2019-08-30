@@ -77,7 +77,7 @@ public class DirectoryTransportProvider implements TransportProvider {
       copyFn.apply(sourcePath.toFile(), destinationDir.toFile());
       LOG.info("Successfully copied {} to {}", sourcePath, destinationDir);
     } catch (IOException e) {
-      LOG.error("Encountered an error while copying {} to {}: ", sourcePath, destinationDir, e.getMessage());
+      LOG.error("Encountered an error while copying {} to {}: {}", sourcePath, destinationDir, e.getMessage());
     }
   }
 

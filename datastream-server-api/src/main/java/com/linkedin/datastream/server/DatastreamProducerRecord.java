@@ -26,7 +26,7 @@ public class DatastreamProducerRecord {
   private final String _checkpoint;
   private final long _eventsSourceTimestamp;
 
-  private List<BrooklinEnvelope> _events;
+  private final List<BrooklinEnvelope> _events;
 
   // timestamp of when the record was sent to transport provider
   private Optional<Long> _eventsSendTimestamp = Optional.empty();

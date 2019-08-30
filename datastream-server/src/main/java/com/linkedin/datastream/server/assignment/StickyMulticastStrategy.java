@@ -151,8 +151,9 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
 
     // STEP2: Distribute the unallocated tasks to the instances with the lowest number of tasks.
-    for (DatastreamGroup dg : unallocated.keySet()) {
-      int pendingTasks = unallocated.get(dg);
+    for (Map.Entry<DatastreamGroup, Integer> entry : unallocated.entrySet()) {
+      DatastreamGroup dg = entry.getKey();
+      int pendingTasks = entry.getValue();
       List<DatastreamTask> unallocatedTasks = tasksNeedToRelocate.get(dg);
       while (pendingTasks > 0) {
         // round-robin to the instances

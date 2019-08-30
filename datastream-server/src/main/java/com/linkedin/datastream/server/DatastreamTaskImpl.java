@@ -128,7 +128,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     if (partitions != null && partitions.size() > 0) {
       _partitions.addAll(partitions);
-      _partitionsV2.addAll(partitions.stream().map(i -> i.toString()).collect(Collectors.toList()));
+      _partitionsV2.addAll(partitions.stream().map(Object::toString).collect(Collectors.toList()));
     } else {
       // Add [0, N) if source has N partitions
       // Or add a default partition 0 otherwise

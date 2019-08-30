@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 import org.jetbrains.annotations.Nullable;
@@ -45,9 +44,9 @@ public class EmbeddedDatastreamCluster {
 
   private int _numServers;
 
-  private List<Integer> _datastreamPorts = new ArrayList<>();
-  private List<Properties> _datastreamServerProperties = new ArrayList<>();
-  private List<DatastreamServer> _servers = new ArrayList<>();
+  private final List<Integer> _datastreamPorts = new ArrayList<>();
+  private final List<Properties> _datastreamServerProperties = new ArrayList<>();
+  private final List<DatastreamServer> _servers = new ArrayList<>();
 
   private EmbeddedDatastreamCluster(Map<String, Properties> connectorProperties, Properties override,
       KafkaCluster kafkaCluster, int numServers, @Nullable List<Integer> dmsPorts) throws IOException {
@@ -139,7 +138,7 @@ public class EmbeddedDatastreamCluster {
 
   private void setupDatastreamProperties(int index, int httpPort, String zkConnectionString,
       Map<String, Properties> connectorProperties, Properties override, KafkaCluster kafkaCluster) {
-    String connectorTypes = connectorProperties.keySet().stream().collect(Collectors.joining(","));
+    String connectorTypes = String.join(",", connectorProperties.keySet());
     Properties properties = new Properties();
     properties.put(DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME, "DatastreamCluster");
     properties.put(DatastreamServerConfigurationConstants.CONFIG_ZK_ADDRESS, zkConnectionString);

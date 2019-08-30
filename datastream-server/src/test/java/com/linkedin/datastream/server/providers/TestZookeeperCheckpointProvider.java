@@ -38,7 +38,7 @@ public class TestZookeeperCheckpointProvider {
 
   private EmbeddedZookeeper _zookeeper;
 
-  private String defaultTransportProviderName = "test";
+  private final String defaultTransportProviderName = "test";
 
   @BeforeMethod
   public void setup(Method method) throws IOException {

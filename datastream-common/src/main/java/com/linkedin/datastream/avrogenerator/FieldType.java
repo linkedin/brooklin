@@ -30,16 +30,13 @@ package com.linkedin.datastream.avrogenerator;
  *
  */
 public interface FieldType {
-  /* The key for the field type name stored in metadata */
-  static final String FIELD_TYPE_NAME = "dbFieldType";
+  /* The key for the field type name stored in metadata */ String FIELD_TYPE_NAME = "dbFieldType";
 
-  static final String NULLABLE = "nullable";
+  String NULLABLE = "nullable";
 
-  /* The key for the precision of Number fields */
-  static final String PRECISION = "numberPrecision";
+  /* The key for the precision of Number fields */ String PRECISION = "numberPrecision";
 
-  /* The key for the scale of Number fields */
-  static final String SCALE = "numberScale";
+  /* The key for the scale of Number fields */ String SCALE = "numberScale";
 
   /**
    * Get the Schema Name of the Field type

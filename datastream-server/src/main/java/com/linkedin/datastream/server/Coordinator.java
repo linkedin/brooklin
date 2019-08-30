@@ -169,9 +169,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_DATASTREAMS = "numDatastreams";
   private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
 
-  private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
+  private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
-  private static AtomicLong _maxPartitionCount = new AtomicLong(0L);
+  private static final AtomicLong MAX_PARTITION_COUNT = new AtomicLong(0L);
 
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
@@ -242,9 +242,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventThread.setDaemon(true);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
+    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get);
     _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
-    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, () -> _maxPartitionCount.get());
+    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get);
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
@@ -1049,7 +1049,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           tasks.stream().map(DatastreamTask::getPartitionsV2).map(List::size).mapToInt(v -> v).max().orElse(0));
     }
     _log.info("Max partition count assigned in the task {}", maxPartitionCount);
-    _maxPartitionCount.getAndSet(maxPartitionCount);
+    MAX_PARTITION_COUNT.getAndSet(maxPartitionCount);
   }
 
 
@@ -1171,7 +1171,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Set<DatastreamGroup> pausedDatastreamGroups =
         datastreamGroups.stream().filter(DatastreamGroup::isPaused).collect(Collectors.toSet());
 
-    _pausedDatastreamsGroups.set(pausedDatastreamGroups.size());
+    PAUSED_DATASTREAMS_GROUPS.set(pausedDatastreamGroups.size());
 
     // If a datastream group is paused, park tasks with the virtual PausedInstance.
     List<DatastreamTask> pausedTasks = pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance);

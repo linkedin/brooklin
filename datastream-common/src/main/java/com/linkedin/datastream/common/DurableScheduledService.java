@@ -243,7 +243,7 @@ public abstract class DurableScheduledService implements Service {
           if (hasLeaked()) {
             LOG.warn("Detected that this service {} has leaked. Shutting the service down.", _serviceName);
             stopTask();
-            stopAsync();
+            super.stopAsync();
             return;
           }
 

@@ -58,7 +58,7 @@ public class DatastreamRestClientCli {
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
-    streams.stream().forEach(s -> {
+    streams.forEach(s -> {
       try {
         String jsonValue = DatastreamUtils.toJSON(s);
         if (!noformat) {
@@ -218,7 +218,7 @@ public class DatastreamRestClientCli {
           if (cmd.hasOption(OptionConstants.OPT_SHORT_DESTINATION_URI)) {
             destinationUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_URI);
             numDestinationPartitions =
-                Integer.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
+                Integer.parseInt(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
           }
 
           Optional<Integer> maybePartitions = Optional.empty();
@@ -261,15 +261,17 @@ public class DatastreamRestClientCli {
           datastream.setMetadata(new StringMap(metadata));
           System.out.printf("Trying to create datastream %s", datastream);
           datastreamRestClient.createDatastream(datastream);
-          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = %d minutes)\n",
+          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = %d minutes)%n",
               connectorName, timeout.toMinutes());
           Datastream completeDatastream =
               datastreamRestClient.waitTillDatastreamIsInitialized(datastreamName, (int) timeout.toMillis());
-          System.out.printf("Initialized %s datastream: %s\n", connectorName, completeDatastream);
+          System.out.printf("Initialized %s datastream: %s%n", connectorName, completeDatastream);
           break;
         default:
           // do nothing
       }
+    } catch (RuntimeException e) {
+      System.out.println(e.toString());
     } catch (Exception e) {
       System.out.println(e.toString());
     }

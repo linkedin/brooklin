@@ -17,6 +17,7 @@ allprojects {
   apply plugin: 'idea'
   apply plugin: 'project-report'
   apply plugin: 'checkstyle'
+  apply plugin: 'findbugs'
 
   repositories {
     mavenCentral()
@@ -50,6 +51,23 @@ subprojects {
     sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
     toolVersion = "6.7"
     ignoreFailures = false
+  }
+
+  findbugs {
+    toolVersion = "3.0.1"
+    sourceSets = [sourceSets.main] // Test code is not included
+    reportsDir = file("$project.buildDir/findbugsReports")
+    reportLevel = "medium"
+    effort = "default"
+    showProgress = false
+    excludeFilter = file("$rootProject.projectDir/findbugs/excludeFilter.xml")
+  }
+
+  tasks.withType(FindBugs) {
+    reports {
+      xml.enabled false
+      html.enabled true
+    }
   }
 
   spec['product'] = ['pegasus':
@@ -174,7 +192,7 @@ project(':datastream-kafka') {
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
 
-    testCompile project(':datastream-testcommon');
+    testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
 
     tasks.create(name: "copyDependentLibs", type: Copy) {
@@ -206,7 +224,7 @@ project(':datastream-kafka-connector') {
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
 
     testCompile project(':datastream-kafka')
-    testCompile project(':datastream-testcommon');
+    testCompile project(':datastream-testcommon')
     testCompile project(':datastream-kafka-factory-impl')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }

@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -123,7 +124,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   private final Optional<KafkaPositionTracker> _kafkaPositionTracker;
 
-  private volatile int _pollAttempts;
+  private final AtomicInteger _pollAttempts;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String metricsPrefix) {
@@ -165,7 +166,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
-    _pollAttempts = 0;
+    _pollAttempts = new AtomicInteger();
     _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config));
   }
 
@@ -262,7 +263,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   private boolean containsTransientException(Throwable ex) {
-    while (ex != null && ex instanceof DatastreamRuntimeException) {
+    while (ex instanceof DatastreamRuntimeException) {
       if (ex instanceof DatastreamTransientException) {
         return true;
       }
@@ -424,7 +425,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _consumerMetrics.updateEventsProcessedRate(records.count());
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
       }
-      _pollAttempts = 0;
+      _pollAttempts.set(0);
 
       sendPollInfoToPositionTracker(_consumer, records);
 
@@ -521,8 +522,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param e the Exception
    */
   protected void handlePollRecordsException(Exception e) throws Exception {
-    _pollAttempts++;
-    if (_maxRetryCount > 0 && _pollAttempts > _maxRetryCount) {
+    if (_maxRetryCount > 0 && _pollAttempts.incrementAndGet() > _maxRetryCount) {
       _logger.warn("Poll fail with exception", e);
       throw e;
     } else {
@@ -574,7 +574,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _logger.info("Commit succeeded.");
       } catch (KafkaException e) {
         if (_shutdown) {
-          _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting. Exception={}", e);
+          _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
           return true;
         }
         _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
@@ -705,14 +705,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     for (DatastreamConstants.UpdateType updateType : _taskUpdates) {
       _taskUpdates.remove(updateType);
       if (updateType != null) {
-        switch (updateType) {
-          case PAUSE_RESUME_PARTITIONS:
-            pausePartitions();
-            break;
-          default:
-            String msg = String.format("Unknown update type %s for task %s.", updateType, _taskName);
-            _logger.error(msg);
-            throw new DatastreamRuntimeException(msg);
+        if (updateType == DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS) {
+          pausePartitions();
+        } else {
+          String msg = String.format("Unknown update type %s for task %s.", updateType, _taskName);
+          _logger.error(msg);
+          throw new DatastreamRuntimeException(msg);
         }
       } else {
         throw new IllegalStateException("Found null update type in task updates set.");

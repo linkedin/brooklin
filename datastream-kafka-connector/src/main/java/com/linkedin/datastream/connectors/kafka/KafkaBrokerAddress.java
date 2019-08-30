@@ -75,8 +75,7 @@ public class KafkaBrokerAddress {
    */
   public static KafkaBrokerAddress valueOf(String brokerAddress) throws IllegalArgumentException {
     if (brokerAddress == null) {
-      //noinspection ConstantConditions
-      badArg(brokerAddress);
+      badArg(null);
     }
     String str = brokerAddress.trim();
     if (str.isEmpty()) {

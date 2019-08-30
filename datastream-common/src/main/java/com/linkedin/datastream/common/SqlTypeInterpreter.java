@@ -21,12 +21,12 @@ public interface SqlTypeInterpreter {
    * @param colName Name of the column read
    * @param avroSchema the Avro schema to use
    */
-  public Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException;
+  Object sqlObjectToAvro(Object sqlObject, String colName, Schema avroSchema) throws SQLException;
 
   /**
    * Driver could change the column names causing incompatibility with output Avro. Reformat to correct
    * naming scheme. For example Column names are declared in UPPER_CAMEL in Oracle but Avro field names are
    * LOWER_CAMEL.
    */
-  public String formatColumnName(String dbColName);
+  String formatColumnName(String dbColName);
 }

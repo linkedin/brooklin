@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<FindBugsFilter>
+  <!-- It is highly discouraged to add bug filters. We should only do so if absolutely necessary. -->
+
+  <!-- Global suppressions -->
+
+  <!-- Suppress warning about iterating over maps using keyset() when entryset() is more efficient  -->
+  <Match>
+    <Bug pattern="WMI_WRONG_MAP_ITERATOR" />
+  </Match>
+
+  <!-- Class-specific suppressions -->
+
+  <!-- Suppress warning about ignored CountDownLatch::await -->
+  <Match>
+    <Class name="com.linkedin.datastream.server.zk.ZkAdapter" />
+    <Method name="waitForTaskRelease" />
+    <Bug pattern="RV_RETURN_VALUE_IGNORED" />
+  </Match>
+
+  <!-- Suppress warnings about awaiting condition variables w/o loops and inconsistent synchronized access -->
+  <Match>
+    <Class name="com.linkedin.datastream.server.DatastreamServer" />
+    <Bug pattern="WA_AWAIT_NOT_IN_LOOP,IS2_INCONSISTENT_SYNC" />
+  </Match>
+
+  <!-- Suppress warning about sub-type using the same name as its super type -->
+  <Match>
+    <Class name="com.linkedin.datastream.common.zk.ZkClient" />
+    <Bug pattern="NM_SAME_SIMPLE_NAME_AS_SUPERCLASS" />
+  </Match>
+</FindBugsFilter>

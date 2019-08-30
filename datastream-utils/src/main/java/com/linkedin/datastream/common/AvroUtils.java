@@ -7,6 +7,7 @@ package com.linkedin.datastream.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
@@ -153,7 +154,7 @@ public class AvroUtils {
    * @return decoded instance of GenericRecord
    */
   public static GenericRecord decodeAvroGenericRecord(Schema schema, byte[] bytes) throws IOException {
-    return decodeAvroGenericRecord(schema, bytes, (GenericRecord) null);
+    return decodeAvroGenericRecord(schema, bytes, null);
   }
 
   /**
@@ -163,7 +164,7 @@ public class AvroUtils {
    * @return decoded instance of GenericRecord
    */
   public static <T> T decodeJsonAsAvroGenericRecord(Schema schema, byte[] bytes, T reuse) throws IOException {
-    JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(schema, new String(bytes));
+    JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(schema, new String(bytes, StandardCharsets.UTF_8));
     GenericDatumReader<T> reader = new GenericDatumReader<>(schema);
     return reader.read(reuse, jsonDecoder);
   }

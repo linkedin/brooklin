@@ -8,7 +8,7 @@ package com.linkedin.datastream.server.diagnostics;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -108,7 +108,7 @@ public class ServerComponentHealthAggregator {
     try {
       localhostName = InetAddress.getLocalHost().getHostName();
     } catch (UnknownHostException uhe) {
-      LOG.error("Could not get localhost Name", uhe.getMessage());
+      LOG.error("Could not get localhost Name {}", uhe.getMessage());
     }
     serverComponentHealth.setInstanceName(localhostName);
     serverComponentHealth.setErrorMessages(errorResponses.toString());
@@ -120,7 +120,7 @@ public class ServerComponentHealthAggregator {
       serverComponentHealth.setStatus("");
     }
 
-    return Arrays.asList(serverComponentHealth);
+    return Collections.singletonList(serverComponentHealth);
   }
 
   private List<String> getLiveInstances() {

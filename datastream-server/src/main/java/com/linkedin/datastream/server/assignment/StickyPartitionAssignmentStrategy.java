@@ -74,7 +74,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     int totalTaskCount = 0;
     for (Set<DatastreamTask> tasks : currentAssignment.values()) {
       Set<DatastreamTask> dgTask = tasks.stream().filter(t -> dgName.equals(t.getTaskPrefix())).collect(Collectors.toSet());
-      dgTask.stream().forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
+      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
       totalTaskCount += dgTask.size();
     }
 
@@ -280,8 +280,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       }
     }
     if (total != allPartitions.getPartitions().size()) {
-      String errorMsg = String.format(String.format("Validation failed after assignment, assigned partitions "
-          + "size: %s is not equal to all partitions size: %s", total, allPartitions.getPartitions().size()));
+      String errorMsg = String.format("Validation failed after assignment, assigned partitions "
+          + "size: %s is not equal to all partitions size: %s", total, allPartitions.getPartitions().size());
       LOG.error(errorMsg);
       throw new DatastreamRuntimeException(errorMsg);
     }

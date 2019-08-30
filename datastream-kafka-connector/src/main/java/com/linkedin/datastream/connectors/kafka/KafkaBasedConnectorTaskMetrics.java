@@ -67,21 +67,21 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     AtomicLong aggNumConfigPausedPartitions =
         AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_CONFIG_PAUSED_PARTITIONS,
-        () -> aggNumConfigPausedPartitions.get());
+        aggNumConfigPausedPartitions::get);
     AtomicLong aggNumAutoPausedPartitionsOnError =
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR,
-        () -> aggNumAutoPausedPartitionsOnError.get());
+        aggNumAutoPausedPartitionsOnError::get);
     AtomicLong aggNumAutoPausedPartitionsOnInFlightMessages =
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES,
-        () -> aggNumAutoPausedPartitionsOnInFlightMessages.get());
+        aggNumAutoPausedPartitionsOnInFlightMessages::get);
     AtomicLong aggNumAutoPausedPartitionsAwaitingDestTopic =
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
-        () -> aggNumAutoPausedPartitionsAwaitingDestTopic.get());
+        aggNumAutoPausedPartitionsAwaitingDestTopic::get);
     AtomicLong aggNumTopics = AGGREGATED_NUM_TOPICS.computeIfAbsent(className, k -> new AtomicLong(0));
-    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_TOPICS, () -> aggNumTopics.get());
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_TOPICS, aggNumTopics::get);
   }
 
   @Override

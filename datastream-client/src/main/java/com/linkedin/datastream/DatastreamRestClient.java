@@ -91,10 +91,10 @@ public class DatastreamRestClient {
    */
   public DatastreamRestClient(RestClient restClient, Properties config) {
     if (config.containsKey(CONFIG_RETRY_PERIOD_MS)) {
-      _retryPeriodMs = Long.valueOf(config.getProperty(CONFIG_RETRY_PERIOD_MS));
+      _retryPeriodMs = Long.parseLong(config.getProperty(CONFIG_RETRY_PERIOD_MS));
     }
     if (config.containsKey(CONFIG_RETRY_TIMEOUT_MS)) {
-      _retryTimeoutMs = Long.valueOf(config.getProperty(CONFIG_RETRY_TIMEOUT_MS));
+      _retryTimeoutMs = Long.parseLong(config.getProperty(CONFIG_RETRY_TIMEOUT_MS));
     }
     Validate.isTrue(_retryPeriodMs > 0);
     Validate.isTrue(_retryTimeoutMs > _retryPeriodMs);

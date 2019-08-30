@@ -80,12 +80,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   private final Optional<String> _zkAddress;
   private final Optional<ZkUtils> _zkUtils;
 
-  private Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
+  private final Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
 
   // List of Kafka producers per connector-destination (broker address) pair.
   // The numProducersPerConnector config is actually the number of producers per connector-destination pair, if the
   // transport provider handles multiple destination brokers.
-  private Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
+  private final Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
 
   /**
    * Constructor for KafkaTransportProviderAdmin.
@@ -214,7 +214,6 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   @Override
   public void dropDestination(Datastream datastream) {
     LOG.info("Drop destination called for datastream {}. Ignoring it.", datastream);
-    return;
   }
 
   /**

@@ -117,6 +117,6 @@ public class LiKafkaProducerFactory implements KafkaProducerFactory<byte[], byte
     producerConfig.putIfAbsent(LiKafkaProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
         ByteArraySerializer.class.getCanonicalName());
 
-    return new LiKafkaProducerImpl<byte[], byte[]>(producerConfig);
+    return new LiKafkaProducerImpl<>(producerConfig);
   }
 }

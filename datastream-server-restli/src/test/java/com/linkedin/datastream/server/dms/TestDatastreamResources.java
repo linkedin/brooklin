@@ -5,7 +5,7 @@
  */
 package com.linkedin.datastream.server.dms;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -619,7 +619,7 @@ public class TestDatastreamResources {
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {
-    Datastream stream = generateDatastream(seed, new HashSet<>(Arrays.asList("name")));
+    Datastream stream = generateDatastream(seed, new HashSet<>(Collections.singletonList("name")));
     stream.setName(name + seed);
     CreateResponse response = resource.create(stream);
     Assert.assertNull(response.getError());
@@ -656,7 +656,7 @@ public class TestDatastreamResources {
 
     // Delete one entry
     Datastream removed = queryStreams.remove(0);
-    Assert.assertTrue(resource.delete(removed.getName()).getStatus() == HttpStatus.S_200_OK);
+    Assert.assertEquals(resource.delete(removed.getName()).getStatus(), HttpStatus.S_200_OK);
 
     // Get All
     List<Datastream> remainingQueryStreams = resource.getAll(NO_PAGING)

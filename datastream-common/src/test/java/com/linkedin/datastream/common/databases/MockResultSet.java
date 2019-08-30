@@ -258,9 +258,7 @@ public class MockResultSet implements ResultSet {
 
   @Override
   public Object getObject(String columnLabel) throws SQLException {
-    Iterator<DatabaseColumnRecord> columns = _currentRow.getRecords().iterator();
-    while (columns.hasNext()) {
-      DatabaseColumnRecord col = columns.next();
+    for (DatabaseColumnRecord col : _currentRow.getRecords()) {
       if (col.getColName().equals(columnLabel)) {
         return col.getValue();
       }
