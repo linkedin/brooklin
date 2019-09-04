@@ -16,7 +16,7 @@ public class SendFailedException extends Exception {
   private static final long serialVersionUID = 1;
   private final DatastreamTask _datastreamTask;
 
-  private Map<Integer, String> _checkpoints;
+  private final Map<Integer, String> _checkpoints;
 
   /**
    * Construct an instance of SendFailedException

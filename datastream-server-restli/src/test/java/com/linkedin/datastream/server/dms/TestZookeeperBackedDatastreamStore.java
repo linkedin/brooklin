@@ -6,20 +6,27 @@
 package com.linkedin.datastream.server.dms;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.ImmutableList;
+
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
+import com.linkedin.datastream.server.HostTargetAssignment;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
 
@@ -59,12 +66,11 @@ public class TestZookeeperBackedDatastreamStore {
     datastreamSource.setConnectionString(source);
     DatastreamDestination datastreamDestination = new DatastreamDestination();
     datastreamDestination.setConnectionString(dest);
-    Datastream ds = new Datastream().setName(name)
+    return new Datastream().setName(name)
         .setConnectorName(connectorType)
         .setSource(datastreamSource)
         .setDestination(datastreamDestination)
         .setMetadata(metadata);
-    return ds;
   }
 
   /**
@@ -82,7 +88,7 @@ public class TestZookeeperBackedDatastreamStore {
     // get the same Datastream back
     Datastream ds2 = _store.getDatastream(ds.getName());
     Assert.assertNotNull(ds2);
-    Assert.assertTrue(ds.equals(ds2));
+    Assert.assertEquals(ds2, ds);
 
     // recreating the same Datastream should fail
     try {
@@ -110,7 +116,7 @@ public class TestZookeeperBackedDatastreamStore {
     // get the same Datastream back
     Datastream ds2 = _store.getDatastream(ds.getName());
     Assert.assertNotNull(ds2);
-    Assert.assertTrue(ds.equals(ds2));
+    Assert.assertEquals(ds2, ds);
 
     // update the datastream
     ds.getMetadata().put("key", "value");
@@ -119,6 +125,42 @@ public class TestZookeeperBackedDatastreamStore {
 
     ds2 = _store.getDatastream(ds.getName());
     Assert.assertEquals(ds, ds2);
+  }
+
+  @Test
+  public void testUpdatePartitionAssignments() throws Exception {
+    String datastreamGroupName = "dg1";
+    Datastream ds = generateDatastream(0);
+    ds.setMetadata(new StringMap());
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamGroupName);
+    String clusterName = "testcluster";
+
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("p-0", "p-1"), "instance1");
+    _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
+    long startTime = System.currentTimeMillis();
+    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
+    long endTime = System.currentTimeMillis();
+
+    String nodePath = KeyBuilder.getTargetAssignmentPath(clusterName, ds.getConnectorName(), datastreamGroupName);
+    List<String> nodes = _zkClient.getChildren(nodePath);
+    Assert.assertTrue(nodes.size() > 0);
+
+    String touchedTimestamp = _zkClient.readData(KeyBuilder.getTargetAssignmentBase(clusterName, ds.getConnectorName()));
+    long touchedTime = Long.valueOf(touchedTimestamp);
+    Assert.assertTrue(endTime >= touchedTime && touchedTime >= startTime);
+  }
+
+  @Test(expectedExceptions = DatastreamException.class)
+  public void testUpdatePartitionAssignmentsWithoutValidHost() throws Exception {
+    String datastreamGroupName = "dg1";
+    Datastream ds = generateDatastream(0);
+    ds.setMetadata(new StringMap());
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamGroupName);
+    String clusterName = "testcluster";
+
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("p-0", "p-1"), "instance2");
+    _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
+    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
   }
 
   /**

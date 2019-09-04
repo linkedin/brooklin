@@ -7,7 +7,7 @@ package com.linkedin.datastream.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -65,9 +65,9 @@ public class AvroMessageEncoderUtil {
       BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
       DatumWriter<org.apache.avro.generic.IndexedRecord> writer;
       if (record instanceof SpecificRecord) {
-        writer = new SpecificDatumWriter<IndexedRecord>(record.getSchema());
+        writer = new SpecificDatumWriter<>(record.getSchema());
       } else {
-        writer = new GenericDatumWriter<IndexedRecord>(record.getSchema());
+        writer = new GenericDatumWriter<>(record.getSchema());
       }
       writer.write(record, encoder);
       encoder.flush(); //encoder may buffer
@@ -92,11 +92,7 @@ public class AvroMessageEncoderUtil {
    * Converts a String into utf8
    */
   private static byte[] utf8(String s) {
-    try {
-      return s.getBytes("UTF-8");
-    } catch (UnsupportedEncodingException e) {
-      throw new IllegalStateException("This can't happen");
-    }
+    return s.getBytes(StandardCharsets.UTF_8);
   }
 
   private static byte[] md5(byte[] bytes) {
@@ -110,8 +106,8 @@ public class AvroMessageEncoderUtil {
 
   private static String hex(byte[] bytes) {
     StringBuilder builder = new StringBuilder(2 * bytes.length);
-    for (int i = 0; i < bytes.length; i++) {
-      String hexString = Integer.toHexString(0xFF & bytes[i]);
+    for (byte aByte : bytes) {
+      String hexString = Integer.toHexString(0xFF & aByte);
       if (hexString.length() < 2) {
         hexString = "0" + hexString;
       }

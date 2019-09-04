@@ -37,16 +37,16 @@ import org.testng.Assert;
  * Mock implementation of {@link PreparedStatement} for testing purposes.
  */
 public class MockJDBCPreparedStatement implements PreparedStatement {
-  private String _sql;
+  private final String _sql;
   private int _callCount = 0;
 
   // Map specifying the index of parameters and their values for each call made to setObject before a call to
   // executeQuery. Call to executeQuery increments the callCount and the object value map used is based on the current
   // value of callCount.
-  private Map<Integer, Map<Integer, Object>> _keyMap;
+  private final Map<Integer, Map<Integer, Object>> _keyMap;
   // Map of callCount to the ResultSet that needs to be returned for that call.
-  private Map<Integer, List<DatabaseRow>> _dataMap;
-  private int _startIndex;
+  private final Map<Integer, List<DatabaseRow>> _dataMap;
+  private final int _startIndex;
 
   MockJDBCPreparedStatement(String sql, int startIndex, Map<Integer, Map<Integer, Object>> keyMap, Map<Integer,
       List<DatabaseRow>> dataMap) {

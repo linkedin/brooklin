@@ -27,8 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.CsvReporter;
-import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.jmx.JmxReporter;
 
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
@@ -191,7 +191,7 @@ public class DatastreamServer {
 
     Properties diagProperties = verifiableProperties.getDomainProperties(DOMAIN_DIAG);
     String diagPortStr = diagProperties.getProperty(CONFIG_DIAG_PORT, "");
-    int diagPort = diagPortStr.isEmpty() ? _httpPort : Integer.valueOf(diagPortStr);
+    int diagPort = diagPortStr.isEmpty() ? _httpPort : Integer.parseInt(diagPortStr);
     String diagPath = diagProperties.getProperty(CONFIG_DIAG_PATH, "");
     _serverComponentHealthAggregator = new ServerComponentHealthAggregator(zkClient, coordinatorConfig.getCluster(), diagPort, diagPath);
 
@@ -356,7 +356,9 @@ public class DatastreamServer {
       File csvDir = new File(_csvMetricsDir);
       if (!csvDir.exists()) {
         LOG.info("csvMetricsDir {} doesn't exist, creating it.", _csvMetricsDir);
-        csvDir.mkdirs();
+        if (!csvDir.mkdirs()) {
+          LOG.warn("failed to created csvMetricsDir");
+        }
       }
 
       final CsvReporter reporter = CsvReporter.forRegistry(METRIC_REGISTRY)
@@ -434,15 +436,12 @@ public class DatastreamServer {
     ReentrantLock lock = new ReentrantLock();
     Condition shutdownCondition = lock.newCondition();
     // attach shutdown handler to catch control-c
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      @Override
-      public void run() {
-        lock.lock();
-        LOG.info("Starting the shutdown process..");
-        server.shutdown();
-        shutdownCondition.signalAll();
-      }
-    });
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      lock.lock();
+      LOG.info("Starting the shutdown process..");
+      server.shutdown();
+      shutdownCondition.signalAll();
+    }));
 
     lock.lock();
     server.startup();

@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.Optional;
@@ -65,7 +66,7 @@ public interface GroupIdConstructor {
     String datastreamTaskPrefix = DatastreamUtils.getTaskPrefix(datastream);
     List<Datastream> existingDatastreamsWithGroupIdOverride = allDatastreams.stream()
         .filter(DatastreamUtils::containsTaskPrefix)
-        .filter(ds -> DatastreamUtils.getTaskPrefix(ds) == datastreamTaskPrefix)
+        .filter(ds -> DatastreamUtils.getTaskPrefix(ds).equals(datastreamTaskPrefix))
         .filter(ds -> ds.getMetadata().containsKey(DatastreamMetadataConstants.GROUP_ID))
         .collect(Collectors.toList());
 
@@ -127,10 +128,10 @@ public interface GroupIdConstructor {
    * @param groupId - Group ID to hash
    * @return Hashed group ID string
    */
-  default public String hashGroupId(String groupId) {
+  default String hashGroupId(String groupId) {
     try {
       MessageDigest digest = MessageDigest.getInstance("MD5");
-      byte[] hashedBytes = digest.digest(groupId.getBytes("UTF-8"));
+      byte[] hashedBytes = digest.digest(groupId.getBytes(StandardCharsets.UTF_8));
       return DatatypeConverter.printHexBinary(hashedBytes).toLowerCase();
     } catch (Exception e) {
       throw new DatastreamRuntimeException(

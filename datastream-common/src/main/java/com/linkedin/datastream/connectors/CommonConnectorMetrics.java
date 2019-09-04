@@ -207,10 +207,10 @@ public class CommonConnectorMetrics {
       _aggregatedRebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, Meter.class);
 
       AtomicLong aggStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
-      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, () -> aggStuckPartitions.get());
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, STUCK_PARTITIONS, aggStuckPartitions::get);
 
       AtomicLong aggNumPartitions = AGGREGATED_NUM_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
-      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_PARTITIONS, () -> aggNumPartitions.get());
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_PARTITIONS, aggNumPartitions::get);
     }
 
     @Override
@@ -339,7 +339,7 @@ public class CommonConnectorMetrics {
    * unassignments, etc.
    */
   public void deregisterMetrics() {
-    _metricsList.stream().forEach(m -> m.deregister());
+    _metricsList.forEach(BrooklinMetrics::deregister);
   }
 
   /**

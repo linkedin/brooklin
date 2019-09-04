@@ -83,7 +83,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
-  private ScheduledExecutorService _daemonThreadExecutorService =
+  private final ScheduledExecutorService _daemonThreadExecutorService =
       Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(@NotNull Runnable r) {
@@ -197,7 +197,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       if (stopped) {
         createKafkaConnectorTask(task);
       } else {
-        _logger.error("Datastream task {} could not be stopped.");
+        _logger.error("Datastream task {} could not be stopped.", task);
       }
     }
   }
@@ -283,8 +283,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       throws DatastreamValidationException {
     Map<String, Set<String>> pausedSourcePartitionsMap = DatastreamUtils.getDatastreamSourcePartitions(datastream);
 
-    for (String source : pausedSourcePartitionsMap.keySet()) {
-      Set<String> newPartitions = pausedSourcePartitionsMap.get(source);
+    for (Map.Entry<String, Set<String>> entry : pausedSourcePartitionsMap.entrySet()) {
+      String source = entry.getKey();
+      Set<String> newPartitions = entry.getValue();
 
       // Validate that partitions actually exist and convert any "*" to actual list of partitions.
       // For that, get the list of existing partitions first.
@@ -370,12 +371,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private String processDatastreamStateRequest(URI request) {
     _logger.info("process Datastream state request: {}", request);
     Optional<String> datastreamName = extractQueryParam(request, DATASTREAM_KEY);
-    return datastreamName.map(streamName -> _runningTasks.values()
+    return datastreamName.flatMap(streamName -> _runningTasks.values()
         .stream()
         .filter(task -> task.hasDatastream(streamName))
         .findFirst()
-        .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
-        .orElse(null)).map(KafkaDatastreamStatesResponse::toJson).orElse(null);
+        .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse))
+        .map(KafkaDatastreamStatesResponse::toJson).orElse(null);
   }
 
   /**
@@ -453,12 +454,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    */
   @Override
   public boolean isDatastreamUpdateTypeSupported(Datastream datastream, DatastreamConstants.UpdateType updateType) {
-    switch (updateType) {
-      case PAUSE_RESUME_PARTITIONS:
-        return true;
-      default:
-        return false;
-    }
+    return updateType == DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS;
   }
 
   /**

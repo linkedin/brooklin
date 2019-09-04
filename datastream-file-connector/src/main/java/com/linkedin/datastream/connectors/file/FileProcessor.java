@@ -11,10 +11,12 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,12 +44,11 @@ class FileProcessor implements Runnable {
   private final DatastreamEventProducer _producer;
   private final BufferedReader _fileReader;
   private final CountingInputStream _inputStream;
+  private final AtomicInteger _lineNo;
   private final FilePositionKey _positionKey;
   private final FilePositionValue _positionValue;
   private boolean _cancelRequested;
   private boolean _isStopped;
-
-  private volatile Integer _lineNo;
 
   public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
@@ -59,7 +60,8 @@ class FileProcessor implements Runnable {
     final File file = new File(_fileName);
     _positionValue.setFileLengthBytes(file.length());
     _inputStream = new CountingInputStream(new FileInputStream(file));
-    _fileReader = new BufferedReader(new InputStreamReader(_inputStream));
+    _fileReader = new BufferedReader(new InputStreamReader(_inputStream, StandardCharsets.UTF_8));
+    _lineNo = new AtomicInteger();
 
     _producer = producer;
     _isStopped = false;
@@ -73,7 +75,7 @@ class FileProcessor implements Runnable {
     String cpString = savedCheckpoints.getOrDefault(PARTITION, null);
     if (cpString != null && !cpString.isEmpty()) {
       // Resume from last saved line number
-      lineNo = Integer.valueOf(cpString);
+      lineNo = Integer.parseInt(cpString);
 
       // Must skip line by line as we can't get the actual file position of the
       // last newline character due to the buffering done by BufferedReader.
@@ -94,8 +96,8 @@ class FileProcessor implements Runnable {
     try {
       _task.acquire(ACQUIRE_TIMEOUT);
 
-      _lineNo = loadCheckpoint();
-      _positionValue.setLinesRead(Long.valueOf(_lineNo));
+      _lineNo.set(loadCheckpoint());
+      _positionValue.setLinesRead((long) _lineNo.intValue());
       while (!_cancelRequested) {
         String text;
         try {
@@ -111,7 +113,8 @@ class FileProcessor implements Runnable {
           long currentTimeMillis = System.currentTimeMillis();
           eventMetadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(currentTimeMillis));
           BrooklinEnvelope event =
-              new BrooklinEnvelope(_lineNo.toString().getBytes(), text.getBytes(), null, eventMetadata);
+              new BrooklinEnvelope(_lineNo.toString().getBytes(StandardCharsets.UTF_8),
+                  text.getBytes(StandardCharsets.UTF_8), null, eventMetadata);
 
           LOG.info("sending event " + text);
           DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
@@ -132,8 +135,7 @@ class FileProcessor implements Runnable {
               LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
             }
           });
-          ++_lineNo;
-          _positionValue.setLinesRead(Long.valueOf(_lineNo));
+          _positionValue.setLinesRead((long) _lineNo.incrementAndGet());
         } else {
           try {
             // Wait for new data
@@ -162,7 +164,7 @@ class FileProcessor implements Runnable {
   }
 
   public Integer getLineNumber() {
-    return _lineNo;
+    return _lineNo.get();
   }
 
   public String getFileName() {

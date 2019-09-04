@@ -12,7 +12,6 @@ import java.util.Set;
 
 import org.apache.kafka.common.TopicPartition;
 import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.Version;
 import org.codehaus.jackson.annotate.JsonPropertyOrder;
 import org.codehaus.jackson.map.DeserializationConfig;
@@ -114,8 +113,8 @@ public class KafkaDatastreamStatesResponse {
   private static TopicPartition topicPartitionFromString(String tp) {
     int partitionDelimiterIndex = tp.lastIndexOf("-");
     String source = tp.substring(0, partitionDelimiterIndex);
-    String partition = tp.substring(partitionDelimiterIndex + 1, tp.length());
-    return new TopicPartition(source, Integer.valueOf(partition));
+    String partition = tp.substring(partitionDelimiterIndex + 1);
+    return new TopicPartition(source, Integer.parseInt(partition));
   }
 
   public String getDatastream() {
@@ -167,7 +166,7 @@ public class KafkaDatastreamStatesResponse {
     }
 
     @Override
-    public Object deserializeKey(String key, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+    public Object deserializeKey(String key, DeserializationContext ctxt) throws IOException {
       TopicPartition tp = topicPartitionFromString(key);
       return new FlushlessEventProducerHandler.SourcePartition(tp.topic(), tp.partition());
     }
@@ -181,7 +180,7 @@ public class KafkaDatastreamStatesResponse {
     }
 
     @Override
-    public Object deserializeKey(String key, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+    public Object deserializeKey(String key, DeserializationContext ctxt) throws IOException {
       return topicPartitionFromString(key);
     }
   }
@@ -195,7 +194,7 @@ public class KafkaDatastreamStatesResponse {
 
     @Override
     public TopicPartition deserialize(JsonParser jp, DeserializationContext ctxt)
-        throws IOException, JsonProcessingException {
+        throws IOException {
       String topicPartition = jp.getCodec().readTree(jp).getTextValue();
       return topicPartitionFromString(topicPartition);
     }

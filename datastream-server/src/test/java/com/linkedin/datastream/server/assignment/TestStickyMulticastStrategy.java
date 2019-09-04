@@ -380,7 +380,7 @@ public class TestStickyMulticastStrategy {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
-      Assert.assertTrue(oldAssignmentTasks.stream().allMatch(newAssignmentTasks::contains));
+      Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
     }
 
     Assert.assertEquals(newAssignment.get(instance4).size(), datastreams.size());
@@ -403,7 +403,7 @@ public class TestStickyMulticastStrategy {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(oldAssignmentTasks.size() - datastreams.size(), newAssignmentTasks.size());
-      Assert.assertTrue(newAssignmentTasks.stream().allMatch(oldAssignmentTasks::contains));
+      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
     }
 
     Assert.assertEquals(newAssignment.get(instance4).size(),
@@ -427,7 +427,7 @@ public class TestStickyMulticastStrategy {
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-      Assert.assertTrue(newAssignmentTasks.stream().allMatch(oldAssignmentTasks::contains));
+      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
     }
 
     List<String> instancesBySize = new ArrayList<>(instances);
@@ -491,7 +491,7 @@ public class TestStickyMulticastStrategy {
     allTasks2.forEach((key, value) -> {
       if (diff1.containsKey(key)) {
         int difference = diff1.get(key) - value;
-        diff1.put(key, difference < 0 ? 0 : difference);
+        diff1.put(key, Math.max(difference, 0));
       }
     });
 
@@ -499,7 +499,7 @@ public class TestStickyMulticastStrategy {
     allTasks1.forEach((key, value) -> {
       if (diff2.containsKey(key)) {
         int difference = diff2.get(key) - value;
-        diff2.put(key, difference < 0 ? 0 : difference);
+        diff2.put(key, Math.max(difference, 0));
       }
     });
 

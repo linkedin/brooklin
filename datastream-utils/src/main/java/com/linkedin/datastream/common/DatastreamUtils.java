@@ -75,8 +75,7 @@ public final class DatastreamUtils {
   public static Datastream fromJSON(String json) {
     InputStream in = IOUtils.toInputStream(json);
     try {
-      Datastream datastream = DataMapUtils.read(in, Datastream.class);
-      return datastream;
+      return DataMapUtils.read(in, Datastream.class);
     } catch (IOException ioe) {
       return null;
     }
@@ -95,6 +94,13 @@ public final class DatastreamUtils {
    */
   public static String getTaskPrefix(Datastream datastream) {
     return datastream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
+  }
+
+  /**
+   * Get the group name of a Datastream object, it is the same as task prefix
+   */
+  public static String getGroupName(Datastream datastream) {
+    return getTaskPrefix(datastream);
   }
 
   /**

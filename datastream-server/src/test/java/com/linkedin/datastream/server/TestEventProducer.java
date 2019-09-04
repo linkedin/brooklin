@@ -65,7 +65,7 @@ public class TestEventProducer {
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
         numEventsProduced.incrementAndGet();
         DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(null));
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
         onComplete.onCompletion(metadata, null);
       }
     };
@@ -116,7 +116,7 @@ public class TestEventProducer {
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
         numEventsProduced.incrementAndGet();
         DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(null));
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
         onComplete.onCompletion(metadata, null);
       }
     };

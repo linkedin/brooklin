@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -60,8 +61,8 @@ public class TestEventProducingConnector implements Connector {
   private final RandomValueGenerator _randomValueGenerator;
   private final Map<DatastreamTask, Future<?>> _tasksAssigned = new HashMap<>();
 
-  private int _messageSize;
-  private long _sleepBetweenSendMs;
+  private final int _messageSize;
+  private final long _sleepBetweenSendMs;
 
   /**
    * Constructor for TestEventProducingConnector
@@ -109,7 +110,7 @@ public class TestEventProducingConnector implements Connector {
         continue;
       }
 
-      Future<?> future = _executor.submit((Runnable) () -> executeTask(task));
+      Future<?> future = _executor.submit(() -> executeTask(task));
 
       _tasksAssigned.put(task, future);
     }
@@ -175,6 +176,8 @@ public class TestEventProducingConnector implements Connector {
 
         index++;
       }
+    } catch (RuntimeException ex) {
+      LOG.error("Producer thread threw exception, Stopping event producer for task " + task, ex);
     } catch (Exception ex) {
       LOG.error("Producer thread threw exception, Stopping event producer for task " + task, ex);
     }
@@ -191,9 +194,9 @@ public class TestEventProducingConnector implements Connector {
     String payload =
         String.format("TestEvent for partition:%d from host:%s with event index: %d text: %s", partition, _hostName,
             eventIndex, randomString);
-    byte[] key = String.valueOf(eventIndex).getBytes();
+    byte[] key = String.valueOf(eventIndex).getBytes(StandardCharsets.UTF_8);
 
-    BrooklinEnvelope event = new BrooklinEnvelope(key, payload.getBytes(), null, new HashMap<>());
+    BrooklinEnvelope event = new BrooklinEnvelope(key, payload.getBytes(StandardCharsets.UTF_8), null, new HashMap<>());
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(event);
     builder.setPartition(partition);

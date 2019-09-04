@@ -51,7 +51,7 @@ public class CoordinatorEventBlockingQueue {
       _eventMap.put(event.getType(), event);
     }
 
-    LOG.debug("Event queue size %d", _eventQueue.size());
+    LOG.debug("Event queue size {}", _eventQueue.size());
     notify();
   }
 
@@ -73,7 +73,7 @@ public class CoordinatorEventBlockingQueue {
 
     if (queuedEvent != null) {
       LOG.info("De-queuing event " + queuedEvent.getType());
-      LOG.debug("Event queue size: %d", _eventQueue.size());
+      LOG.debug("Event queue size: {}", _eventQueue.size());
       _eventMap.remove(queuedEvent.getType());
       return queuedEvent;
     }

@@ -16,7 +16,7 @@ import com.linkedin.datastream.server.DatastreamTask;
  */
 public class KafkaMirrorMakerGroupIdConstructor implements GroupIdConstructor {
   private final String _clusterName;
-  private boolean _isGroupIdHashingEnabled;
+  private final boolean _isGroupIdHashingEnabled;
 
   /**
    * Constructor for KafkaMirrorMakerGroupIdConstructor

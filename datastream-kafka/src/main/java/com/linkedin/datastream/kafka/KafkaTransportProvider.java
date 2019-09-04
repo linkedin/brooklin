@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.kafka;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,8 +23,6 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Meter;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
-import com.linkedin.datastream.common.DatastreamException;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -50,7 +49,7 @@ public class KafkaTransportProvider implements TransportProvider {
   static final String EVENT_TRANSPORT_ERROR_RATE = "eventTransportErrorRate";
 
   private final DatastreamTask _datastreamTask;
-  private List<KafkaProducerWrapper<byte[], byte[]>> _producers;
+  private final List<KafkaProducerWrapper<byte[], byte[]>> _producers;
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
@@ -65,7 +64,8 @@ public class KafkaTransportProvider implements TransportProvider {
    * @param props Kafka producer configuration
    * @param metricsNamesPrefix the prefix to use when emitting metrics
    * @throws IllegalArgumentException if either datastreamTask or producers is null
-   * @throws DatastreamRuntimeException if "bootstrap.servers" is not specified in the supplied config
+   * @throws com.linkedin.datastream.common.DatastreamRuntimeException if "bootstrap.servers" is not specified in the
+   * supplied config
    * @see ProducerConfig
    */
   public KafkaTransportProvider(DatastreamTask datastreamTask, List<KafkaProducerWrapper<byte[], byte[]>> producers,
@@ -93,7 +93,7 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private ProducerRecord<byte[], byte[]> convertToProducerRecord(String topicName,
-      DatastreamProducerRecord record, Object event) throws DatastreamException {
+      DatastreamProducerRecord record, Object event) {
 
     Optional<Integer> partition = record.getPartition();
 
@@ -118,7 +118,8 @@ public class KafkaTransportProvider implements TransportProvider {
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
-      keyValue = record.getPartitionKey().isPresent() ? record.getPartitionKey().get().getBytes() : null;
+      keyValue = record.getPartitionKey().isPresent()
+          ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : null;
       return new ProducerRecord<>(topicName, keyValue, payloadValue);
     }
   }
@@ -134,17 +135,11 @@ public class KafkaTransportProvider implements TransportProvider {
       LOG.debug("Sending Datastream event record: {}", record);
 
       for (Object event : record.getEvents()) {
-        ProducerRecord<byte[], byte[]> outgoing;
-        try {
-          outgoing = convertToProducerRecord(topicName, record, event);
-        } catch (Exception e) {
-          String errorMessage = String.format("Failed to convert DatastreamEvent (%s) to ProducerRecord.", event);
-          LOG.error(errorMessage, e);
-          throw new DatastreamRuntimeException(errorMessage, e);
-        }
+        ProducerRecord<byte[], byte[]> outgoing = convertToProducerRecord(topicName, record, event);
+
         // Update topic-specific metrics and aggregate metrics
         int numBytes = (outgoing.key() != null ? outgoing.key().length : 0) + outgoing.value().length;
-        
+
         _eventWriteRate.mark();
         _eventByteWriteRate.mark(numBytes);
 
@@ -160,10 +155,8 @@ public class KafkaTransportProvider implements TransportProvider {
           doOnSendCallback(record, onSendComplete, metadata, exception);
         });
 
-        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE,
-            1);
-        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName,
-            EVENT_BYTE_WRITE_RATE, numBytes);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
       }
@@ -187,7 +180,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
   @Override
   public void flush() {
-    _producers.forEach(p -> p.flush());
+    _producers.forEach(KafkaProducerWrapper::flush);
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,

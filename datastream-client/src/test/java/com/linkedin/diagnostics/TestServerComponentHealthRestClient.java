@@ -63,17 +63,17 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     // invalid name, null response.
     name = "NonExistComponent";
     response = restClient.getStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
 
     // invalid type, null response.
     type = "NonExistConnector";
     response = restClient.getStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
 
     // Connector throws exception, null response
     type = "BrokenConnector";
     response = restClient.getStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
   }
 
   @Test
@@ -93,16 +93,16 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
     // invalid name, null response.
     name = "NonExistComponent";
     response = restClient.getAllStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
 
     // invalid type, null response.
     type = "NonExistConnector";
     response = restClient.getAllStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
 
     // Connector throws exception, null response
     type = "BrokenConnector";
     response = restClient.getAllStatus(name, type, content);
-    Assert.assertEquals(response, null);
+    Assert.assertNull(response);
   }
 }

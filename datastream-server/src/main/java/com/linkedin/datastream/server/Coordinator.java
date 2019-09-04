@@ -169,9 +169,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_DATASTREAMS = "numDatastreams";
   private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
 
-  private static AtomicLong _pausedDatastreamsGroups = new AtomicLong(0L);
+  private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
-  private static AtomicLong _maxPartitionCount = new AtomicLong(0L);
+  private static final AtomicLong MAX_PARTITION_COUNT = new AtomicLong(0L);
 
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
@@ -210,7 +210,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean leaderPartitionAssignmentScheduled = new AtomicBoolean(false);
 
-
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
 
@@ -243,9 +242,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventThread.setDaemon(true);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, () -> _pausedDatastreamsGroups.get());
+    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get);
     _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
-    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, () -> _maxPartitionCount.get());
+    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get);
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
 
@@ -277,7 +276,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // make sure connector znode exists upon instance start. This way in a brand new cluster
       // we can inspect ZooKeeper and know what connectors are created
-      _adapter.ensureConnectorZNode(connector.getConnectorType());
+      _adapter.addConnectorType(connector.getConnectorType());
 
       // call connector::start API
       connector.start(connectorInfo.getCheckpointProvider());
@@ -410,6 +409,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onDatastreamUpdate completed successfully");
   }
 
+  /**
+   * onPartitionMovement is called when partition movement info has been put into zookeeper
+   */
+  @Override
+  public void onPartitionMovement(Long notifyTimestamp) {
+    _log.info("Coordinator::onPartitionMovement is called");
+    _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
+    _log.info("Coordinator::onPartitionMovement completed successfully");
+  }
   /**
    * {@inheritDoc}
    *
@@ -680,6 +688,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           } else {
             performPartitionAssignment((String) event.getEventMetadata());
           }
+          break;
+
+        case LEADER_PARTITION_MOVEMENT:
+          performPartitionMovement((Long) event.getEventMetadata());
           break;
 
         default:
@@ -1037,7 +1049,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           tasks.stream().map(DatastreamTask::getPartitionsV2).map(List::size).mapToInt(v -> v).max().orElse(0));
     }
     _log.info("Max partition count assigned in the task {}", maxPartitionCount);
-    _maxPartitionCount.getAndSet(maxPartitionCount);
+    MAX_PARTITION_COUNT.getAndSet(maxPartitionCount);
   }
 
 
@@ -1056,6 +1068,99 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
+  /**
+   * move the partitions based on targetAssignmentInfo stored in the Zookeeper
+   * @param notifyTimestamp the timestamp when partition movement is triggered
+   */
+  private void performPartitionMovement(Long notifyTimestamp) {
+    boolean shouldRetry = true;
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+    Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
+
+    try {
+      Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
+      List<DatastreamGroup> toCleanup = new ArrayList<>();
+
+      for (String connectorType : _connectors.keySet()) {
+        AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+        Connector connectorInstance = _connectors.get(connectorType).getConnector().getConnectorInstance();
+
+        // Get the partition assignment information
+        Map<String, Optional<DatastreamGroupPartitionsMetadata>> datastreamPartitions =
+            connectorInstance.getDatastreamPartitions();
+
+        // Get the datastream Group name which have the target assignment
+        List<String> toMoveDatastream = _adapter.getDatastreamsNeedPartitionMovement(connectorType);
+
+        // Fetch all live datastreamGroups
+        List<DatastreamGroup> liveDatastreamGroups =
+            fetchDatastreamGroups().stream().filter(group1 -> connectorType.equals(group1.getConnectorName())).collect(
+                Collectors.toList());
+
+        // clean up the datastreams if they are not in the live datastreams
+        toMoveDatastream.stream().filter(dgName -> !liveDatastreamGroups.stream().map(DatastreamGroup::getName)
+            .collect(Collectors.toList()).contains(dgName)).forEach(obsoleteDs ->
+            _adapter.cleanUpPartitionMovement(connectorType, obsoleteDs, notifyTimestamp));
+
+        // Filtered all live datastreamGroup as we process only datastream which have
+        // both partition assignment info and the target assignment
+        List<DatastreamGroup> toProcessedDatastreamGroups =
+            liveDatastreamGroups.stream().filter(group2 -> toMoveDatastream.contains(group2.getName()))
+                .filter(group3 -> datastreamPartitions.keySet().contains(group3.getName()))
+                .collect(Collectors.toList());
+
+        for (DatastreamGroup dg : toProcessedDatastreamGroups) {
+          // Right now we fails the entire partition movement if any failure is encountered in any datastreamGroup
+          // The behavior can be improved to enhance the isolation in partition movement from different datastreamGroups
+          DatastreamGroupPartitionsMetadata subscribedPartitions = connectorInstance.getDatastreamPartitions().get(dg.getName())
+              .orElseThrow(() -> new DatastreamTransientException("partition listener is not ready yet for datastream " + dg.getName()));
+          Map<String, Set<String>> suggestedAssignment =
+              _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
+          assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
+              subscribedPartitions);
+          toCleanup.add(dg);
+        }
+      }
+
+      for (String key : assignmentByInstance.keySet()) {
+        newAssignmentsByInstance.put(key, new ArrayList<>(assignmentByInstance.get(key)));
+      }
+
+      _adapter.updateAllAssignments(newAssignmentsByInstance);
+
+      //clean up stored target assignment after the assignment is updated
+      for (DatastreamGroup dg : toCleanup) {
+        _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
+      }
+
+      _log.info("Partition movement completed: datastreamGroup, assignment {} ", assignmentByInstance);
+
+      shouldRetry = false;
+    } catch (DatastreamTransientException ex) {
+      _log.warn("Partition movement failed, retry again after a configurable period", ex);
+      shouldRetry = true;
+    } catch (Exception ex) {
+      // We do not retry if it is not transient exception. Unfortunately we don't have a good way to communicate to the
+      // caller about individual failure as partition movement is an async process. A caller could only verify if the
+      // request is completed by query the assignment
+
+      _log.error("Partition movement failed, Exception: ", ex);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_ERRORS, 1);
+
+    }
+    if (!shouldRetry) {
+      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
+    }  else {
+      _log.info("Schedule retry for leader movement tasks");
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_RETRIES, 1);
+      _executor.schedule(() -> {
+        _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
+      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+    }
+  }
+
   private Map<String, List<DatastreamTask>> performAssignment(List<String> liveInstances,
       Map<String, Set<DatastreamTask>> previousAssignmentByInstance, List<DatastreamGroup> datastreamGroups) {
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1066,7 +1171,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Set<DatastreamGroup> pausedDatastreamGroups =
         datastreamGroups.stream().filter(DatastreamGroup::isPaused).collect(Collectors.toSet());
 
-    _pausedDatastreamsGroups.set(pausedDatastreamGroups.size());
+    PAUSED_DATASTREAMS_GROUPS.set(pausedDatastreamGroups.size());
 
     // If a datastream group is paused, park tasks with the virtual PausedInstance.
     List<DatastreamTask> pausedTasks = pausedTasks(pausedDatastreamGroups, previousAssignmentByInstance);
@@ -1206,6 +1311,38 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw e;
     }
   }
+
+  /**
+   * Validate the partition is managed by connector for this datastream
+   * @param datastream datastream which needs the verification
+   * @throws DatastreamValidationException if partition assignment is not supported
+   */
+  public void validatePartitionAssignmentSupported(Datastream datastream) throws DatastreamValidationException {
+    try {
+      String connectorName = datastream.getConnectorName();
+      ConnectorInfo connectorInfo = _connectors.get(connectorName);
+      if (connectorInfo == null) {
+        throw new DatastreamValidationException("Invalid connector: " + connectorName);
+      }
+
+      Connector connectorInstance = connectorInfo.getConnector().getConnectorInstance();
+
+      // connectorInstance.getDatastreamPartitions() will contain the datastream group as key as long as this datastream
+      // is active and leader has assigned the datastream to the connector, regardless of the state of partition listener
+      // As a result, we can use this the key from this map to verify if the partition assignment is supported.
+      if (!(connectorInstance.getDatastreamPartitions().containsKey(DatastreamUtils.getGroupName(datastream)))) {
+        String msg = String.format("Partition assignment is not managed by connector, datastream %s",
+            datastream.getName());
+        _log.error(msg);
+        throw new DatastreamValidationException(msg);
+      }
+
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isPartitionAssignmentSupported", NUM_ERRORS, 1);
+      throw e;
+    }
+  }
+
 
   /**
    * Checks if given datastream update type is supported by connector for given datastream.

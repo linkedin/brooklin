@@ -213,15 +213,16 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     if (_partitionChangeCallback == null) {
       throw new DatastreamRuntimeException("Partition change callback is not defined");
     }
-
+    
     LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",
         _partitionDiscoveryThreadMap.keySet(), datastreamGroups);
 
     List<String> dgNames = datastreamGroups.stream().map(DatastreamGroup::getName).collect(Collectors.toList());
     List<String> obsoleteDgs = new ArrayList<>(_partitionDiscoveryThreadMap.keySet());
     obsoleteDgs.removeAll(dgNames);
-    obsoleteDgs.forEach(name ->
-        Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(PartitionDiscoveryThread::shutdown));
+    for (String name : obsoleteDgs) {
+      Optional.ofNullable(_partitionDiscoveryThreadMap.remove(name)).ifPresent(PartitionDiscoveryThread::shutdown);
+    }
 
     datastreamGroups.forEach(datastreamGroup -> {
       String datastreamGroupName = datastreamGroup.getName();
@@ -250,7 +251,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     private final Pattern _topicPattern;
 
     // The partitions covered by this datastresm group, fetched from Kafka
-    private volatile List<String> _subscribedPartitions = Collections.<String>emptyList();
+    private volatile List<String> _subscribedPartitions = Collections.emptyList();
 
     // indicate if this thread has already fetch the partitions info from Kafka
     private volatile boolean _initialized;

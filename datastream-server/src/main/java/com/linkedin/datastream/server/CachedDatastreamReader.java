@@ -44,7 +44,7 @@ public class CachedDatastreamReader {
   private final ZkClient _zkclient;
 
   private List<String> _datastreamNames;
-  private Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
+  private final Map<String, Datastream> _datastreams = new ConcurrentHashMap<>();
 
   /**
    * Constructor for CachedDatastreamReader

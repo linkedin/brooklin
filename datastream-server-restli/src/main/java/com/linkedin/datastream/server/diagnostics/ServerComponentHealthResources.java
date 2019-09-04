@@ -7,7 +7,6 @@ package com.linkedin.datastream.server.diagnostics;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -117,11 +116,10 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
       try {
         localhostName = InetAddress.getLocalHost().getHostName();
       } catch (UnknownHostException uhe) {
-        LOG.error("Could not get localhost Name", uhe.getMessage());
+        LOG.error("Could not get localhost Name {}", uhe.getMessage());
       }
       serverComponentHealth.setInstanceName(localhostName);
-      List<ServerComponentHealth> response = Arrays.asList(serverComponentHealth);
-      return response;
+      return Collections.singletonList(serverComponentHealth);
     } else {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Unknown component name and type");
       return Collections.emptyList();
@@ -133,7 +131,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
     String componentTypeLowercase = componentType.toLowerCase();
     if (componentTypeLowercase.equals(CONNECTOR_NAME)) {
       Connector connector = _coordinator.getConnector(componentScope);
-      if (connector != null && connector instanceof DiagnosticsAware) {
+      if (connector instanceof DiagnosticsAware) {
         return (DiagnosticsAware) connector;
       }
     }

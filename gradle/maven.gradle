@@ -5,10 +5,21 @@ allprojects {
 subprojects {
   apply plugin: 'maven-publish'
   apply plugin: 'com.jfrog.bintray'
+  apply plugin: 'pegasus'
 
   task sourcesJar(type: Jar) {
     classifier = 'sources'
     from sourceSets.main.allJava
+  }
+
+  task dataTemplateSourceJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.mainGeneratedDataTemplate.allJava
+  }
+
+  task testDataTemplateSourceJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.testGeneratedDataTemplate.allJava
   }
 
   task javadocJar(type: Jar) {
@@ -19,6 +30,30 @@ subprojects {
   task testJar(type: Jar) {
     from sourceSets.test.allJava
     classifier = "tests"
+  }
+
+  def allPublications = ['mavenJava', 'dataTemplateJava']
+  if (project.tasks.findByName("mainRestClientJar")) {
+
+    task restClientSourceJar(type: Jar) {
+      classifier = 'sources'
+      from sourceSets.mainGeneratedRest.allJava
+    }
+
+    publishing {
+      publications {
+        restClientJava(MavenPublication) {
+          artifactId project.name + "-rest-client"
+          artifact mainRestClientJar
+          artifact restClientSourceJar
+          artifact javadocJar
+
+          version project.version
+        }
+      }
+    }
+
+    allPublications.add('restClientJava')
   }
 
   publishing {
@@ -64,13 +99,31 @@ subprojects {
           }
         }
       }
+
+      dataTemplateJava(MavenPublication) {
+        artifactId project.name + "-data-template"
+        artifact mainDataTemplateJar
+        artifact dataTemplateSourceJar
+        artifact javadocJar
+
+        version project.version
+      }
+
+      testDataTemplateJava(MavenPublication) {
+        artifactId project.name + "-test-data-template"
+        artifact testDataTemplateJar
+        artifact testDataTemplateSourceJar
+        artifact javadocJar
+
+        version project.version
+      }
     }
   }
 
   bintray {
     user = System.getenv('BINTRAY_USER')
     key = System.getenv('BINTRAY_KEY')
-    publications = ['mavenJava']
+    publications = allPublications
     pkg {
       repo = 'maven'
       name = 'brooklin'

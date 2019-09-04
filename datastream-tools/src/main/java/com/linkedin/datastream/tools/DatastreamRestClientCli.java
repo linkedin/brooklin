@@ -51,13 +51,14 @@ public class DatastreamRestClientCli {
     RESUME,
     UPDATE,
     DELETE,
-    READALL
+    READALL,
+    MOVE
   }
 
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
     ObjectMapper mapper = new ObjectMapper();
 
-    streams.stream().forEach(s -> {
+    streams.forEach(s -> {
       try {
         String jsonValue = DatastreamUtils.toJSON(s);
         if (!noformat) {
@@ -135,6 +136,14 @@ public class DatastreamRestClientCli {
         OptionUtils.createOption(OptionConstants.OPT_SHORT_TRANSPORT_NAME, OptionConstants.OPT_LONG_TRANSPORT_NAME,
             OptionConstants.OPT_ARG_TRANSPORT_NAME, false, OptionConstants.OPT_DESC_TRANSPORT_NAME));
 
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS, OptionConstants.OPT_LONG_MOVEMENT_SOURCE_PARTITIONS,
+            OptionConstants.OPT_ARG_MOVEMENT_SOURCE_PARTITIONS, false, OptionConstants.OPT_DESC_MOVEMENT_SOURCE_PARTITIONS));
+
+    options.addOption(
+        OptionUtils.createOption(OptionConstants.OPT_SHORT_TARGET_HOST_NAME, OptionConstants.OPT_LONG_TARGET_HOST_NAME,
+            OptionConstants.OPT_ARG_TARGET_OST_NAME, false, OptionConstants.OPT_DESC_TARGET_HOST_NAME));
+
     CommandLineParser parser = new BasicParser();
     CommandLine cmd;
     try {
@@ -191,6 +200,14 @@ public class DatastreamRestClientCli {
           datastreamRestClient.updateDatastream(toUpdateDatastream);
           System.out.println("Datastream updated successfully");
           break;
+        case MOVE:
+          datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
+          String partitions = getOptionValue(cmd, OptionConstants.OPT_SHORT_MOVEMENT_SOURCE_PARTITIONS, options);
+          String targetHost = getOptionValue(cmd, OptionConstants.OPT_SHORT_TARGET_HOST_NAME, options);
+          datastreamRestClient.movePartitions(datastreamName, partitions, targetHost);
+          System.out.println("move partitions " + partitions + " to host " + targetHost + " successfully");
+          break;
+
         case CREATE:
           datastreamName = getOptionValue(cmd, OptionConstants.OPT_SHORT_DATASTREAM_NAME, options);
           String sourceUri = getOptionValue(cmd, OptionConstants.OPT_SHORT_SOURCE_URI, options);
@@ -201,7 +218,7 @@ public class DatastreamRestClientCli {
           if (cmd.hasOption(OptionConstants.OPT_SHORT_DESTINATION_URI)) {
             destinationUri = cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_URI);
             numDestinationPartitions =
-                Integer.valueOf(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
+                Integer.parseInt(cmd.getOptionValue(OptionConstants.OPT_SHORT_DESTINATION_PARTITIONS));
           }
 
           Optional<Integer> maybePartitions = Optional.empty();
@@ -244,15 +261,17 @@ public class DatastreamRestClientCli {
           datastream.setMetadata(new StringMap(metadata));
           System.out.printf("Trying to create datastream %s", datastream);
           datastreamRestClient.createDatastream(datastream);
-          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = %d minutes)\n",
+          System.out.printf("Created %s datastream. Now waiting for initialization (timeout = %d minutes)%n",
               connectorName, timeout.toMinutes());
           Datastream completeDatastream =
               datastreamRestClient.waitTillDatastreamIsInitialized(datastreamName, (int) timeout.toMillis());
-          System.out.printf("Initialized %s datastream: %s\n", connectorName, completeDatastream);
+          System.out.printf("Initialized %s datastream: %s%n", connectorName, completeDatastream);
           break;
         default:
           // do nothing
       }
+    } catch (RuntimeException e) {
+      System.out.println(e.toString());
     } catch (Exception e) {
       System.out.println(e.toString());
     }

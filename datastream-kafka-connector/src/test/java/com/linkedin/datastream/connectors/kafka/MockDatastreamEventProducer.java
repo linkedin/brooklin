@@ -31,10 +31,10 @@ public class MockDatastreamEventProducer implements DatastreamEventProducer {
   private static final Logger LOG = LoggerFactory.getLogger(MockDatastreamEventProducer.class);
   private final List<DatastreamProducerRecord> _events = Collections.synchronizedList(new ArrayList<>());
   private int _numFlushes = 0;
-  private ExecutorService _executorService = Executors.newFixedThreadPool(1);
-  private Duration _callbackThrottleDuration;
+  private final ExecutorService _executorService = Executors.newFixedThreadPool(1);
+  private final Duration _callbackThrottleDuration;
   private Predicate<DatastreamProducerRecord> _sendFailCondition;
-  private Duration _flushDuration;
+  private final Duration _flushDuration;
 
   /**
    * Constructor for MockDatastreamEventProducer

@@ -26,7 +26,7 @@ public class DatastreamProducerRecordBuilder {
 
   private Optional<Integer> _partition = Optional.empty();
   private String _sourceCheckpoint = "";
-  private List<BrooklinEnvelope> _events = new ArrayList<>();
+  private final List<BrooklinEnvelope> _events = new ArrayList<>();
   private long _eventsSourceTimestamp;
   private Optional<String> _partitionKey = Optional.empty();
   private Optional<String> _destination = Optional.empty();

@@ -19,8 +19,8 @@ public abstract class BrooklinMetrics {
   // Map from a [class,category] to its reference counter
   private static final Map<String, AtomicInteger> REF_COUNTS = new HashMap<>();
 
-  protected String _key;
-  protected String _className;
+  protected final String _key;
+  protected final String _className;
 
   /**
    * Constructor for BrooklinMetrics

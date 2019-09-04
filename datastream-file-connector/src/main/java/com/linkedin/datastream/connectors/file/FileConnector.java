@@ -52,7 +52,7 @@ public class FileConnector implements Connector, DiagnosticsAware {
 
   private final ExecutorService _executorService;
   private final int _numPartitions;
-  private final ConcurrentHashMap<DatastreamTask, FileProcessor> _fileProcessors;
+  private final Map<DatastreamTask, FileProcessor> _fileProcessors;
 
   private enum DiagnosticsRequestType {
     POSITION

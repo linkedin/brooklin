@@ -28,8 +28,8 @@ public class ListBackedTransportProvider implements TransportProvider {
    * Each ProducerRecord holds a list of events of to the same transaction.
    * This is a list of the event lists of all transactions.
    */
-  private List<List<BrooklinEnvelope>> _allEvents = new ArrayList<>();
-  private List<DatastreamProducerRecord> _allRecords = new ArrayList<>();
+  private final List<List<BrooklinEnvelope>> _allEvents = new ArrayList<>();
+  private final List<DatastreamProducerRecord> _allRecords = new ArrayList<>();
 
   @Override
   public synchronized void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {

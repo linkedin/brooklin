@@ -37,7 +37,7 @@ public class KafkaConnectionString {
    */
   public KafkaConnectionString(List<KafkaBrokerAddress> brokers, String topicName, boolean isSecure) {
     ArrayList<KafkaBrokerAddress> brokersCopy = new ArrayList<>(brokers);
-    Collections.sort(brokersCopy, KafkaBrokerAddress.BY_URL);
+    brokersCopy.sort(KafkaBrokerAddress.BY_URL);
     this._brokers = Collections.unmodifiableList(brokersCopy);
     this._topicName = topicName.trim();
     _isSecure = isSecure;
@@ -95,7 +95,7 @@ public class KafkaConnectionString {
    */
   public static KafkaConnectionString valueOf(String connectionString) throws IllegalArgumentException {
     if (connectionString == null) {
-      badArg(connectionString);
+      badArg(null);
     }
     String str = connectionString.trim();
     boolean isSecure = false;

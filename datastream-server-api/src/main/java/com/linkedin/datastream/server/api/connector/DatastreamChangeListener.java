@@ -46,6 +46,6 @@ public interface DatastreamChangeListener {
    * datastreamGroup has been assigned but the partition info has not been fetched already
    */
   default Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
-    return new HashMap<String, Optional<DatastreamGroupPartitionsMetadata>>();
+    return new HashMap<>();
   }
 }

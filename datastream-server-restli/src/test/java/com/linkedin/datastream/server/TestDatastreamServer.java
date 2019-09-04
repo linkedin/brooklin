@@ -121,10 +121,8 @@ public class TestDatastreamServer {
     Map<String, Properties> connectorProperties = new HashMap<>();
     connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
     connectorProperties.put(BROKEN_CONNECTOR, getBrokenConnectorProperties());
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
-            override);
-    return datastreamKafkaCluster;
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
+        override);
   }
 
   private static Properties getDummyConnectorProperties(boolean bootstrap) {
@@ -165,10 +163,8 @@ public class TestDatastreamServer {
     connectorProperties.get(FILE_CONNECTOR)
         .put(FileConnector.CFG_NUM_PARTITIONS, String.valueOf(numDestinationPartitions));
     Properties override = new Properties();
-    EmbeddedDatastreamCluster datastreamKafkaCluster =
-        EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
-            override, numServers, null);
-    return datastreamKafkaCluster;
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(new DatastreamEmbeddedZookeeperKafkaCluster(), connectorProperties,
+        override, numServers, null);
   }
 
   @Test
@@ -632,7 +628,7 @@ public class TestDatastreamServer {
   }
 
   private Datastream getPopulatedDatastream(DatastreamRestClient restClient, Datastream fileDatastream1) {
-    Boolean pollResult = PollUtils.poll(() -> {
+    boolean pollResult = PollUtils.poll(() -> {
       Datastream ds = null;
       ds = restClient.getDatastream(fileDatastream1.getName());
       return ds.hasDestination() && ds.getDestination().hasConnectionString() && !ds.getDestination()

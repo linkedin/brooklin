@@ -86,11 +86,11 @@ public class TestReflectionUtils {
   }
 
   private void privateVoidMethod(float foo, String bar) {
-    System.out.println("privateVoidMethod: " + String.valueOf(foo) + " " + bar);
+    System.out.println("privateVoidMethod: " + foo + " " + bar);
   }
 
   private int privateIntMethod(Integer foo) {
-    System.out.println("privateIntMethod: " + String.valueOf(foo));
+    System.out.println("privateIntMethod: " + foo);
     return foo + 5;
   }
 
@@ -122,7 +122,7 @@ public class TestReflectionUtils {
 
     // private method should stay private
     Method method = getClass().getDeclaredMethod("privateIntMethod", Integer.class);
-    Assert.assertEquals(method.isAccessible(), false);
+    Assert.assertFalse(method.isAccessible());
 
     retVal = ReflectionUtils.callMethod(tester, "publicNoArgsMethod");
     Assert.assertEquals(retVal, 10);

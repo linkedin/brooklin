@@ -184,7 +184,7 @@ The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENS
 Project URL: http://commons.apache.org/proper/commons-validator/
 Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
-46. Group: io.dropwizard.metrics Name: metrics-core Version: 3.1.2
+46. Group: io.dropwizard.metrics Name: metrics-core Version: 4.1.0
 Apache License 2.0 - http://www.apache.org/licenses/LICENSE-2.0.html
 
 47. Group: io.netty Name: netty Version: 3.10.5.Final

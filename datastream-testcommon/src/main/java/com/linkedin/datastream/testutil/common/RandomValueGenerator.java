@@ -13,9 +13,9 @@ import java.util.Random;
  * byte array)
  */
 public class RandomValueGenerator {
+  private static final String VALID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  private final String validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  private Random rand;
+  private final Random rand;
 
   /**
    * Constructor for RandomValueGenerator
@@ -54,7 +54,7 @@ public class RandomValueGenerator {
 
     StringBuilder strbld = new StringBuilder();
     for (int i = 0; i < length; i++) {
-      char ch = validChars.charAt(rand.nextInt(validChars.length()));
+      char ch = VALID_CHARS.charAt(rand.nextInt(VALID_CHARS.length()));
       strbld.append(ch);
     }
 

@@ -62,11 +62,7 @@ public class DatabaseColumnRecord {
     if (!this.getValue().equals(that.getValue())) {
       return false;
     }
-    if (this.getSqlType() != that.getSqlType()) {
-      return false;
-    }
-
-    return true;
+    return this.getSqlType() == that.getSqlType();
   }
 
   @Override

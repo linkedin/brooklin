@@ -42,8 +42,8 @@ public class KafkaMirrorMakerCheckpoint {
     }
 
     _topic = parts[0];
-    _partition = Integer.valueOf(parts[1]);
-    _offset = Long.valueOf(parts[2]);
+    _partition = Integer.parseInt(parts[1]);
+    _offset = Long.parseLong(parts[2]);
   }
 
   @Override

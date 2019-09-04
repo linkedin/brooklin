@@ -50,8 +50,8 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       new TypeReference<ConcurrentHashMap<Integer, String>>() {
       };
 
-  private ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
-  private ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
 
    /**
     * Construct an instance of ZookeeperCheckpointProvider

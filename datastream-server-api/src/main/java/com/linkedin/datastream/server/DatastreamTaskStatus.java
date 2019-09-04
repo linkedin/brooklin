@@ -161,7 +161,7 @@ public class DatastreamTaskStatus {
 
   @Override
   public boolean equals(Object obj) {
-    if (obj == null || !(obj instanceof DatastreamTaskStatus)) {
+    if (!(obj instanceof DatastreamTaskStatus)) {
       return false;
     }
 

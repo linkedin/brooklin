@@ -41,7 +41,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaConnectorTask.class);
 
-  private KafkaConnectionString _srcConnString =
+  private final KafkaConnectionString _srcConnString =
       KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 

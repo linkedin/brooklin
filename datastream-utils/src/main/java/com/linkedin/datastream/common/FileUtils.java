@@ -73,8 +73,11 @@ public class FileUtils {
     }
     boolean ret = true;
     if (path.isDirectory()) {
-      for (File f : path.listFiles()) {
-        ret = ret && deleteFile(f);
+      File[] files = path.listFiles();
+      if (files != null) {
+        for (File f : files) {
+          ret = ret && deleteFile(f);
+        }
       }
     }
     return ret && path.delete();
