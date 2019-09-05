@@ -1057,7 +1057,10 @@ public class ZkAdapter {
     return String.format("%s-%s", hostname, instanceName);
   }
 
-  private static String parseHostnameFromZkInstance(String instance) {
+  /**
+   * Parse the Zk instance (ex. hostname-0000) into hostname
+   */
+  public static String parseHostnameFromZkInstance(String instance) {
     return instance.substring(0, instance.lastIndexOf('-'));
   }
 

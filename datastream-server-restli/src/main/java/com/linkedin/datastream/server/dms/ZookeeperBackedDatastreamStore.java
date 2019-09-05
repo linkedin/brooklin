@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.dms;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,6 +24,10 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
+import com.linkedin.datastream.server.zk.ZkAdapter;
+
+import static com.linkedin.datastream.server.Coordinator.PAUSED_INSTANCE;
+
 
 /**
  * ZooKeeper-backed {@link DatastreamStore}
@@ -157,7 +162,15 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       String path = KeyBuilder.instances(_cluster);
       _zkClient.ensurePath(path);
       List<String> instances = _zkClient.getChildren(path);
-      Set<String> hostnames = instances.stream().map(s -> s.substring(0, s.lastIndexOf('-'))).collect(Collectors.toSet());
+      Set<String> hostnames = instances.stream().filter(s -> !s.equals(PAUSED_INSTANCE))
+          .map(s -> {
+            try {
+              return ZkAdapter.parseHostnameFromZkInstance(s);
+            } catch (Exception ex) {
+              LOG.error("Fails to parse instance: " + s, ex);
+              return null;
+            }
+          }).filter(Objects::nonNull).collect(Collectors.toSet());
       if (!hostnames.contains(hostname)) {
         String msg = "Hostname " + hostname + " is not valid";
         LOG.error(msg);
