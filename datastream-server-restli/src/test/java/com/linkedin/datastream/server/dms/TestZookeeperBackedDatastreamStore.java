@@ -163,6 +163,20 @@ public class TestZookeeperBackedDatastreamStore {
     _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
   }
 
+  @Test
+  public void testUpdatePartitionAssignmentsWithPausedInstances() throws Exception {
+    String datastreamGroupName = "dg1";
+    Datastream ds = generateDatastream(0);
+    ds.setMetadata(new StringMap());
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamGroupName);
+    String clusterName = "testcluster";
+
+    HostTargetAssignment targetAssignment = new HostTargetAssignment(ImmutableList.of("p-0", "p-1"), "instance1");
+    _zkClient.ensurePath(KeyBuilder.instance(clusterName, "instance1-0000"));
+    _zkClient.ensurePath(KeyBuilder.instance(clusterName, "PAUSED_INSTANCE"));
+    _store.updatePartitionAssignments(ds.getName(), ds, targetAssignment, true);
+  }
+
   /**
    * Test invalid parameters or data on DatastreamStore
    */
