@@ -152,7 +152,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private static final String MODULE = Coordinator.class.getSimpleName();
-  private static final long EVENT_THREAD_JOIN_TIMEOUT = 1000L;
+  private static final long EVENT_THREAD_JOIN_TIMEOUT = 30000L;
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
   private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
@@ -212,6 +212,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
+  private volatile boolean _shutdown;
 
   /**
    * Constructor for coordinator
@@ -254,6 +255,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
     _metrics.addAll(EventProducer.getMetricInfos());
+
+    _shutdown = false;
   }
 
   /**
@@ -299,11 +302,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void stop() {
     _log.info("Stopping coordinator");
 
-    // Stopping event threads so that no more events are scheduled for the connector.
+    _shutdown = true;
+
+    // wait for eventThread to gracefully finish
+    try {
+      _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
+    } catch (InterruptedException e) {
+      _log.warn("Exception caught while waiting event thread to stop", e);
+    }
+    // interrupt the thread if it's gracefully shutdown
     while (_eventThread.isAlive()) {
       try {
         _eventThread.interrupt();
-        _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
+        _eventThread.join();
       } catch (InterruptedException e) {
         _log.warn("Exception caught while stopping coordinator", e);
       }
@@ -1608,7 +1619,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     @Override
     public void run() {
       _log.info("START CoordinatorEventProcessor thread");
-      while (!isInterrupted()) {
+      while (!_shutdown && !isInterrupted()) {
         try {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
