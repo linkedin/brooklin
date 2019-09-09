@@ -25,7 +25,8 @@ public class CoordinatorEvent {
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
     HANDLE_INSTANCE_ERROR,
-    HEARTBEAT
+    HEARTBEAT,
+    NO_OP
   }
 
   public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT =
@@ -37,6 +38,10 @@ public class CoordinatorEvent {
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ADD_OR_DELETE_DATASTREAM);
   public static final CoordinatorEvent HEARTBEAT_EVENT = new CoordinatorEvent(EventType.HEARTBEAT);
+
+  // This event is used during shutdown to unblock an empty queue
+  public static final CoordinatorEvent NO_OP_EVENT = new CoordinatorEvent(EventType.NO_OP);
+
   protected final EventType _eventType;
 
   // metadata can be used by for the event, it can be null.

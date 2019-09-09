@@ -71,6 +71,10 @@ public class CoordinatorEventBlockingQueue {
 
     CoordinatorEvent queuedEvent = _eventQueue.poll();
 
+    if (CoordinatorEvent.NO_OP_EVENT == queuedEvent) {
+      return null;
+    }
+
     if (queuedEvent != null) {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: {}", _eventQueue.size());

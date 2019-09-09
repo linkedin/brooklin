@@ -21,6 +21,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -109,6 +110,29 @@ public class TestCoordinator {
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override) throws Exception {
     return createCoordinator(zkAddr, cluster, override, new DummyTransportProviderAdminFactory());
+  }
+
+  private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
+      TransportProviderAdminFactory transportProviderAdminFactory, Consumer<CoordinatorEvent> eventProcessor) throws Exception {
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.putAll(override);
+    ZkClient client = new ZkClient(zkAddr);
+    _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
+    Coordinator coordinator = new Coordinator(_cachedDatastreamReader, props) {
+      @Override
+      protected synchronized void handleEvent(CoordinatorEvent event) {
+        eventProcessor.accept(event);
+      }
+    };
+
+    coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        transportProviderAdminFactory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+            new Properties()));
+    return coordinator;
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
@@ -229,6 +253,32 @@ public class TestCoordinator {
     zkClient.close();
     coordinator.stop();
   }
+
+  @Test
+  public void testConnectorGracefullyShutdown() throws Exception {
+    String testCluster = "testConnectorGracefullyShutdown";
+    String testConnectorType = "testConnectorType";
+    AtomicBoolean eventProcessed = new AtomicBoolean(false);
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, new Properties(),
+        new DummyTransportProviderAdminFactory(), (event) -> {
+          try {
+            Thread.sleep(5000);
+            eventProcessed.set(true);
+          } catch (Exception ex) {
+
+          }
+    });
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+
+    instance1.start();
+    instance1.onAssignmentChange();
+    instance1.stop();
+    Assert.assertTrue(eventProcessed.get());
+  }
+
+
 
   // verify that connector znodes are created as soon as Coordinator instance is started
   @Test

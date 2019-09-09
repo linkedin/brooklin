@@ -152,7 +152,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
   private static final String MODULE = Coordinator.class.getSimpleName();
-  private static final long EVENT_THREAD_JOIN_TIMEOUT = 30000L;
+  private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 30000L;
+  private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
+
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
   private static final String NUM_REBALANCES = "numRebalances";
   private static final String NUM_ERRORS = "numErrors";
@@ -212,8 +214,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
-  private volatile boolean _shutdown;
-
+  private volatile boolean _shutdown = false;
   /**
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
@@ -304,19 +305,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _shutdown = true;
 
+    // queue a NO_OP event to unblock eventThread if it is waiting on the queue
+    _eventQueue.put(CoordinatorEvent.NO_OP_EVENT);
+
     // wait for eventThread to gracefully finish
     try {
-      _eventThread.join(EVENT_THREAD_JOIN_TIMEOUT);
+      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
     } catch (InterruptedException e) {
       _log.warn("Exception caught while waiting event thread to stop", e);
+      return;
     }
-    // interrupt the thread if it's gracefully shutdown
+
+    // interrupt the thread if it's not gracefully shutdown
     while (_eventThread.isAlive()) {
       try {
         _eventThread.interrupt();
-        _eventThread.join();
+        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
       } catch (InterruptedException e) {
         _log.warn("Exception caught while stopping coordinator", e);
+        return;
       }
     }
 
