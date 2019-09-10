@@ -277,7 +277,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
       if (exception != null) {
         _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
-          + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
+          + "record, metadata: {}, exception: ", srcTopicPartition, metadata, exception);
         rewindAndPausePartitionOnException(srcTopicPartition, exception);
       } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
