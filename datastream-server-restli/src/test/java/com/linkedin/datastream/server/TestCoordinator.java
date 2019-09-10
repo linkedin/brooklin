@@ -19,9 +19,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -258,24 +258,24 @@ public class TestCoordinator {
   public void testConnectorGracefullyShutdown() throws Exception {
     String testCluster = "testConnectorGracefullyShutdown";
     String testConnectorType = "testConnectorType";
-    AtomicBoolean eventProcessed = new AtomicBoolean(false);
-    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, new Properties(),
+    final CountDownLatch latch = new CountDownLatch(1);
+    Coordinator instance = createCoordinator(_zkConnectionString, testCluster, new Properties(),
         new DummyTransportProviderAdminFactory(), (event) -> {
           try {
-            Thread.sleep(5000);
-            eventProcessed.set(true);
+            // delay one second to simulate the processing time
+            Thread.sleep(1000);
+            latch.countDown();
           } catch (Exception ex) {
-
           }
     });
-    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
-    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+    TestHookConnector connector = new TestHookConnector("connector1", testConnectorType);
+    instance.addConnector(testConnectorType, connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
 
-    instance1.start();
-    instance1.onAssignmentChange();
-    instance1.stop();
-    Assert.assertTrue(eventProcessed.get());
+    instance.start();
+    instance.onAssignmentChange();
+    instance.stop();
+    Assert.assertTrue(latch.getCount() < 1);
   }
 
 

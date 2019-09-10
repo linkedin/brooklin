@@ -256,8 +256,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
     _metrics.addAll(EventProducer.getMetricInfos());
-
-    _shutdown = false;
   }
 
   /**
