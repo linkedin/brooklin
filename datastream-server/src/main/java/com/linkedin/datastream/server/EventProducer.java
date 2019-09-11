@@ -190,7 +190,7 @@ public class EventProducer implements DatastreamEventProducer {
       record.setEventsSendTimestamp(System.currentTimeMillis());
       _transportProvider.send(destination, record,
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record.getEventsSourceTimestamp(),
-              record.getEventsSendTimestamp().orElse(null)));
+              record.getEventsSendTimestamp().orElse(0L)));
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
@@ -224,14 +224,14 @@ public class EventProducer implements DatastreamEventProducer {
    * per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
    * to avoid overcounting.
    */
-  private void reportMetrics(DatastreamRecordMetadata metadata, Long eventSourceTimestamp, Long eventSendTimestamp) {
+  private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = _datastreamTask.getDatastreams().get(0).getName();
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
-    if (eventSourceTimestamp != null && eventSourceTimestamp > 0) {
+    if (eventsSourceTimestamp > 0) {
       // Report availability metrics
-      long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventSourceTimestamp;
+      long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       // Using a time sliding window for reporting latency specifically.
       // Otherwise we report very stuck max value for slow source
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName,
@@ -268,8 +268,8 @@ public class EventProducer implements DatastreamEventProducer {
     }
 
     // Report the time it took to just send the events to destination
-    if (eventSendTimestamp != null) {
-      long sendLatency = System.currentTimeMillis() - eventSendTimestamp;
+    if (eventsSendTimestamp > 0) {
+      long sendLatency = System.currentTimeMillis() - eventsSendTimestamp;
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, topicOrDatastreamName, EVENTS_SEND_LATENCY_MS_STRING,
           sendLatency);
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
@@ -281,7 +281,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
-      Long eventSourceTimestamp, Long eventSendTimestamp) {
+      long eventSourceTimestamp, long eventSendTimestamp) {
 
     SendFailedException sendFailedException = null;
 

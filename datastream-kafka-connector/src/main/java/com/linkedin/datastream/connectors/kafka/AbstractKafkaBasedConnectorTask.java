@@ -276,8 +276,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       TopicPartition srcTopicPartition, int numBytes, SendCallback sendCallback) {
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
       if (exception != null) {
-        _logger.warn("Detect exception being throw from callback for src partition: {} while sending producer "
-          + "record, metadata: {}, exception: ", srcTopicPartition, metadata, exception);
+        String msg = String.format("Detect exception being thrown from callback for src partition: %s while "
+            + "sending, metadata: %s , exception: ", srcTopicPartition, metadata);
+        _logger.warn(msg, exception);
         rewindAndPausePartitionOnException(srcTopicPartition, exception);
       } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
