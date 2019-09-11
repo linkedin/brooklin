@@ -59,7 +59,6 @@ subprojects {
     reportsDir = file("$project.buildDir/findbugsReports")
     reportLevel = "medium"
     effort = "default"
-    showProgress = false
     excludeFilter = file("$rootProject.projectDir/findbugs/excludeFilter.xml")
   }
 
