@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
@@ -368,14 +370,34 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return null;
   }
 
+  /**
+   * Collect stats from every running task and join them into single response
+   */
+  private Optional<KafkaDatastreamStatesResponse> getDatastreamStatesResponse(String streamName) {
+    List<KafkaDatastreamStatesResponse> responses = _runningTasks.values()
+        .stream()
+        .filter(task -> task.hasDatastream(streamName))
+        .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
+        .collect(Collectors.toList());
+    if (responses.size() > 0) {
+      Map<TopicPartition, PausedSourcePartitionMetadata> autoPausedPartitions = new HashMap<>();
+      Map<String, Set<String>> manualPausedPartitions = new HashMap<>();
+      Set<TopicPartition> assignedTopicPartitions = new HashSet<>();
+      responses.forEach(t -> {
+        autoPausedPartitions.putAll(t.getAutoPausedPartitions());
+        manualPausedPartitions.putAll(t.getManualPausedPartitions());
+        assignedTopicPartitions.addAll(t.getAssignedTopicPartitions());
+      });
+      return Optional.of(new KafkaDatastreamStatesResponse(responses.get(0).getDatastream(), autoPausedPartitions,
+          manualPausedPartitions, assignedTopicPartitions));
+    }
+    return Optional.empty();
+  }
+
   private String processDatastreamStateRequest(URI request) {
     _logger.info("process Datastream state request: {}", request);
     Optional<String> datastreamName = extractQueryParam(request, DATASTREAM_KEY);
-    return datastreamName.flatMap(streamName -> _runningTasks.values()
-        .stream()
-        .filter(task -> task.hasDatastream(streamName))
-        .findFirst()
-        .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse))
+    return datastreamName.flatMap(streamName -> getDatastreamStatesResponse(streamName))
         .map(KafkaDatastreamStatesResponse::toJson).orElse(null);
   }
 

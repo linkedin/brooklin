@@ -48,4 +48,18 @@ public interface DatastreamChangeListener {
   default Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
     return new HashMap<>();
   }
+
+  /**
+   * Get if Brooklin can manage partitions the for this connector.
+   *
+   * Brooklin allows the partitions to be managed and assigned by the upstream source (ex. Kafka) or
+   * the Brooklin itself. This tells if the Brooklin should manage the partition for this connector
+   *
+   * @eturn
+   *  true if the connector relies on Brooklin to management partitions
+   *  false if this connector relies on the source (ex. Kafka) to management and assign partitions
+   */
+  default boolean isPartitionManagementSupported() {
+    return false;
+  }
 }

@@ -1343,10 +1343,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       Connector connectorInstance = connectorInfo.getConnector().getConnectorInstance();
 
-      // connectorInstance.getDatastreamPartitions() will contain the datastream group as key as long as this datastream
-      // is active and leader has assigned the datastream to the connector, regardless of the state of partition listener
-      // As a result, we can use this the key from this map to verify if the partition assignment is supported.
-      if (!(connectorInstance.getDatastreamPartitions().containsKey(DatastreamUtils.getGroupName(datastream)))) {
+      if (!connectorInstance.isPartitionManagementSupported()) {
         String msg = String.format("Partition assignment is not managed by connector, datastream %s",
             datastream.getName());
         _log.error(msg);

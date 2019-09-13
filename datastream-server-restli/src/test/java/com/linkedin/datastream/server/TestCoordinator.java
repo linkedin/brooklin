@@ -725,9 +725,13 @@ public class TestCoordinator {
           _callbackThread.interrupt();
         }
       }
+
+      @Override
+      public boolean isPartitionManagementSupported() {
+        return true;
+      }
     };
   }
-
 
   private Map<String, List<Connector>> collectDatastreamAssignment(List<TestHookConnector> connectors) {
     Map<String, List<Connector>> datastreamMap = new HashMap<>();
