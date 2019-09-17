@@ -50,6 +50,7 @@ import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.SourceBasedDeduper;
@@ -697,6 +698,39 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
   }
 
+  @Test
+  public void testGetStateForMultipleTasks() throws Exception {
+    List<String> topics = Arrays.asList("YummyPizza", "SaltyPizza", "HealthySalad");
+    topics.forEach(t -> createTopic(_zkUtils, t));
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    // create three tasks for this datastream
+    List<DatastreamTask> tasks = ImmutableList.of(new DatastreamTaskImpl(Collections.singletonList(datastream)),
+        new DatastreamTaskImpl(Collections.singletonList(datastream)),
+        new DatastreamTaskImpl(Collections.singletonList(datastream)));
+
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    tasks.forEach(t -> ((DatastreamTaskImpl) t).setEventProducer(datastreamProducer));
+
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("MirrorMakerConnector", getDefaultConfig(Optional.empty()), "testCluster");
+    connector.start(null);
+
+    // notify connector of new task
+    connector.onAssignmentChange(tasks);
+
+    boolean hasExpectedTopicPartitions = PollUtils.poll(() -> {
+      String jsonStr = connector.process("/datastream_state?datastream=pizzaStream");
+      KafkaDatastreamStatesResponse response = KafkaDatastreamStatesResponse.fromJson(jsonStr);
+      return response.getAssignedTopicPartitions().equals(ImmutableSet.of(new TopicPartition("SaltyPizza", 0),
+          new TopicPartition("YummyPizza", 0)));
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+
+    Assert.assertTrue(hasExpectedTopicPartitions);
+    connector.stop();
+  }
 
   @Test
   public void testGroupIdAssignment() throws Exception {

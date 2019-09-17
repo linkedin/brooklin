@@ -89,6 +89,20 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
   }
 
   /**
+   * Returns whether Brooklin should manage partition assignment
+   *
+   * Brooklin allows the partitions to be managed and assigned by the upstream source (ex. Kafka) or
+   * Brooklin itself. This tells if Brooklin should manage the partition for this connector
+   *
+   * @return
+   *  true if the connector relies on Brooklin to manage partitions
+   *  false if this connector relies on the source (ex. Kafka) to manage and assign partitions
+   */
+  default boolean isPartitionManagementSupported() {
+    return false;
+  }
+
+  /**
    * Compute the topic name, the default implement is based on datastream name and current time.
    * @param datastream the current assignment.
    */

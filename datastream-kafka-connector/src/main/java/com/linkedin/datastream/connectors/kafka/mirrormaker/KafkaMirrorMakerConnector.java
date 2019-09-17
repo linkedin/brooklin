@@ -171,6 +171,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   }
 
   @Override
+  public boolean isPartitionManagementSupported() {
+    return _enablePartitionAssignment;
+  }
+
+  @Override
   public void stop() {
     super.stop();
     _shutdown = true;
@@ -213,7 +218,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     if (_partitionChangeCallback == null) {
       throw new DatastreamRuntimeException("Partition change callback is not defined");
     }
-    
+
     LOG.info("handleDatastream: original datastream groups: {}, received datastream group {}",
         _partitionDiscoveryThreadMap.keySet(), datastreamGroups);
 
