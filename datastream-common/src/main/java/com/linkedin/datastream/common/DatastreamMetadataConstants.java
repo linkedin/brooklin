@@ -104,4 +104,9 @@ public class DatastreamMetadataConstants {
    * Key to set consumer group ID of the datastream.
    */
   public static final String GROUP_ID = "group.id";
+
+  /**
+   * Datastream override for custom checkpointing. This overrides the connector level flag if present.
+   */
+  public static final String CUSTOM_CHECKPOINT = "system.customCheckpoint";
 }
