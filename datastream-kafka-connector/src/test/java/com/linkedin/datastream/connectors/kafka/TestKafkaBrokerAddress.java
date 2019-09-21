@@ -76,9 +76,4 @@ public class TestKafkaBrokerAddress {
   public void testTostring() {
     Assert.assertEquals("somewhere:666", new KafkaBrokerAddress("somewhere", 666).toString());
   }
-
-  @Test(expectedExceptions = IllegalArgumentException.class)
-  public void testParseBadIpv6() {
-    KafkaBrokerAddress.valueOf(":: 1:666");
-  }
 }
