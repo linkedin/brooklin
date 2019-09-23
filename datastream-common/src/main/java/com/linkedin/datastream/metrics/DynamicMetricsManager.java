@@ -21,7 +21,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SlidingTimeWindowReservoir;
+import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.codahale.metrics.Timer;
 
 
@@ -328,7 +328,7 @@ public class DynamicMetricsManager {
   // This function should only be called after "checkCache". So using "synchronized" shouldn't be a problem. The race
   // will only happen briefly after the process starts and before the cache is populated.
   private synchronized Histogram registerAndGetSlidingWindowHistogram(String fullMetricName, long windowTimeMs) {
-    Histogram histogram = new Histogram(new SlidingTimeWindowReservoir(windowTimeMs, TimeUnit.MILLISECONDS));
+    Histogram histogram = new Histogram(new SlidingTimeWindowArrayReservoir(windowTimeMs, TimeUnit.MILLISECONDS));
     try {
       return _metricRegistry.register(fullMetricName, histogram);
     } catch (IllegalArgumentException e) {
@@ -340,7 +340,7 @@ public class DynamicMetricsManager {
 
   /**
    * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
-   * If the histogram does not exist, create one using {@link SlidingTimeWindowReservoir} with the specified window
+   * If the histogram does not exist, create one using {@link SlidingTimeWindowArrayReservoir} with the specified window
    * time in ms. This can be useful for certain metrics that don't want to use the
    * default {@link com.codahale.metrics.ExponentiallyDecayingReservoir}
    * @param classSimpleName the simple name of the underlying class
