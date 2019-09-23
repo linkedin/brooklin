@@ -625,7 +625,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
     assignSerdes(taskImpl);
 
-    boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
+    boolean customCheckpointing = getCustomCheckpointing(task);
     TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
     TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
     EventProducer producer =
@@ -634,6 +634,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     taskImpl.setEventProducer(producer);
     Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
     taskImpl.setCheckpoints(checkpoints);
+  }
+
+  private boolean getCustomCheckpointing(DatastreamTask task) {
+    boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
+
+    Datastream datastream = task.getDatastreams().get(0);
+    if (datastream.hasMetadata()
+        && datastream.getMetadata().containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
+      customCheckpointing = Boolean.valueOf(
+          datastream.getMetadata().get(DatastreamMetadataConstants.CUSTOM_CHECKPOINT));
+      _log.info(String.format("Custom checkpointing overridden by metadata to be: %b for datastream: %s",
+          customCheckpointing, datastream));
+    }
+
+    return customCheckpointing;
   }
 
   private void assignSerdes(DatastreamTaskImpl datastreamTask) {
