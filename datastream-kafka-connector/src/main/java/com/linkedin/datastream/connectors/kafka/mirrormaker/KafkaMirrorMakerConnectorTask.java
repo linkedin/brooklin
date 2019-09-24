@@ -200,6 +200,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       // Consumer can be assigned with an empty set, but it cannot run poll against it
       // While it's allowed to assign an empty set here, the check on poll need to be performed
       _consumer.assign(_consumerAssignment);
+
+      // Invoke topic manager
+      Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(topicPartition);
+      pauseTopicManagerPartitions(topicPartitionsToPause);
     } else {
       LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
       _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
