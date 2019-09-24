@@ -200,6 +200,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       // Consumer can be assigned with an empty set, but it cannot run poll against it
       // While it's allowed to assign an empty set here, the check on poll need to be performed
       _consumer.assign(_consumerAssignment);
+
+      // Invoke topic manager
+      handleTopicMangerPartitionAssignment(topicPartition);
     } else {
       LOG.info("About to subscribe to source: {}", _mirrorMakerSource.getTopicName());
       _consumer.subscribe(Pattern.compile(_mirrorMakerSource.getTopicName()), this);
@@ -284,9 +287,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
 
 
-  @Override
-  public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-    super.onPartitionsAssigned(partitions);
+  private void handleTopicMangerPartitionAssignment(Collection<TopicPartition> partitions) {
     Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
     // we need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
     // The reason being onPartitionsAssigned() gets called as part of Kafka poll, so we need to pause partitions
@@ -295,6 +296,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     // Chances are that the current poll call will return data already for that topic/partition and we will end up
     // auto creating that topic.
     pauseTopicManagerPartitions(topicPartitionsToPause);
+  }
+
+  @Override
+  public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+    super.onPartitionsAssigned(partitions);
+    handleTopicMangerPartitionAssignment(partitions);
   }
 
   @Override
