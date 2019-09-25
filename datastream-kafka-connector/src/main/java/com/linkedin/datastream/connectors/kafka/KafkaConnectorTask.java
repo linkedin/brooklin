@@ -70,12 +70,12 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     String bootstrapValue = csv.toString();
 
     Properties props = new Properties();
-    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
-    props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); // auto-commits are unsafe
-    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
-    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, connectionString.isSecure() ? "SSL" : "PLAINTEXT");
     props.putAll(consumerProps);
+    props.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
+    props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+    props.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); // auto-commits are unsafe
+    props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
+    props.putIfAbsent(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, connectionString.isSecure() ? "SSL" : "PLAINTEXT");
     return props;
   }
 

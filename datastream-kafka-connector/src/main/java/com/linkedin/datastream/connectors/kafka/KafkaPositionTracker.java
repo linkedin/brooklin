@@ -8,6 +8,7 @@ package com.linkedin.datastream.connectors.kafka;
 import java.io.Closeable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -15,17 +16,21 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -57,10 +62,10 @@ public class KafkaPositionTracker implements Closeable {
   private static final String RECORDS_LAG_METRIC_NAME_SUFFIX = "records-lag";
 
   /**
-   * The number of offsets to fetch from the broker per endOffsets() RPC call. This was chosen by experiment after
-   * finding timeouts with large partition counts (say 2000 or more) when using the default Kafka settings.
+   * The number of offsets to fetch from the broker per endOffsets() RPC call. This should be chosen to avoid timeouts
+   * (larger requests are more likely to cause timeouts).
    */
-  private static final int BROKER_OFFSETS_FETCH_SIZE = 250;
+  private final int _brokerOffsetsFetchSize;
 
   /**
    * The task prefix for the DatastreamTask.
@@ -157,21 +162,23 @@ public class KafkaPositionTracker implements Closeable {
    * @param datastreamTaskName The DatastreamTask name
    *                           {@see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()}
    * @param connectorTaskStartTime The time at which the associated DatastreamTask started
-   * @param enableBrokerOffsetFetcher True if we should fetch stale broker offset data periodically, false otherwise
    * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive. If
    *                             it is not, then we should stop.
    * @param consumerSupplier A Consumer supplier that is suitable for querying the brokers that the Connector task is
    *                         talking to
+   * @param positionTrackerConfig User-supplied configuration settings
    */
-  private KafkaPositionTracker(@NotNull final String datastreamTaskPrefix, @NotNull final String datastreamTaskName,
-      @NotNull final Instant connectorTaskStartTime, final boolean enableBrokerOffsetFetcher,
-      @NotNull final Supplier<Boolean> isConnectorTaskAlive, @NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+  private KafkaPositionTracker(@NotNull String datastreamTaskPrefix, @NotNull String datastreamTaskName,
+      @NotNull Instant connectorTaskStartTime, @NotNull Supplier<Boolean> isConnectorTaskAlive,
+      @NotNull Supplier<Consumer<?, ?>> consumerSupplier, KafkaPositionTrackerConfig positionTrackerConfig) {
     _datastreamTaskPrefix = datastreamTaskPrefix;
     _datastreamTaskName = datastreamTaskName;
     _connectorTaskStartTime = connectorTaskStartTime;
     _consumerSupplier = consumerSupplier;
-    if (enableBrokerOffsetFetcher) {
-      _brokerOffsetFetcher = new BrokerOffsetFetcher(datastreamTaskName, this, isConnectorTaskAlive);
+    _brokerOffsetsFetchSize = positionTrackerConfig.getBrokerOffsetsFetchSize();
+    if (positionTrackerConfig.isEnableBrokerOffsetFetcher()) {
+      _brokerOffsetFetcher = new BrokerOffsetFetcher(datastreamTaskName, this, isConnectorTaskAlive,
+          positionTrackerConfig);
       _brokerOffsetFetcher.startAsync();
     } else {
       _brokerOffsetFetcher = null;
@@ -186,7 +193,7 @@ public class KafkaPositionTracker implements Closeable {
    *      task
    * @param topicPartitions the topic partitions which have been assigned
    */
-  public synchronized void onPartitionsAssigned(@NotNull final Collection<TopicPartition> topicPartitions) {
+  public synchronized void onPartitionsAssigned(@NotNull Collection<TopicPartition> topicPartitions) {
     final Instant assignmentTime = Instant.now();
     for (final TopicPartition topicPartition : topicPartitions) {
       final KafkaPositionKey key = new KafkaPositionKey(topicPartition.topic(), topicPartition.partition(),
@@ -206,7 +213,7 @@ public class KafkaPositionTracker implements Closeable {
    *      task
    * @param topicPartitions the topic partitions which were previously assigned
    */
-  public synchronized void onPartitionsRevoked(@NotNull final Collection<TopicPartition> topicPartitions) {
+  public synchronized void onPartitionsRevoked(@NotNull Collection<TopicPartition> topicPartitions) {
     for (final TopicPartition topicPartition : topicPartitions) {
       _metricNameCache.remove(topicPartition);
       _uninitializedPartitions.remove(topicPartition);
@@ -226,8 +233,8 @@ public class KafkaPositionTracker implements Closeable {
    * @param records the records fetched from {@link Consumer#poll(Duration)}
    * @param metrics the metrics for the Kafka consumer as fetched from {@link Consumer#metrics()}
    */
-  public synchronized void onRecordsReceived(@NotNull final ConsumerRecords<?, ?> records,
-      @NotNull final Map<MetricName, ? extends Metric> metrics) {
+  public synchronized void onRecordsReceived(@NotNull ConsumerRecords<?, ?> records,
+      @NotNull Map<MetricName, ? extends Metric> metrics) {
     final Instant receivedTime = Instant.now();
     for (final TopicPartition topicPartition : records.partitions()) {
       // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
@@ -273,8 +280,8 @@ public class KafkaPositionTracker implements Closeable {
    * @return the lag value if it can be found
    */
   @NotNull
-  private Optional<Long> getLagMetric(@NotNull final Map<MetricName, ? extends Metric> metrics,
-      @NotNull final TopicPartition topicPartition) {
+  private Optional<Long> getLagMetric(@NotNull Map<MetricName, ? extends Metric> metrics,
+      @NotNull TopicPartition topicPartition) {
     @Nullable final MetricName metricName = Optional.ofNullable(_metricNameCache.get(topicPartition))
         .orElseGet(() -> tryCreateMetricName(topicPartition, metrics.keySet()).orElse(null));
     return Optional.ofNullable(metricName)
@@ -293,8 +300,8 @@ public class KafkaPositionTracker implements Closeable {
    * @return the metric name containing record lag information, if it can be derived
    */
   @NotNull
-  private Optional<MetricName> tryCreateMetricName(@NotNull final TopicPartition topicPartition,
-      @NotNull final Collection<MetricName> metricNames) {
+  private Optional<MetricName> tryCreateMetricName(@NotNull TopicPartition topicPartition,
+      @NotNull Collection<MetricName> metricNames) {
     // Try to fetch the result from cache first
     MetricName metricName = _metricNameCache.get(topicPartition);
     if (metricName != null) {
@@ -378,8 +385,7 @@ public class KafkaPositionTracker implements Closeable {
    * @param consumerOffset The Connector consumer's offset for this topic partition as if specified by
    *                       {@link Consumer#position(TopicPartition)}
    */
-  public synchronized void initializePartition(@Nullable final TopicPartition topicPartition,
-      @Nullable final Long consumerOffset) {
+  public synchronized void initializePartition(@Nullable TopicPartition topicPartition, @Nullable Long consumerOffset) {
     if (topicPartition != null && consumerOffset != null) {
       // It shouldn't be possible to have the key/value missing here, because we to have onPartitionsAssigned() called
       // with this topicPartition before then, but it should be safe to construct them here as this data should be
@@ -426,20 +432,31 @@ public class KafkaPositionTracker implements Closeable {
   /**
    * Uses the specified consumer to make RPC calls of {@link Consumer#endOffsets(Collection)} to get the broker's latest
    * offsets for the specified TopicPartitions, and then updates the position data. The partitions will be fetched in
-   * batches of {@value KafkaPositionTracker#BROKER_OFFSETS_FETCH_SIZE} to reduce the likelihood of a given call timing
-   * out.
+   * batches to reduce the likelihood of a given call timing out.
    *
    * Note that the provided consumer must not be operated on by any other thread, or a concurrent modification condition
    * may arise.
    *
+   * Ideally the partitions provided to this method are owned all by the same broker for performance purposes.
+   *
    * Use externally for testing purposes only.
    */
   @VisibleForTesting
-  void queryBrokerForLatestOffsets(@NotNull final Consumer<?, ?> consumer,
-      @NotNull final Set<TopicPartition> partitions) {
-    for (final List<TopicPartition> batch : Iterables.partition(partitions, BROKER_OFFSETS_FETCH_SIZE)) {
+  void queryBrokerForLatestOffsets(@NotNull Consumer<?, ?> consumer, @NotNull Set<TopicPartition> partitions,
+      @NotNull Duration requestTimeout) {
+    for (final List<TopicPartition> batch : Iterables.partition(partitions, _brokerOffsetsFetchSize)) {
+      LOG.trace("Fetching the latest offsets for partitions: {}", batch);
       final Instant queryTime = Instant.now();
-      final Map<TopicPartition, Long> offsets = consumer.endOffsets(batch);
+      final Map<TopicPartition, Long> offsets;
+      try {
+        offsets = consumer.endOffsets(batch, requestTimeout);
+      } catch (Exception e) {
+        LOG.trace("Unable to fetch latest offsets for partitions: {}", batch, e);
+        continue;
+      } finally {
+        LOG.trace("Finished fetching the latest offsets for partitions {} in {} ms", batch,
+            Duration.between(queryTime, Instant.now()).toMillis());
+      }
       offsets.forEach((topicPartition, offset) -> {
         if (offset != null) {
           // Race condition could exist where we might be unassigned the topic in a different thread while we are in
@@ -471,17 +488,15 @@ public class KafkaPositionTracker implements Closeable {
    * Implements a periodic service which queries the broker for its latest partition offsets.
    */
   private static class BrokerOffsetFetcher extends DurableScheduledService {
-
     /**
      * The frequency at which to fetch offsets from the broker using the endOffsets() RPC call.
      */
-    private static final Duration BROKER_OFFSETS_FETCH_INTERVAL = Duration.ofSeconds(30);
+    private final Duration _brokerOffsetsFetchInterval;
 
     /**
-     * The maximum duration from the last successful endOffsets() RPC call to when the Kafka consumer is assumed to be
-     * faulty and need reconstructing.
+     * The maximum duration that a consumer request is allowed to take before it times out.
      */
-    private static final Duration BROKER_OFFSETS_FETCH_TIMEOUT = Duration.ofMinutes(5);
+    private final Duration _consumerRequestTimeout;
 
     /**
      * The KafkaPositionTracker object which created us.
@@ -494,9 +509,32 @@ public class KafkaPositionTracker implements Closeable {
     private final Supplier<Boolean> _isConnectorTaskAlive;
 
     /**
+     * True if we should calculate performance leadership to improve the broker query performance, false otherwise.
+     */
+    private final boolean _enablePartitionLeadershipCalculation;
+
+    /**
+     * The frequency at which we should fetch partition leadership.
+     */
+    private final Duration _partitionLeadershipCalculationFrequency;
+
+    /**
+     * A cache of partition leadership used to optimize the endOffset() RPC calls made. This is necessary as an
+     * endOffset() RPC call can in a very large fanout of requests (as it may need to talk to a lot of brokers). By
+     * keeping a very weakly consistent list of who owns what partitions, we can offer a performance boost. If this map
+     * is very out-of-date, it is unlikely to be much worse than not using it at all.
+     */
+    private final Map<TopicPartition, Node> _partitionLeadershipMap = new ConcurrentHashMap<>();
+
+    /**
      * The underlying Consumer used to make the endOffsets() RPC call.
      */
     private Consumer<?, ?> _consumer;
+
+    /**
+     * The time of the last partition leadership calculation.
+     */
+    private Instant _lastPartitionLeadershipCalculation;
 
     /**
      * Constructor for this class.
@@ -505,14 +543,19 @@ public class KafkaPositionTracker implements Closeable {
      *                       {@see com.linkedin.datastream.server.DatastreamTask#getDatastreamTaskName()}
      * @param kafkaPositionTracker The KafkaPositionTracker instantiating this object
      * @param isConnectorTaskAlive A Supplier that determines if the Connector task which this tracker is for is alive.
-     *                             If it is not, then we should stop.
+     *                             If it is not, then we should stop
+     * @param positionTrackerConfig User-supplied configuration settings
      */
-    public BrokerOffsetFetcher(@NotNull final String brooklinTaskId,
-        @NotNull final KafkaPositionTracker kafkaPositionTracker,
-        @NotNull final Supplier<Boolean> isConnectorTaskAlive) {
-      super(brooklinTaskId, BROKER_OFFSETS_FETCH_INTERVAL, BROKER_OFFSETS_FETCH_TIMEOUT);
+    public BrokerOffsetFetcher(@NotNull String brooklinTaskId, @NotNull KafkaPositionTracker kafkaPositionTracker,
+        @NotNull Supplier<Boolean> isConnectorTaskAlive, @NotNull KafkaPositionTrackerConfig positionTrackerConfig) {
+      super("KafkaPositionTracker-" + brooklinTaskId, positionTrackerConfig.getBrokerOffsetFetcherInterval(),
+          positionTrackerConfig.getConsumerFailedDetectionThreshold());
       _kafkaPositionTracker = kafkaPositionTracker;
       _isConnectorTaskAlive = isConnectorTaskAlive;
+      _enablePartitionLeadershipCalculation = positionTrackerConfig.isEnablePartitionLeadershipCalculation();
+      _brokerOffsetsFetchInterval = positionTrackerConfig.getBrokerOffsetFetcherInterval();
+      _consumerRequestTimeout = positionTrackerConfig.getBrokerRequestTimeout();
+      _partitionLeadershipCalculationFrequency = positionTrackerConfig.getPartitionLeadershipCalculationFrequency();
     }
 
     /**
@@ -529,7 +572,7 @@ public class KafkaPositionTracker implements Closeable {
     @Override
     protected void runOneIteration() {
       // Find which partitions have stale broker offset information
-      final Instant staleBy = Instant.now().minus(BROKER_OFFSETS_FETCH_INTERVAL);
+      final Instant staleBy = Instant.now().minus(_brokerOffsetsFetchInterval);
       final Set<TopicPartition> partitionsNeedingUpdate = new HashSet<>();
       _kafkaPositionTracker._ownedKeys.forEach(((topicPartition, key) -> {
         // Race condition could exist where we might be unassigned the topic in a different thread while we are in
@@ -541,20 +584,89 @@ public class KafkaPositionTracker implements Closeable {
         }
       }));
 
-      // Query the broker for its offsets for those partitions
       try {
-        _kafkaPositionTracker.queryBrokerForLatestOffsets(_consumer, partitionsNeedingUpdate);
+        if (_enablePartitionLeadershipCalculation) {
+          Instant calculationStaleBy = Optional.ofNullable(_lastPartitionLeadershipCalculation)
+              .map(lastCalculation -> lastCalculation.plus(_partitionLeadershipCalculationFrequency))
+              .orElse(Instant.MIN);
+          if (Instant.now().isAfter(calculationStaleBy)) {
+            updatePartitionLeadershipMap();
+            _lastPartitionLeadershipCalculation = Instant.now();
+          }
+        }
       } catch (Exception e) {
-        LOG.warn("Failed to query latest broker offsets via endOffsets() RPC", e);
-        throw e;
+        LOG.warn("Failed to update the partition leadership map. Using stale leadership data. Reason: {}", e.getMessage());
+        LOG.debug("Failed to update the partition leadership map. Using stale leadership data.", e);
       }
+
+      // Query the broker for its offsets for those partitions
+      batchPartitionsByLeader(partitionsNeedingUpdate).forEach(partitionLeaderBatch -> {
+        try {
+          _kafkaPositionTracker.queryBrokerForLatestOffsets(_consumer, partitionLeaderBatch, _consumerRequestTimeout);
+        } catch (Exception e) {
+          LOG.warn("Failed to query latest broker offsets for this leader batch via endOffsets() RPC. Reason: {}", e.getMessage());
+          LOG.debug("Failed to query latest broker offsets for this leader batch via endOffsets() RPC", e);
+        }
+      });
+    }
+
+    /**
+     * Queries a Kafka broker for the leader of each partition and caches that information.
+     */
+    private void updatePartitionLeadershipMap() {
+      LOG.debug("Updating partition leadership map");
+      Optional.ofNullable(_consumer.listTopics(_consumerRequestTimeout)).ifPresent(response -> {
+        Map<TopicPartition, Node> updateMap = response.values().stream()
+            .filter(Objects::nonNull)
+            .flatMap(Collection::stream)
+            .filter(partitionInfo -> partitionInfo != null && partitionInfo.topic() != null && partitionInfo.leader() != null)
+            .collect(Collectors.toMap(
+                partitionInfo -> new TopicPartition(partitionInfo.topic(), partitionInfo.partition()),
+                PartitionInfo::leader));
+        _partitionLeadershipMap.keySet().retainAll(updateMap.keySet());
+        _partitionLeadershipMap.putAll(updateMap);
+      });
+    }
+
+    /**
+     * Groups topic partitions into batches based on their leader.
+     * @param topicPartitions the topic partitions to group by leader
+     * @return a list of topic partitions batches
+     */
+    @NotNull
+    private List<Set<TopicPartition>> batchPartitionsByLeader(@NotNull Set<TopicPartition> topicPartitions) {
+      if (!_enablePartitionLeadershipCalculation || _partitionLeadershipMap.isEmpty()) {
+        if (_partitionLeadershipMap.isEmpty()) {
+          LOG.debug("Leadership unknown for all topic partitions");
+        }
+        return Collections.singletonList(topicPartitions);
+      }
+
+      final Map<Node, Set<TopicPartition>> assignedPartitions = new HashMap<>();
+      final Set<TopicPartition> unassignedPartitions = new HashSet<>();
+
+      topicPartitions.forEach(topicPartition -> {
+        @Nullable final Node leader = _partitionLeadershipMap.get(topicPartition);
+        if (leader == null) {
+          LOG.debug("Leader unknown for topic partition {}", topicPartition);
+          unassignedPartitions.add(topicPartition);
+        } else {
+          LOG.trace("Leader for topic partition {} is {}", topicPartition, leader);
+          assignedPartitions.computeIfAbsent(leader, s -> new HashSet<>()).add(topicPartition);
+        }
+      });
+
+      final List<Set<TopicPartition>> batches = new ArrayList<>();
+      batches.addAll(assignedPartitions.values());
+      batches.add(unassignedPartitions);
+      return batches;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void signalShutdown(@Nullable final Thread taskThread) throws Exception {
+    protected void signalShutdown(@Nullable Thread taskThread) throws Exception {
       if (taskThread != null && taskThread.isAlive()) {
         // Attempt to gracefully interrupt the consumer
         _consumer.wakeup();
@@ -600,8 +712,8 @@ public class KafkaPositionTracker implements Closeable {
     private Supplier<Consumer<?, ?>> _consumerSupplier;
     private String _datastreamTaskName;
     private String _datastreamTaskPrefix;
-    private boolean _enableBrokerOffsetFetcher = true;
     private Supplier<Boolean> _isConnectorTaskAlive;
+    private KafkaPositionTrackerConfig _kafkaPositionTrackerConfig;
 
     /**
      * Configures this builder with the time at which the associated DatastreamTask was started. This value is required
@@ -611,7 +723,7 @@ public class KafkaPositionTracker implements Closeable {
      * @return a builder configured with the connectorTaskStartTime param
      */
     @NotNull
-    public Builder withConnectorTaskStartTime(@NotNull final Instant connectorTaskStartTime) {
+    public Builder withConnectorTaskStartTime(@NotNull Instant connectorTaskStartTime) {
       _connectorTaskStartTime = connectorTaskStartTime;
       return this;
     }
@@ -626,7 +738,7 @@ public class KafkaPositionTracker implements Closeable {
      * @return a builder configured with the consumerSupplier param
      */
     @NotNull
-    public Builder withConsumerSupplier(@NotNull final Supplier<Consumer<?, ?>> consumerSupplier) {
+    public Builder withConsumerSupplier(@NotNull Supplier<Consumer<?, ?>> consumerSupplier) {
       _consumerSupplier = consumerSupplier;
       return this;
     }
@@ -643,23 +755,9 @@ public class KafkaPositionTracker implements Closeable {
      *         provided DatastreamTask
      */
     @NotNull
-    public Builder withDatastreamTask(@NotNull final DatastreamTask datastreamTask) {
+    public Builder withDatastreamTask(@NotNull DatastreamTask datastreamTask) {
       _datastreamTaskName = datastreamTask.getDatastreamTaskName();
       _datastreamTaskPrefix = datastreamTask.getTaskPrefix();
-      return this;
-    }
-
-    /**
-     * Configures the builder with information on whether the broker offset fetcher feature should be enabled or not. It
-     * is enabled by default. If enabled, it will run a scheduled service that queries the brokers periodically to
-     * update any cached broker offset data which may be stale.
-     *
-     * @param enableBrokerOffsetFetcher True if we should fetch stale broker offset data periodically, false otherwise
-     * @return a builder configured with the enableBrokerOffsetFetcher param
-     */
-    @NotNull
-    public Builder withEnableBrokerOffsetFetcher(final boolean enableBrokerOffsetFetcher) {
-      _enableBrokerOffsetFetcher = enableBrokerOffsetFetcher;
       return this;
     }
 
@@ -672,8 +770,20 @@ public class KafkaPositionTracker implements Closeable {
      * @return a builder configured with the isConnectorTaskAlive param
      */
     @NotNull
-    public Builder withIsConnectorTaskAlive(@NotNull final Supplier<Boolean> isConnectorTaskAlive) {
+    public Builder withIsConnectorTaskAlive(@NotNull Supplier<Boolean> isConnectorTaskAlive) {
       _isConnectorTaskAlive = isConnectorTaskAlive;
+      return this;
+    }
+
+    /**
+     * Configures the builder with various user-supplied configuration settings.
+     *
+     * @param kafkaPositionTrackerConfig user-supplied configuration settings
+     * @return a builder configured with the kafkaPositionTrackerConfig param
+     */
+    @NotNull
+    public Builder withKafkaPositionTrackerConfig(@NotNull KafkaPositionTrackerConfig kafkaPositionTrackerConfig) {
+      _kafkaPositionTrackerConfig = kafkaPositionTrackerConfig;
       return this;
     }
 
@@ -686,7 +796,7 @@ public class KafkaPositionTracker implements Closeable {
     @NotNull
     public KafkaPositionTracker build() {
       return new KafkaPositionTracker(_datastreamTaskPrefix, _datastreamTaskName, _connectorTaskStartTime,
-          _enableBrokerOffsetFetcher, _isConnectorTaskAlive, _consumerSupplier);
+          _isConnectorTaskAlive, _consumerSupplier, _kafkaPositionTrackerConfig);
     }
   }
 }

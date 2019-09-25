@@ -179,14 +179,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected Consumer<?, ?> createKafkaConsumer(Properties consumerProps) {
     Properties properties = new Properties();
     properties.putAll(consumerProps);
-    String bootstrapValue =
-        _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString).collect(
-            Collectors.joining(KafkaConnectionString.BROKER_LIST_DELIMITER));
+    String bootstrapValue = _mirrorMakerSource.getBrokers().stream().map(KafkaBrokerAddress::toString)
+        .collect(Collectors.joining(KafkaConnectionString.BROKER_LIST_DELIMITER));
     properties.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapValue);
     properties.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
-    properties.put(ConsumerConfig.GROUP_ID_CONFIG,
+    properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG,
         getMirrorMakerGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG));
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);

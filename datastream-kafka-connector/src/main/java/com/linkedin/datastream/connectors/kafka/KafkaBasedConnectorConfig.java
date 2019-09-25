@@ -19,6 +19,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 public class KafkaBasedConnectorConfig {
 
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
+  public static final String DOMAIN_KAFKA_POSITION_TRACKER = "kafkaPositionTracker";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_COMMIT_TIMEOUT_MILLIS = "commitTimeoutMs";
   public static final String CONFIG_POLL_TIMEOUT_MILLIS = "pollTimeoutMs";
@@ -29,8 +30,6 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_RETRY_SLEEP_DURATION_MILLIS = "retrySleepDurationMs";
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS = "pauseErrorPartitionDurationMs";
-  public static final String CONFIG_ENABLE_POSITION_TRACKER = "enablePositionTracker";
-  public static final String CONFIG_ENABLE_BROKER_OFFSET_FETCHER = "enableBrokerOffsetFetcher";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
@@ -50,6 +49,7 @@ public class KafkaBasedConnectorConfig {
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
+  private final KafkaPositionTrackerConfig _kafkaPositionTrackerConfig;
 
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
@@ -61,8 +61,6 @@ public class KafkaBasedConnectorConfig {
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
   private final long _processingDelayLogThresholdMillis;
-  private final boolean _enablePositionTracker;
-  private final boolean _enableBrokerOffsetFetcher;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -100,8 +98,6 @@ public class KafkaBasedConnectorConfig {
     _processingDelayLogThresholdMillis =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
-    _enablePositionTracker = verifiableProperties.getBoolean(CONFIG_ENABLE_POSITION_TRACKER, true);
-    _enableBrokerOffsetFetcher = verifiableProperties.getBoolean(CONFIG_ENABLE_BROKER_OFFSET_FETCHER, true);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =
@@ -113,6 +109,9 @@ public class KafkaBasedConnectorConfig {
 
     _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
     _connectorProps = verifiableProperties;
+
+    Properties kafkaPositionTrackerConfigProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_POSITION_TRACKER);
+    _kafkaPositionTrackerConfig = new KafkaPositionTrackerConfig(kafkaPositionTrackerConfigProps);
   }
 
   public String getDefaultKeySerde() {
@@ -180,15 +179,11 @@ public class KafkaBasedConnectorConfig {
     return _processingDelayLogThresholdMillis;
   }
 
-  public boolean getEnablePositionTracker() {
-    return _enablePositionTracker;
-  }
-
-  public boolean getEnableBrokerOffsetFetcher() {
-    return _enableBrokerOffsetFetcher;
-  }
-
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
+  }
+
+  public KafkaPositionTrackerConfig getKafkaPositionTrackerConfig() {
+    return _kafkaPositionTrackerConfig;
   }
 }

@@ -13,12 +13,13 @@ import com.linkedin.datastream.common.VerifiableProperties;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS;
-import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_ENABLE_POSITION_TRACKER;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_COUNT;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.DOMAIN_KAFKA_POSITION_TRACKER;
+import static com.linkedin.datastream.connectors.kafka.KafkaPositionTrackerConfig.CONFIG_ENABLE_POSITION_TRACKER;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -152,7 +153,7 @@ public class KafkaBasedConnectorConfigBuilder {
    * Enable/disable the position tracker
    */
   public KafkaBasedConnectorConfigBuilder setEnablePositionTracker(boolean enablePositionTracker) {
-    _properties.put(CONFIG_ENABLE_POSITION_TRACKER, enablePositionTracker);
+    _properties.put(DOMAIN_KAFKA_POSITION_TRACKER + "." + CONFIG_ENABLE_POSITION_TRACKER, enablePositionTracker);
     return this;
   }
 }

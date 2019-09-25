@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -167,7 +168,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = new AtomicInteger();
-    _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config));
+    _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config.getKafkaPositionTrackerConfig()));
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -958,19 +959,26 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param config the provided config
    * @return a KafkaPositionTracker if enabled in config, or null
    */
-  private KafkaPositionTracker createKafkaPositionTracker(KafkaBasedConnectorConfig config) {
-    if (config.getEnablePositionTracker()) {
-      // Change the consumer group id for our position tracker's consumer as we do not want the position tracker to
-      // be subscribing or assigning itself to any topics
+  private KafkaPositionTracker createKafkaPositionTracker(KafkaPositionTrackerConfig config) {
+    if (config.isEnablePositionTracker()) {
       Properties positionTrackerConsumerProps = new Properties(_consumerProps);
-      positionTrackerConsumerProps.remove(ConsumerConfig.GROUP_ID_CONFIG);
+
+      // Generate a random consumer group id for our position tracker's consumer as we do not want the position tracker
+      // to interfere with the task's consumer (can happen due to KAFKA-8350).
+      String positionTrackerGroupId = UUID.randomUUID().toString();
+      positionTrackerConsumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, positionTrackerGroupId);
+
+      // Increase the request timeout of the position tracker's consumer as it may be asking for a large number of
+      // topics in its RPC calls.
+      positionTrackerConsumerProps.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG,
+          String.valueOf(config.getBrokerRequestTimeout().toMillis()));
 
       return KafkaPositionTracker.builder()
           .withConnectorTaskStartTime(Instant.now())
           .withConsumerSupplier(() -> createKafkaConsumer(positionTrackerConsumerProps))
           .withDatastreamTask(_datastreamTask)
-          .withEnableBrokerOffsetFetcher(config.getEnableBrokerOffsetFetcher())
           .withIsConnectorTaskAlive(() -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()))
+          .withKafkaPositionTrackerConfig(config)
           .build();
     }
     return null;
