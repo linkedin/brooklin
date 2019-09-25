@@ -350,6 +350,7 @@ project(':datastream-server-restli') {
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
 
     compile project(':datastream-server')
+    compile project(':datastream-common')
 
     testCompile project(':datastream-kafka')
     testCompile "org.apache.kafka:kafka_$scalaVersion:$kafkaVersion"

@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.JmxReporterFactory;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.ConnectorFactory;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
@@ -76,7 +77,6 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DEDUPER;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.DOMAIN_DIAG;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.STRATEGY_DOMAIN;
-
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -349,7 +349,7 @@ public class DatastreamServer {
     METRIC_INFOS.addAll(_coordinator.getMetricInfos());
     METRIC_INFOS.addAll(DatastreamResources.getMetricInfos());
 
-    _jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
+    _jmxReporter = JmxReporterFactory.createJmxReporter(METRIC_REGISTRY);
 
     if (StringUtils.isNotEmpty(_csvMetricsDir)) {
       LOG.info("Starting CsvReporter in " + _csvMetricsDir);
