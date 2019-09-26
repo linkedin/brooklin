@@ -665,7 +665,7 @@ public class TestCoordinator {
 
     waitTillAssignmentIsComplete(8, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    final long interval = Math.min(WAIT_TIMEOUT_MS, 100);
+    final long interval = Math.min(WAIT_TIMEOUT_MS, 500);
     Map<String, List<String>> assignment = collectDatastreamPartitions(connectors);
 
     Assert.assertTrue(
@@ -713,6 +713,13 @@ public class TestCoordinator {
       }
 
       @Override
+      public void onAssignmentChange(List<DatastreamTask> tasks) {
+        _tasks.forEach(t -> t.release());
+        _tasks = tasks;
+        _tasks.forEach(t -> t.acquire(Duration.ofSeconds(10)));
+      }
+
+      @Override
       public Map<String, Optional<DatastreamGroupPartitionsMetadata>> getDatastreamPartitions() {
         return _datastremGroups.values().stream().collect(Collectors.toMap(DatastreamGroup::getName,
             g -> Optional.of(new DatastreamGroupPartitionsMetadata(g, partitions.get(g.getName())))));
@@ -720,6 +727,7 @@ public class TestCoordinator {
 
       @Override
       public void stop() {
+        _tasks.forEach(t -> t.release());
         super.stop();
         if (_callbackThread != null) {
           _callbackThread.interrupt();
