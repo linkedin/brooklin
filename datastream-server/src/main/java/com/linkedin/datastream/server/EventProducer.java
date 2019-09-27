@@ -133,7 +133,7 @@ public class EventProducer implements DatastreamEventProducer {
     // provision some metrics to force them to create
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, EVENTS_PRODUCED_OUTSIDE_SLA, 0);
     if (!_enablePerTopicMetrics) {
-      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getDatastreams().get(0).getName(), EVENTS_PRODUCED_OUTSIDE_SLA, 0);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(), EVENTS_PRODUCED_OUTSIDE_SLA, 0);
     }
     _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(),
         EVENTS_PRODUCED_OUTSIDE_SLA, 0);
@@ -175,8 +175,10 @@ public class EventProducer implements DatastreamEventProducer {
         record.serializeEvents(_datastreamTask.getDestinationSerDes());
       } catch (Exception e) {
         if (_skipMessageOnSerializationErrors) {
-          _logger.info("Skipping the message on serialization error as configured.", e);
-          _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getDatastreams().get(0).getName(),
+          _logger.info(String.format("Skipping the message on serialization error as configured. "
+                  + "Datastream name: %s, Datastream task name: %s",
+              getDatastreamName(), _datastreamTask.getDatastreamTaskName()), e);
+          _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
               DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
           _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
           return;
@@ -226,7 +228,7 @@ public class EventProducer implements DatastreamEventProducer {
    */
   private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
-    String datastreamName = _datastreamTask.getDatastreams().get(0).getName();
+    String datastreamName = getDatastreamName();
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
@@ -365,6 +367,10 @@ public class EventProducer implements DatastreamEventProducer {
   @Override
   public String toString() {
     return String.format("EventProducer producerId=%d", _producerId);
+  }
+
+  private String getDatastreamName() {
+    return _datastreamTask.getDatastreams().get(0).getName();
   }
 
   /**
