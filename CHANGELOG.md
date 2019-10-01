@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.0.2 — 2019-10-01
+
+- Relax Kafka broker hostname validation checks (#656)
+- Log affected datastream on serialization errors (#659)
+- Fix an issue in retrying the partition assignment (#654)
+- Various position tracker improvements (#636)
+- Enforce JMX metrics name generation logic used in io.dropwizard.metrics prior to v4.1.0-rc2 (#658)
+- Invoke topic manger when the partitions are assigned (#657)
+- Add custom checkpoint datastream metadata field to override connector level custom checkpoint (#653)
+- Replace SlidingTimeWindowReservoir with SlidingTimeWindowArrayReservoir and reduce Histogram time (#655)
+- Fix the datastream state for multiple tasks and connector validation (#646)
+- Bump up version
+
 ## 1.0.1 — 2019-09-16
 
 - Remove FindBugs showProgress property
