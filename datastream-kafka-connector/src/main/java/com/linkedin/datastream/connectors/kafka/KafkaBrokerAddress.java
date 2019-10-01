@@ -8,21 +8,13 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.Comparator;
 import java.util.Objects;
 
-import org.apache.commons.validator.routines.DomainValidator;
-import org.apache.commons.validator.routines.InetAddressValidator;
-
 
 /**
  * The object representation of a Kafka Broker
  */
 public class KafkaBrokerAddress {
-  public static final Comparator<KafkaBrokerAddress> BY_URL = (o1, o2) -> {
-    int nameComparison = o1._hostName.compareTo(o2._hostName);
-    if (nameComparison != 0) {
-      return nameComparison;
-    }
-    return Integer.compare(o1._portNumber, o2._portNumber);
-  };
+  public static final Comparator<KafkaBrokerAddress> BY_URL =
+      Comparator.comparing((KafkaBrokerAddress o) -> o._hostName).thenComparingInt(o -> o._portNumber);
 
   private final String _hostName;
   private final int _portNumber;
@@ -111,16 +103,6 @@ public class KafkaBrokerAddress {
     String trimmed = hostName.trim();
     if (trimmed.isEmpty()) {
       throw new IllegalArgumentException("empty host name");
-    }
-    // we allow ipv4/6 addresses and RFC 1123 host names
-    InetAddressValidator inetAddressValidator = InetAddressValidator.getInstance();
-    DomainValidator domainValidator = DomainValidator.getInstance(true);
-    boolean valid =
-        domainValidator.isValid(trimmed)
-            || inetAddressValidator.isValidInet4Address(trimmed)
-            || inetAddressValidator.isValidInet6Address(trimmed);
-    if (!valid) {
-      throw new IllegalArgumentException(trimmed + " is not a valid hostname or ip");
     }
     return trimmed;
   }
