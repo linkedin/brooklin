@@ -199,7 +199,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       // Consumer can be assigned with an empty set, but it cannot run poll against it
       // While it's allowed to assign an empty set here, the check on poll need to be performed
       _consumer.assign(_consumerAssignment);
-
+      this.onPartitionsAssignedInternal(topicPartition);
       // Invoke topic manager
       handleTopicMangerPartitionAssignment(topicPartition);
     } else {
