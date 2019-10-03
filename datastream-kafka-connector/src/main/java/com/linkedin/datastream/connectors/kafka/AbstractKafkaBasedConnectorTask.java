@@ -682,13 +682,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+    this.onPartitionsAssignedInternal(partitions);
     _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
     _consumerMetrics.updateRebalanceRate(1);
-
     updateConsumerAssignment(partitions);
+  }
 
-    // update paused partitions, in case.
+  protected void onPartitionsAssignedInternal(Collection<TopicPartition> partitions) {
+    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
+    // update paused partitions, in case
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
