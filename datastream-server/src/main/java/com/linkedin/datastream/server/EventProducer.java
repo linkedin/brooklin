@@ -73,7 +73,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private static final String DEFAULT_WARN_LOG_LATENCY_ENABLED = "false";
-  private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "1500000000"; // 1500000 minutes, ~17 days
+  private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "1500000000"; // 25000 minutes, ~17 days
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(3).toMillis();
   private static final long LONG_FLUSH_WARN_THRESHOLD_MS = Duration.ofMinutes(5).toMillis();
 
