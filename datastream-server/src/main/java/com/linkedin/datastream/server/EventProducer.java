@@ -64,6 +64,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String FLUSH_LATENCY_MS_STRING = "flushLatencyMs";
   private static final String AVAILABILITY_THRESHOLD_SLA_MS = "availabilityThresholdSlaMs";
   private static final String AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "availabilityThresholdAlternateSlaMs";
+  private static final String WARN_LOG_LATENCY_ENABLED = "warnLogLatencyEnabled";
   private static final String WARN_LOG_LATENCY_THRESHOLD_MS = "warnLogLatencyThresholdMs";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
@@ -71,7 +72,8 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String AGGREGATE = "aggregate";
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
-  private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "100000000"; // 10000 minutes
+  private static final String DEFAULT_WARN_LOG_LATENCY_ENABLED = "false";
+  private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "1500000000"; // 25000 minutes, ~17 days
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(3).toMillis();
   private static final long LONG_FLUSH_WARN_THRESHOLD_MS = Duration.ofMinutes(5).toMillis();
 
@@ -84,6 +86,8 @@ public class EventProducer implements DatastreamEventProducer {
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparison with the main SLA
   private final int _availabilityThresholdAlternateSlaMs;
+  // Whether to enable warning logs if the latency threshold is met
+  private final boolean _warnLogLatencyEnabled;
   // Latency threshold at which to log a warning message
   private final long _warnLogLatencyThresholdMs;
   private final boolean _skipMessageOnSerializationErrors;
@@ -124,6 +128,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdAlternateSlaMs = Integer.parseInt(
         config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
+
+    _warnLogLatencyEnabled =
+        Boolean.parseBoolean(config.getProperty(WARN_LOG_LATENCY_ENABLED, DEFAULT_WARN_LOG_LATENCY_ENABLED));
 
     _warnLogLatencyThresholdMs =
         Long.parseLong(config.getProperty(WARN_LOG_LATENCY_THRESHOLD_MS, DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS));
@@ -256,7 +263,7 @@ public class EventProducer implements DatastreamEventProducer {
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
           EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
 
-      if (sourceToDestinationLatencyMs > _warnLogLatencyThresholdMs) {
+      if (_warnLogLatencyEnabled && (sourceToDestinationLatencyMs > _warnLogLatencyThresholdMs)) {
         _logger.warn("Source to destination latency {} ms is higher than {} ms, Source Timestamp: {}, Metadata: {}",
             sourceToDestinationLatencyMs, _warnLogLatencyThresholdMs, eventsSourceTimestamp, metadata.toString());
       }
