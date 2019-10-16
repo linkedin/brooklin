@@ -139,6 +139,7 @@ project(':datastream-common') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
+    compile "org.apache.kafka:kafka-clients:$kafkaVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
