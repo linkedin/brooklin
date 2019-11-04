@@ -3,7 +3,7 @@
  *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
  *  See the NOTICE file in the project root for additional information regarding copyright ownership.
  */
-package com.linkedin.datastream.connectors.kafka;
+package com.linkedin.datastream.kafka.factory;
 
 import java.util.Properties;
 
@@ -11,8 +11,6 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
-
-import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 
 
 /**
