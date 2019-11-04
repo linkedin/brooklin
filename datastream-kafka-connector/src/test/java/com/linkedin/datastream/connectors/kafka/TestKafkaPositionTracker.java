@@ -51,6 +51,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.diag.KafkaPositionKey;
 import com.linkedin.datastream.common.diag.KafkaPositionValue;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 

@@ -12,6 +12,9 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
+
+
 /**
  * Tests for {@link KafkaConsumerFactoryImpl}
  */
