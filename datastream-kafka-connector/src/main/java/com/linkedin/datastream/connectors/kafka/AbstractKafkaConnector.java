@@ -221,7 +221,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _taskThreads.remove(datastreamTask);
       return true;
     } catch (InterruptedException e) {
-      _logger.warn("Caught exception while trying to stop the datastream task {}", datastreamTask, e);
+      _logger.warn(String.format("Caught exception while trying to stop the datastream task %s", datastreamTask), e);
     }
 
     return false;
@@ -364,7 +364,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       }
     } catch (Exception e) {
       _logger.warn("Failed to process query {}", query);
-      _logger.debug("Failed to process query {}", query, e);
+      _logger.debug(String.format("Failed to process query %s", query), e);
       throw new DatastreamRuntimeException(e);
     }
     return null;
@@ -460,8 +460,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       }
     } catch (Exception e) {
       _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
-      _logger.debug("Failed to reduce responses from query {}: {}", query, e.getMessage(), e);
-      _logger.trace("Failed to reduce responses {} from query {}: {}", responses, query, e.getMessage(), e);
+      _logger.debug(String.format("Failed to reduce responses from query %s: %s", query, e.getMessage()), e);
+      _logger.trace(String.format("Failed to reduce responses %s from query %s: %s", responses, query, e.getMessage()), e);
       throw new DatastreamRuntimeException(e);
     }
     return null;
