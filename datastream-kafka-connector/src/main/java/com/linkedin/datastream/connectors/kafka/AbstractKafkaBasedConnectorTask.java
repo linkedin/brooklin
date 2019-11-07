@@ -233,7 +233,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             sendDatastreamProducerRecord(datastreamProducerRecord, topicPartition, numBytes, null);
           }
         } catch (Exception e) {
-          _logger.warn("Got exception while sending record {}", record);
+          _logger.warn("Got exception while sending record {}, exception: ", record, e);
           rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
