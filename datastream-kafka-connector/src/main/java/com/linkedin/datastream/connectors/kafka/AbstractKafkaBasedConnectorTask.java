@@ -233,7 +233,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
             sendDatastreamProducerRecord(datastreamProducerRecord, topicPartition, numBytes, null);
           }
         } catch (Exception e) {
-          _logger.warn("Got exception while sending record {}", record);
+          _logger.warn(String.format("Got exception while sending record %s, exception: ", record), e);
           rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
@@ -341,7 +341,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         throw e;
       }
     } catch (Exception e) {
-      _logger.error("{} failed with exception.", _taskName, e);
+      _logger.error(String.format("%s failed with exception.", _taskName), e);
       _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
     } finally {
@@ -463,12 +463,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           } catch (IllegalStateException e) {
             // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
             // In this case, there is nothing we can do but wait for onPartitionsRevoked().
-            _logger.trace("Got IllegalStateException when processing partition {}", topicPartition, e);
+            _logger.trace(String.format("Got IllegalStateException when processing partition %s", topicPartition), e);
           } catch (InvalidOffsetException e) {
             // Occurs if no offset is defined for the partition and no offset reset policy is defined.
             // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
             // so it should be safe to ignore this exception and allow records processing to continue.
-            _logger.trace("Got InvalidOffsetException when processing partition {}", topicPartition, e);
+            _logger.trace(String.format("Got InvalidOffsetException when processing partition %s", topicPartition), e);
           }
         }
         tracker.onRecordsReceived(records, consumer.metrics());
@@ -528,8 +528,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.warn("Poll fail with exception", e);
       throw e;
     } else {
-      _logger.warn("Poll threw an exception. Sleeping for {} seconds and repoll from consumer, poll attempt: {}",
-          _retrySleepDuration.getSeconds(), _pollAttempts, e);
+      _logger.warn(
+          String.format("Poll threw an exception. Sleeping for %d seconds and repoll from consumer, poll attempt: %d",
+              _retrySleepDuration.getSeconds(), _pollAttempts.intValue()), e);
     }
     if (!_shutdown) {
       Thread.sleep(_retrySleepDuration.toMillis());
@@ -579,7 +580,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
           return true;
         }
-        _logger.warn("Commit failed with exception. DatastreamTask = {}", _datastreamTask.getDatastreamTaskName(), e);
+        _logger.warn(String.format("Commit failed with exception. DatastreamTask = %s",
+            _datastreamTask.getDatastreamTaskName()), e);
         return false;
       }
 
@@ -669,8 +671,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
       } catch (Exception e) {
         // log the exception and let the new partition owner just read from previous checkpoint
-        _logger.warn("Caught exception while trying to commit offsets in onPartitionsRevoked with partitions {}.",
-            topicPartitions, e);
+        _logger.warn(
+            String.format("Caught exception while trying to commit offsets in onPartitionsRevoked with partitions %s.",
+                topicPartitions), e);
       }
     }
 
