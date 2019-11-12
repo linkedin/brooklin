@@ -205,6 +205,77 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     testEventSend(1, 2, -1, false, false, "test");
   }
 
+  @Test
+  public void testSendMultipleEventsInSingleDatastreamProducerRecord() throws Exception {
+    String metricsPrefix = "test";
+    final int numberOfEvents = 10;
+    String topicName = getUniqueTopicName();
+    final int[] eventsReceived = {0};
+
+    _transportProviderProperties.put(KafkaTransportProviderAdmin.CONFIG_METRICS_NAMES_PREFIX, metricsPrefix);
+    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+
+    String destinationUri = provider.getDestination(null, topicName);
+
+    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
+
+    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
+    TransportProvider transportProvider = provider.assignTransportProvider(task);
+    provider.createTopic(destinationUri, 1, new Properties());
+
+    KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
+
+    LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, 1,
+        new Properties()));
+    DatastreamProducerRecord event =
+        createEventsForSingleDatastreamProducerRecord(topicName, 0, numberOfEvents, true, true);
+    Assert.assertEquals(event.getEvents().size(), numberOfEvents);
+
+    LOG.info(String.format("Trying to send %d events to topic %s", event.getEvents().size(), topicName));
+
+    final Integer[] callbackCalled = {0};
+    transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+
+    // wait until all messages were acked, to ensure all events were successfully sent to the topic
+    Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == event.getEvents().size(), 1000, 10000),
+        "Send callback was not called; likely topic was not created in time");
+
+    LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, 0));
+
+    Map<String, String> events = new HashMap<>();
+    KafkaTestUtils.readTopic(topicName, 0, _kafkaCluster.getBrokers(), (key, value) -> {
+      events.put(new String(key), new String(value));
+      eventsReceived[0]++;
+      return eventsReceived[0] < numberOfEvents;
+    });
+
+    // verify that configured metrics prefix was used
+    for (BrooklinMetricInfo metric : provider.getMetricInfos()) {
+      Assert.assertTrue(metric.getNameOrRegex().startsWith(metricsPrefix));
+    }
+
+    String eventWriteRateMetricName = new StringJoiner(".").add(metricsPrefix)
+        .add(KafkaTransportProvider.class.getSimpleName())
+        .add(KafkaTransportProvider.AGGREGATE)
+        .add(KafkaTransportProvider.EVENT_WRITE_RATE)
+        .toString();
+
+    String eventByteWriteRateMetricName = new StringJoiner(".").add(metricsPrefix)
+        .add(KafkaTransportProvider.class.getSimpleName())
+        .add(KafkaTransportProvider.AGGREGATE)
+        .add(KafkaTransportProvider.EVENT_BYTE_WRITE_RATE)
+        .toString();
+
+    String producerCountMetricName = new StringJoiner(".").add(metricsPrefix)
+        .add(KafkaProducerWrapper.class.getSimpleName())
+        .add(KafkaTransportProvider.AGGREGATE)
+        .add(KafkaProducerWrapper.PRODUCER_COUNT)
+        .toString();
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventWriteRateMetricName));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventByteWriteRateMetricName));
+    Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(producerCountMetricName));
+  }
+
   private void testEventSend(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
       boolean includeValue, String metricsPrefix) throws Exception {
     String topicName = getUniqueTopicName();
@@ -331,6 +402,45 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     return events;
   }
 
+  private DatastreamProducerRecord createEventsForSingleDatastreamProducerRecord(String topicName, int partition,
+      int numberOfEvents, boolean includeKey, boolean includeValue) {
+    Datastream stream = new Datastream();
+    stream.setName("datastream_" + topicName);
+    stream.setConnectorName("dummyConnector");
+    DatastreamSource source = new DatastreamSource();
+    source.setConnectionString("SRC_" + topicName);
+    DatastreamDestination destination = new DatastreamDestination();
+    destination.setConnectionString(topicName);
+    destination.setPartitions(NUM_PARTITIONS);
+    stream.setDestination(destination);
+
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    builder.setSourceCheckpoint("test");
+    builder.setPartition(partition);
+    for (int index = 0; index < numberOfEvents; index++) {
+      String key = "key" + index;
+      byte[] payload = createMessage("payload " + index);
+      byte[] previousPayload = createMessage("previousPayload " + index);
+
+      byte[] keyValue = new byte[0];
+      Object payloadValue = new byte[0];
+      Object previousPayloadValue = new byte[0];
+
+      if (includeKey) {
+        keyValue = key.getBytes();
+      }
+
+      if (includeValue) {
+        payloadValue = payload;
+        previousPayloadValue = previousPayload;
+      }
+
+      builder.addEvent(new BrooklinEnvelope(keyValue, payloadValue, previousPayloadValue, new HashMap<>()));
+    }
+
+    return builder.build();
+  }
 
   private String getUniqueTopicName() {
     return "testTopic_" + TOPIC_COUNTER.incrementAndGet();

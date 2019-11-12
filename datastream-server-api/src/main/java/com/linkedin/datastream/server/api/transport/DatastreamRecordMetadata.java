@@ -13,9 +13,10 @@ public class DatastreamRecordMetadata {
   private final String _topic;
   private final int _partition;
   private final String _checkpoint;
+  private final int _recordIndex;
 
   /**
-   * Construct an instance of DatastreamRecordMetadata
+   * Construct an instance of DatastreamRecordMetadata. Defaults the record index to 0.
    * @param  checkpoint checkpoint string
    * @param topic Kafka topic name
    * @param partition Kafka topic partition
@@ -24,6 +25,21 @@ public class DatastreamRecordMetadata {
     _checkpoint = checkpoint;
     _topic = topic;
     _partition = partition;
+    _recordIndex = 0;
+  }
+
+  /**
+   * Construct an instance of DatastreamRecordMetadata.
+   * @param checkpoint checkpoint string
+   * @param topic Kafka topic name
+   * @param partition Kafka topic partition
+   * @param recordIndex Index of event within {@link com.linkedin.datastream.server.DatastreamProducerRecord}
+   */
+  public DatastreamRecordMetadata(String checkpoint, String topic, int partition, int recordIndex) {
+    _checkpoint = checkpoint;
+    _topic = topic;
+    _partition = partition;
+    _recordIndex = recordIndex;
   }
 
   /**
@@ -47,8 +63,16 @@ public class DatastreamRecordMetadata {
     return _topic;
   }
 
+  /**
+   * Event index within the {@link com.linkedin.datastream.server.DatastreamProducerRecord}'s event list
+   */
+  public int getRecordIndex() {
+    return _recordIndex;
+  }
+
   @Override
   public String toString() {
-    return String.format("Checkpoint: %s, Topic: %s, Partition: %d", _checkpoint, _topic, _partition);
+    return String.format("Checkpoint: %s, Topic: %s, Partition: %d, Record Index: %d", _checkpoint, _topic, _partition,
+        _recordIndex);
   }
 }

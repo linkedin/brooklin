@@ -134,6 +134,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
       LOG.debug("Sending Datastream event record: {}", record);
 
+      int index = 0;
       for (Object event : record.getEvents()) {
         ProducerRecord<byte[], byte[]> outgoing = convertToProducerRecord(topicName, record, event);
 
@@ -146,19 +147,22 @@ public class KafkaTransportProvider implements TransportProvider {
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
+        final int recordIndex = index;
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
             LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                     + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
           }
-          doOnSendCallback(record, onSendComplete, metadata, exception);
+          doOnSendCallback(record, onSendComplete, metadata, exception, recordIndex);
         });
 
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
+
+        ++index;
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
@@ -184,11 +188,11 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
-      Exception exception) {
+      Exception exception, int recordIndex) {
     if (onComplete != null) {
       onComplete.onCompletion(
           metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
-              metadata.partition()) : null, exception);
+              metadata.partition(), recordIndex) : null, exception);
     }
   }
 
