@@ -234,11 +234,20 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     LOG.info(String.format("Trying to send %d events to topic %s", event.getEvents().size(), topicName));
 
     final Integer[] callbackCalled = {0};
-    transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+    List<Integer> indexList = new ArrayList<>();
+    transportProvider.send(destinationUri, event, ((metadata, exception) -> {
+      callbackCalled[0]++;
+      indexList.add(metadata.getBrooklinEventIndex());
+    }));
 
     // wait until all messages were acked, to ensure all events were successfully sent to the topic
     Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == event.getEvents().size(), 1000, 10000),
         "Send callback was not called; likely topic was not created in time");
+
+    Collections.sort(indexList);
+    for (Integer i = 0; i < event.getEvents().size(); ++i) {
+      Assert.assertEquals(i, indexList.get(i));
+    }
 
     LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, 0));
 

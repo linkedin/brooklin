@@ -134,8 +134,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
       LOG.debug("Sending Datastream event record: {}", record);
 
-      int index = 0;
-      for (Object event : record.getEvents()) {
+      for (int i = 0; i < record.getEvents().size(); ++i) {
+        BrooklinEnvelope event = record.getEvents().get(i);
         ProducerRecord<byte[], byte[]> outgoing = convertToProducerRecord(topicName, record, event);
 
         // Update topic-specific metrics and aggregate metrics
@@ -147,7 +147,7 @@ public class KafkaTransportProvider implements TransportProvider {
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
-        final int eventIndex = index;
+        final int eventIndex = i;
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
@@ -161,8 +161,6 @@ public class KafkaTransportProvider implements TransportProvider {
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_BYTE_WRITE_RATE, numBytes);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_WRITE_RATE, 1);
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, EVENT_BYTE_WRITE_RATE, numBytes);
-
-        ++index;
       }
     } catch (Exception e) {
       _eventTransportErrorRate.mark();
