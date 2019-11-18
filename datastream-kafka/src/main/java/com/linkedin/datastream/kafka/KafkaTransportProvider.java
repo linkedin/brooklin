@@ -147,14 +147,14 @@ public class KafkaTransportProvider implements TransportProvider {
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
-        final int recordIndex = index;
+        final int eventIndex = index;
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
             LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                     + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
           }
-          doOnSendCallback(record, onSendComplete, metadata, exception, recordIndex);
+          doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex);
         });
 
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
@@ -188,11 +188,11 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
-      Exception exception, int recordIndex) {
+      Exception exception, int eventIndex) {
     if (onComplete != null) {
       onComplete.onCompletion(
           metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
-              metadata.partition(), recordIndex) : null, exception);
+              metadata.partition(), eventIndex) : null, exception);
     }
   }
 
