@@ -209,9 +209,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
 
-  // make sure the scheduled retries are not duplicated
-  private final AtomicBoolean leaderPartitionAssignmentScheduled = new AtomicBoolean(false);
-
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
@@ -625,7 +622,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
     assignSerdes(taskImpl);
 
-    boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
+    boolean customCheckpointing = getCustomCheckpointing(task);
     TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
     TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
     EventProducer producer =
@@ -634,6 +631,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     taskImpl.setEventProducer(producer);
     Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
     taskImpl.setCheckpoints(checkpoints);
+  }
+
+  private boolean getCustomCheckpointing(DatastreamTask task) {
+    boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
+
+    Datastream datastream = task.getDatastreams().get(0);
+    if (datastream.hasMetadata()
+        && datastream.getMetadata().containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
+      customCheckpointing = Boolean.valueOf(
+          datastream.getMetadata().get(DatastreamMetadataConstants.CUSTOM_CHECKPOINT));
+      _log.info(String.format("Custom checkpointing overridden by metadata to be: %b for datastream: %s",
+          customCheckpointing, datastream));
+    }
+
+    return customCheckpointing;
   }
 
   private void assignSerdes(DatastreamTaskImpl datastreamTask) {
@@ -1036,10 +1048,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         newAssignmentsByInstance.put(key, new ArrayList<>(assignmentByInstance.get(key)));
       }
       _adapter.updateAllAssignments(newAssignmentsByInstance);
-      _log.info("Partition assignment completed: datastreamGroup, assignment {} ", assignmentByInstance);
+      _log.info("Partition assignment completed: datastreamGroup {}, assignment {} ", datastreamGroupName,
+          assignmentByInstance);
       succeeded = true;
     } catch (Exception ex) {
-      _log.info("Partition assignment failed, Exception: ", ex);
+      _log.warn("Partition assignment failed, Exception: ", ex);
       succeeded = false;
     }
     // schedule retry if failure
@@ -1047,13 +1060,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
-    } else if (!leaderPartitionAssignmentScheduled.get()) {
-      _log.info("Schedule retry for leader assigning tasks");
+    } else {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionAssignment", NUM_RETRIES, 1);
-      leaderPartitionAssignmentScheduled.set(true);
       _executor.schedule(() -> {
+        _log.warn("Retry scheduled for leader partition assignment, dg {}", datastreamGroupName);
+        // We need to schedule both LEADER_DO_ASSIGNMENT and leader partition assignment in case the tasks are
+        // not locked because the assigned instance is dead. As we use a sticky assignment, the leader do assignment
+        // shouldn't generate too much extra costs
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
         _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroupName));
-        leaderPartitionAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
   }

@@ -388,7 +388,7 @@ public class ZkAdapter {
   }
 
   private void deleteConnectorTask(String connector, String taskName) {
-    LOG.info("Trying to delete task" + taskName);
+    LOG.info("Trying to delete task " + taskName);
     String path = KeyBuilder.connectorTask(_cluster, connector, taskName);
     if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
       // Ignore such failure for now
@@ -848,8 +848,7 @@ public class ZkAdapter {
         previousAssignmentByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
     List<DatastreamTask> unusedTasks =
         oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toList());
-    LOG.warn("Deleting the unused tasks {} found between previous {} and new assignment {}. ", unusedTasks,
-        previousAssignmentByInstance, newAssignmentsByInstance);
+    LOG.info("Deleting the unused tasks {} ", unusedTasks);
 
     // Delete the connector tasks.
     unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));

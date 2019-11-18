@@ -155,7 +155,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * @param partitionsV2 new partitions for this task
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
-    if (!predecessor.isLocked() && !predecessor.getPartitionsV2().isEmpty()) {
+    if (!predecessor.isLocked()) {
       throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
           + "the previous assignment has not been picked up");
     }
