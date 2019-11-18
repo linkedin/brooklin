@@ -66,14 +66,14 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
   void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) throws DatastreamValidationException;
 
   /**
-   * Validate the update datastreams operation. By default this is not supported. Any connectors that want to support
-   * datastream updates should override this method to perform the validation needed.
+   * Validate and update the datastreams during update operation. By default this is not supported. Any connectors that
+   * want to support datastream updates should override this method to perform the validation needed.
    * @param datastreams list of datastreams to be updated
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       validated.
    * @throws DatastreamValidationException when the datastreams update is not valid
    */
-  default void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+  default void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     throw new DatastreamValidationException("Datastream update is not supported");
   }

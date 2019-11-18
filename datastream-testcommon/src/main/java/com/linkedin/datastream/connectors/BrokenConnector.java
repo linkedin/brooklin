@@ -68,7 +68,7 @@ public class BrokenConnector implements Connector, DiagnosticsAware {
   }
 
   @Override
-  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+  public void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
   }
 

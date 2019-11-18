@@ -1333,7 +1333,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
 
       connectorInfo.getConnector()
-          .validateUpdateDatastreams(datastreams, _datastreamCache.getAllDatastreams()
+          .validateAndUpdateDatastreams(datastreams, _datastreamCache.getAllDatastreams()
               .stream()
               .filter(d -> d.getConnectorName().equals(connectorName))
               .collect(Collectors.toList()));

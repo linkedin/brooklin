@@ -2560,7 +2560,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+    public void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
         throws DatastreamValidationException {
       if (!_allowDatastreamUpdate) {
         throw new DatastreamValidationException("not allowed");
@@ -2595,7 +2595,7 @@ public class TestCoordinator {
     }
 
     @Override
-    public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+    public void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
         throws DatastreamValidationException {
       if (!_allowDatastreamUpdate) {
         throw new DatastreamValidationException("not allowed");

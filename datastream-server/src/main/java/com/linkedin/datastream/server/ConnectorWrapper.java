@@ -180,17 +180,17 @@ public class ConnectorWrapper {
   }
 
   /**
-   * Wrapper API to validate updates to given datastreams. This API calls connector's {@link Connector#validateUpdateDatastreams}.
+   * Wrapper API to validate updates to given datastreams. This API calls connector's {@link Connector#validateAndUpdateDatastreams}.
    * @param datastreams List of datastreams whose update needs to be validated.
    * @param allDatastreams all existing datastreams in the system that have the same connector type as the datastream
    *    *                  being updated.
    * @throws DatastreamValidationException
    */
-  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+  public void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
-    logApiStart("validateUpdateDatastreams");
-    _connector.validateUpdateDatastreams(datastreams, allDatastreams);
-    logApiEnd("validateUpdateDatastreams");
+    logApiStart("validateAndUpdateDatastreams");
+    _connector.validateAndUpdateDatastreams(datastreams, allDatastreams);
+    logApiEnd("validateAndUpdateDatastreams");
   }
 
   /**

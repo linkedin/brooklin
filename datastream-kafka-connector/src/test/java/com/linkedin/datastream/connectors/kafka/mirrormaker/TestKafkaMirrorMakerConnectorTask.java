@@ -371,7 +371,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
 
     // Update connector task with paused partitions
-    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connector.validateAndUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
 
     // Make sure there was an update, and that there paused partitions.
@@ -424,7 +424,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     pausedPartitions.put(spicyTopic, new HashSet<>(Collections.singletonList("0")));
     datastream.getMetadata()
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
-    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connector.validateAndUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
     if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 2, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS)) {
@@ -456,7 +456,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // Now resume both the partitions.
     datastream.getMetadata().put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, "");
-    connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+    connector.validateAndUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
     connectorTask.checkForUpdateTask(datastreamTask);
     if (!PollUtils.poll(() -> connectorTask.getPausedPartitionsConfigUpdateCount() == 4, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS)) {

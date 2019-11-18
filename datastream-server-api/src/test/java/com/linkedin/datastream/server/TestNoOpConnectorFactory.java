@@ -39,7 +39,7 @@ public class TestNoOpConnectorFactory {
   }
 
   @Test
-  public void testValidateUpdateDatastreams() throws Exception {
+  public void testvalidateAndUpdateDatastreams() throws Exception {
     Properties properties = new Properties();
 
     NoOpConnectorFactory noOpConnectorFactory = new NoOpConnectorFactory();
@@ -50,13 +50,13 @@ public class TestNoOpConnectorFactory {
     Datastream datastream2 = createDatastream("noOp-2", "likafkakac");
 
     // Happy path - no change in either datastream
-    connector.validateUpdateDatastreams(Arrays.asList(datastream1, datastream2), Arrays.asList(datastream1, datastream2));
+    connector.validateAndUpdateDatastreams(Arrays.asList(datastream1, datastream2), Arrays.asList(datastream1, datastream2));
 
     // Try to modify source on one of the datastreams
     Datastream datastream3 = createDatastream("noOp-2", "likafkakac");
     datastream3.getSource().setConnectionString("source-blah");
     try {
-      connector.validateUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
+      connector.validateAndUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
       Assert.fail();
     } catch (DatastreamValidationException e) {
     }
@@ -65,7 +65,7 @@ public class TestNoOpConnectorFactory {
     datastream3 = createDatastream("noOp-1", "likafkakac");
     datastream3.getDestination().setConnectionString("dest-blah");
     try {
-      connector.validateUpdateDatastreams(Arrays.asList(datastream3, datastream2), Arrays.asList(datastream1, datastream2));
+      connector.validateAndUpdateDatastreams(Arrays.asList(datastream3, datastream2), Arrays.asList(datastream1, datastream2));
       Assert.fail();
     } catch (DatastreamValidationException e) {
     }
@@ -73,7 +73,7 @@ public class TestNoOpConnectorFactory {
     // Try to modify the transport provider name on one of the datastreams
     datastream3 = createDatastream("noOp-2", "likafkakactest");
     try {
-      connector.validateUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
+      connector.validateAndUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
       Assert.fail();
     } catch (DatastreamValidationException e) {
     }
@@ -81,12 +81,12 @@ public class TestNoOpConnectorFactory {
     // Happy path - try to modify the metadata on one of the datastreams
     datastream3 = createDatastream("noOp-1", "likafkakac");
     datastream3.getMetadata().put("random-metadata-key", "random-metadata-value");
-    connector.validateUpdateDatastreams(Arrays.asList(datastream3, datastream2), Arrays.asList(datastream1, datastream2));
+    connector.validateAndUpdateDatastreams(Arrays.asList(datastream3, datastream2), Arrays.asList(datastream1, datastream2));
 
     // Happy path - modify already existing metadata on one of the datastreams
     datastream2.getMetadata().put("metadata-key", "metadata-value");
     datastream3 = createDatastream("noOp-2", "likafkakac");
     datastream3.getMetadata().put("metadata-key", "new-metadata-value");
-    connector.validateUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
+    connector.validateAndUpdateDatastreams(Arrays.asList(datastream1, datastream3), Arrays.asList(datastream1, datastream2));
   }
 }

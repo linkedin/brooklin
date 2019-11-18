@@ -792,10 +792,10 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         .put(DatastreamMetadataConstants.PAUSED_SOURCE_PARTITIONS_KEY, JsonUtils.toJson(pausedPartitions));
     boolean validationSuccess = PollUtils.poll(() -> {
       try {
-        connector.validateUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
+        connector.validateAndUpdateDatastreams(Collections.singletonList(datastream), Collections.singletonList(datastream));
         return expectedPartitions.equals(DatastreamUtils.getDatastreamSourcePartitions(datastream));
       } catch (Exception e) {
-        LOG.warn("validateUpdateDatastreams failed with error: " + e);
+        LOG.warn("validateAndUpdateDatastreams failed with error: " + e);
         return false;
       }
     }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);

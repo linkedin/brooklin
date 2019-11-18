@@ -268,7 +268,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   @Override
-  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+  public void validateAndUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
     // validate for paused partitions
     validatePausedPartitions(datastreams, allDatastreams);
