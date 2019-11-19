@@ -134,7 +134,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
       LOG.debug("Sending Datastream event record: {}", record);
 
-      for (Object event : record.getEvents()) {
+      for (int i = 0; i < record.getEvents().size(); ++i) {
+        BrooklinEnvelope event = record.getEvents().get(i);
         ProducerRecord<byte[], byte[]> outgoing = convertToProducerRecord(topicName, record, event);
 
         // Update topic-specific metrics and aggregate metrics
@@ -146,13 +147,14 @@ public class KafkaTransportProvider implements TransportProvider {
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
+        final int eventIndex = i;
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
             LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                     + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
           }
-          doOnSendCallback(record, onSendComplete, metadata, exception);
+          doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex);
         });
 
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
@@ -184,11 +186,11 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
-      Exception exception) {
+      Exception exception, int eventIndex) {
     if (onComplete != null) {
       onComplete.onCompletion(
           metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
-              metadata.partition()) : null, exception);
+              metadata.partition(), eventIndex) : null, exception);
     }
   }
 
