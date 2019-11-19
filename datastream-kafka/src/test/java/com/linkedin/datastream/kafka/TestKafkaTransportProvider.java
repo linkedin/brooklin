@@ -210,7 +210,6 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     String metricsPrefix = "test";
     final int numberOfEvents = 10;
     String topicName = getUniqueTopicName();
-    final int[] eventsReceived = {0};
 
     _transportProviderProperties.put(KafkaTransportProviderAdmin.CONFIG_METRICS_NAMES_PREFIX, metricsPrefix);
     KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
@@ -233,20 +232,18 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     LOG.info(String.format("Trying to send %d events to topic %s", event.getEvents().size(), topicName));
 
-    final Integer[] callbackCalled = {0};
     List<Integer> indexList = new ArrayList<>();
     transportProvider.send(destinationUri, event, ((metadata, exception) -> {
-      callbackCalled[0]++;
-      indexList.add(metadata.getBrooklinEventIndex());
+      indexList.add(metadata.getEventIndex());
     }));
 
     // wait until all messages were acked, to ensure all events were successfully sent to the topic
-    Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == event.getEvents().size(), 1000, 10000),
+    Assert.assertTrue(PollUtils.poll(() -> indexList.size() == event.getEvents().size(), 1000, 10000),
         "Send callback was not called; likely topic was not created in time");
 
     Collections.sort(indexList);
-    for (Integer i = 0; i < event.getEvents().size(); ++i) {
-      Assert.assertEquals(i, indexList.get(i));
+    for (int i = 0; i < event.getEvents().size(); ++i) {
+      Assert.assertEquals(i, indexList.get(i).intValue());
     }
 
     LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, 0));
@@ -254,8 +251,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     Map<String, String> events = new HashMap<>();
     KafkaTestUtils.readTopic(topicName, 0, _kafkaCluster.getBrokers(), (key, value) -> {
       events.put(new String(key), new String(value));
-      eventsReceived[0]++;
-      return eventsReceived[0] < numberOfEvents;
+      return events.size() < numberOfEvents;
     });
 
     // verify that configured metrics prefix was used
@@ -288,7 +284,6 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   private void testEventSend(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
       boolean includeValue, String metricsPrefix) throws Exception {
     String topicName = getUniqueTopicName();
-    final int[] eventsReceived = {0};
 
     if (metricsPrefix != null) {
       _transportProviderProperties.put(KafkaTransportProviderAdmin.CONFIG_METRICS_NAMES_PREFIX, metricsPrefix);
@@ -326,8 +321,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     Map<String, String> events = new HashMap<>();
     KafkaTestUtils.readTopic(topicName, partition, _kafkaCluster.getBrokers(), (key, value) -> {
       events.put(new String(key), new String(value));
-      eventsReceived[0]++;
-      return eventsReceived[0] < numberOfEvents;
+      return events.size() < numberOfEvents;
     });
 
     if (metricsPrefix != null) {

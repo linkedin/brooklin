@@ -13,10 +13,10 @@ public class DatastreamRecordMetadata {
   private final String _topic;
   private final int _partition;
   private final String _checkpoint;
-  private final int _brooklinEventIndex;
+  private final int _eventIndex;
 
   /**
-   * Construct an instance of DatastreamRecordMetadata. Defaults the record index to 0.
+   * Construct an instance of DatastreamRecordMetadata. Defaults the event index to 0.
    * @param  checkpoint checkpoint string
    * @param topic Kafka topic name
    * @param partition Kafka topic partition
@@ -25,7 +25,7 @@ public class DatastreamRecordMetadata {
     _checkpoint = checkpoint;
     _topic = topic;
     _partition = partition;
-    _brooklinEventIndex = 0;
+    _eventIndex = 0;
   }
 
   /**
@@ -33,13 +33,13 @@ public class DatastreamRecordMetadata {
    * @param checkpoint checkpoint string
    * @param topic Kafka topic name
    * @param partition Kafka topic partition
-   * @param brooklinEventIndex Index of event within {@link com.linkedin.datastream.server.DatastreamProducerRecord}
+   * @param eventIndex Index of event within {@link com.linkedin.datastream.server.DatastreamProducerRecord}
    */
-  public DatastreamRecordMetadata(String checkpoint, String topic, int partition, int brooklinEventIndex) {
+  public DatastreamRecordMetadata(String checkpoint, String topic, int partition, int eventIndex) {
     _checkpoint = checkpoint;
     _topic = topic;
     _partition = partition;
-    _brooklinEventIndex = brooklinEventIndex;
+    _eventIndex = eventIndex;
   }
 
   /**
@@ -64,15 +64,16 @@ public class DatastreamRecordMetadata {
   }
 
   /**
-   * Event index within the {@link com.linkedin.datastream.server.DatastreamProducerRecord}'s event list
+   * An index identifying the exact {@link com.linkedin.datastream.common.BrooklinEnvelope} event produced,
+   * from those obtainable through {@link com.linkedin.datastream.server.DatastreamProducerRecord#getEvents()}
    */
-  public int getBrooklinEventIndex() {
-    return _brooklinEventIndex;
+  public int getEventIndex() {
+    return _eventIndex;
   }
 
   @Override
   public String toString() {
     return String.format("Checkpoint: %s, Topic: %s, Partition: %d, Event Index: %d", _checkpoint, _topic, _partition,
-        _brooklinEventIndex);
+        _eventIndex);
   }
 }
