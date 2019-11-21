@@ -59,7 +59,12 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_RETENTION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
 
   /**
-   * Indicates if the data store in destination requires to be encrypted or not
+   * Indicates whether or not the data consumed from the source should be decrypted
+   */
+  public static final String SOURCE_DECRYPTION_REQUIRED = "system.source.decryptionRequired";
+
+  /**
+   * Indicates whether or not the data produced to the destination should be encrypted
    */
   public static final String DESTINATION_ENCRYPTION_REQUIRED = "system.destination.encryptionRequired";
 
