@@ -29,6 +29,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS_PER_INSTANCE;
 
 
 /**
@@ -101,6 +102,42 @@ public class TestBroadcastStrategy {
     int totalTasks = 0;
     for (String instance : instances) {
       Assert.assertTrue(assignment.get(instance).size() <= taskPerInstances);
+      totalTasks += assignment.get(instance).size();
+    }
+    Assert.assertEquals(totalTasks, expectedTotalTasks);
+  }
+
+  @Test
+  public void testMaxTasksPerInstance() {
+    int numDatastreams = 10;
+    int numInstances = 20;
+    int maxTasks = 400;
+    int maxTasksPerInstance = 2;
+    int expectedTotalTasks = numInstances * maxTasksPerInstance * numDatastreams;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    doTestMaxTasksPerInstance(new BroadcastStrategy(Optional.of(maxTasks), Optional.of(maxTasksPerInstance)), numInstances, expectedTotalTasks, datastreams);
+  }
+
+  @Test
+  public void testMaxTasksPerInstanceDatastreamOverride() {
+    int numDatastreams = 25;
+    int numInstances = 4;
+    int maxTasks = 400;
+    int maxTasksPerInstance = 2;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS_PER_INSTANCE, "4");
+    int expectedTotalTasks = (numInstances * maxTasksPerInstance * (numDatastreams - 1)) + (numInstances * 4);
+    doTestMaxTasksPerInstance(new BroadcastStrategy(Optional.of(maxTasks), Optional.of(maxTasksPerInstance)), numInstances, expectedTotalTasks, datastreams);
+  }
+
+  private void doTestMaxTasksPerInstance(BroadcastStrategy strategy, int numInstances, int expectedTotalTasks,
+                              List<DatastreamGroup> datastreams) {
+    String[] instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).toArray(String[]::new);
+    Map<String, Set<DatastreamTask>> assignment =
+            strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    int totalTasks = 0;
+    for (String instance : instances) {
       totalTasks += assignment.get(instance).size();
     }
     Assert.assertEquals(totalTasks, expectedTotalTasks);

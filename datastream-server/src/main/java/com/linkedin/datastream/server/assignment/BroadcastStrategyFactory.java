@@ -19,12 +19,17 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 public class BroadcastStrategyFactory implements AssignmentStrategyFactory {
   // the number of datastream tasks to create for a datastream
   public static final String CFG_MAX_TASKS = "maxTasks";
+  public static final String CFG_MAX_TASKS_PER_INSTANCE = "maxTasksPerInstance";
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
     VerifiableProperties props = new VerifiableProperties(assignmentStrategyProperties);
     int cfgMaxTasks = props.getInt(CFG_MAX_TASKS, Integer.MIN_VALUE);
     Optional<Integer> maxTasks = cfgMaxTasks > 0 ? Optional.of(cfgMaxTasks) : Optional.empty();
-    return new BroadcastStrategy(maxTasks);
+
+    int cfgMaxTasksPerInstance = props.getInt(CFG_MAX_TASKS_PER_INSTANCE, Integer.MIN_VALUE);
+    Optional<Integer> maxTasksPerInstance = cfgMaxTasksPerInstance > 0 ? Optional.of(cfgMaxTasksPerInstance) : Optional.empty();
+
+    return maxTasksPerInstance.isPresent() ? new BroadcastStrategy(maxTasks, maxTasksPerInstance) : new BroadcastStrategy(maxTasks);
   }
 }
