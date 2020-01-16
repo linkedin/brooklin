@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -24,6 +25,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +52,7 @@ import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_
 
 class KafkaProducerWrapper<K, V> {
   private static final String CLASS_NAME = KafkaProducerWrapper.class.getSimpleName();
+  private static final String BOUNDED_KAFKA_PRODUCER_FLUSH_THREAD_PREFIX = "Bounded-Kafka-Producer-Flush-Thread-";
   private static final String PRODUCER_ERROR = "producerError";
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
@@ -61,6 +64,7 @@ class KafkaProducerWrapper<K, V> {
   private static final int MAX_SEND_ATTEMPTS = 10;
   private final Logger _log;
   private final long _sendFailureRetryWaitTimeMs;
+  private final long _flushTimeoutMs;
 
   private final String _clientId;
   private final Properties _props;
@@ -90,12 +94,18 @@ class KafkaProducerWrapper<K, V> {
 
   private static final long DEFAULT_SEND_FAILURE_RETRY_WAIT_MS = Duration.ofSeconds(5).toMillis();
 
+  // If the flush timeout is zero, flush will be called without timeout.
+  private static final long DEFAULT_FLUSH_TIMEOUT = 0;
+
   private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
   private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
   private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
+  @VisibleForTesting
+  static final String CFG_FLUSH_TIMEOUT_MS = "flushTimeoutMs";
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
+  private final AtomicInteger _boundFlushThreadCount = new AtomicInteger();
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
@@ -124,6 +134,8 @@ class KafkaProducerWrapper<K, V> {
 
     _rateLimiter =
         RateLimiter.create(transportProviderProperties.getDouble(CFG_RATE_LIMITER_CFG, DEFAULT_RATE_LIMITER));
+
+    _flushTimeoutMs = transportProviderProperties.getLong(CFG_FLUSH_TIMEOUT_MS, DEFAULT_FLUSH_TIMEOUT);
 
     _props = props;
 
@@ -253,8 +265,41 @@ class KafkaProducerWrapper<K, V> {
   }
 
   synchronized void flush() {
-    if (_kafkaProducer != null) {
+    if (_flushTimeoutMs != 0) {
+      flushWithTimeout();
+    } else if (_kafkaProducer != null) {
       _kafkaProducer.flush();
+    }
+  }
+
+  // TODO: The code to simulate timeout needs to be removed once flush(timeout) api is added in Producer class.
+  // Till then, the workaround is to use a separate thread to monitor timeout and throw exception if flush is taking
+  // longer than the configured timeout.
+  private void flushWithTimeout() {
+    if (_kafkaProducer == null) {
+      return;
+    }
+
+    final CountDownLatch latch = new CountDownLatch(1);
+    Thread t = new Thread(() -> {
+      _kafkaProducer.flush();
+      latch.countDown();
+    });
+    t.setDaemon(true);
+    t.setName(BOUNDED_KAFKA_PRODUCER_FLUSH_THREAD_PREFIX + _boundFlushThreadCount.getAndIncrement());
+    t.setUncaughtExceptionHandler((t1, e) -> {
+      _log.warn("Thread {} terminated unexpectedly.", t1.getName(), e);
+    });
+    t.start();
+
+    boolean latchResult;
+    try {
+      latchResult = latch.await(_flushTimeoutMs, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      throw new InterruptException("Flush interruped.", e);
+    }
+    if (!latchResult) {
+      throw new TimeoutException("Failed to flush accumulated records within " + _flushTimeoutMs + " msec.");
     }
   }
 
@@ -291,5 +336,10 @@ class KafkaProducerWrapper<K, V> {
    */
   public Optional<Double> getProducerMetricValue(MetricName metricName) {
     return Optional.ofNullable(_kafkaProducer).map(p -> p.metrics().get(metricName)).map(Metric::value);
+  }
+
+  @VisibleForTesting
+  void setProducer(Producer<K, V> producer) {
+    _kafkaProducer = producer;
   }
 }
