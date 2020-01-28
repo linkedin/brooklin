@@ -207,7 +207,6 @@ public class ZkAdapter {
    * the actions that need to be taken with them, which are implemented in the Coordinator class
    */
   public void connect() {
-    disconnect(); // Guard against leaking an existing zookeeper session
     _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout);
     _zkclient.subscribeStateChanges(_stateChangeListener);
     initializeSession();
