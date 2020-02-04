@@ -207,6 +207,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       throws Exception;
 
   /**
+   * Post shutdown hook to be called for any operations that need to be performed before exiting the task.
+   */
+  protected void postShutdownHook() { }
+
+  /**
    * Get the taskName
    */
   protected String getTaskName() {
@@ -349,6 +354,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       if (null != _consumer) {
         _consumer.close();
       }
+      postShutdownHook();
       _logger.info("{} stopped", _taskName);
     }
   }
