@@ -285,8 +285,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
   }
 
-
-
   private void handleTopicMangerPartitionAssignment(Collection<TopicPartition> partitions) {
     Collection<TopicPartition> topicPartitionsToPause = _topicManager.onPartitionsAssigned(partitions);
     // we need to explicitly pause these partitions here and not wait for PreConsumerPollHook.
@@ -308,9 +306,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public void run() {
     if (_enablePartitionAssignment) {
       try {
+        LOG.info("Trying to acquire the lock on datastreamTask: {}", _datastreamTask);
         _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
       } catch (DatastreamRuntimeException ex) {
-        LOG.error("Failed to acquire lock for datastreamTask {}", _datastreamTask);
+        LOG.error(String.format("Failed to acquire lock for datastreamTask %s", _datastreamTask), ex);
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, NUM_LOCK_FAILS, 1);
         throw ex;
       }
@@ -322,9 +321,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public void stop() {
     super.stop();
     _topicManager.stop();
-    if (_enablePartitionAssignment) {
-      _datastreamTask.release();
-    }
   }
 
   @Override
@@ -371,6 +367,16 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       return ConsumerRecords.EMPTY;
     } else {
       return _consumer.poll(pollInterval);
+    }
+  }
+
+  @Override
+  protected void postShutdownHook() {
+    if (_enablePartitionAssignment) {
+      // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
+      // consume any further). The shutdown process must complete and the consumer must be closed.
+      LOG.info("Releasing the lock on datastreamTask: {}", _datastreamTask);
+      _datastreamTask.release();
     }
   }
 
