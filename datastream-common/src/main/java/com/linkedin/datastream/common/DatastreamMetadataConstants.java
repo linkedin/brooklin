@@ -69,14 +69,14 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_ENCRYPTION_REQUIRED = "system.destination.encryptionRequired";
 
   /**
-   * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
-   * being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
-   * This overrides the cluster level configuration.
+   * The name of the schema used to serialize the messages in the destination
    */
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
 
   /**
-   * The destination topic prefix to use such
+   * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
+   * being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
+   * This overrides the cluster level configuration.
    */
   public static final String DESTINATION_TOPIC_PREFIX = SYSTEM_DESTINATION_PREFIX + "destinationTopicPrefix";
 
