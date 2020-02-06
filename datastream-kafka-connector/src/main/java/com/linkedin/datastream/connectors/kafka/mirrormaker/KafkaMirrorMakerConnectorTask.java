@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -141,7 +142,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
-    _destinationTopicPrefix = destinationTopicPrefix;
+    _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
+        .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, destinationTopicPrefix);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
@@ -149,7 +151,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     }
 
     if (!StringUtils.isBlank(_destinationTopicPrefix)) {
-      LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
+      LOG.info("Destination topic prefix has been set to {} and config is {}", _destinationTopicPrefix,
+          destinationTopicPrefix);
     }
 
     if (_isFlushlessModeEnabled) {

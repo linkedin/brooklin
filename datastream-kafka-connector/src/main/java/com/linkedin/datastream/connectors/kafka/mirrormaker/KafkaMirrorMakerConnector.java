@@ -111,7 +111,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       LOG.info("PartitionAssignment enabled for KafkaMirrorConnector");
     }
     if (!StringUtils.isBlank(_destinationTopicPrefix)) {
-      LOG.info("Destination topic prefix has been set to {} for {}", _destinationTopicPrefix, clusterName);
+      LOG.info("Destination topic prefix config has been set to {} for {}", _destinationTopicPrefix, clusterName);
     }
   }
 
