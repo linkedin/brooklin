@@ -962,6 +962,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // get all current live instances
       liveInstances = _adapter.getLiveInstances();
 
+      if (liveInstances.isEmpty()) {
+        _log.info("handleLeaderDoAssignment: empty list of live instances, maybe this node is no longer a leader.");
+        return;
+      }
+
       // Map between instance to tasks assigned to the instance.
       previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
 
