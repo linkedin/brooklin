@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -112,6 +113,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
   private final boolean _enablePartitionAssignment;
+  private final String _destinationTopicPrefix;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
   private long _maxInFlightMessagesThreshold;
@@ -130,7 +132,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
    * @param groupIdConstructor Kafka consumer group ID constructor
    */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
-      boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
+      boolean isFlushlessModeEnabled, String destinationTopicPrefix, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
@@ -139,10 +141,15 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
+    _destinationTopicPrefix = destinationTopicPrefix;
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
+    }
+
+    if (!StringUtils.isBlank(_destinationTopicPrefix)) {
+      LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
     }
 
     if (_isFlushlessModeEnabled) {
@@ -166,6 +173,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         null != connectorProperties.getProperty(TOPIC_MANAGER_FACTORY)) {
       topicManagerProperties = connectorProperties.getDomainProperties(DOMAIN_TOPIC_MANAGER);
       topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
+      // Propagate the destinationTopicPrefix config to the topic manager so that it can create destination topics
+      // with the same prefix.
+      topicManagerProperties.put(KafkaMirrorMakerConnector.DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
     }
 
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
@@ -235,7 +245,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
     builder.setDestination(_datastreamTask.getDatastreamDestination()
         .getConnectionString()
-        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, topic));
+        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER,
+            StringUtils.isBlank(_destinationTopicPrefix) ? topic : _destinationTopicPrefix + topic));
     if (_isIdentityMirroringEnabled) {
       builder.setPartition(partition);
     }

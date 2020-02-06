@@ -104,7 +104,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       KafkaBasedConnectorConfig connectorConfig) {
-    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, "", false,
+    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, "", false, "",
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
@@ -125,8 +125,14 @@ final class KafkaMirrorMakerConnectorTestUtils {
         .setPauseErrorPartitionDuration(pauseErrorPartitionDuration)
         .build();
 
-    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, "", true,
+    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, "", true, "",
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+  }
+
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTaskWithDestinationTopicPrefix(
+      DatastreamTaskImpl task, String destinationTopicPrefix) {
+    return new KafkaMirrorMakerConnectorTask(getKafkaBasedConnectorConfigBuilder().build(), task, "", false,
+        destinationTopicPrefix, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
   static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
