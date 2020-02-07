@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -35,7 +36,8 @@ import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -167,7 +169,7 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testStressLeaderElection() throws Exception {
+  public void testStressLeaderElection() {
     String testCluster = "test_leader_election_stress";
 
     //
@@ -428,7 +430,7 @@ public class TestZkAdapter {
     List<HostTargetAssignment> assignments = ImmutableList.of(new HostTargetAssignment(ImmutableList.of("t-0", "t-1"), hostName1),
         new HostTargetAssignment(ImmutableList.of("t-1", "t-3"), hostName2),
         new HostTargetAssignment(ImmutableList.of("t-2", "t-4"), hostName1));
-    
+
     zkClient.ensurePath(path);
     if (zkClient.exists(path)) {
       for (HostTargetAssignment assignment : assignments) {
@@ -693,6 +695,48 @@ public class TestZkAdapter {
     Assert.assertTrue(PollUtils.poll(task2::isLocked, 100, 5000));
   }
 
+  @Test
+  public void testDeleteTasksWithPrefix() throws IOException {
+    String testCluster = "testDeleteTaskWithPrefix";
+    String connectorType = "connectorType";
+
+    // Set operation timeout of 5secs so ZK doesn't end up retrying for the longer default
+    ZkAdapter adapter =  createZkAdapter(testCluster);
+    adapter.connect();
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+
+    // Create some nodes
+    for (int i = 0; i < 10; i++) {
+      DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
+      dsTask.setId("task" + i);
+      String taskPrefix = "taskPrefix" + i;
+      dsTask.setTaskPrefix(taskPrefix);
+      dsTask.setConnectorType(connectorType);
+      dsTask.setZkAdapter(adapter);
+      tasks.add(dsTask);
+    }
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+
+    ZkClient zkClient = Mockito.spy(adapter.getZkClient());
+
+    // Delete a few nodes
+    for (int j = 0; j < 8; j++) {
+      adapter.deleteTasksWithPrefix(connectorType, "taskPrefix" + j);
+    }
+
+    // Verify delete was successful with no calls done to getChildren
+    // Not the most ideal way to test the issue of not being able to delete when the top level zk node is full,
+    // but creating EmbeddedZK with smaller jute.maxbuffer size to actually testing filling a directory to
+    // max requires setting system property which will interfere with any other parallel test using EmbeddedZk.
+    Mockito.verify(zkClient, Mockito.never()).getChildren(any());
+    Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
+
+    List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
+    adapter.disconnect();
+  }
 
   /**
    * Update all datastream task assignments of a particular Brooklin instance
