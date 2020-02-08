@@ -78,7 +78,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private final Logger _logger;
   private final AtomicInteger _threadCounter = new AtomicInteger(0);
-  private final HashMap<DatastreamTask, ConnectorTaskEntry> _runningTasks = new HashMap<>();
+  // Access to this map must be synchronized at all times since it can be accessed by multiple concurrent threads.
+  private final Map<DatastreamTask, ConnectorTaskEntry> _runningTasks = new HashMap<>();
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private final ScheduledExecutorService _daemonThreadExecutorService =
@@ -121,11 +122,14 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _logger.info("onAssignmentChange called with tasks {}", tasks);
 
     synchronized (_runningTasks) {
-      HashSet<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
+      Set<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
       toCancel.removeAll(tasks);
 
       for (DatastreamTask task : toCancel) {
         ConnectorTaskEntry connectorTaskEntry = _runningTasks.remove(task);
+        // Stopping the connectorTask. This only marks the connector task as shutdown and does not actually wait for
+        // the connector task to stop. onAssignmentChange() must be completed quickly, otherwise the Coordinator
+        // kills the assignment threads.
         connectorTaskEntry.getConnectorTask().stop();
       }
 
@@ -139,7 +143,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
           continue; // already running
         }
 
-        createKafkaConnectorTask(task);
+        _runningTasks.put(task, createKafkaConnectorTask(task));
       }
     }
   }
@@ -158,20 +162,19 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return t;
   }
 
-  // The _runningTasks must be locked before calling this method
-  private void createKafkaConnectorTask(DatastreamTask task) {
-    _logger.info("creating task for {}.", task);
+  private ConnectorTaskEntry createKafkaConnectorTask(DatastreamTask task) {
+    _logger.info("Creating connector task for datastream task {}.", task);
     AbstractKafkaBasedConnectorTask connectorTask = createKafkaBasedConnectorTask(task);
     Thread taskThread = createTaskThread(connectorTask);
-    _runningTasks.put(task, new ConnectorTaskEntry(connectorTask, taskThread));
     taskThread.start();
+    return new ConnectorTaskEntry(connectorTask, taskThread);
   }
 
   @Override
   public void start(CheckpointProvider checkpointProvider) {
     _daemonThreadExecutorService.scheduleAtFixedRate(() -> {
       try {
-        restartTasksIfNotRunning();
+        restartDeadTasks();
       } catch (Exception e) {
         // catch any exceptions here so that subsequent check can continue
         // see java doc of scheduleAtFixedRate
@@ -185,25 +188,25 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * Check the health of all {@link AbstractKafkaBasedConnectorTask} corresponding to the DatastreamTasks.
    * If any of them are not running or not healthy, Restart them.
    */
-  protected void restartTasksIfNotRunning() {
+  protected void restartDeadTasks() {
     synchronized (_runningTasks) {
       if (_runningTasks.isEmpty()) {
-        _logger.info("connector received no datastreams tasks yet.");
+        _logger.info("Connector received no datastreams tasks yet.");
         return;
       }
 
       _logger.info("Checking the status of {} running connector tasks.", _runningTasks.size());
 
       Set<DatastreamTask> deadDatastreamTasks = new HashSet<>();
-      _runningTasks.keySet().forEach((datastreamTask) -> {
-        if (!isTaskRunning(datastreamTask)) {
+      _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
+        if (isTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
               datastreamTask);
-          boolean stopped = stopTask(datastreamTask);
+          boolean stopped = stopTask(datastreamTask, connectorTaskEntry);
           if (stopped) {
             deadDatastreamTasks.add(datastreamTask);
           } else {
-            _logger.error("Datastream task {} could not be stopped.", datastreamTask);
+            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask);
           }
         } else {
           _logger.info("Connector task for datastream task {} is healthy", datastreamTask);
@@ -213,48 +216,47 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       deadDatastreamTasks.forEach(datastreamTask -> {
         _logger.warn("Creating a new connector task for the datastream task {}", datastreamTask);
         _runningTasks.remove(datastreamTask);
-        createKafkaConnectorTask(datastreamTask);
+        _runningTasks.put(datastreamTask, createKafkaConnectorTask(datastreamTask));
       });
     }
   }
 
   /**
    * Stop the datastream task and wait for it to stop. If it has not stopped within a timeout, interrupt the thread.
-   * The _runningTasks must be locked before calling this method
    * @param datastreamTask Datastream task that needs to stopped.
+   * @param connectorTaskEntry connectorTaskEntry corresponding to the datastream task.
    * @return true if it was successfully stopped, false if it was not.
    */
-  private boolean stopTask(DatastreamTask datastreamTask) {
+  private boolean stopTask(DatastreamTask datastreamTask, ConnectorTaskEntry connectorTaskEntry) {
     try {
-      ConnectorTaskEntry connectorTaskEntry = _runningTasks.get(datastreamTask);
-      AbstractKafkaBasedConnectorTask kafkaTask = connectorTaskEntry.getConnectorTask();
-      kafkaTask.stop();
-      boolean stopped = kafkaTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+      AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
+      connectorTask.stop();
+      boolean stopped = connectorTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (!stopped) {
-        _logger.warn("Task {} took longer than {} ms to stop. Interrupting the thread.", datastreamTask,
-            CANCEL_TASK_TIMEOUT.toMillis());
+        _logger.warn("Connector task for datastream task {} took longer than {} ms to stop. Interrupting the thread.",
+            datastreamTask, CANCEL_TASK_TIMEOUT.toMillis());
         connectorTaskEntry.getThread().interrupt();
       }
       return true;
     } catch (InterruptedException e) {
-      _logger.warn(String.format("Caught exception while trying to stop the datastream task %s", datastreamTask), e);
+      _logger.warn(String.format("Caught exception while trying to stop the connector task for datastream task %s",
+          datastreamTask), e);
     }
 
     return false;
   }
 
   /**
-   * Check if the {@link AbstractKafkaBasedConnectorTask} corresponding to the {@link DatastreamTask} is running.
-   * The _runningTasks must be locked before calling this method
-   * @param datastreamTask Datastream task that needs to be checked whether it is running.
-   * @return true if it is running, false if it is not.
+   * Check if the {@link AbstractKafkaBasedConnectorTask} corresponding to the {@link DatastreamTask} is dead.
+   * @param connectorTaskEntry connector task and thread that needs to be checked whether it is dead.
+   * @return true if it is dead, false if it is still running.
    */
-  protected boolean isTaskRunning(DatastreamTask datastreamTask) {
-    ConnectorTaskEntry connectorTaskEntry = _runningTasks.get(datastreamTask);
+  protected boolean isTaskDead(ConnectorTaskEntry connectorTaskEntry) {
     Thread taskThread = connectorTaskEntry.getThread();
-    AbstractKafkaBasedConnectorTask kafkaTask = connectorTaskEntry.getConnectorTask();
-    return (taskThread != null && taskThread.isAlive()
-        && (System.currentTimeMillis() - kafkaTask.getLastPolledTimeMillis()) < _config.getNonGoodStateThresholdMillis());
+    AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
+    return (taskThread == null || !taskThread.isAlive()
+        || ((System.currentTimeMillis() - connectorTask.getLastPolledTimeMillis())
+        >= _config.getNonGoodStateThresholdMillis()));
   }
 
   @Override
@@ -262,7 +264,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _daemonThreadExecutorService.shutdown();
     synchronized (_runningTasks) {
       // Try to stop the the tasks
-      _runningTasks.keySet().forEach(this::stopTask);
+      _runningTasks.forEach(this::stopTask);
       _runningTasks.clear();
     }
     _logger.info("Connector stopped.");
@@ -397,8 +399,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     synchronized (_runningTasks) {
       responses = _runningTasks.values()
           .stream()
-          .filter(connectorTaskEntry -> connectorTaskEntry.getConnectorTask().hasDatastream(streamName))
-          .map(connectorTaskEntry -> connectorTaskEntry.getConnectorTask().getKafkaDatastreamStatesResponse())
+          .map(ConnectorTaskEntry::getConnectorTask)
+          .filter(task -> task.hasDatastream(streamName))
+          .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
           .collect(Collectors.toList());
     }
     if (responses.size() > 0) {
@@ -523,7 +526,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         .findFirst();
   }
 
-  private static class ConnectorTaskEntry {
+  protected static class ConnectorTaskEntry {
     private final AbstractKafkaBasedConnectorTask _task;
     private final Thread _thread;
 
