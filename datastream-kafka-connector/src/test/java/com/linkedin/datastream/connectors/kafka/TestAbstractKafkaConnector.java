@@ -118,7 +118,7 @@ public class TestAbstractKafkaConnector {
 
     /**
      * Constructor for TestKafkaConnector
-     * @param restartThrows Indicates whether calling {@link #restartIfNotRunning(DatastreamTask)}
+     * @param restartThrows Indicates whether calling {@link #restartTasksIfNotRunning()}
      *                      for the first time should throw a {@link RuntimeException}
      * @param props Configuration properties to use
      */
@@ -152,12 +152,12 @@ public class TestAbstractKafkaConnector {
     }
 
     @Override
-    protected void restartIfNotRunning(DatastreamTask task) {
+    protected void restartTasksIfNotRunning() {
       if (_restartThrows) {
         _restartThrows = false;
         throw new RuntimeException();
       }
-      super.restartIfNotRunning(task);
+      super.restartTasksIfNotRunning();
     }
 
     public int getCreateTaskCalled() {
