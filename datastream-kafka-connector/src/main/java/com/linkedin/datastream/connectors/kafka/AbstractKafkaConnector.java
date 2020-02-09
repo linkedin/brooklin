@@ -247,7 +247,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Check if the {@link AbstractKafkaBasedConnectorTask} corresponding to the {@link DatastreamTask} is dead.
+   * Check if the {@link AbstractKafkaBasedConnectorTask} is dead.
    * @param connectorTaskEntry connector task and thread that needs to be checked whether it is dead.
    * @return true if it is dead, false if it is still running.
    */
