@@ -68,6 +68,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
 
@@ -138,8 +139,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         if (connectorTaskEntry != null) {
           AbstractKafkaBasedConnectorTask kafkaBasedConnectorTask = connectorTaskEntry.getConnectorTask();
           kafkaBasedConnectorTask.checkForUpdateTask(task);
-          // make sure to replace the DatastreamTask with most up to date info
-          _runningTasks.put(task, new ConnectorTaskEntry(kafkaBasedConnectorTask, connectorTaskEntry.getThread()));
+          // Make sure to replace the DatastreamTask with most up to date info
+          // This is necessary because DatastreamTaskImpl.hashCode() does not take into account all the
+          // fields/properties of the DatastreamTask (e.g. dependencies).
+          _runningTasks.put(task, connectorTaskEntry);
           continue; // already running
         }
 
@@ -215,7 +218,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
       deadDatastreamTasks.forEach(datastreamTask -> {
         _logger.warn("Creating a new connector task for the datastream task {}", datastreamTask);
-        _runningTasks.remove(datastreamTask);
         _runningTasks.put(datastreamTask, createKafkaConnectorTask(datastreamTask));
       });
     }
@@ -236,6 +238,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.warn("Connector task for datastream task {} took longer than {} ms to stop. Interrupting the thread.",
             datastreamTask, CANCEL_TASK_TIMEOUT.toMillis());
         connectorTaskEntry.getThread().interrupt();
+        if (!connectorTask.awaitStop(POST_CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+          _logger.warn("Connector task for datastream task {} did not stop even after {} ms.", datastreamTask,
+              POST_CANCEL_TASK_TIMEOUT.toMillis());
+        }
       }
       return true;
     } catch (InterruptedException e) {
