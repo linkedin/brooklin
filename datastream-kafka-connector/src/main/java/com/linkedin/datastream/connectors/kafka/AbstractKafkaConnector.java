@@ -238,6 +238,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.warn("Connector task for datastream task {} took longer than {} ms to stop. Interrupting the thread.",
             datastreamTask, CANCEL_TASK_TIMEOUT.toMillis());
         connectorTaskEntry.getThread().interrupt();
+        // Check that the thread really got interrupted and log a message if it seems like the thread is still running.
+        // Threads which don't check for the interrupt status may land up running forever, and we would like to
+        // at least know of such cases for debugging purposes.
         if (!connectorTask.awaitStop(POST_CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
           _logger.warn("Connector task for datastream task {} did not stop even after {} ms.", datastreamTask,
               POST_CANCEL_TASK_TIMEOUT.toMillis());
