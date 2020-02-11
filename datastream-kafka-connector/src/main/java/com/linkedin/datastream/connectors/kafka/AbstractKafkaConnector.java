@@ -11,7 +11,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,7 +35,6 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
@@ -96,7 +94,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
-    POSITION
   }
 
   /**
@@ -385,10 +382,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         String response = processDatastreamStateRequest(uri);
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
-      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString())) {
-        final String response = processPositionRequest();
-        _logger.trace("Query: {} returns response: {}", query, response);
-        return response;
       } else {
         _logger.warn("Could not process query {} with path {}", query, path);
       }
@@ -436,39 +429,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Returns a JSON representation of the position data this connector has as a JSON list:
-   * <pre>
-   * [
-   *   {
-   *     "key": {...},
-   *     "value": {...}
-   *   },
-   *   ...
-   * ]
-   * </pre>
-   *
-   * Where the payload in "key" is a {@link com.linkedin.datastream.common.diag.KafkaPositionKey} and the payload in
-   * "value" is a {@link com.linkedin.datastream.common.diag.KafkaPositionValue}.
-   *
-   * @return a JSON representation of the position data this connector has
-   */
-  private String processPositionRequest() {
-    final List<Object> positions;
-    synchronized (_runningTasks) {
-      positions = _runningTasks.values().stream()
-        .map(connectorTaskType -> connectorTaskType.getConnectorTask().getKafkaPositionTracker())
-        .filter(Optional::isPresent)
-        .map(Optional::get)
-        .map(KafkaPositionTracker::getPositions)
-        .map(Map::entrySet)
-        .flatMap(Collection::stream)
-        .map(position -> ImmutableMap.of("key", position.getKey(), "value", position.getValue()))
-        .collect(Collectors.toList());
-    }
-    return JsonUtils.toJson(positions);
-  }
-
-  /**
    * Aggregates the responses from all the instances into a single JSON response.
    * Sample query: /datastream_state?datastream=PizzaDatastream
    * Sample response:
@@ -491,8 +451,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     try {
       String path = getPath(query, _logger);
       if (path != null
-          && (path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString())
-          || path.equalsIgnoreCase(DiagnosticsRequestType.POSITION.toString()))) {
+          && (path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString()))) {
         return JsonUtils.toJson(responses);
       }
     } catch (Exception e) {
