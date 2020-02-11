@@ -134,7 +134,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       for (DatastreamTask task : toCancel) {
         ConnectorTaskEntry connectorTaskEntry = _runningTasks.remove(task);
         // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
-        // does not stop within a certain amount of time. This is force cleanup of connectorTasks which take too long
+        // does not stop within a certain amount of time. This will force cleanup of connectorTasks which take too long
         // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
         // requires that onAssignmentChange() must complete quickly, and will kill the assignment threads if they take
         // too long.
