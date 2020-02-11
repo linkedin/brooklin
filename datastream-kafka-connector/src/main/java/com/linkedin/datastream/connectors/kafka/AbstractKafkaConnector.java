@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -46,6 +47,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
+import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -69,8 +71,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
-
 
   protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
@@ -93,6 +95,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
           return t;
         }
       });
+
+  // An executor to spawn threads to stop tasks, and cancel them if stuck too long in onAssignmentChange().
+  private final ExecutorService _shutdownExecutorService = Executors.newCachedThreadPool();
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
@@ -128,10 +133,14 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
       for (DatastreamTask task : toCancel) {
         ConnectorTaskEntry connectorTaskEntry = _runningTasks.remove(task);
-        // Stopping the connectorTask. This only marks the connector task as shutdown and does not actually wait for
-        // the connector task to stop. onAssignmentChange() must be completed quickly, otherwise the Coordinator
-        // kills the assignment threads.
-        connectorTaskEntry.getConnectorTask().stop();
+        // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
+        // does not stop within a certain amount of time. This is force cleanup of connectorTasks which take too long
+        // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
+        // requires that onAssignmentChange() must complete quickly, and will kill the assignment threads if they take
+        // too long.
+        _shutdownExecutorService.submit(() -> {
+          stopTask(task, connectorTaskEntry);
+        });
       }
 
       for (DatastreamTask task : tasks) {
@@ -142,6 +151,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
           // Make sure to replace the DatastreamTask with most up to date info
           // This is necessary because DatastreamTaskImpl.hashCode() does not take into account all the
           // fields/properties of the DatastreamTask (e.g. dependencies).
+          _runningTasks.remove(task);
           _runningTasks.put(task, connectorTaskEntry);
           continue; // already running
         }
@@ -276,6 +286,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _runningTasks.forEach(this::stopTask);
       _runningTasks.clear();
     }
+    _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
+        SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
+    ThreadUtils.shutdownExecutor(_shutdownExecutorService, SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT, _logger);
     _logger.info("Connector stopped.");
   }
 
