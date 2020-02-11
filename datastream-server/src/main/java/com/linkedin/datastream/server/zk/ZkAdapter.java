@@ -109,9 +109,9 @@ public class ZkAdapter {
 
   private final String _zkServers;
   private final String _cluster;
-  private final int _sessionTimeout;
-  private final int _connectionTimeout;
-  private final int _operationRetryMs;
+  private final int _sessionTimeoutMs;
+  private final int _connectionTimeoutMs;
+  private final int _operationRetryTimeoutMs;
   private ZkClient _zkclient;
 
   private String _instanceName;
@@ -143,19 +143,19 @@ public class ZkAdapter {
    * @param zkServers ZooKeeper server address to connect to
    * @param cluster Brooklin cluster this instance belongs to
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
-   * @param sessionTimeout Session timeout to use for the connection with the ZooKeeper server
-   * @param connectionTimeout Connection timeout to use for the connection with the ZooKeeper server
-   * @param operationRetryMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
+   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
+   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
    *                         considered as retry forever until a connection has been reestablished.
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
-  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
-      int connectionTimeout, int operationRetryMs, ZkAdapterListener listener) {
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
+      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
-    _sessionTimeout = sessionTimeout;
-    _connectionTimeout = connectionTimeout;
-    _operationRetryMs = operationRetryMs;
+    _sessionTimeoutMs = sessionTimeoutMs;
+    _connectionTimeoutMs = connectionTimeoutMs;
+    _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _listener = listener;
     _defaultTransportProviderName = defaultTransportProviderName;
   }
@@ -216,13 +216,19 @@ public class ZkAdapter {
     // isLeader will be reinitialized when we reconnect
   }
 
+
+  @VisibleForTesting
+  ZkClient createZkClient() {
+    return new ZkClient(_zkServers, _sessionTimeoutMs, _connectionTimeoutMs, _operationRetryTimeoutMs);
+  }
+
   /**
    * Connect the adapter so that it can connect and bridge events between ZooKeeper changes and
    * the actions that need to be taken with them, which are implemented in the Coordinator class
    */
   public void connect() {
     disconnect(); // Guard against leaking an existing zookeeper session
-    _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout, _operationRetryMs);
+    _zkclient = createZkClient();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -395,7 +401,7 @@ public class ZkAdapter {
         .map(DatastreamTask::getDatastreamTaskName)
         .collect(Collectors.toSet());
 
-    LOG.info("Cleaning up deprecated connector tasks: {} for connector: {}",
+    LOG.info("Cleaning up stale connector tasks: {} for connector: {}",
         tasksToDelete, connector);
     for (String taskToDelete : tasksToDelete) {
       deleteConnectorTask(connector, taskToDelete);
