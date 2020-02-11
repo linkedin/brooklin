@@ -31,6 +31,7 @@ import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
 import com.linkedin.datastream.common.Datastream;
@@ -108,8 +109,9 @@ public class ZkAdapter {
 
   private final String _zkServers;
   private final String _cluster;
-  private final int _sessionTimeout;
-  private final int _connectionTimeout;
+  private final int _sessionTimeoutMs;
+  private final int _connectionTimeoutMs;
+  private final int _operationRetryTimeoutMs;
   private ZkClient _zkclient;
 
   private String _instanceName;
@@ -141,18 +143,36 @@ public class ZkAdapter {
    * @param zkServers ZooKeeper server address to connect to
    * @param cluster Brooklin cluster this instance belongs to
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
-   * @param sessionTimeout Session timeout to use for the connection with the ZooKeeper server
-   * @param connectionTimeout Connection timeout to use for the connection with the ZooKeeper server
+   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
+   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
+   *                         considered as retry forever until a connection has been reestablished.
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
-  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
-      int connectionTimeout, ZkAdapterListener listener) {
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
+      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
-    _sessionTimeout = sessionTimeout;
-    _connectionTimeout = connectionTimeout;
+    _sessionTimeoutMs = sessionTimeoutMs;
+    _connectionTimeoutMs = connectionTimeoutMs;
+    _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _listener = listener;
     _defaultTransportProviderName = defaultTransportProviderName;
+  }
+
+  /**
+   * Constructor
+   * @param zkServers ZooKeeper server address to connect to
+   * @param cluster Brooklin cluster this instance belongs to
+   * @param defaultTransportProviderName Default transport provider to use for a newly created task
+   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
+   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
+   */
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
+      int connectionTimeoutMs, ZkAdapterListener listener) {
+    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
+        listener);
   }
 
   /**
@@ -196,12 +216,19 @@ public class ZkAdapter {
     // isLeader will be reinitialized when we reconnect
   }
 
+
+  @VisibleForTesting
+  ZkClient createZkClient() {
+    return new ZkClient(_zkServers, _sessionTimeoutMs, _connectionTimeoutMs, _operationRetryTimeoutMs);
+  }
+
   /**
    * Connect the adapter so that it can connect and bridge events between ZooKeeper changes and
    * the actions that need to be taken with them, which are implemented in the Coordinator class
    */
   public void connect() {
-    _zkclient = new ZkClient(_zkServers, _sessionTimeout, _connectionTimeout);
+    disconnect(); // Guard against leaking an existing zookeeper session
+    _zkclient = createZkClient();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -363,32 +390,26 @@ public class ZkAdapter {
 
   /**
    * Delete ZooKeeper znodes for all datastream tasks belonging to a group with a specified task prefix
-   * @param connectors Connectors to look under for datastream tasks to delete
+   * @param connector Connector to which the datastream tasks with the task prefix belong
    * @param taskPrefix Task prefix of the datastream tasks to be deleted
    */
-  public void deleteTasksWithPrefix(Set<String> connectors, String taskPrefix) {
+  public void deleteTasksWithPrefix(String connector, String taskPrefix) {
     Set<String> tasksToDelete = _liveTaskMap.values()
         .stream()
         .flatMap(Collection::stream)
-        .filter(x -> x.getTaskPrefix().equals(taskPrefix))
+        .filter(x -> x.getTaskPrefix().equals(taskPrefix) && x.getConnectorType().equals(connector))
         .map(DatastreamTask::getDatastreamTaskName)
         .collect(Collectors.toSet());
 
-    for (String connector : connectors) {
-      Set<String> allTasks = new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
-      List<String> deadTasks = allTasks.stream().filter(tasksToDelete::contains).collect(Collectors.toList());
-
-      if (deadTasks.size() > 0) {
-        LOG.info("Cleaning up deprecated connector tasks: {} for connector: {}", deadTasks, connector);
-        for (String task : deadTasks) {
-          deleteConnectorTask(connector, task);
-        }
-      }
+    LOG.info("Cleaning up stale connector tasks: {} for connector: {}",
+        tasksToDelete, connector);
+    for (String taskToDelete : tasksToDelete) {
+      deleteConnectorTask(connector, taskToDelete);
     }
   }
 
   private void deleteConnectorTask(String connector, String taskName) {
-    LOG.info("Trying to delete task " + taskName);
+    LOG.info("Trying to delete connector task " + taskName);
     String path = KeyBuilder.connectorTask(_cluster, connector, taskName);
     if (_zkclient.exists(path) && !_zkclient.deleteRecursive(path)) {
       // Ignore such failure for now

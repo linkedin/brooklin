@@ -866,7 +866,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info(
           "No datastream left in the datastream group with taskPrefix {}. Deleting all tasks corresponding to the datastream.",
           taskPrefix);
-      _adapter.deleteTasksWithPrefix(_connectors.keySet(), taskPrefix);
+      _adapter.deleteTasksWithPrefix(ds.getConnectorName(), taskPrefix);
       deleteTopic(ds);
     } else {
       _log.info("Found duplicate datastream {} for the datastream to be deleted {}. Not deleting the tasks.",

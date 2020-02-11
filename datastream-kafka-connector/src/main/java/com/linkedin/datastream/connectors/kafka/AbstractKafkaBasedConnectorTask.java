@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -31,13 +30,11 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.InvalidOffsetException;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
@@ -123,8 +120,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected final KafkaBasedConnectorTaskMetrics _consumerMetrics;
 
-  private final Optional<KafkaPositionTracker> _kafkaPositionTracker;
-
   private final AtomicInteger _pollAttempts;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
@@ -168,7 +163,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = new AtomicInteger();
-    _kafkaPositionTracker = Optional.ofNullable(createKafkaPositionTracker(config.getKafkaPositionTrackerConfig()));
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -205,6 +199,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    */
   protected abstract DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime)
       throws Exception;
+
+  /**
+   * Post shutdown hook to be called for any operations that need to be performed before exiting the task.
+   */
+  protected void postShutdownHook() { }
 
   /**
    * Get the taskName
@@ -349,6 +348,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       if (null != _consumer) {
         _consumer.close();
       }
+      postShutdownHook();
       _logger.info("{} stopped", _taskName);
     }
   }
@@ -428,9 +428,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
       }
       _pollAttempts.set(0);
-
-      sendPollInfoToPositionTracker(_consumer, records);
-
       return records;
     } catch (NoOffsetForPartitionException e) {
       handleNoOffsetForPartitionException(e);
@@ -441,42 +438,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     } catch (Exception e) {
       handlePollRecordsException(e);
       return ConsumerRecords.EMPTY;
-    }
-  }
-
-  /**
-   * Sends the result of the consumer's {@link Consumer#poll(Duration)} to the position tracker.
-   *
-   * @param consumer the consumer that was used
-   * @param records the records the consumer received
-   * @throws WakeupException if the consumer is shutting down
-   * @throws InterruptException if the consumer is shutting down
-   */
-  private void sendPollInfoToPositionTracker(Consumer<?, ?> consumer, ConsumerRecords<?, ?> records) {
-    try {
-      _kafkaPositionTracker.ifPresent(tracker -> {
-        // The calls to position() (needed for initializing the position data for these positions) are intentionally
-        // made after a poll() so that they will return very quickly
-        for (final TopicPartition topicPartition : tracker.getUninitializedPartitions()) {
-          try {
-            tracker.initializePartition(topicPartition, consumer.position(topicPartition));
-          } catch (IllegalStateException e) {
-            // Would occur if the partition has been unassigned but onPartitionsRevoked() has not yet been called.
-            // In this case, there is nothing we can do but wait for onPartitionsRevoked().
-            _logger.trace(String.format("Got IllegalStateException when processing partition %s", topicPartition), e);
-          } catch (InvalidOffsetException e) {
-            // Occurs if no offset is defined for the partition and no offset reset policy is defined.
-            // This error should have been caught by poll(), but will definitely be caught by poll() in the next run,
-            // so it should be safe to ignore this exception and allow records processing to continue.
-            _logger.trace(String.format("Got InvalidOffsetException when processing partition %s", topicPartition), e);
-          }
-        }
-        tracker.onRecordsReceived(records, consumer.metrics());
-      });
-    } catch (WakeupException | InterruptException e) {
-      throw e; // Consumer is shutting down, so rethrow
-    } catch (Exception e) {
-      _logger.warn("Got uncaught exception while processing position tracker code (swallowing and continuing)", e);
     }
   }
 
@@ -665,7 +626,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsRevoked(topicPartitions));
     if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
@@ -692,7 +652,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected void onPartitionsAssignedInternal(Collection<TopicPartition> partitions) {
-    _kafkaPositionTracker.ifPresent(tracker -> tracker.onPartitionsAssigned(partitions));
     // update paused partitions, in case
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
@@ -956,45 +915,5 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
 
     return null;
-  }
-
-  /**
-   * Creates a KafkaPositionTracker if enabled in the provided config.
-   *
-   * @param config the provided config
-   * @return a KafkaPositionTracker if enabled in config, or null
-   */
-  private KafkaPositionTracker createKafkaPositionTracker(KafkaPositionTrackerConfig config) {
-    if (config.isEnablePositionTracker()) {
-      Properties positionTrackerConsumerProps = new Properties(_consumerProps);
-
-      // Generate a random consumer group id for our position tracker's consumer as we do not want the position tracker
-      // to interfere with the task's consumer (can happen due to KAFKA-8350).
-      String positionTrackerGroupId = UUID.randomUUID().toString();
-      positionTrackerConsumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, positionTrackerGroupId);
-
-      // Increase the request timeout of the position tracker's consumer as it may be asking for a large number of
-      // topics in its RPC calls.
-      positionTrackerConsumerProps.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG,
-          String.valueOf(config.getBrokerRequestTimeout().toMillis()));
-
-      return KafkaPositionTracker.builder()
-          .withConnectorTaskStartTime(Instant.now())
-          .withConsumerSupplier(() -> createKafkaConsumer(positionTrackerConsumerProps))
-          .withDatastreamTask(_datastreamTask)
-          .withIsConnectorTaskAlive(() -> !_shutdown && (_connectorTaskThread == null || _connectorTaskThread.isAlive()))
-          .withKafkaPositionTrackerConfig(config)
-          .build();
-    }
-    return null;
-  }
-
-  /**
-   * Gets the KafkaPositionTracker for this instance, if it exists.
-   *
-   * @return the KafkaPositionTracker for this instance, if it exists
-   */
-  public Optional<KafkaPositionTracker> getKafkaPositionTracker() {
-    return _kafkaPositionTracker;
   }
 }
