@@ -165,13 +165,13 @@ public class ZkAdapter {
    * @param zkServers ZooKeeper server address to connect to
    * @param cluster Brooklin cluster this instance belongs to
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
-   * @param sessionTimeout Session timeout to use for the connection with the ZooKeeper server
-   * @param connectionTimeout Connection timeout to use for the connection with the ZooKeeper server
+   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
+   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
-  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeout,
-      int connectionTimeout, ZkAdapterListener listener) {
-    this(zkServers, cluster, defaultTransportProviderName, sessionTimeout, connectionTimeout, -1,
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
+      int connectionTimeoutMs, ZkAdapterListener listener) {
+    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
         listener);
   }
 
@@ -1324,11 +1324,6 @@ public class ZkAdapter {
     public void handleDataDeleted(String dataPath) throws Exception {
       // do nothing
     }
-  }
-
-  @VisibleForTesting
-  ZkClient getZkClient() {
-    return _zkclient;
   }
 
   /**

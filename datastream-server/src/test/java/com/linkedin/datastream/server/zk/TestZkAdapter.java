@@ -46,7 +46,7 @@ import static org.mockito.Mockito.spy;
  * Tests for {@link ZkAdapter}
  */
 public class TestZkAdapter {
-  private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(com.linkedin.datastream.server.zk.TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
 
   private final String defaultTransportProviderName = "test";
@@ -695,23 +695,23 @@ public class TestZkAdapter {
     Assert.assertTrue(PollUtils.poll(task2::isLocked, 100, 5000));
   }
 
-  private SpyingZkAdapter createSpyingZkAdapter(String testCluster) {
-    return new SpyingZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,  ZkClient.DEFAULT_SESSION_TIMEOUT,
-        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+  private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster) {
+    return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
   }
 
-  private static class SpyingZkAdapter extends ZkAdapter {
+  private static class ZkClientInterceptingAdapter extends ZkAdapter {
     private ZkClient _zkClient;
 
-    public SpyingZkAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
-        int defaultSessionTimeout, int defaultConnectionTimeout, ZkAdapterListener listener) {
-      super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeout,
-          defaultConnectionTimeout, listener);
+    public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
+        int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, ZkAdapterListener listener) {
+      super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeoutMs,
+          defaultConnectionTimeoutMs, listener);
     }
 
     @Override
     ZkClient createZkClient() {
-      _zkClient = spy(super.createZkClient());
+      _zkClient = super.createZkClient();
       return _zkClient;
     }
 
@@ -725,7 +725,7 @@ public class TestZkAdapter {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
 
-    SpyingZkAdapter adapter = createSpyingZkAdapter(testCluster);
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
     adapter.connect();
 
     List<DatastreamTask> tasks = new ArrayList<>();
