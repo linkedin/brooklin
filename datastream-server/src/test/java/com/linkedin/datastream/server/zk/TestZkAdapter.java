@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -35,7 +36,8 @@ import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -44,7 +46,7 @@ import static org.mockito.Mockito.spy;
  * Tests for {@link ZkAdapter}
  */
 public class TestZkAdapter {
-  private static final Logger LOG = LoggerFactory.getLogger(TestZkAdapter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(com.linkedin.datastream.server.zk.TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
 
   private final String defaultTransportProviderName = "test";
@@ -61,12 +63,12 @@ public class TestZkAdapter {
   }
 
   @AfterMethod
-  public void teardown() throws IOException {
+  public void teardown() {
     _embeddedZookeeper.shutdown();
   }
 
   @Test
-  public void testInstanceName() throws Exception {
+  public void testInstanceName() {
     String testCluster = "testInstanceName";
 
     //
@@ -95,12 +97,12 @@ public class TestZkAdapter {
   }
 
   private ZkAdapter createZkAdapter(String testCluster) {
-    return new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,  ZkClient.DEFAULT_SESSION_TIMEOUT,
-        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    return new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
   }
 
   @Test
-  public void testSmoke() throws Exception {
+  public void testSmoke() {
     String testCluster = "test_adapter_smoke";
 
     ZkAdapter adapter1 = createZkAdapter(testCluster);
@@ -123,7 +125,7 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testLeaderElection() throws Exception {
+  public void testLeaderElection() {
     String testCluster = "test_adapter_leader";
 
     //
@@ -167,7 +169,7 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testStressLeaderElection() throws Exception {
+  public void testStressLeaderElection() {
     String testCluster = "test_leader_election_stress";
 
     //
@@ -428,7 +430,7 @@ public class TestZkAdapter {
     List<HostTargetAssignment> assignments = ImmutableList.of(new HostTargetAssignment(ImmutableList.of("t-0", "t-1"), hostName1),
         new HostTargetAssignment(ImmutableList.of("t-1", "t-3"), hostName2),
         new HostTargetAssignment(ImmutableList.of("t-2", "t-4"), hostName1));
-    
+
     zkClient.ensurePath(path);
     if (zkClient.exists(path)) {
       for (HostTargetAssignment assignment : assignments) {
@@ -452,7 +454,7 @@ public class TestZkAdapter {
 
   @Test
   // CHECKSTYLE:OFF
-  public void testInstanceAssignmentWithPartitions() throws Exception {
+  public void testInstanceAssignmentWithPartitions() {
     String testCluster = "testInstanceAssignmentWithPartitions";
     String connectorType = "connectorType";
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -524,7 +526,7 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testTaskAcquireRelease() throws Exception {
+  public void testTaskAcquireRelease() {
     String testCluster = "testTaskAcquireRelease";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
@@ -568,7 +570,7 @@ public class TestZkAdapter {
    * such that the owner didn't get the chance to release the task.
    */
   @Test
-  public void testTaskAcquireReleaseOwnerUncleanShutdown() throws Exception {
+  public void testTaskAcquireReleaseOwnerUncleanShutdown() {
     String testCluster = "testTaskAcquireReleaseOwnerUncleanShutdown";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
@@ -606,7 +608,7 @@ public class TestZkAdapter {
    * such that the owner didn't get the chance to release the task.
    */
   @Test
-  public void testTaskAcquireReleaseOwnerUncleanBounce() throws Exception {
+  public void testTaskAcquireReleaseOwnerUncleanBounce() {
     String testCluster = "testTaskAcquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
@@ -660,7 +662,7 @@ public class TestZkAdapter {
    * Test task acquire when there are dependencies
    */
   @Test
-  public void testTaskAcquireWithDependencies() throws Exception {
+  public void testTaskAcquireWithDependencies() {
     String testCluster = "testTaskAcquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
 
@@ -693,6 +695,72 @@ public class TestZkAdapter {
     Assert.assertTrue(PollUtils.poll(task2::isLocked, 100, 5000));
   }
 
+  private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster) {
+    return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+  }
+
+  private static class ZkClientInterceptingAdapter extends ZkAdapter {
+    private ZkClient _zkClient;
+
+    public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
+        int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, ZkAdapterListener listener) {
+      super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeoutMs,
+          defaultConnectionTimeoutMs, listener);
+    }
+
+    @Override
+    ZkClient createZkClient() {
+      _zkClient = super.createZkClient();
+      return _zkClient;
+    }
+
+    public ZkClient getZkClient() {
+      return _zkClient;
+    }
+  }
+
+  @Test
+  public void testDeleteTasksWithPrefix() {
+    String testCluster = "testDeleteTaskWithPrefix";
+    String connectorType = "connectorType";
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
+    adapter.connect();
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+
+    // Create some nodes
+    for (int i = 0; i < 10; i++) {
+      DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
+      dsTask.setId("task" + i);
+      String taskPrefix = "taskPrefix" + i;
+      dsTask.setTaskPrefix(taskPrefix);
+      dsTask.setConnectorType(connectorType);
+      dsTask.setZkAdapter(adapter);
+      tasks.add(dsTask);
+    }
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+
+    ZkClient zkClient = Mockito.spy(adapter.getZkClient());
+
+    // Delete a few nodes
+    for (int j = 0; j < 8; j++) {
+      adapter.deleteTasksWithPrefix(connectorType, "taskPrefix" + j);
+    }
+
+    // Verify delete was successful with no calls done to getChildren
+    // Not the most ideal way to test the issue of not being able to delete when the top level zk node is full,
+    // but creating EmbeddedZK with smaller jute.maxbuffer size to actually testing filling a directory to
+    // max requires setting system property which will interfere with any other parallel test using EmbeddedZk.
+    Mockito.verify(zkClient, Mockito.never()).getChildren(any());
+    Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
+
+    List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
+    adapter.disconnect();
+  }
 
   /**
    * Update all datastream task assignments of a particular Brooklin instance
