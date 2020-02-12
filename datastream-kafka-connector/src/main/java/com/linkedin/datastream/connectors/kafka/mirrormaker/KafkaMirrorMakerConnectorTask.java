@@ -99,6 +99,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String TOPIC_MANAGER_FACTORY = "topicManagerFactory";
   public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
       "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
+  public static final String DESTINATION_TOPIC_PREFIX = "destinationTopicPrefix";
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
@@ -176,7 +177,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
       // Propagate the destinationTopicPrefix config to the topic manager so that it can create destination topics
       // with the same prefix.
-      topicManagerProperties.put(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
+      topicManagerProperties.put(DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
     }
 
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);

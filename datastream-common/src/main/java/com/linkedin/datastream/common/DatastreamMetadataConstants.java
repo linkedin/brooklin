@@ -76,7 +76,6 @@ public class DatastreamMetadataConstants {
   /**
    * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
    * being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
-   * This overrides the cluster level configuration.
    */
   public static final String DESTINATION_TOPIC_PREFIX = SYSTEM_DESTINATION_PREFIX + "destinationTopicPrefix";
 
