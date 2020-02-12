@@ -62,20 +62,15 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   // This config controls how frequent the connector fetches the partition information from Kafka in order to perform
   // partition assignment
   protected static final String PARTITION_FETCH_INTERVAL = "PartitionFetchIntervalMs";
-  // This config, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
-  // being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
-  protected static final String DESTINATION_TOPIC_PREFIX = "destinationTopicPrefix";
   protected static final String MM_TOPIC_PLACEHOLDER = "*";
 
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
   private static final String DEST_CONSUMER_GROUP_ID_SUFFIX = "-topic-partition-listener";
   private static final long DEFAULT_PARTITION_FETCH_INTERVAL = Duration.ofSeconds(30).toMillis();
-  private static final String DEFAULT_DESTINATION_TOPIC_PREFIX = "";
   private static final String NUM_PARTITION_FETCH_ERRORS = "numPartitionFetchErrors";
 
   private final boolean _isFlushlessModeEnabled;
   private final long _partitionFetchIntervalMs;
-  private final String _destinationTopicPrefix;
   private final KafkaConsumerFactory<?, ?> _listenerConsumerFactory;
   private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new ConcurrentHashMap<>();
   private final Properties _consumerProperties;
@@ -100,7 +95,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
     _partitionFetchIntervalMs = Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL,
         Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
-    _destinationTopicPrefix = config.getProperty(DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     _consumerProperties = verifiableProperties.getDomainProperties(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER);
     _listenerConsumerFactory = new KafkaConsumerFactoryImpl();
@@ -110,15 +104,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     if (_enablePartitionAssignment) {
       LOG.info("PartitionAssignment enabled for KafkaMirrorConnector");
     }
-    if (!StringUtils.isBlank(_destinationTopicPrefix)) {
-      LOG.info("Destination topic prefix config has been set to {} for {}", _destinationTopicPrefix, clusterName);
-    }
   }
 
   @Override
   protected AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task) {
     return new KafkaMirrorMakerConnectorTask(_config, task, _connectorName, _isFlushlessModeEnabled,
-        _destinationTopicPrefix, _groupIdConstructor);
+        _groupIdConstructor);
   }
 
   @Override

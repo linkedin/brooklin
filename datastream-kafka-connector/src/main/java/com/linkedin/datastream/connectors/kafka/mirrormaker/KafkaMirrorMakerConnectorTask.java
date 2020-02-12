@@ -93,6 +93,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected static final String CONFIG_FLOW_CONTROL_ENABLED = "flowControlEnabled";
   private static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
   private static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
+  private static final String DEFAULT_DESTINATION_TOPIC_PREFIX = "";
 
   // constants for topic manager
   public static final String TOPIC_MANAGER_FACTORY = "topicManagerFactory";
@@ -133,7 +134,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
    * @param groupIdConstructor Kafka consumer group ID constructor
    */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
-      boolean isFlushlessModeEnabled, String destinationTopicPrefix, GroupIdConstructor groupIdConstructor) {
+      boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
     super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
@@ -143,17 +144,14 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
-        .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, destinationTopicPrefix);
+        .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
     }
 
-    if (!StringUtils.isBlank(_destinationTopicPrefix)) {
-      LOG.info("Destination topic prefix has been set to {} and config is {}", _destinationTopicPrefix,
-          destinationTopicPrefix);
-    }
+    LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
 
     if (_isFlushlessModeEnabled) {
       _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
@@ -178,7 +176,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
       // Propagate the destinationTopicPrefix config to the topic manager so that it can create destination topics
       // with the same prefix.
-      topicManagerProperties.put(KafkaMirrorMakerConnector.DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
+      topicManagerProperties.put(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
     }
 
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
