@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -34,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
@@ -91,11 +93,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected static final String CONFIG_FLOW_CONTROL_ENABLED = "flowControlEnabled";
   private static final long DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD = 5000;
   private static final long DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD = 1000;
+  private static final String DEFAULT_DESTINATION_TOPIC_PREFIX = "";
 
   // constants for topic manager
   public static final String TOPIC_MANAGER_FACTORY = "topicManagerFactory";
   public static final String DEFAULT_TOPIC_MANAGER_FACTORY =
       "com.linkedin.datastream.connectors.kafka.mirrormaker.NoOpTopicManagerFactory";
+  public static final String DESTINATION_TOPIC_PREFIX = "destinationTopicPrefix";
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
@@ -112,6 +116,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
   private final boolean _enablePartitionAssignment;
+  private final String _destinationTopicPrefix;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
   private long _maxInFlightMessagesThreshold;
@@ -139,11 +144,15 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
+    _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
+        .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
     }
+
+    LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
 
     if (_isFlushlessModeEnabled) {
       _flushlessProducer = new FlushlessEventProducerHandler<>(_producer);
@@ -166,6 +175,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         null != connectorProperties.getProperty(TOPIC_MANAGER_FACTORY)) {
       topicManagerProperties = connectorProperties.getDomainProperties(DOMAIN_TOPIC_MANAGER);
       topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
+      // Propagate the destinationTopicPrefix config to the topic manager so that it can create destination topics
+      // with the same prefix.
+      topicManagerProperties.put(DESTINATION_TOPIC_PREFIX, _destinationTopicPrefix);
     }
 
     TopicManagerFactory topicManagerFactory = ReflectionUtils.createInstance(topicManagerFactoryName);
@@ -235,7 +247,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
     builder.setDestination(_datastreamTask.getDatastreamDestination()
         .getConnectionString()
-        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER, topic));
+        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER,
+            StringUtils.isBlank(_destinationTopicPrefix) ? topic : _destinationTopicPrefix + topic));
     if (_isIdentityMirroringEnabled) {
       builder.setPartition(partition);
     }

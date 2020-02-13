@@ -110,6 +110,59 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       String destinationTopic = record.getDestination().get();
       Assert.assertTrue(destinationTopic.endsWith("Pizza"),
           "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+      Assert.assertTrue(destinationTopic.equals(yummyTopic) || destinationTopic.equals(saltyTopic),
+          "Destination topic name does not match expected topics. Topic: " + destinationTopic);
+    }
+
+    // verify the states response returned by diagnostics endpoint contains correct counts
+    validateTaskConsumerAssignment(connectorTask,
+        Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testConsumeFromMultipleTopicsWithDestinationTopicPrefixMetadata() throws Exception {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+    String saladTopic = "HealthySalad";
+
+    String destinationTopicPrefixOverride = "newPrefix";
+
+    createTopic(_zkUtils, saladTopic);
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, destinationTopicPrefixOverride);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce an event to each of the 3 topics
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saladTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
+    for (DatastreamProducerRecord record : records) {
+      String destinationTopic = record.getDestination().get();
+      Assert.assertTrue(destinationTopic.endsWith("Pizza"),
+          "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+      Assert.assertTrue(destinationTopic.startsWith(destinationTopicPrefixOverride),
+          "Destination topic prefix enabled, topic should start with prefix. Topic: " + destinationTopic);
     }
 
     // verify the states response returned by diagnostics endpoint contains correct counts
@@ -188,7 +241,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", false, new KafkaGroupIdConstructor(false, "testCluster"));
+        connectorConfig, task, "", false,
+        new KafkaGroupIdConstructor(false, "testCluster"));
 
     KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
@@ -236,7 +290,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", true, new KafkaGroupIdConstructor(false, "test"));
+        connectorConfig, task, "", true,
+        new KafkaGroupIdConstructor(false, "test"));
 
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
