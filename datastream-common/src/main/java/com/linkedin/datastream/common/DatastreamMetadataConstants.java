@@ -74,6 +74,12 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
 
   /**
+   * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
+   * being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
+   */
+  public static final String DESTINATION_TOPIC_PREFIX = SYSTEM_DESTINATION_PREFIX + "destinationTopicPrefix";
+
+  /**
    * Timestamp of datastream creation in epoch-millis
    */
   public static final String CREATION_MS = "system.creation.ms";
