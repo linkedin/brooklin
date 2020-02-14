@@ -127,7 +127,7 @@ public class ZkAdapter {
 
   private final Random randomGenerator = new Random();
 
-  private final ZkLeaderElectionListener _leaderElectionListener = new ZkLeaderElectionListener();
+  private ZkLeaderElectionListener _leaderElectionListener;
   private ZkBackedTaskListProvider _assignmentList = null;
 
   // only the leader should maintain this list and listen to the changes of live instances
@@ -211,11 +211,11 @@ public class ZkAdapter {
         }
         _zkclient.close();
         _zkclient = null;
+        _leaderElectionListener = null;
       }
     }
     // isLeader will be reinitialized when we reconnect
   }
-
 
   @VisibleForTesting
   ZkClient createZkClient() {
@@ -229,6 +229,8 @@ public class ZkAdapter {
   public void connect() {
     disconnect(); // Guard against leaking an existing zookeeper session
     _zkclient = createZkClient();
+
+    _leaderElectionListener = new ZkLeaderElectionListener();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -776,6 +778,19 @@ public class ZkAdapter {
   }
 
   /**
+   * Get all connectors in the cluster.
+   */
+  private List<String> getAllConnectors() {
+    String path = KeyBuilder.connectors(_cluster);
+    _zkclient.ensurePath(path);
+    return _zkclient.getChildren(path);
+  }
+
+  private Set<String> getConnectorTasks(String connector) {
+    return new HashSet<>(_zkclient.getChildren(KeyBuilder.connector(_cluster, connector)));
+  }
+
+  /**
    * Save the error message for an instance in ZooKeeper under {@code /{cluster}/instances/{instanceName}/errors}
    */
   public void zkSaveInstanceError(String message) {
@@ -873,6 +888,44 @@ public class ZkAdapter {
 
     // Delete the connector tasks.
     unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));
+  }
+
+  /**
+   * Remove orphan connector task nodes which are not assigned to any instance (live or pause).
+   *
+   * NOTE: this should only be called after the valid tasks have been
+   * reassigned or become safe to discard per strategy requirement.
+   * This can be a costly operation. So, it should be call once the leader get elected and has finished
+   * the assignment and cleaned up dead Tasks. Ideally, we should not find anything in this check to clean up.
+   * @param cleanUpOrphanTasksInConnector Boolean whether orphan tasks should be removed from zookeeper or just print
+   *                                      warning logs.
+   */
+  public void cleanUpOrphanConnectorTasks(boolean cleanUpOrphanTasksInConnector) {
+    if (!_isLeader) {
+      return;
+    }
+
+    Map<String, Set<DatastreamTask>> assignmentsByInstance = getAllAssignedDatastreamTasks();
+
+    Set<DatastreamTask> validTasks =
+        assignmentsByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+
+    List<String> allConnectors = getAllConnectors();
+    for (String connector : allConnectors) {
+      Set<String> connectorTaskList = getConnectorTasks(connector);
+
+      connectorTaskList.removeAll(validTasks.stream()
+          .filter(x -> x.getConnectorType().equals(connector))
+          .map(DatastreamTask::getDatastreamTaskName)
+          .collect(Collectors.toSet()));
+
+      if (connectorTaskList.size() > 0) {
+        LOG.warn("Found orphan tasks: {} in connector: {}", connectorTaskList, connector);
+        if (cleanUpOrphanTasksInConnector) {
+          connectorTaskList.forEach(t -> deleteConnectorTask(connector, t));
+        }
+      }
+    }
   }
 
   private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {
@@ -1222,9 +1275,10 @@ public class ZkAdapter {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
         String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
-        if (hostname != null) {
+        if (hostname == null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
+        } else {
           liveInstances.add(formatZkInstance(hostname, n));
         }
       }

@@ -21,18 +21,21 @@ public class CoordinatorEvent {
     LEADER_DO_ASSIGNMENT,
     LEADER_PARTITION_ASSIGNMENT,
     LEADER_PARTITION_MOVEMENT,
+    LEADER_DO_POST_BECOMING_LEADER,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
     HANDLE_INSTANCE_ERROR,
     HEARTBEAT,
-    NO_OP
+    NO_OP,
   }
 
   public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT =
       new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
+  public static final CoordinatorEvent LEADER_DO_POST_BECOMING_LEADER_EVENT =
+      new CoordinatorEvent(EventType.LEADER_DO_POST_BECOMING_LEADER);
   public static final CoordinatorEvent HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE);
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT =
@@ -80,12 +83,19 @@ public class CoordinatorEvent {
   }
 
   /**
-   * Retrun an event that indicates that partition need to be assigned for a datastream group
+   * Return an event that indicates that partition need to be assigned for a datastream group
    * @param datastreamGroupName the name of datastream group which receives partition changes
    * @return
    */
   public static CoordinatorEvent createLeaderPartitionAssignmentEvent(String datastreamGroupName) {
     return new CoordinatorEvent(EventType.LEADER_PARTITION_ASSIGNMENT, datastreamGroupName);
+  }
+
+  /**
+   * Returns an event that indicates tasks to do post becoming a leader.
+   */
+  public static CoordinatorEvent createLeaderDoPostBecomingLeaderEvent() {
+    return LEADER_DO_POST_BECOMING_LEADER_EVENT;
   }
 
   /**

@@ -759,6 +759,26 @@ public class TestZkAdapter {
     List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 2);
 
+    adapter.cleanUpOrphanConnectorTasks(false);
+
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
+    adapter.cleanUpOrphanConnectorTasks(true);
+
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), new ArrayList<DatastreamTask>());
+
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
+    adapter.cleanUpOrphanConnectorTasks(true);
+
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 0);
+
     adapter.disconnect();
   }
 

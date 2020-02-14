@@ -23,6 +23,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMs";
   public static final String CONFIG_HEARTBEAT_PERIOD_MS = PREFIX + "heartbeatPeriodMs";
+  public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK = PREFIX + "zkCleanUpOrphanConnectorTask";
 
   private final String _cluster;
   private final String _zkAddress;
@@ -33,6 +34,7 @@ public final class CoordinatorConfig {
   private final int _retryIntervalMs;
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
+  private final boolean _zkCleanUpOrphanConnectorTask;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -49,6 +51,7 @@ public final class CoordinatorConfig {
     _retryIntervalMs = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
     _heartbeatPeriodMs = _properties.getLong(CONFIG_HEARTBEAT_PERIOD_MS, Duration.ofMinutes(1).toMillis());
     _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
+    _zkCleanUpOrphanConnectorTask = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK, false);
   }
 
   public Properties getConfigProperties() {
@@ -82,4 +85,9 @@ public final class CoordinatorConfig {
   public long getHeartbeatPeriodMs() {
     return _heartbeatPeriodMs;
   }
+
+  public boolean getZkCleanUpOrphanConnectorTask() {
+    return _zkCleanUpOrphanConnectorTask;
+  }
+
 }
