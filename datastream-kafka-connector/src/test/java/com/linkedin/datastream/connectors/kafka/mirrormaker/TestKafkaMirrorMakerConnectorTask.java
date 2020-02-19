@@ -705,26 +705,26 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // Testing with default group id
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         defaultGrpId);
 
     // Test with setting explicit group id in one datastream
     datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         "MyGroupId");
 
     // Test with explicitly setting group id in both datastream
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         "MyGroupId");
 
     // now set different group ids in 2 datastreams and make sure validation fails
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
     boolean exceptionSeen = false;
     try {
-      KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG);
+      KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG);
     } catch (DatastreamRuntimeException e) {
       exceptionSeen = true;
     }
