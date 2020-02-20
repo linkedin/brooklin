@@ -891,18 +891,20 @@ public class ZkAdapter {
   }
 
   /**
-   * Remove orphan connector task nodes which are not assigned to any instance (live or pause).
+   * Remove orphan connector task nodes which are not assigned to any instance (live or paused).
    *
-   * NOTE: this should only be called after the valid tasks have been
-   * reassigned or become safe to discard per strategy requirement.
-   * This can be a costly operation. So, it should be call once the leader get elected and has finished
-   * the assignment and cleaned up dead Tasks. Ideally, we should not find anything in this check to clean up.
-   * @param cleanUpOrphanTasksInConnector Boolean whether orphan tasks should be removed from zookeeper or just print
-   *                                      warning logs.
+   * NOTE: this should be called after the valid tasks have been reassigned or become safe to discard per
+   * strategy requirement.
+   * This is a costly operation which involves getting all children of /cluster/connectors from Zookeeper. So,
+   * it should be called only once the leader gets
+   * elected and has finished the assignment and cleaned up dead
+   * Tasks. Ideally, we should not find anything in this check to clean up.
+   * @param cleanUpOrphanTasksInConnector Boolean whether orphan tasks should be removed from zookeeper or just
+   *                                      print warning logs.
    */
-  public void cleanUpOrphanConnectorTasks(boolean cleanUpOrphanTasksInConnector) {
+  public int cleanUpOrphanConnectorTasks(boolean cleanUpOrphanTasksInConnector) {
     if (!_isLeader) {
-      return;
+      return 0;
     }
 
     Map<String, Set<DatastreamTask>> assignmentsByInstance = getAllAssignedDatastreamTasks();
@@ -911,6 +913,7 @@ public class ZkAdapter {
         assignmentsByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
 
     List<String> allConnectors = getAllConnectors();
+    int orphanCount = 0;
     for (String connector : allConnectors) {
       Set<String> connectorTaskList = getConnectorTasks(connector);
 
@@ -925,7 +928,9 @@ public class ZkAdapter {
           connectorTaskList.forEach(t -> deleteConnectorTask(connector, t));
         }
       }
+      orphanCount += connectorTaskList.size();
     }
+    return orphanCount;
   }
 
   private void waitForTaskRelease(DatastreamTask task, long timeoutMs, String lockPath) {

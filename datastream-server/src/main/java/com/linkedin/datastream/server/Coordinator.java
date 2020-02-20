@@ -165,6 +165,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_PARTITION_ASSIGNMENTS = "numPartitionAssignments";
   private static final String NUM_PARTITION_MOVEMENTS = "numPartitionMovements";
   private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
+  private static final String NUM_ORPHAN_CONNECTOR_TASKS = "numOrphanConnectorTasks";
   private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
   private static final String IS_LEADER = "isLeader";
 
@@ -1258,7 +1259,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   void performTaskPostBecomingLeader() {
     _log.info("performTaskPostBecomingLeader called");
-    _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
+    int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performTaskPostBecomingLeader",
+        NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 
   /**
