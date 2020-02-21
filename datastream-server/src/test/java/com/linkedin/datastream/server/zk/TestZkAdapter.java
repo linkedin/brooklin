@@ -774,6 +774,11 @@ public class TestZkAdapter {
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 2);
 
+    adapter.cleanUpOrphanConnectorTasks(false);
+
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 2);
+
     adapter.cleanUpOrphanConnectorTasks(true);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
