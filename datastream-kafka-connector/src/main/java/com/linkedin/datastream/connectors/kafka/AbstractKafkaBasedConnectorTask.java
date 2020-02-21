@@ -122,8 +122,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   private final AtomicInteger _pollAttempts;
 
+  protected final GroupIdConstructor _groupIdConstructor;
+
+  protected final KafkaTopicPartitionTracker _kafkaTopicPartitionTracker;
+
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
-      String metricsPrefix) {
+      String metricsPrefix, GroupIdConstructor groupIdConstructor) {
     _logger = logger;
     _logger.info(
         "Creating Kafka-based connector task for datastream task {} with commit interval {} ms, retry sleep duration {}"
@@ -163,6 +167,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
 
     _pollAttempts = new AtomicInteger();
+    _groupIdConstructor = groupIdConstructor;
+    _kafkaTopicPartitionTracker = new KafkaTopicPartitionTracker(
+        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, logger));
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -325,7 +332,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
         maybeCommitOffsets(_consumer, false);
         trackEventsProcessedProgress(recordsPolled);
-
       } // end while loop
 
       // shutdown, do a force commit
@@ -626,6 +632,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
+    _kafkaTopicPartitionTracker.onPartitionsRevoked(topicPartitions);
     if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
@@ -653,6 +660,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void onPartitionsAssignedInternal(Collection<TopicPartition> partitions) {
     // update paused partitions, in case
+    _kafkaTopicPartitionTracker.onPartitionsAssigned(partitions);
     _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
   }
 
@@ -915,5 +923,30 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
 
     return null;
+  }
+
+  /**
+   *  Gets the KafkaTopicPartition tracker
+   */
+  public KafkaTopicPartitionTracker getKafkaTopicPartitionTracker() {
+    return _kafkaTopicPartitionTracker;
+  }
+
+  /**
+   * Get Kafka group ID of given task
+   * @param task Task for which group ID is generated.
+   * @param groupIdConstructor GroupIdConstructor to use for generating group ID.
+   * @param consumerMetrics CommonConnectorMetrics to use for reporting errors.
+   * @param logger Logger for logging information.
+   */
+  @VisibleForTesting
+  public static String getKafkaGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
+      CommonConnectorMetrics consumerMetrics, Logger logger) {
+    try {
+      return groupIdConstructor.getTaskGroupId(task, Optional.of(logger));
+    } catch (Exception e) {
+      consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
+      throw e;
+    }
   }
 }
