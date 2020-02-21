@@ -39,7 +39,6 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
@@ -123,8 +122,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
 
-  private final GroupIdConstructor _groupIdConstructor;
-
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
    * @param config Task configuration properties
@@ -136,13 +133,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
    */
   public KafkaMirrorMakerConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
-    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
+    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME), groupIdConstructor);
     _consumerFactory = config.getConsumerFactory();
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
-    _groupIdConstructor = groupIdConstructor;
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
@@ -198,7 +194,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         Boolean.FALSE.toString()); // auto-commits are unsafe
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
     properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG,
-        getMirrorMakerGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG));
+        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG));
     LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
     return _consumerFactory.createConsumer(properties);
   }
@@ -413,24 +409,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
             + ".*"));
     return metrics;
-  }
-
-  /**
-   * Get Kafka consumer group ID for a datastream task
-   * @param task Datastream task
-   * @param groupIdConstructor Consumer group ID constructor
-   * @param consumerMetrics Consumer metrics to use for error reporting
-   * @param logger Logger to use
-   */
-  @VisibleForTesting
-  public static String getMirrorMakerGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
-      CommonConnectorMetrics consumerMetrics, Logger logger) {
-    try {
-      return groupIdConstructor.getTaskGroupId(task, Optional.of(logger));
-    } catch (Exception e) {
-      consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
-      throw e;
-    }
   }
 
   /**
