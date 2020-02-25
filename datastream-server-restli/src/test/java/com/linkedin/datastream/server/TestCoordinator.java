@@ -2465,7 +2465,7 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testCoordinatorPerformPostBecomingLeaderTasks() throws Exception {
+  public void testCoordinatorLeaderCleanupTasksPostElection() throws Exception {
     String testCluster = "testCoordinationSmoke3";
     String testConnectorType = "testConnectorType";
     String datastreamName1 = "datastream1";

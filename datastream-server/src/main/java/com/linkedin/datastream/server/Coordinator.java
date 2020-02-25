@@ -378,7 +378,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
     // This should be only called after createLeaderDoAssignmentEvent as it will verify/cleanup the orphan task nodes
     // under connector.
-    _eventQueue.put(CoordinatorEvent.createLeaderDoPostBecomingLeaderEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoCleanupPostElectionEvent());
     _log.info("Coordinator::onBecomeLeader completed successfully");
   }
 
@@ -732,8 +732,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           performPartitionMovement((Long) event.getEventMetadata());
           break;
 
-        case LEADER_DO_POST_BECOMING_LEADER:
-          performTaskPostBecomingLeader();
+        case LEADER_DO_CLEANUP_POST_ELECTION:
+          performCleanupTaskPostElection();
           break;
 
         default:
@@ -1257,10 +1257,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
-  void performTaskPostBecomingLeader() {
-    _log.info("performTaskPostBecomingLeader called");
+  void performCleanupTaskPostElection() {
+    _log.info("performCleanupTaskPostElection called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performTaskPostBecomingLeader",
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupTaskPostElection",
         NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 

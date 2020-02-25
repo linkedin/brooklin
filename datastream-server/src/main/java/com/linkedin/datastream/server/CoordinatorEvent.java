@@ -21,7 +21,7 @@ public class CoordinatorEvent {
     LEADER_DO_ASSIGNMENT,
     LEADER_PARTITION_ASSIGNMENT,
     LEADER_PARTITION_MOVEMENT,
-    LEADER_DO_POST_BECOMING_LEADER,
+    LEADER_DO_CLEANUP_POST_ELECTION,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
@@ -34,8 +34,8 @@ public class CoordinatorEvent {
       new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
-  public static final CoordinatorEvent LEADER_DO_POST_BECOMING_LEADER_EVENT =
-      new CoordinatorEvent(EventType.LEADER_DO_POST_BECOMING_LEADER);
+  public static final CoordinatorEvent LEADER_DO_CLEANUP_POST_ELECTION_EVENT =
+      new CoordinatorEvent(EventType.LEADER_DO_CLEANUP_POST_ELECTION);
   public static final CoordinatorEvent HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE);
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT =
@@ -94,8 +94,8 @@ public class CoordinatorEvent {
   /**
    * Returns an event that indicates tasks to do post becoming a leader.
    */
-  public static CoordinatorEvent createLeaderDoPostBecomingLeaderEvent() {
-    return LEADER_DO_POST_BECOMING_LEADER_EVENT;
+  public static CoordinatorEvent createLeaderDoCleanupPostElectionEvent() {
+    return LEADER_DO_CLEANUP_POST_ELECTION_EVENT;
   }
 
   /**
