@@ -1279,6 +1279,13 @@ public class ZkAdapter {
   public class ZkStateChangeListener implements IZkStateListener {
     @Override
     public void handleStateChanged(Watcher.Event.KeeperState state) {
+      if (state == Watcher.Event.KeeperState.Expired) {
+        LOG.info("ZkStateChangeListener::Session expired.");
+        if (_assignmentList != null) {
+          _assignmentList.close();
+          _assignmentList = null;
+        }
+      }
     }
 
     @Override
@@ -1289,6 +1296,7 @@ public class ZkAdapter {
 
     @Override
     public void handleSessionEstablishmentError(final Throwable error) {
+      LOG.warn("ZkStateChangeListener::Failed to establish session.", error);
     }
   }
 
