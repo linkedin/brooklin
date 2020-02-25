@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
@@ -164,6 +165,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_PARTITION_ASSIGNMENTS = "numPartitionAssignments";
   private static final String NUM_PARTITION_MOVEMENTS = "numPartitionMovements";
   private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
+  private static final String NUM_ORPHAN_CONNECTOR_TASKS = "numOrphanConnectorTasks";
   private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
   private static final String IS_LEADER = "isLeader";
 
@@ -233,8 +235,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _clusterName = _config.getCluster();
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
-    _adapter = new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+    _adapter = createZkAdapter();
 
     _eventQueue = new CoordinatorEventBlockingQueue();
     _eventThread = new CoordinatorEventProcessor();
@@ -253,6 +254,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
 
     _metrics.addAll(EventProducer.getMetricInfos());
+  }
+
+  @VisibleForTesting
+  ZkAdapter createZkAdapter() {
+    return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
   }
 
   /**
@@ -369,6 +376,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    // This should be only called after createLeaderDoAssignmentEvent as it will verify/cleanup the orphan task nodes
+    // under connector.
+    _eventQueue.put(CoordinatorEvent.createLeaderDoCleanupPostElectionEvent());
     _log.info("Coordinator::onBecomeLeader completed successfully");
   }
 
@@ -720,6 +730,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         case LEADER_PARTITION_MOVEMENT:
           performPartitionMovement((Long) event.getEventMetadata());
+          break;
+
+        case LEADER_DO_CLEANUP_POST_ELECTION:
+          performCleanupTaskPostElection();
           break;
 
         default:
@@ -1243,6 +1257,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
+  void performCleanupTaskPostElection() {
+    _log.info("performCleanupTaskPostElection called");
+    int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupTaskPostElection",
+        NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
+  }
+
   /**
    * Get tasks assigned to paused groups
    */
@@ -1651,5 +1672,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       _log.info("END CoordinatorEventProcessor");
     }
+  }
+
+  @VisibleForTesting
+  ZkAdapter getZkAdapter() {
+    return _adapter;
+  }
+
+  @VisibleForTesting
+  CoordinatorConfig getConfig() {
+    return _config;
   }
 }
