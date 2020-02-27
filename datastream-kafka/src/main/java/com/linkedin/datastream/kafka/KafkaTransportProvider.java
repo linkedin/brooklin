@@ -97,7 +97,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
     Optional<Integer> partition = record.getPartition();
 
-    byte[] keyValue = new byte[0];
+    byte[] keyValue = null;
     byte[] payloadValue = new byte[0];
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
@@ -119,7 +119,7 @@ public class KafkaTransportProvider implements TransportProvider {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
       keyValue = record.getPartitionKey().isPresent()
-          ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : null;
+              ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : keyValue;
       return new ProducerRecord<>(topicName, keyValue, payloadValue);
     }
   }
