@@ -209,7 +209,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testEventWithtimestamp() throws Exception {
+  public void testEventWithTimestamp() throws Exception {
     testEventSendWithTimestamp(1, 2, -1, false, false, "test", true);
   }
 
