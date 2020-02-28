@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import org.apache.avro.reflect.Nullable;
 import org.apache.commons.lang.Validate;
+import org.apache.kafka.common.header.Headers;
 
 
 /**
@@ -29,6 +30,8 @@ public class BrooklinEnvelope {
 
   private Map<String, String> _metadata;
 
+  private Headers _headers;
+
   /**
    * Construct a BrooklinEnvelope using record key, value, and metadata
    * @param key The record key (e.g. primary key)
@@ -36,7 +39,25 @@ public class BrooklinEnvelope {
    * @param metadata Additional metadata to associate with the change event
    */
   public BrooklinEnvelope(Object key, Object value, Map<String, String> metadata) {
-    this(key, value, null, metadata);
+    this(key, value, null, metadata, null);
+  }
+
+  /**
+   * Construct a BrooklinEnvelope using record key, value, and metadata
+   * @param key The record key (e.g. primary key)
+   * @param previousValue The old record value
+   * @param value The new record value
+   * @param metadata Additional metadata to associate with the change event
+   * @param headers Kafka Headers
+   */
+  public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
+      Map<String, String> metadata, Headers headers) {
+    Validate.notNull(metadata, "metadata cannot be null");
+    setKey(key);
+    setValue(value);
+    setPreviousValue(previousValue);
+    setMetadata(metadata);
+    setHeaders(headers);
   }
 
   /**
@@ -47,12 +68,8 @@ public class BrooklinEnvelope {
    * @param metadata Additional metadata to associate with the change event
    */
   public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
-      Map<String, String> metadata) {
-    Validate.notNull(metadata, "metadata cannot be null");
-    setKey(key);
-    setValue(value);
-    setPreviousValue(previousValue);
-    setMetadata(metadata);
+                          Map<String, String> metadata) {
+    this(key, value, previousValue, metadata, null);
   }
 
   /**
@@ -129,6 +146,21 @@ public class BrooklinEnvelope {
     _metadata = metadata;
   }
 
+
+  /**
+   * Get the kafka headers
+   */
+  public Headers getHeaders() {
+    return _headers;
+  }
+
+  /**
+   * Set the kafka headers
+   */
+  public void setHeaders(Headers headers) {
+    _headers = headers;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -139,17 +171,17 @@ public class BrooklinEnvelope {
     }
     BrooklinEnvelope task = (BrooklinEnvelope) o;
     return Objects.equals(_previousValue, task._previousValue) && Objects.equals(_key, task._key) && Objects.equals(
-        _value, task._value) && Objects.equals(_metadata, task._metadata);
+        _value, task._value) && Objects.equals(_metadata, task._metadata) && Objects.equals(_headers, task._headers);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_key, _value, _previousValue, _metadata);
+    return Objects.hash(_key, _value, _previousValue, _metadata, _headers);
   }
 
   @Override
   public String toString() {
-    return String.format("Key:(%s), Value:(%s), PreviousValue:(%s), Metadata=(%s)", _key, _value, _previousValue,
-        _metadata);
+    return String.format("Key:(%s), Value:(%s), PreviousValue:(%s), Metadata=(%s), Headers=(%s)", _key, _value, _previousValue,
+        _metadata, _headers);
   }
 }
