@@ -28,13 +28,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-import org.codehaus.jackson.type.TypeReference;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
@@ -496,7 +494,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       }
       if (path != null
           && (path.equalsIgnoreCase(DiagnosticsRequestType.PARTITIONS.toString()))) {
-        return reduceTopicPartitionStatsResponses(responses);
+        return KafkaConnectorDiagUtils.reduceTopicPartitionStatsResponses(responses, _logger);
       }
     } catch (Exception e) {
       _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
@@ -505,42 +503,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       throw new DatastreamRuntimeException(e);
     }
     return null;
-  }
-
-  private String reduceTopicPartitionStatsResponses(Map<String, String> responses) {
-    Map<String, KafkaTopicPartitionStatsResponse> result = new HashMap<>();
-
-    responses.forEach((instance, json) -> {
-      List<KafkaTopicPartitionStatsResponse> responseList;
-      try {
-        responseList = JsonUtils.fromJson(json, new TypeReference<List<KafkaTopicPartitionStatsResponse>>() {
-        });
-      } catch (Exception e) {
-        _logger.error("Invalid response {} from instance {}", json, instance);
-        return;
-      }
-
-      responseList.forEach(response -> {
-        if (response.getTopicPartitions() == null || StringUtils.isBlank(response.getConsumerGroupId())
-            || response.getDatastreams() == null) {
-          _logger.warn("Empty topic partition stats map from instance {}. Ignoring the result", instance);
-          return;
-        }
-
-        KafkaTopicPartitionStatsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-            k -> new KafkaTopicPartitionStatsResponse(response.getConsumerGroupId()));
-        reducedResponse.getDatastreams().addAll(response.getDatastreams());
-
-        Map<String, Set<Integer>> topicPartitions = response.getTopicPartitions();
-        topicPartitions.forEach((topic, partitions) -> {
-          Map<String, Set<Integer>> reducedTopicPartitions = reducedResponse.getTopicPartitions();
-          Set<Integer> reducedPartitions = reducedTopicPartitions.computeIfAbsent(topic, k -> new HashSet<>());
-          reducedPartitions.addAll(partitions);
-        });
-      });
-    });
-
-    return JsonUtils.toJson(result.values());
   }
 
   /**

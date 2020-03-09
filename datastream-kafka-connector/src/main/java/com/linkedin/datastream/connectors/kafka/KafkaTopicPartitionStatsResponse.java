@@ -16,7 +16,6 @@ import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
  * Response structure used for Topic partition stats
- * @see AbstractKafkaConnector#process(String)
  */
 public class KafkaTopicPartitionStatsResponse {
 
