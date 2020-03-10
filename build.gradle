@@ -118,7 +118,6 @@ subprojects {
     compile "io.dropwizard.metrics:metrics-core:$metricsCoreVersion"
     compile "io.dropwizard.metrics:metrics-jmx:$metricsCoreVersion"
     testCompile "org.testng:testng:$testngVersion"
-    testCompile "junit:junit:$junitVersion"
   }
 
   jar {
@@ -245,7 +244,6 @@ project(':datastream-testcommon') {
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "org.testng:testng:$testngVersion"
-    compile "junit:junit:$junitVersion"
   }
 }
 

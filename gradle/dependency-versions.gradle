@@ -10,7 +10,6 @@ ext {
     guavaVersion = "25.0-jre"
     intellijAnnotationsVersion = "12.0"
     jacksonVersion = "1.8.5"
-    junitVersion = "4.12"
     kafkaVersion = "2.0.0"
     log4jVersion = "1.2.17"
     metricsCoreVersion = "4.1.0"

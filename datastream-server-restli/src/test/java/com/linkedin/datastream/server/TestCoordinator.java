@@ -6,10 +6,12 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,6 +29,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
+import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -90,7 +93,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -2556,7 +2558,17 @@ public class TestCoordinator {
     instance1.stop();
     Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
     verify(spyZkAdapter1, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
-    verify(spyZkAdapter2, timeout(30000).times(1)).cleanUpOrphanConnectorTasks(anyBoolean());
+
+    // Verify cleanUpOrphanConnectorTasks count.
+    Method method = ZkAdapter.class.getMethod("cleanUpOrphanConnectorTasks", boolean.class);
+    int expectedCount = 1;
+    PollUtils.poll(() -> {
+      Collection<Invocation> invocations = Mockito.mockingDetails(spyZkAdapter2).getInvocations();
+      long count = invocations.stream().filter(invocation -> invocation.getMethod().equals(method)).count();
+      LOG.info("cleanUpOrphanConnectorTasks invocation count: {} expected: {}", count, expectedCount);
+      return count == expectedCount;
+      }, 1000, WAIT_TIMEOUT_MS);
+    verify(spyZkAdapter2, times(expectedCount)).cleanUpOrphanConnectorTasks(anyBoolean());
     instance2.stop();
   }
 
