@@ -22,8 +22,12 @@ public class TestCoordinatorEventBlockingQueue {
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
+    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
+    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
+    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
   }
 
 

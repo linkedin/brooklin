@@ -42,6 +42,7 @@ import com.google.common.collect.ImmutableList;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -67,6 +68,7 @@ import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.zk.KeyBuilder;
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.restli.common.HttpStatus;
@@ -80,11 +82,16 @@ import com.linkedin.restli.server.UpdateResponse;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -2441,6 +2448,115 @@ public class TestCoordinator {
 
     // Explicitly check the additional metadata
     Assert.assertEquals(datastreams[1].getMetadata().get(destMetaKey), destMetaVal);
+  }
+
+  private class TestCoordinatorWithSpyZkAdapter extends Coordinator {
+
+    TestCoordinatorWithSpyZkAdapter(CachedDatastreamReader testDatastreamCache, Properties testConfig) throws DatastreamException {
+      super(testDatastreamCache, testConfig);
+    }
+
+    @Override
+    ZkAdapter createZkAdapter() {
+      return spy(new ZkAdapter(getConfig().getZkAddress(), getConfig().getCluster(),
+          getConfig().getDefaultTransportProviderName(), getConfig().getZkSessionTimeout(),
+          getConfig().getZkConnectionTimeout(), this));
+    }
+  }
+
+  @Test
+  public void testCoordinatorLeaderCleanupTasksPostElection() throws Exception {
+    String testCluster = "testCoordinationSmoke3";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator instance1 = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    ZkAdapter spyZkAdapter1 = instance1.getZkAdapter();
+    instance1.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
+            DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    String isLeaderMetricName = "Coordinator.isLeader";
+    Gauge<Integer> isLeader = DynamicMetricsManager.getInstance().getMetric(isLeaderMetricName);
+
+    Assert.assertEquals(isLeader.getValue().intValue(), 1);
+
+    //
+    // create datastream definitions under /testAssignmentBasic/datastream/datastream1
+    //
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+
+    //
+    // verify the instance has 1 task assigned: datastream1
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1)
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    //
+    // create a second live instance named instance2 and join the cluster
+    //
+    ZkClient client2 = new ZkClient(_zkConnectionString);
+    CachedDatastreamReader cachedDatastreamReader2 = new CachedDatastreamReader(client2, testCluster);
+    Coordinator instance2 = new TestCoordinatorWithSpyZkAdapter(cachedDatastreamReader2, props);
+    ZkAdapter spyZkAdapter2 = instance2.getZkAdapter();
+    instance2.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
+            DummyTransportProviderAdminFactory.PROVIDER_NAME,
+            new Properties()));
+    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
+    instance2.addConnector(testConnectorType, connector2, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance2.start();
+
+    Assert.assertEquals(isLeader.getValue().intValue(), 1);
+    Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance2.getIsLeader().getAsBoolean());
+    verify(spyZkAdapter1, times(1)).cleanUpOrphanConnectorTasks(anyBoolean());
+    reset(spyZkAdapter1);
+    verify(spyZkAdapter2, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
+
+    String datastreamName2 = "datastream2";
+    //
+    // create datastream definitions under /testAssignmentBasic/datastream/datastream2
+    //
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName2);
+
+    //
+    // verify the instance has 1 task assigned: datastream2
+    //
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1, datastreamName2);
+
+    verify(spyZkAdapter1, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
+    verify(spyZkAdapter2, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName1)
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+
+    // Leader coordinator is stopped. Follower should become leader now and cleanup of orphan connector tasks should
+    // be performed.
+    instance1.stop();
+    Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
+    verify(spyZkAdapter1, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
+    verify(spyZkAdapter2, times(1)).cleanUpOrphanConnectorTasks(anyBoolean());
+    instance2.stop();
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
