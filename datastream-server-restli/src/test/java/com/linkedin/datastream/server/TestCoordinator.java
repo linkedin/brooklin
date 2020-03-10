@@ -90,6 +90,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -2555,7 +2556,7 @@ public class TestCoordinator {
     instance1.stop();
     Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
     verify(spyZkAdapter1, times(0)).cleanUpOrphanConnectorTasks(anyBoolean());
-    verify(spyZkAdapter2, times(1)).cleanUpOrphanConnectorTasks(anyBoolean());
+    verify(spyZkAdapter2, timeout(30000).times(1)).cleanUpOrphanConnectorTasks(anyBoolean());
     instance2.stop();
   }
 
