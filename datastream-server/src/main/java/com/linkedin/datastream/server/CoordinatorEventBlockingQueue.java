@@ -5,9 +5,9 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.EnumMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
@@ -21,14 +21,14 @@ import org.slf4j.LoggerFactory;
 public class CoordinatorEventBlockingQueue {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
-  private final Map<CoordinatorEvent.EventType, CoordinatorEvent> _eventMap;
+  private final Set<CoordinatorEvent> _eventSet;
   private final Queue<CoordinatorEvent> _eventQueue;
 
   /**
    * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
    */
   public CoordinatorEventBlockingQueue() {
-    _eventMap = new EnumMap<>(CoordinatorEvent.EventType.class);
+    _eventSet = new HashSet<>();
     _eventQueue = new LinkedBlockingQueue<>();
   }
 
@@ -38,19 +38,14 @@ public class CoordinatorEventBlockingQueue {
    */
   public synchronized void put(CoordinatorEvent event) {
     LOG.info("Queuing event {} to event queue", event.getType());
-    if (!_eventMap.containsKey(event.getType())) {
+    if (!_eventSet.contains(event)) {
       // only insert if there isn't an event present in the queue with the same name
       boolean result = _eventQueue.offer(event);
       if (!result) {
         return;
       }
+      _eventSet.add(event);
     }
-
-    // we put into the eventMap for dedup only if there is no metadata
-    if (event.getEventMetadata() == null) {
-      _eventMap.put(event.getType(), event);
-    }
-
     LOG.debug("Event queue size {}", _eventQueue.size());
     notify();
   }
@@ -78,7 +73,7 @@ public class CoordinatorEventBlockingQueue {
     if (queuedEvent != null) {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: {}", _eventQueue.size());
-      _eventMap.remove(queuedEvent.getType());
+      _eventSet.remove(queuedEvent);
       return queuedEvent;
     }
 
@@ -92,11 +87,7 @@ public class CoordinatorEventBlockingQueue {
    * @return the head of this queue, or {@code null} if this queue is empty
    */
   public synchronized CoordinatorEvent peek() {
-    CoordinatorEvent queuedEvent = _eventQueue.peek();
-    if (queuedEvent != null) {
-      return _eventMap.get(queuedEvent.getType());
-    }
-    return null;
+    return _eventQueue.peek();
   }
 
   /**

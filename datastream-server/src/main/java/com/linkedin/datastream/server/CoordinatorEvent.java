@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Objects;
 
 /**
  * Represents different event types inside {@link Coordinator}.
@@ -21,7 +22,6 @@ public class CoordinatorEvent {
     LEADER_DO_ASSIGNMENT,
     LEADER_PARTITION_ASSIGNMENT,
     LEADER_PARTITION_MOVEMENT,
-    LEADER_DO_CLEANUP_POST_ELECTION,
     HANDLE_ASSIGNMENT_CHANGE,
     HANDLE_DATASTREAM_CHANGE_WITH_UPDATE,
     HANDLE_ADD_OR_DELETE_DATASTREAM,
@@ -30,12 +30,8 @@ public class CoordinatorEvent {
     NO_OP,
   }
 
-  public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT =
-      new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
-  public static final CoordinatorEvent LEADER_DO_CLEANUP_POST_ELECTION_EVENT =
-      new CoordinatorEvent(EventType.LEADER_DO_CLEANUP_POST_ELECTION);
   public static final CoordinatorEvent HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE);
   public static final CoordinatorEvent HANDLE_ADD_OR_DELETE_DATASTREAM_EVENT =
@@ -63,9 +59,10 @@ public class CoordinatorEvent {
 
   /**
    * Returns an event that indicates a new assignment needs to be done (this is a leader-specific event).
+   * cleanUpOrphanConnectorTasks should be set to true once when the coordinator becomes leader.
    */
-  public static CoordinatorEvent createLeaderDoAssignmentEvent() {
-    return LEADER_DO_ASSIGNMENT_EVENT;
+  public static CoordinatorEvent createLeaderDoAssignmentEvent(boolean cleanUpOrphanConnectorTasks) {
+    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT, cleanUpOrphanConnectorTasks);
   }
 
   /**
@@ -89,13 +86,6 @@ public class CoordinatorEvent {
    */
   public static CoordinatorEvent createLeaderPartitionAssignmentEvent(String datastreamGroupName) {
     return new CoordinatorEvent(EventType.LEADER_PARTITION_ASSIGNMENT, datastreamGroupName);
-  }
-
-  /**
-   * Returns an event that indicates tasks to do post becoming a leader.
-   */
-  public static CoordinatorEvent createLeaderDoCleanupPostElectionEvent() {
-    return LEADER_DO_CLEANUP_POST_ELECTION_EVENT;
   }
 
   /**
@@ -134,6 +124,23 @@ public class CoordinatorEvent {
     return "type:" + _eventType;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    CoordinatorEvent that = (CoordinatorEvent) o;
+    return _eventType == that._eventType && _eventMetadata.equals(that._eventMetadata);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(_eventType, _eventMetadata);
+  }
+
   /**
    * Represents an error event seen inside coordinator. It stores the error event along with the error message.
    */
@@ -147,6 +154,26 @@ public class CoordinatorEvent {
 
     public String getEventData() {
       return _errorMessage;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      if (!super.equals(o)) {
+        return false;
+      }
+      HandleInstanceError that = (HandleInstanceError) o;
+      return _errorMessage.equals(that._errorMessage);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(super.hashCode(), _errorMessage);
     }
 
     @Override
