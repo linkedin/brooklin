@@ -862,8 +862,8 @@ public class TestCoordinator {
     resource.delete(datastreamName);
     String path = KeyBuilder.datastream(testCluster, datastreamName);
     Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
-    Assert.assertTrue(PollUtils.poll(() -> transportProviderAdminFactory._dropDestinationCount == 0,
-      2000, WAIT_TIMEOUT_MS));
+    Assert.assertEquals(transportProviderAdminFactory._dropDestinationCount, 0,
+        "Delete destination count should have been 0, since Datastream uses BYOT");
   }
 
   /**
