@@ -76,8 +76,8 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
-import static com.linkedin.datastream.common.DatastreamUtils.*;
-
+import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
+import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 
 /**
  *
