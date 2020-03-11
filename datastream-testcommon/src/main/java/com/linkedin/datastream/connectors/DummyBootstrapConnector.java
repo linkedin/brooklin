@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
