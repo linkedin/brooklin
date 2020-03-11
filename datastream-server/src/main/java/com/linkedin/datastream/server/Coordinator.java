@@ -79,7 +79,6 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 
-
 /**
  *
  * Coordinator is the object that bridges ZooKeeper with Connector implementations. There is one instance
@@ -168,6 +167,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final String NUM_ORPHAN_CONNECTOR_TASKS = "numOrphanConnectorTasks";
   private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
   private static final String IS_LEADER = "isLeader";
+  private static final Duration TOPIC_DELETION_DELAY = Duration.ofHours(1);
 
   // Connector common metrics
   private static final String NUM_DATASTREAMS = "numDatastreams";
@@ -863,6 +863,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
   }
 
+  private void scheduleTopicForDeletion(Datastream ds) {
+    try {
+      if (DatastreamUtils.isUserManagedDestination(ds)) {
+        _log.info("BYOT(bring your own topic topic will not be deleted");
+      } else if (DatastreamUtils.isConnectorManagedDestination(ds)) {
+        _log.info("Datastream contains connector-managed destinations, topic will not be deleted");
+      } else {
+        _executor.schedule(() -> {
+          deleteTopic(ds);
+        }, TOPIC_DELETION_DELAY.toHours(), TimeUnit.HOURS);
+        _log.info("Destination topic for {} scheduled for deletion.", ds);
+      }
+    } catch (Exception e) {
+      _log.error("Failed to retrieve metadata for {}", ds);
+    }
+  }
+
+  private void deleteTopic(Datastream ds) {
+    _log.info("Deleting destination topic for {}", ds);
+
+    try {
+      _transportProviderAdmins.get(ds.getTransportProviderName()).dropDestination(ds);
+    } catch (Exception e) {
+      _log.error("Runtime Exception while delete topic", e);
+    }
+  }
+
   private void hardDeleteDatastream(Datastream ds, List<Datastream> allStreams) {
     String taskPrefix;
     if (DatastreamUtils.containsTaskPrefix(ds)) {
@@ -881,7 +908,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "No datastream left in the datastream group with taskPrefix {}. Deleting all tasks corresponding to the datastream.",
           taskPrefix);
       _adapter.deleteTasksWithPrefix(ds.getConnectorName(), taskPrefix);
-      deleteTopic(ds);
+      scheduleTopicForDeletion(ds);
     } else {
       _log.info("Found duplicate datastream {} for the datastream to be deleted {}. Not deleting the tasks.",
           duplicateStream.get().getName(), ds.getName());
@@ -912,20 +939,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return datastream.getDestination().getConnectionString();
-  }
-
-  private void deleteTopic(Datastream datastream) {
-    try {
-      if (DatastreamUtils.isUserManagedDestination(datastream)) {
-        _log.info("BYOT(bring your own topic), topic will not be deleted");
-      } else if (DatastreamUtils.isConnectorManagedDestination(datastream)) {
-        _log.info("Datastream contains connector-managed destinations, topic will not be deleted");
-      } else {
-        _transportProviderAdmins.get(datastream.getTransportProviderName()).dropDestination(datastream);
-      }
-    } catch (Exception e) {
-      _log.error("Runtime Exception while delete topic", e);
-    }
   }
 
   private List<DatastreamGroup> fetchDatastreamGroups() {
