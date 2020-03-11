@@ -8,6 +8,7 @@ package com.linkedin.datastream.common;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.stream.IntStream;
 
 import org.apache.commons.lang.Validate;
@@ -90,6 +91,34 @@ public class ReflectionUtils {
     try {
       Field fieldObj = object.getClass().getDeclaredField(field);
       fieldObj.setAccessible(true);
+      fieldObj.set(object, value);
+      return value;
+    } catch (Exception e) {
+      LOG.warn(String.format("Failed to set field, object = %s field = %s value = %s", object, field, value), e);
+      return null;
+    }
+  }
+
+  /**
+   * Write a private final field with reflection.
+   * @param object instance whose field is to be accessed
+   * @param field name of private field
+   * @param value value to be set to the field
+   * @param <T> type of the field
+   * @return thr new value just set or null if failed
+   */
+  public static <T> T setFinalField(Object object, String field, T value) {
+    Validate.notNull(object, "null target object");
+    Validate.notNull(field, "null field name");
+
+    try {
+      Field fieldObj = object.getClass().getDeclaredField(field);
+      fieldObj.setAccessible(true);
+
+      Field modifiersField = Field.class.getDeclaredField("modifiers");
+      modifiersField.setAccessible(true);
+      modifiersField.setInt(fieldObj, fieldObj.getModifiers() & ~Modifier.FINAL);
+
       fieldObj.set(object, value);
       return value;
     } catch (Exception e) {

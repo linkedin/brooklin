@@ -862,8 +862,8 @@ public class TestCoordinator {
     resource.delete(datastreamName);
     String path = KeyBuilder.datastream(testCluster, datastreamName);
     Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(path), 200, WAIT_TIMEOUT_MS));
-    Assert.assertEquals(transportProviderAdminFactory._dropDestinationCount, 0,
-        "Delete destination count should have been 0, since Datastream uses BYOT");
+    Assert.assertTrue(PollUtils.poll(() -> transportProviderAdminFactory._dropDestinationCount == 0,
+      2000, WAIT_TIMEOUT_MS));
   }
 
   /**
@@ -934,6 +934,8 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
     Assert.assertEquals(transportProviderAdminFactory._createDestinationCount, 1,
         "Create destination count should have been 1, since Datastream does not have connector-managed destination");
+
+    ReflectionUtils.setFinalField(coordinator, "TOPIC_DELETION_DELAY", Duration.ofSeconds(1));
 
     resource.delete(datastreamName);
     String path = KeyBuilder.datastream(testCluster, datastreamName);
