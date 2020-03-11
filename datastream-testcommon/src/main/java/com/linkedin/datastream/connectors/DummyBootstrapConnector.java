@@ -24,7 +24,7 @@ public class DummyBootstrapConnector implements Connector {
 
   public static final String CONNECTOR_NAME = "DummyConnectorBootstrap";
 
-  protected final HashMap<String, String> _config;
+  final Map<String, String> _config;
 
   /**
    * Constructor for DummyBootstrapConnector
