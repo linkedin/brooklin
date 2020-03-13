@@ -26,6 +26,7 @@ public class TestCoordinatorEventBlockingQueue {
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
+    Assert.assertEquals(eventBlockingQueue.size(), 5);
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));

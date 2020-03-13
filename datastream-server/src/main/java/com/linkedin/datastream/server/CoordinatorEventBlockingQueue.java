@@ -33,13 +33,13 @@ public class CoordinatorEventBlockingQueue {
   }
 
   /**
-   * Add a single event to the queue, overwriting events with the same name
+   * Add a single event to the queue, overwriting events with the same name and same metadata.
    * @param event CoordinatorEvent event to add to the queue
    */
   public synchronized void put(CoordinatorEvent event) {
     LOG.info("Queuing event {} to event queue", event.getType());
     if (!_eventSet.contains(event)) {
-      // only insert if there isn't an event present in the queue with the same name
+      // only insert if there isn't an event present in the queue with the same name and same metadata.
       boolean result = _eventQueue.offer(event);
       if (!result) {
         return;
@@ -74,10 +74,9 @@ public class CoordinatorEventBlockingQueue {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: {}", _eventQueue.size());
       _eventSet.remove(queuedEvent);
-      return queuedEvent;
     }
 
-    return null;
+    return queuedEvent;
   }
 
   /**

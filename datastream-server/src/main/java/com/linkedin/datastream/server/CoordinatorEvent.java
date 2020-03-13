@@ -60,6 +60,8 @@ public class CoordinatorEvent {
   /**
    * Returns an event that indicates a new assignment needs to be done (this is a leader-specific event).
    * cleanUpOrphanConnectorTasks should be set to true once when the coordinator becomes leader.
+   * If this is set to true, coordinator will check if there are any orphan connector tasks that have no
+   * binding with any live instance, and will verify/clean those nodes from zookeeper.
    */
   public static CoordinatorEvent createLeaderDoAssignmentEvent(boolean cleanUpOrphanConnectorTasks) {
     return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT, cleanUpOrphanConnectorTasks);
@@ -133,7 +135,7 @@ public class CoordinatorEvent {
       return false;
     }
     CoordinatorEvent that = (CoordinatorEvent) o;
-    return _eventType == that._eventType && _eventMetadata.equals(that._eventMetadata);
+    return _eventType == that._eventType && Objects.equals(_eventMetadata, that._eventMetadata);
   }
 
   @Override
@@ -168,7 +170,7 @@ public class CoordinatorEvent {
         return false;
       }
       HandleInstanceError that = (HandleInstanceError) o;
-      return _errorMessage.equals(that._errorMessage);
+      return Objects.equals(_errorMessage, that._errorMessage);
     }
 
     @Override
