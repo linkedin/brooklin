@@ -16,38 +16,21 @@ public class TestCoordinatorEventBlockingQueue {
   @Test
   public void testHappyPath() throws Exception {
     CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue();
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_CLEANUP_POST_ELECTION_EVENT);
-  }
-
-
-  @Test
-  public void testEventWithMetadata() throws Exception {
-    CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue();
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    eventBlockingQueue.put(CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"));
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
-
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.LEADER_DO_ASSIGNMENT_EVENT);
-    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test1");
-    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test1");
-    Assert.assertEquals((String) eventBlockingQueue.take().getEventMetadata(), "test2");
+    Assert.assertEquals(eventBlockingQueue.size(), 5);
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"));
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
   }
 }
