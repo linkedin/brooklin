@@ -5,8 +5,10 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,7 +23,10 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.mockito.Mockito;
+import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -64,7 +69,11 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyCollectionOf;
 import static org.mockito.Mockito.anyMapOf;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 /**
@@ -262,6 +271,70 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // verify that flush was called on the producer
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnConsumerCloseException() throws Exception {
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = spy(new DatastreamTaskImpl(Collections.singletonList(datastream)));
+    doNothing().when(task).acquire(any());
+    doNothing().when(task).release();
+    task.setEventProducer(datastreamProducer);
+
+    // Set up a factory to create a Kafka consumer that tracks how many times commitSync is invoked
+    CountDownLatch remainingCommitSyncCalls = new CountDownLatch(3);
+    KafkaConsumerFactory<byte[], byte[]> kafkaConsumerFactory = new KafkaConsumerFactoryImpl() {
+      @Override
+      public Consumer<byte[], byte[]> createConsumer(Properties properties) {
+        Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
+        doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
+            .when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        doThrow(new KafkaException("Throwing close exception"))
+            .when(result).close();
+        return result;
+      }
+    };
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(kafkaConsumerFactory)
+        .setCommitIntervalMillis(200)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
+        connectorConfig, task, "", true,
+        new KafkaGroupIdConstructor(false, "test"));
+
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    verify(task, times(1)).acquire(any());
+    verify(task, times(0)).release();
+
+    // Wait for KafkaMirrorMakerConnectorTask to invoke commitSync on Kafka consumer
+    Assert.assertTrue(remainingCommitSyncCalls.await(10, TimeUnit.SECONDS),
+        "Kafka consumer commitSync was not invoked as often as expected");
+
+    // producer shouldn't flush before the shutdown
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 0);
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
+    verify(task, times(1)).acquire(any());
+
+    Method method = DatastreamTaskImpl.class.getMethod("release");
+    int expectedCount = 1;
+    PollUtils.poll(() -> {
+      Collection<Invocation> invocations = Mockito.mockingDetails(task).getInvocations();
+      long count = invocations.stream().filter(invocation -> invocation.getMethod().equals(method)).count();
+      LOG.info("release invocation count: {} expected: {}", count, expectedCount);
+      return count == expectedCount;
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
+
+    verify(task, times(expectedCount)).release();
   }
 
   @Test
