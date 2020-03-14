@@ -5,10 +5,8 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
-import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,8 +23,6 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
-import org.mockito.Mockito;
-import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -279,8 +275,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
 
     DatastreamTaskImpl task = spy(new DatastreamTaskImpl(Collections.singletonList(datastream)));
+    // Mocking out the behavior of acquire() since it involves ZK
     doNothing().when(task).acquire(any());
-    doNothing().when(task).release();
+    CountDownLatch releaseCall = new CountDownLatch(1);
+    doAnswer(invocation -> { releaseCall.countDown(); return null; }).when(task).release();
     task.setEventProducer(datastreamProducer);
 
     // Set up a factory to create a Kafka consumer that tracks how many times commitSync is invoked
@@ -324,17 +322,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
     verify(task, times(1)).acquire(any());
-
-    Method method = DatastreamTaskImpl.class.getMethod("release");
-    int expectedCount = 1;
-    PollUtils.poll(() -> {
-      Collection<Invocation> invocations = Mockito.mockingDetails(task).getInvocations();
-      long count = invocations.stream().filter(invocation -> invocation.getMethod().equals(method)).count();
-      LOG.info("release invocation count: {} expected: {}", count, expectedCount);
-      return count == expectedCount;
-    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS);
-
-    verify(task, times(expectedCount)).release();
+    Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
   }
 
   @Test
