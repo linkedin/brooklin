@@ -24,6 +24,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -254,7 +255,14 @@ class KafkaProducerWrapper<K, V> {
 
   synchronized void flush() {
     if (_kafkaProducer != null) {
-      _kafkaProducer.flush();
+      try {
+        _kafkaProducer.flush();
+      } catch (InterruptException e) {
+        // The KafkaProducer object should not be reused on an interrupted flush
+        _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
+        shutdownProducer();
+        throw e;
+      }
     }
   }
 
