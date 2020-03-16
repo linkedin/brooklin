@@ -18,6 +18,7 @@ import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_COUNT;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -144,6 +145,14 @@ public class KafkaBasedConnectorConfigBuilder {
    */
   public KafkaBasedConnectorConfigBuilder setPollTimeoutMillis(long pollTimeoutMillis) {
     _properties.put(CONFIG_POLL_TIMEOUT_MILLIS, Long.toString(pollTimeoutMillis));
+    return this;
+  }
+
+  /**
+   * Set enable partition managed
+   */
+  public KafkaBasedConnectorConfigBuilder setEnablePartitionManaged(boolean enablePartitionManaged) {
+    _properties.put(ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(enablePartitionManaged));
     return this;
   }
 }
