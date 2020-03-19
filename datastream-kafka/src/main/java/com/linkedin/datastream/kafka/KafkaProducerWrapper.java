@@ -181,6 +181,7 @@ class KafkaProducerWrapper<K, V> {
     return _kafkaProducer;
   }
 
+  @VisibleForTesting
   Producer<K, V> createKafkaProducer() {
     return _producerFactory.createProducer(_props);
   }

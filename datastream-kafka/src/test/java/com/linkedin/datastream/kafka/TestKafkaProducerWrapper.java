@@ -66,7 +66,9 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifyClose(0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
-    ExecutorService executorService = Executors.newCachedThreadPool();
+    // Calling the first flush() on a separate thread because the InterruptException calls Thread interrupt() on the
+    // currently running thread. If not run on a separate thread, the test thread itself will be interrupted.
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
     executorService.submit(() -> {
       // Flush has been mocked to throw an InterruptException
       Assert.assertThrows(InterruptException.class, producerWrapper::flush);
@@ -76,7 +78,7 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifyFlush(1);
     producerWrapper.verifyClose(1);
 
-    // Second send should create a new producer, resetting flush() and close() invocations count
+    // Second send should create a new producer, resetting flush() and close() invocation counts
     producerWrapper.send(task, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
@@ -95,20 +97,20 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifySend(2);
     producerWrapper.verifyFlush(1);
     producerWrapper.verifyClose(0);
-    Assert.assertEquals(producerWrapper.numCreateKafkaProducerCalls, 2);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
-    // Closing the producer's task, and since this is the only task, the producer should be closed
+    // Closing the producer's task. Since this is the only task, the producer should be closed
     producerWrapper.close(task);
     producerWrapper.verifySend(2);
     producerWrapper.verifyFlush(1);
     producerWrapper.verifyClose(1);
-    Assert.assertEquals(producerWrapper.numCreateKafkaProducerCalls, 2);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
   private static class MockKafkaProducerWrapper extends KafkaProducerWrapper<byte[], byte[]> {
-    private boolean createKafkaProducerCalled;
-    private int numCreateKafkaProducerCalls;
-    private Producer<byte[], byte[]> mockProducer;
+    private boolean _createKafkaProducerCalled;
+    private int _numCreateKafkaProducerCalls;
+    private Producer<byte[], byte[]> _mockProducer;
 
     MockKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
       super(logSuffix, props, metricsNamesPrefix);
@@ -118,30 +120,31 @@ public class TestKafkaProducerWrapper {
     Producer<byte[], byte[]> createKafkaProducer() {
       @SuppressWarnings("unchecked")
       Producer<byte[], byte[]> producer = (Producer<byte[], byte[]>) mock(Producer.class);
-      if (!createKafkaProducerCalled) {
+      // Calling flush() on the first producer created will thrown an InterruptException.
+      if (!_createKafkaProducerCalled) {
         doThrow(InterruptException.class).when(producer).flush();
       }
 
-      mockProducer = producer;
-      createKafkaProducerCalled = true;
-      ++numCreateKafkaProducerCalls;
-      return mockProducer;
+      _mockProducer = producer;
+      _createKafkaProducerCalled = true;
+      ++_numCreateKafkaProducerCalls;
+      return _mockProducer;
     }
 
     void verifySend(int numExpected) {
-      verify(mockProducer, times(numExpected)).send(anyObject(), anyObject());
+      verify(_mockProducer, times(numExpected)).send(anyObject(), anyObject());
     }
 
     void verifyFlush(int numExpected) {
-      verify(mockProducer, times(numExpected)).flush();
+      verify(_mockProducer, times(numExpected)).flush();
     }
 
     void verifyClose(int numExpected) {
-      verify(mockProducer, times(numExpected)).close(anyInt(), anyObject());
+      verify(_mockProducer, times(numExpected)).close(anyInt(), anyObject());
     }
 
     public int getNumCreateKafkaProducerCalls() {
-      return numCreateKafkaProducerCalls;
+      return _numCreateKafkaProducerCalls;
     }
   }
 }
