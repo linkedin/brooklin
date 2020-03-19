@@ -174,11 +174,15 @@ class KafkaProducerWrapper<K, V> {
     } else {
       if (_kafkaProducer == null) {
         _rateLimiter.acquire();
-        _kafkaProducer = _producerFactory.createProducer(_props);
+        _kafkaProducer = createKafkaProducer();
         NUM_PRODUCERS.incrementAndGet();
       }
     }
     return _kafkaProducer;
+  }
+
+  Producer<K, V> createKafkaProducer() {
+    return _producerFactory.createProducer(_props);
   }
 
   void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
