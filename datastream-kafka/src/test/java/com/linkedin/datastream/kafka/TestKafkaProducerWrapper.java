@@ -10,6 +10,8 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -25,8 +27,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -49,8 +51,8 @@ public class TestKafkaProducerWrapper {
 
     String topicName = "random-topic-42";
 
-    MockKafkaProducerWrapper producerWrapper =
-        new MockKafkaProducerWrapper("log-suffix", transportProviderProperties, "metrics");
+    MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
+        new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics");
 
     String destinationUri = "localhost:1234/" + topicName;
     Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
@@ -107,19 +109,19 @@ public class TestKafkaProducerWrapper {
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
-  private static class MockKafkaProducerWrapper extends KafkaProducerWrapper<byte[], byte[]> {
+  private static class MockKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
     private boolean _createKafkaProducerCalled;
     private int _numCreateKafkaProducerCalls;
-    private Producer<byte[], byte[]> _mockProducer;
+    private Producer<K, V> _mockProducer;
 
     MockKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
       super(logSuffix, props, metricsNamesPrefix);
     }
 
     @Override
-    Producer<byte[], byte[]> createKafkaProducer() {
+    Producer<K, V> createKafkaProducer() {
       @SuppressWarnings("unchecked")
-      Producer<byte[], byte[]> producer = (Producer<byte[], byte[]>) mock(Producer.class);
+      Producer<K, V> producer = (Producer<K, V>) mock(Producer.class);
       // Calling flush() on the first producer created will throw an InterruptException.
       if (!_createKafkaProducerCalled) {
         doThrow(InterruptException.class).when(producer).flush();
@@ -132,7 +134,7 @@ public class TestKafkaProducerWrapper {
     }
 
     void verifySend(int numExpected) {
-      verify(_mockProducer, times(numExpected)).send(anyObject(), anyObject());
+      verify(_mockProducer, times(numExpected)).send(any(), any(Callback.class));
     }
 
     void verifyFlush(int numExpected) {
@@ -140,7 +142,7 @@ public class TestKafkaProducerWrapper {
     }
 
     void verifyClose(int numExpected) {
-      verify(_mockProducer, times(numExpected)).close(anyInt(), anyObject());
+      verify(_mockProducer, times(numExpected)).close(anyLong(), any(TimeUnit.class));
     }
 
     public int getNumCreateKafkaProducerCalls() {
