@@ -7,9 +7,9 @@ package com.linkedin.datastream.kafka;
 
 import java.util.Collections;
 import java.util.Properties;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -45,12 +45,12 @@ public class TestKafkaProducerWrapper {
     Properties transportProviderProperties = new Properties();
     transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
     transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
-    transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zkconnectstring");
+    transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
 
     String topicName = "random-topic-42";
 
     MockKafkaProducerWrapper producerWrapper =
-        new MockKafkaProducerWrapper("suffix", transportProviderProperties, "prefix");
+        new MockKafkaProducerWrapper("log-suffix", transportProviderProperties, "metrics");
 
     String destinationUri = "localhost:1234/" + topicName;
     Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
@@ -64,17 +64,12 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(0);
-    Assert.assertEquals(producerWrapper.numCreateKafkaProducerCalls, 1);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
     ExecutorService executorService = Executors.newCachedThreadPool();
     executorService.submit(() -> {
       // Flush has been mocked to throw an InterruptException
-      try {
-        producerWrapper.flush();
-        Assert.fail("Flush should have been mocked to throw an exception");
-      } catch (InterruptException e) {
-
-      }
+      Assert.assertThrows(InterruptException.class, producerWrapper::flush);
     }).get();
 
     producerWrapper.verifySend(1);
@@ -86,14 +81,14 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(0);
-    Assert.assertEquals(producerWrapper.numCreateKafkaProducerCalls, 2);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     // Second producer's flush() has not been mocked to throw exceptions, this should not throw
     producerWrapper.flush();
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(1);
     producerWrapper.verifyClose(0);
-    Assert.assertEquals(producerWrapper.numCreateKafkaProducerCalls, 2);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     // Send should reuse the older producer and the counts should not be reset
     producerWrapper.send(task, producerRecord, null);
@@ -111,15 +106,12 @@ public class TestKafkaProducerWrapper {
   }
 
   private static class MockKafkaProducerWrapper extends KafkaProducerWrapper<byte[], byte[]> {
-    boolean createKafkaProducerCalled;
-    int numCreateKafkaProducerCalls;
-    Producer<byte[], byte[]> mockProducer;
+    private boolean createKafkaProducerCalled;
+    private int numCreateKafkaProducerCalls;
+    private Producer<byte[], byte[]> mockProducer;
 
     MockKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
       super(logSuffix, props, metricsNamesPrefix);
-
-      createKafkaProducerCalled = false;
-      numCreateKafkaProducerCalls = 0;
     }
 
     @Override
@@ -127,8 +119,9 @@ public class TestKafkaProducerWrapper {
       @SuppressWarnings("unchecked")
       Producer<byte[], byte[]> producer = (Producer<byte[], byte[]>) mock(Producer.class);
       if (!createKafkaProducerCalled) {
-        doThrow(new InterruptException("Interrupting flush")).when(producer).flush();
+        doThrow(InterruptException.class).when(producer).flush();
       }
+
       mockProducer = producer;
       createKafkaProducerCalled = true;
       ++numCreateKafkaProducerCalls;
@@ -145,6 +138,10 @@ public class TestKafkaProducerWrapper {
 
     void verifyClose(int numExpected) {
       verify(mockProducer, times(numExpected)).close(anyInt(), anyObject());
+    }
+
+    public int getNumCreateKafkaProducerCalls() {
+      return numCreateKafkaProducerCalls;
     }
   }
 }
