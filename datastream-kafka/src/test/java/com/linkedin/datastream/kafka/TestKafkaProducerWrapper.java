@@ -120,7 +120,7 @@ public class TestKafkaProducerWrapper {
     Producer<byte[], byte[]> createKafkaProducer() {
       @SuppressWarnings("unchecked")
       Producer<byte[], byte[]> producer = (Producer<byte[], byte[]>) mock(Producer.class);
-      // Calling flush() on the first producer created will thrown an InterruptException.
+      // Calling flush() on the first producer created will throw an InterruptException.
       if (!_createKafkaProducerCalled) {
         doThrow(InterruptException.class).when(producer).flush();
       }
