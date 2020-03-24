@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -192,7 +193,7 @@ class KafkaProducerWrapper<K, V> {
   Producer<K, V> createKafkaProducer() {
     return _producerFactory.createProducer(_props);
   }
-  
+
  /**
   * There are two known cases that lead to IllegalStateException and we should retry:
   *   (1) number of brokers is less than minISR
@@ -294,11 +295,17 @@ class KafkaProducerWrapper<K, V> {
       try {
         CompletableFutureUtils.within(CompletableFuture.runAsync(() -> _kafkaProducer.flush()),
           Duration.ofMillis(FLUSH_TIME_OUT)).join();
-      } catch (InterruptException e) {
-        // The KafkaProducer object should not be reused on an interrupted flush
-        _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
-        shutdownProducer();
-        throw e;
+      } catch (CompletionException e) {
+        Throwable cause = e.getCause();
+
+        if (cause instanceof InterruptException) {
+          // The KafkaProducer object should not be reused on an interrupted flush
+          _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
+          shutdownProducer();
+          throw (InterruptException) cause;
+        } else if (cause instanceof java.util.concurrent.TimeoutException) {
+          _log.warn("Kafka producer flush timed out after {}ms. Destination topic may be unavailable.", FLUSH_TIME_OUT);
+        }
       }
     }
   }
