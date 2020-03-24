@@ -27,6 +27,7 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -180,19 +181,24 @@ class KafkaProducerWrapper<K, V> {
     } else {
       if (_kafkaProducer == null) {
         _rateLimiter.acquire();
-        _kafkaProducer = _producerFactory.createProducer(_props);
+        _kafkaProducer = createKafkaProducer();
         NUM_PRODUCERS.incrementAndGet();
       }
     }
     return _kafkaProducer;
   }
 
-  /**
-   * There are two known cases that lead to IllegalStateException and we should retry:
-   *   (1) number of brokers is less than minISR
-   *   (2) producer is closed in generateSendFailure by another thread
-   *   (3) For either condition, we should retry as broker comes back healthy or producer is recreated
-   */
+  @VisibleForTesting
+  Producer<K, V> createKafkaProducer() {
+    return _producerFactory.createProducer(_props);
+  }
+  
+ /**
+  * There are two known cases that lead to IllegalStateException and we should retry:
+  *   (1) number of brokers is less than minISR
+  *   (2) producer is closed in generateSendFailure by another thread
+  *   (3) For either condition, we should retry as broker comes back healthy or producer is recreated
+  */
   void send(DatastreamTask task, ProducerRecord<K, V> producerRecord, Callback onComplete)
       throws InterruptedException {
     boolean retry = true;
@@ -285,8 +291,15 @@ class KafkaProducerWrapper<K, V> {
 
   synchronized void flush() {
     if (_kafkaProducer != null) {
-      CompletableFutureUtils.within(CompletableFuture.runAsync(() -> _kafkaProducer.flush()),
+      try {
+        CompletableFutureUtils.within(CompletableFuture.runAsync(() -> _kafkaProducer.flush()),
           Duration.ofMillis(FLUSH_TIME_OUT)).join();
+      } catch (InterruptException e) {
+        // The KafkaProducer object should not be reused on an interrupted flush
+        _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
+        shutdownProducer();
+        throw e;
+      }
     }
   }
 
