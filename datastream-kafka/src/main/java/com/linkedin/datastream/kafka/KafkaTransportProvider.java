@@ -56,7 +56,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
-  private final boolean _preserveSourceEventTimestamp;
+  private final boolean _preserveEventSourceTimestamp;
 
   /**
    * Constructor for KafkaTransportProvider.
@@ -81,8 +81,8 @@ public class KafkaTransportProvider implements TransportProvider {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
 
-    _preserveSourceEventTimestamp = Boolean.TRUE.toString().equals(datastreamTask.getDatastreams().get(0).getMetadata()
-            .getOrDefault(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, Boolean.FALSE.toString()));
+    _preserveEventSourceTimestamp = Boolean.parseBoolean(datastreamTask.getDatastreams().get(0).getMetadata()
+            .get(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP));
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -116,7 +116,7 @@ public class KafkaTransportProvider implements TransportProvider {
       payloadValue = (byte[]) event;
     }
 
-    Long recordTimeStamp = _preserveSourceEventTimestamp ? record.getEventsSourceTimestamp() : null;
+    Long recordTimeStamp = _preserveEventSourceTimestamp ? record.getEventsSourceTimestamp() : null;
 
     if (partition.isPresent() && partition.get() >= 0) {
       // If the partition is specified. We send the record to the specific partition
