@@ -7,6 +7,7 @@ package com.linkedin.datastream.connectors;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
@@ -24,7 +25,7 @@ public class DummyBootstrapConnector implements Connector {
 
   public static final String CONNECTOR_NAME = "DummyConnectorBootstrap";
 
-  private final HashMap<String, String> _config;
+  final Map<String, String> _config;
 
   /**
    * Constructor for DummyBootstrapConnector

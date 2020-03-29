@@ -352,7 +352,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     } finally {
       _stoppedLatch.countDown();
       if (null != _consumer) {
-        _consumer.close();
+        try {
+          _consumer.close();
+        } catch (Exception e) {
+          _logger.warn(String.format("Got exception on consumer close for task %s.", _taskName), e);
+        }
       }
       postShutdownHook();
       _logger.info("{} stopped", _taskName);

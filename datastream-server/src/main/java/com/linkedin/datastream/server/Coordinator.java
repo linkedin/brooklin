@@ -375,10 +375,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
-    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
-    // This should be only called after createLeaderDoAssignmentEvent as it will verify/cleanup the orphan task nodes
-    // under connector.
-    _eventQueue.put(CoordinatorEvent.createLeaderDoCleanupPostElectionEvent());
+    // verify/cleanup the orphan task nodes under connector should be called only once after becoming leader,
+    // since it is an expensive operation. So, passing cleanUpOrphanNodes = true only on onBecomeLeader.
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     _log.info("Coordinator::onBecomeLeader completed successfully");
   }
 
@@ -389,7 +388,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onLiveInstancesChange() {
     _log.info("Coordinator::onLiveInstancesChange is called");
-    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     _log.info("Coordinator::onLiveInstancesChange completed successfully");
   }
 
@@ -402,7 +401,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Coordinator::onDatastreamAddOrDrop is called");
     // if there are new datastreams created, we need to trigger the topic creation logic
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
-    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     _log.info("Coordinator::onDatastreamAddOrDrop completed successfully");
   }
 
@@ -691,7 +690,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
-          handleLeaderDoAssignment();
+          handleLeaderDoAssignment((Boolean) event.getEventMetadata());
           break;
 
         case HANDLE_ASSIGNMENT_CHANGE:
@@ -730,10 +729,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         case LEADER_PARTITION_MOVEMENT:
           performPartitionMovement((Long) event.getEventMetadata());
-          break;
-
-        case LEADER_DO_CLEANUP_POST_ELECTION:
-          performCleanupTaskPostElection();
           break;
 
         default:
@@ -860,7 +855,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     }
 
-    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+    _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
   }
 
   private void hardDeleteDatastream(Datastream ds, List<Datastream> allStreams) {
@@ -960,7 +955,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
   }
 
-  private void handleLeaderDoAssignment() {
+  /*
+   * If cleanUpOrphanConnectorTasks is set to true, it cleans up the orphan connector tasks not assigned to
+   * any instance after old unused tasks are cleaned up.
+   */
+  private void handleLeaderDoAssignment(boolean cleanUpOrphanConnectorTasks) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -1001,6 +1000,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanupDeadInstanceAssignments(instances);
       _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      if (cleanUpOrphanConnectorTasks) {
+        performCleanupOrphanConnectorTasks();
+      }
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
 
@@ -1010,7 +1012,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderDoAssignment", NUM_RETRIES, 1);
       leaderDoAssignmentScheduled.set(true);
       _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanConnectorTasks));
         leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
@@ -1081,7 +1083,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // We need to schedule both LEADER_DO_ASSIGNMENT and leader partition assignment in case the tasks are
         // not locked because the assigned instance is dead. As we use a sticky assignment, the leader do assignment
         // shouldn't generate too much extra costs
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent());
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
         _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroupName));
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
@@ -1257,10 +1259,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
-  void performCleanupTaskPostElection() {
-    _log.info("performCleanupTaskPostElection called");
+  void performCleanupOrphanConnectorTasks() {
+    _log.info("performCleanupOrphanConnectorTasks called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupTaskPostElection",
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupOrphanConnectorTasks",
         NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 
