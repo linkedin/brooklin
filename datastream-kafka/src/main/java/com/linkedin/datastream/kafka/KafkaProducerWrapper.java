@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,7 +22,6 @@ import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
@@ -36,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
 
-import com.linkedin.datastream.common.CompletableFutureUtils;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.ReflectionUtils;
@@ -65,10 +61,8 @@ class KafkaProducerWrapper<K, V> {
 
   private static final int TIME_OUT = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
-  private static final int SEND_TIME_OUT = 5000;
-  private static final int FLUSH_TIME_OUT = 10 * 60 * 1000;
 
-  private final Logger _log;
+  protected final Logger _log;
   private final long _sendFailureRetryWaitTimeMs;
 
   private final String _clientId;
@@ -80,8 +74,7 @@ class KafkaProducerWrapper<K, V> {
   // Producer is lazily initialized during the first send call.
   // Also, can be nullified in case of exceptions, and recreated by subsequent send calls.
   // Mark as volatile as it is mutable and used by different threads
-  private volatile Producer<K, V> _kafkaProducer;
-
+  protected volatile Producer<K, V> _kafkaProducer;
   private final KafkaProducerFactory<K, V> _producerFactory;
 
   // Limiter to control how fast producers are re-created after failures.
@@ -150,7 +143,7 @@ class KafkaProducerWrapper<K, V> {
         DEFAULT_MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION_VALUE);
   }
 
-  private Optional<Producer<K, V>> maybeGetKafkaProducer(DatastreamTask task) {
+  protected Optional<Producer<K, V>> maybeGetKafkaProducer(DatastreamTask task) {
     Producer<K, V> producer = _kafkaProducer;
     if (producer == null) {
       producer = initializeProducer(task);
@@ -209,20 +202,7 @@ class KafkaProducerWrapper<K, V> {
       try {
         numberOfAttempts++;
 
-        maybeGetKafkaProducer(task).ifPresent(
-            p -> CompletableFutureUtils.within(produceMessage(p, producerRecord), Duration.ofMillis(SEND_TIME_OUT))
-                .thenAccept(m -> onComplete.onCompletion(m, null))
-                .exceptionally(completionEx -> {
-                  Throwable cause = completionEx.getCause();
-                  if (cause instanceof KafkaClientException) {
-                    KafkaClientException ex = (KafkaClientException) cause;
-                    onComplete.onCompletion(ex.getMetadata(), (Exception) ex.getCause());
-                  } else if (cause instanceof java.util.concurrent.TimeoutException) {
-                    _log.warn("KafkaProducerWrapper send timed out. The destination topic may be unavailable.");
-                    onComplete.onCompletion(null, (java.util.concurrent.TimeoutException) cause);
-                  }
-                  return null;
-                }));
+        maybeGetKafkaProducer(task).ifPresent(p -> doSend(p, producerRecord, onComplete));
 
         retry = false;
       } catch (TimeoutException ex) {
@@ -252,22 +232,17 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
-  private CompletableFuture<RecordMetadata> produceMessage(Producer<K, V> producer, ProducerRecord<K, V> record) {
-    CompletableFuture<RecordMetadata> future = new CompletableFuture<>();
-
+  void doSend(Producer<K, V> producer, ProducerRecord<K, V> record, Callback callback) {
     producer.send(record, (metadata, exception) -> {
       if (exception == null) {
-        future.complete(metadata);
+        callback.onCompletion(metadata, null);
       } else {
-        future.completeExceptionally(new KafkaClientException(metadata, exception));
+        callback.onCompletion(metadata, generateSendFailure(exception));
       }
     });
-
-    return future;
   }
 
-
-  private synchronized void shutdownProducer() {
+  protected synchronized void shutdownProducer() {
     Producer<K, V> producer = _kafkaProducer;
     // Nullify first to prevent subsequent send() to use
     // the current producer which is being shutdown.
@@ -278,7 +253,7 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
-  private DatastreamRuntimeException generateSendFailure(Exception exception) {
+  protected DatastreamRuntimeException generateSendFailure(Exception exception) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
       _log.warn("sent failure transiently, exception: ", exception);
@@ -293,19 +268,12 @@ class KafkaProducerWrapper<K, V> {
   synchronized void flush() {
     if (_kafkaProducer != null) {
       try {
-        CompletableFutureUtils.within(CompletableFuture.runAsync(() -> _kafkaProducer.flush()),
-          Duration.ofMillis(FLUSH_TIME_OUT)).join();
-      } catch (CompletionException e) {
-        Throwable cause = e.getCause();
-
-        if (cause instanceof InterruptException) {
-          // The KafkaProducer object should not be reused on an interrupted flush
-          _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
-          shutdownProducer();
-          throw (InterruptException) cause;
-        } else if (cause instanceof java.util.concurrent.TimeoutException) {
-          _log.warn("Kafka producer flush timed out after {}ms. Destination topic may be unavailable.", FLUSH_TIME_OUT);
-        }
+        _kafkaProducer.flush();
+      } catch (InterruptException e) {
+        // The KafkaProducer object should not be reused on an interrupted flush
+        _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
+        shutdownProducer();
+        throw e;
       }
     }
   }
