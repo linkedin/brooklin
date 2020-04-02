@@ -209,8 +209,18 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testEventWithTimestamp() throws Exception {
+  public void testEventWithPreserveTimestampTrue() throws Exception {
     testEventSendWithTimestamp(1, 2, -1, false, false, "test", true);
+  }
+
+  @Test
+  public void testEventWithPreserveTimestampFalse() throws Exception {
+    testEventSendWithTimestamp(1, 2, -1, false, false, "test", false);
+  }
+
+  @Test
+  public void testEventWithoutPreservingTimestamp() throws Exception {
+    testEventSendWithTimestamp(1, 2, -1, false, false, "test", null);
   }
 
   @Test
@@ -290,7 +300,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   private void testEventSendWithTimestamp(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
-                             boolean includeValue, String metricsPrefix, boolean preserveSourceEventTimestamp) throws Exception {
+                             boolean includeValue, String metricsPrefix, Boolean preserveSourceEventTimestamp) throws Exception {
     String topicName = getUniqueTopicName();
 
     if (metricsPrefix != null) {
@@ -302,7 +312,9 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, numberOfPartitions);
 
-    ds.getMetadata().put(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, Boolean.TRUE.toString());
+    if (preserveSourceEventTimestamp != null) {
+      ds.getMetadata().put(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, preserveSourceEventTimestamp.toString());
+    }
 
     DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
     TransportProvider transportProvider = provider.assignTransportProvider(task);
@@ -322,7 +334,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     }
 
     List<DatastreamProducerRecord> datastreamEvents =
-          createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, eventSourceTimestamps);
+            createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, eventSourceTimestamps);
 
     LOG.info(String.format("Trying to send %d events to topic %s", datastreamEvents.size(), topicName));
 
@@ -343,7 +355,11 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
       return readTimestamps.size() < numberOfEvents;
     });
 
-    Assert.assertEquals(readTimestamps, eventSourceTimestamps);
+    if (preserveSourceEventTimestamp != null && preserveSourceEventTimestamp) {
+      Assert.assertEquals(readTimestamps, eventSourceTimestamps);
+    } else {
+      Assert.assertNotEquals(readTimestamps, eventSourceTimestamps);
+    }
 
     if (metricsPrefix != null) {
       // verify that configured metrics prefix was used
