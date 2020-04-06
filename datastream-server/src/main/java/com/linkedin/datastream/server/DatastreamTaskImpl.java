@@ -436,8 +436,25 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public String toString() {
     // toString() is mainly for logging purpose, feel free to modify the content/format
-    return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(), _connectorType,
-        String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions), _dependencies);
+    // If _partitions is populated, it is replicated into _partitionsV2 for assignment. However,
+    // if _partitions is not populated, we can assume that only _partitionsV2 is populated.
+    if (_partitions.size() > 0) {
+      try {
+        List<Integer> partitionList = _partitionsV2.stream().map(Integer::parseInt).collect(Collectors.toList());
+
+        return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
+            _connectorType, LogUtils.logNumberArrayInRange(partitionList), LogUtils.logNumberArrayInRange(_partitions),
+            _dependencies);
+      } catch (NumberFormatException e) {
+        LOG.error(e.getMessage());
+        return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
+            _connectorType, String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions),
+            _dependencies);
+      }
+    }
+    return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
+        _connectorType, String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions),
+        _dependencies);
   }
 
   public void setZkAdapter(ZkAdapter adapter) {
