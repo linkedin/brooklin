@@ -76,6 +76,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   // List of partitions the task covers.
   private List<Integer> _partitions;
+  // This list is used to save topic-partition list when partition assignment is enabled.
+  // TODO: Investigate the requirement to populate both _partition and _partitionV2 and cleanup if required.
   private List<String> _partitionsV2;
 
   private List<String> _dependencies;
@@ -436,24 +438,20 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @Override
   public String toString() {
     // toString() is mainly for logging purpose, feel free to modify the content/format
-    // If _partitions is populated, it is replicated into _partitionsV2 for assignment. However,
-    // if _partitions is not populated, we can assume that only _partitionsV2 is populated.
+    // When DatastreamTaskImpl is created using constructor that passes _partitionsV2, _partitions is not populated.
+    // When DatastreamTaskImpl is created using constructor that passes _partitions, _partitionsV2 is also populated.
+    // So, if _partitions is not populated, we can assume that only _partitionsV2 is populated.
+    String partitionsV2FormatLog = String.join(",", _partitionsV2);
     if (_partitions.size() > 0) {
       try {
         List<Integer> partitionList = _partitionsV2.stream().map(Integer::parseInt).collect(Collectors.toList());
-
-        return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
-            _connectorType, LogUtils.logNumberArrayInRange(partitionList), LogUtils.logNumberArrayInRange(_partitions),
-            _dependencies);
+        partitionsV2FormatLog = LogUtils.logNumberArrayInRange(partitionList);
       } catch (NumberFormatException e) {
         LOG.error(e.getMessage());
-        return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
-            _connectorType, String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions),
-            _dependencies);
       }
     }
     return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
-        _connectorType, String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions),
+        _connectorType, partitionsV2FormatLog, LogUtils.logNumberArrayInRange(_partitions),
         _dependencies);
   }
 
