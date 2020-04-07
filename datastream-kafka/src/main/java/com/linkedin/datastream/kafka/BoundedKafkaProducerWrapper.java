@@ -7,9 +7,13 @@ package com.linkedin.datastream.kafka;
 
 import java.time.Duration;
 import java.util.Properties;
-
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
@@ -21,29 +25,29 @@ import com.linkedin.datastream.common.CompletableFutureUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
- * An extension of {@link KafkaProducerWrapper} with bounded calls for flush and send
+ * An extension of {@link KafkaProducerWrapper} with configurable timeouts for flush and send calls
  */
 class BoundedKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
-  private static final int DEFAULT_SEND_TIME_OUT = 5000;
-  private static final int DEFAULT_FLUSH_TIME_OUT = 10 * 60 * 1000;
+  private static final long DEFAULT_SEND_TIME_OUT_MS = Duration.ofSeconds(5).toMillis();
+  private static final long DEFAULT_FLUSH_TIME_OUT_MS = Duration.ofMinutes(10).toMillis();
 
-  private static final String SEND_TIMEOUT_CONFIG_KEY = "brooklin.server.kafkaProducerWrapper.sendTimeout";
-  private static final String FLUSH_TIMEOUT_CONFIG_KEY = "brooklin.server.kafkaProducerWrapper.flushTimeout";
+  private static final String SEND_TIMEOUT_CONFIG_KEY = "sendTimeout";
+  private static final String FLUSH_TIMEOUT_CONFIG_KEY = "flushTimeout";
 
-  private int _sendTimeout;
-  private int _flushTimeout;
+  private long _sendTimeoutMs;
+  private long _flushTimeoutMs;
 
   BoundedKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
     super(logSuffix, props, metricsNamesPrefix);
 
     VerifiableProperties properties = new VerifiableProperties(props);
-    _sendTimeout = properties.getInt(SEND_TIMEOUT_CONFIG_KEY, DEFAULT_SEND_TIME_OUT);
-    _flushTimeout = properties.getInt(FLUSH_TIMEOUT_CONFIG_KEY, DEFAULT_FLUSH_TIME_OUT);
+    _sendTimeoutMs = properties.getLong(SEND_TIMEOUT_CONFIG_KEY, DEFAULT_SEND_TIME_OUT_MS);
+    _flushTimeoutMs = properties.getLong(FLUSH_TIMEOUT_CONFIG_KEY, DEFAULT_FLUSH_TIME_OUT_MS);
   }
 
   @Override
   void doSend(Producer<K, V> producer, ProducerRecord<K, V> record, Callback callback) {
-    CompletableFutureUtils.within(produceMessage(producer, record), Duration.ofMillis(_sendTimeout))
+    CompletableFutureUtils.within(produceMessage(producer, record), Duration.ofMillis(_sendTimeoutMs))
         .thenAccept(m -> callback.onCompletion(m, null))
         .exceptionally(completionEx -> {
           Throwable cause = completionEx.getCause();
@@ -74,24 +78,28 @@ class BoundedKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
 
   @Override
   synchronized void flush() {
-    if (_kafkaProducer != null) {
-      try {
-        CompletableFutureUtils.within(CompletableFuture.runAsync(() -> _kafkaProducer.flush()),
-            Duration.ofMillis(_flushTimeout)).join();
-      } catch (CompletionException e) {
-        Throwable cause = e.getCause();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    Future<?> future = executor.submit(super::flush);
 
-        if (cause instanceof InterruptException) {
-          // The KafkaProducer object should not be reused on an interrupted flush
-          _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
-          shutdownProducer();
-          throw (InterruptException) cause;
-        } else if (cause instanceof java.util.concurrent.TimeoutException) {
-          _log.warn("Kafka producer flush timed out after {}ms. Destination topic may be unavailable.", _flushTimeout);
-        }
+    try {
+      future.get(_flushTimeoutMs, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException ex) {
+      _log.warn("Flush call timed out after {}ms. Cancelling flush", _flushTimeoutMs);
+      future.cancel(true);
+    } catch (ExecutionException ex) {
+      Throwable cause = ex.getCause();
 
-        throw e;
+      if (cause instanceof InterruptException) {
+        throw (InterruptException) cause;
+      } else {
+        // This shouldn't happen
+        _log.warn("Flush failed.", cause);
       }
+    } catch (InterruptedException ex) {
+      // This also shouldn't happen because kafka flush use their own InterruptException
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(ex);
     }
   }
 }
+
