@@ -34,8 +34,8 @@ class BoundedKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
   private static final String SEND_TIMEOUT_CONFIG_KEY = "sendTimeout";
   private static final String FLUSH_TIMEOUT_CONFIG_KEY = "flushTimeout";
 
-  private long _sendTimeoutMs;
-  private long _flushTimeoutMs;
+  private final long _sendTimeoutMs;
+  private final long _flushTimeoutMs;
 
   BoundedKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix) {
     super(logSuffix, props, metricsNamesPrefix);
@@ -50,14 +50,12 @@ class BoundedKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
     CompletableFutureUtils.within(produceMessage(producer, record), Duration.ofMillis(_sendTimeoutMs))
         .thenAccept(m -> callback.onCompletion(m, null))
         .exceptionally(completionEx -> {
-          Throwable cause = completionEx.getCause();
-          if (cause instanceof KafkaClientException) {
-            KafkaClientException ex = (KafkaClientException) cause;
-            callback.onCompletion(ex.getMetadata(), (Exception) ex.getCause());
-          } else if (cause instanceof java.util.concurrent.TimeoutException) {
+          Exception cause = (Exception) completionEx.getCause();
+          if (cause instanceof java.util.concurrent.TimeoutException) {
             _log.warn("KafkaProducerWrapper send timed out. The destination topic may be unavailable.");
-            callback.onCompletion(null, (java.util.concurrent.TimeoutException) cause);
           }
+
+          callback.onCompletion(null, cause);
           return null;
         });
   }
@@ -69,7 +67,7 @@ class BoundedKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
       if (exception == null) {
         future.complete(metadata);
       } else {
-        future.completeExceptionally(new KafkaClientException(metadata, exception));
+        future.completeExceptionally(exception);
       }
     });
 
