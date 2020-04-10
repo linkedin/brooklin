@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,8 +67,6 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     LOG.info("old partition assignment info, assignment: {}", currentAssignment);
 
-    Validate.isTrue(currentAssignment.size() > 0, "Zero tasks assigned. Retry leader assignment.");
-
     String dgName = datastreamPartitions.getDatastreamGroup().getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
@@ -80,8 +77,6 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
       totalTaskCount += dgTask.size();
     }
-
-    Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);
