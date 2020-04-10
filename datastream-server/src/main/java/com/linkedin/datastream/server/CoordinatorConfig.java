@@ -24,6 +24,11 @@ public final class CoordinatorConfig {
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMs";
   public static final String CONFIG_HEARTBEAT_PERIOD_MS = PREFIX + "heartbeatPeriodMs";
   public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK = PREFIX + "zkCleanUpOrphanConnectorTask";
+  // This config is temporary. If this config is enabled, on zookeeper session expiry, the node will be
+  // brought down. Currently, session expiry is not handled correctly which either cause multiple zk sessions
+  // or no zk session on session expiry. Its better to bring down the node rather than run in a fatal state.
+  // TODO: Remove this config and add graceful handling of zk expiry and recover zookeeper and coordinator states.
+  public static final String CONFIG_EXIT_ON_ZK_SESSION_EXPIRY = PREFIX + "exitOnZkSessionExpiry";
 
   private final String _cluster;
   private final String _zkAddress;
@@ -35,6 +40,7 @@ public final class CoordinatorConfig {
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
   private final boolean _zkCleanUpOrphanConnectorTask;
+  private final boolean _exitOnZkSessionExpiry;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -52,6 +58,7 @@ public final class CoordinatorConfig {
     _heartbeatPeriodMs = _properties.getLong(CONFIG_HEARTBEAT_PERIOD_MS, Duration.ofMinutes(1).toMillis());
     _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
     _zkCleanUpOrphanConnectorTask = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK, false);
+    _exitOnZkSessionExpiry = _properties.getBoolean(CONFIG_EXIT_ON_ZK_SESSION_EXPIRY, false);
   }
 
   public Properties getConfigProperties() {
@@ -88,6 +95,10 @@ public final class CoordinatorConfig {
 
   public boolean getZkCleanUpOrphanConnectorTask() {
     return _zkCleanUpOrphanConnectorTask;
+  }
+
+  public boolean getExitOnZkSessionExpiry() {
+    return _exitOnZkSessionExpiry;
   }
 
 }

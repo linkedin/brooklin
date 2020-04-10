@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -25,9 +27,11 @@ import java.util.stream.Collectors;
 
 import org.I0Itec.zkclient.IZkChildListener;
 import org.I0Itec.zkclient.IZkDataListener;
+import org.I0Itec.zkclient.IZkStateListener;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.I0Itec.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.Watcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +45,8 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.HostTargetAssignment;
+
+import static java.lang.System.exit;
 
 
 /**
@@ -121,6 +127,7 @@ public class ZkAdapter {
 
   private volatile boolean _isLeader = false;
   private final ZkAdapterListener _listener;
+  private final boolean _exitOnSessionExpiry;
 
   // the current znode this node is listening to
   private String _currentSubscription = null;
@@ -129,6 +136,7 @@ public class ZkAdapter {
 
   private ZkLeaderElectionListener _leaderElectionListener;
   private ZkBackedTaskListProvider _assignmentList = null;
+  private ZkStateChangeListener _stateChangeListener = null;
 
   // only the leader should maintain this list and listen to the changes of live instances
   private ZkBackedDMSDatastreamList _datastreamList = null;
@@ -137,6 +145,7 @@ public class ZkAdapter {
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
+  private Timer _timer = new Timer();
 
   /**
    * Constructor
@@ -148,18 +157,35 @@ public class ZkAdapter {
    * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
    *                         considered as retry forever until a connection has been reestablished.
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
+   * @param exitOnSessionExpiry boolean to decide whether to exit on session expiry or not.
    */
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener) {
+      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener, boolean exitOnSessionExpiry) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeoutMs = sessionTimeoutMs;
     _connectionTimeoutMs = connectionTimeoutMs;
     _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _listener = listener;
+    _exitOnSessionExpiry = exitOnSessionExpiry;
     _defaultTransportProviderName = defaultTransportProviderName;
   }
 
+  /**
+   * Constructor
+   * @param zkServers ZooKeeper server address to connect to
+   * @param cluster Brooklin cluster this instance belongs to
+   * @param defaultTransportProviderName Default transport provider to use for a newly created task
+   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
+   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
+   * @param exitOnSessionExpiry boolean to decide whether to exit on session expiry or not.
+   */
+  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
+      int connectionTimeoutMs, ZkAdapterListener listener, boolean exitOnSessionExpiry) {
+    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
+        listener, exitOnSessionExpiry);
+  }
   /**
    * Constructor
    * @param zkServers ZooKeeper server address to connect to
@@ -172,7 +198,7 @@ public class ZkAdapter {
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
       int connectionTimeoutMs, ZkAdapterListener listener) {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        listener);
+        listener, false);
   }
 
   /**
@@ -222,6 +248,14 @@ public class ZkAdapter {
     return new ZkClient(_zkServers, _sessionTimeoutMs, _connectionTimeoutMs, _operationRetryTimeoutMs);
   }
 
+  @VisibleForTesting
+  ZkStateChangeListener getOrCreateStateChangeListener() {
+    if (_stateChangeListener == null) {
+      _stateChangeListener = new ZkStateChangeListener();
+    }
+    return _stateChangeListener;
+  }
+
   /**
    * Connect the adapter so that it can connect and bridge events between ZooKeeper changes and
    * the actions that need to be taken with them, which are implemented in the Coordinator class
@@ -229,7 +263,7 @@ public class ZkAdapter {
   public void connect() {
     disconnect(); // Guard against leaking an existing zookeeper session
     _zkclient = createZkClient();
-
+    _zkclient.subscribeStateChanges(getOrCreateStateChangeListener());
     _leaderElectionListener = new ZkLeaderElectionListener();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
@@ -1228,7 +1262,7 @@ public class ZkAdapter {
     @Override
     public void handleDataChange(String dataPath, Object data) throws Exception {
       LOG.info("ZkBackedDMSDatastreamList::Received Data change notification on the path {}, data {}.",
-          dataPath, data.toString());
+          dataPath, data);
       if (_listener != null) {
         _listener.onDatastreamAddOrDrop();
       }
@@ -1437,6 +1471,67 @@ public class ZkAdapter {
     @Override
     public void handleDataDeleted(String dataPath) throws Exception {
       // do nothing
+    }
+  }
+
+  /**
+   * Listener for ZooKeeper state changes.
+   */
+  public class ZkStateChangeListener implements IZkStateListener {
+    @Override
+    public void handleStateChanged(Watcher.Event.KeeperState state) {
+      LOG.info("ZkStateChangeListener:: handleStateChanged {}", state.toString());
+      switch (state) {
+        case Expired:
+          _timer.cancel();
+          exitOnSessionExpiryOrEstablishmentError();
+          return;
+        case Disconnected:
+          // if the session has expired it means that all the registration's ephemeral nodes are gone.
+          LOG.warn("Got {} event. Scheduling a system stop.", state.toString());
+          scheduleExpiryTimerAfterSessionTimeout();
+          return;
+        case SyncConnected:
+          LOG.info("ZkStateChangeListener::Connected. Canceling timer.");
+          _timer.cancel();
+          return;
+        default:
+          // Ignoring AuthFailed for now.
+          return;
+      }
+    }
+
+    @Override
+    public void handleNewSession() {
+      LOG.info("ZkStateChangeListener:: A new session established.");
+    }
+
+    @Override
+    public void handleSessionEstablishmentError(final Throwable error) {
+      LOG.error("ZkStateChangeListener:: Failed to establish session.", error);
+      exitOnSessionExpiryOrEstablishmentError();
+    }
+  }
+
+  private void scheduleExpiryTimerAfterSessionTimeout() {
+    TimerTask timerTask = new TimerTask() {
+      public void run() {
+        exitOnSessionExpiryOrEstablishmentError();
+      };
+    };
+    _timer.schedule(timerTask, _sessionTimeoutMs);
+  }
+
+  // This is a temporary change to bring down the node on session expiry. We expect this to happen rarely.
+  // We are working on the transition of leader to follower on session expiry. On session expiry,
+  // the live instance (ephemeral nodes) gets deleted by the server and node automatically lose the election.
+  // By bringing down the node, the health monitoring services to restart the service is expected.
+  // This exit call will invoke the shutdownhook and will bring down the system. This is currently
+  // supported using a knob and adding shutdownhook will ensure the clean shutdown.
+  private void exitOnSessionExpiryOrEstablishmentError() {
+    if (_exitOnSessionExpiry) {
+      LOG.warn("Calling Exit 1");
+      exit(1);
     }
   }
 }

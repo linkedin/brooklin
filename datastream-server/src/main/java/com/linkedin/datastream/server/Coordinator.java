@@ -259,7 +259,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this,
+        _config.getExitOnZkSessionExpiry());
   }
 
   /**

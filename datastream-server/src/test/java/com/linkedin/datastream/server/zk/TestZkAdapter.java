@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.zk;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.I0Itec.zkclient.ZkConnection;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.server.ZooKeeperServer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -696,12 +701,17 @@ public class TestZkAdapter {
   }
 
   private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster) {
+    return createInterceptingZkAdapter(testCluster, ZkClient.DEFAULT_SESSION_TIMEOUT);
+  }
+
+  private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster, int sessionTimeoutMs) {
     return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+        sessionTimeoutMs, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
   }
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
     private ZkClient _zkClient;
+    private ZkClientMockStateChangeListener _zkClientMockStateChangeListener;
 
     public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
         int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, ZkAdapterListener listener) {
@@ -715,9 +725,76 @@ public class TestZkAdapter {
       return _zkClient;
     }
 
+    public class ZkClientMockStateChangeListener extends ZkStateChangeListener {
+      boolean sessionExpired = false;
+      @Override
+      public void handleStateChanged(Watcher.Event.KeeperState state) {
+        super.handleStateChanged(state);
+        if (state == Watcher.Event.KeeperState.Expired) {
+          LOG.info("ZkStateChangeListener::Session expired.");
+          sessionExpired = true;
+        }
+      }
+    }
+
+    @Override
+    ZkStateChangeListener getOrCreateStateChangeListener() {
+      _zkClientMockStateChangeListener = new ZkClientMockStateChangeListener();
+      return _zkClientMockStateChangeListener;
+    }
+
     public ZkClient getZkClient() {
       return _zkClient;
     }
+
+    public ZkClientMockStateChangeListener getZkStateChangeListener() {
+      return _zkClientMockStateChangeListener;
+    }
+  }
+
+  @Test
+  public void testZookeeperSessionExpiry() throws InterruptedException {
+    String testCluster = "testDeleteTaskWithPrefix";
+    String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000);
+    adapter.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter);
+
+    List<DatastreamTask> tasks = new ArrayList<>();
+    tasks.add(task);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
+
+    simulateSessionExpiration(adapter);
+
+    Thread.sleep(5000);
+    Assert.assertTrue(adapter.getZkStateChangeListener().sessionExpired);
+  }
+
+  private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
+    ZkConnection zkConnection = null;
+    try {
+      Field privateField = ZkClient.class.getSuperclass().getDeclaredField("_connection");
+      privateField.setAccessible(true);
+      zkConnection = (ZkConnection) privateField.get(adapter.getZkClient());
+    } catch (NoSuchFieldException | IllegalAccessException e) {
+      Assert.fail(e.toString());
+    }
+
+    ZooKeeper zookeeper = zkConnection.getZookeeper();
+    long sessionId = zookeeper.getSessionId();
+
+    LOG.info("Closing/expiring session:" + sessionId);
+    ZooKeeperServer zkServer = _embeddedZookeeper.getZooKeeperServer();
+    zkServer.closeSession(sessionId);
   }
 
   @Test
