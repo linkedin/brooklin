@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,8 +68,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     LOG.info("old partition assignment info, assignment: {}", currentAssignment);
 
-    Validate.isTrue(currentAssignment.size() > 0,
-        "Zero tasks assigned. Retry leader partition assignment.");
+    Validate.isTrue(currentAssignment.size() > 0, "Zero tasks assigned. Retry leader assignment.");
 
     String dgName = datastreamPartitions.getDatastreamGroup().getName();
 
