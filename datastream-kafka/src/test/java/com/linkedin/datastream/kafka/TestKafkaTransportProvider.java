@@ -325,7 +325,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
 
     LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, numberOfPartitions,
-            new Properties()));
+            topicProperties));
     // Specify source event timestamp for asserting
     Long sourceTimestampBase = 1582766709000L;
     List<Long> eventSourceTimestamps = new ArrayList<>();

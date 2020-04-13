@@ -6,6 +6,8 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
@@ -16,6 +18,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.testng.Assert;
 
@@ -54,15 +57,16 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static void produceEvents(String topic, int destinationPartition, int numEvents,
       DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
-    produceEventsToPartition(topic, destinationPartition, numEvents, kafkaCluster);
+    produceEventsToPartitionAsync(topic, destinationPartition, numEvents, kafkaCluster);
   }
 
   static void produceEvents(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
-    produceEventsToPartition(topic, null, numEvents, kafkaCluster);
+    produceEventsToPartitionAsync(topic, null, numEvents, kafkaCluster);
   }
 
-  static void produceEventsToPartition(String topic, Integer destinationPartition, int numEvents,
-      DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+  static void produceEventsToPartitionAsync(String topic, Integer destinationPartition, int numEvents,
+    DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster))) {
       for (int i = 0; i < numEvents; i++) {
         producer.send(new ProducerRecord<>(topic, destinationPartition, ("key-" + i).getBytes(Charsets.UTF_8),
@@ -74,6 +78,38 @@ final class KafkaMirrorMakerConnectorTestUtils {
       }
       producer.flush();
     }
+  }
+
+  static List<RecordMetadata> produceEventsToPartitionSync(String topic, Integer destinationPartition, int numEvents,
+                   List<Long> eventSourceTimeStamps, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+    if (eventSourceTimeStamps != null && numEvents != eventSourceTimeStamps.size()) {
+      Assert.fail("Number of source timestamps don't match number of events. Required: " +
+              numEvents + ", supplied: " + eventSourceTimeStamps.size());
+    } else if (eventSourceTimeStamps == null) {
+      eventSourceTimeStamps = new ArrayList<>();
+      for (int i = 0; i < numEvents; i++) {
+        eventSourceTimeStamps.add(null);
+      }
+    }
+    List<RecordMetadata> recordMetadataList = new ArrayList<>();
+
+    Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster));
+    try {
+      for (int i = 0; i < numEvents; i++) {
+          RecordMetadata metadata = producer.send(new ProducerRecord<>(topic, destinationPartition,
+                  eventSourceTimeStamps.get(i), ("key-" + i).getBytes(Charsets.UTF_8),
+                  ("value-" + i).getBytes(Charsets.UTF_8))).get();
+          recordMetadataList.add(metadata);
+      }
+    } catch (InterruptedException interruptException) {
+      throw new RuntimeException("Failed to send message.", interruptException);
+    } catch (Exception exception) {
+      throw new RuntimeException("Failed to send message.", exception);
+    } finally {
+      producer.flush();
+      producer.close();
+    }
+    return recordMetadataList;
   }
 
   static Datastream createDatastream(String name, String broker, String sourceRegex, StringMap metadata) {
