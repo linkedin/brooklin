@@ -5,8 +5,11 @@
  */
 package com.linkedin.datastream.metrics;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.commons.lang.Validate;
 
@@ -31,5 +34,39 @@ public abstract class BrooklinMetricInfo {
 
   public String getNameOrRegex() {
     return _nameOrRegex;
+  }
+
+  private boolean equalAttributes(Optional<List<String>> attributes1, Optional<List<String>> attributes2) {
+    if (!(attributes1.isPresent() == attributes2.isPresent())) {
+      return false;
+    }
+    if (!attributes1.isPresent()) {
+      return true;
+    }
+
+    Set<String> attributeSet1 = new HashSet<>();
+    attributes1.ifPresent(attributeSet1::addAll);
+
+    Set<String> attributeSet2 = new HashSet<>();
+    attributes2.ifPresent(attributeSet2::addAll);
+
+    return attributeSet1.equals(attributeSet2);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    BrooklinMetricInfo that = (BrooklinMetricInfo) o;
+    return _nameOrRegex.equals(that._nameOrRegex) && equalAttributes(_attributes, that._attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(_nameOrRegex, _attributes);
   }
 }
