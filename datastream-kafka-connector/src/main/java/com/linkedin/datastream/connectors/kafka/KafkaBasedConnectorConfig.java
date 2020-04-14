@@ -11,6 +11,8 @@ import java.util.Properties;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 
 
 /**

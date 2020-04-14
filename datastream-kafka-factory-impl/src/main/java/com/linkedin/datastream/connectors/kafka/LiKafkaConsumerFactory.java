@@ -10,6 +10,7 @@ import java.util.Properties;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.kafka.clients.consumer.LiKafkaConsumerImpl;
 
 
