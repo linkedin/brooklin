@@ -169,4 +169,17 @@ public class TestEventProducer {
     }
     return builder.build();
   }
+
+  @Test
+  public void testTopicPartitionInfo() {
+    EventProducer.TopicPartitionInfo topicPartitionInfo1 = new EventProducer.TopicPartitionInfo("topic", 5);
+    EventProducer.TopicPartitionInfo topicPartitionInfo2 = new EventProducer.TopicPartitionInfo("topic", 42);
+    EventProducer.TopicPartitionInfo topicPartitionInfo3 = new EventProducer.TopicPartitionInfo("topic1", 42);
+    EventProducer.TopicPartitionInfo topicPartitionInfo4 = new EventProducer.TopicPartitionInfo("topic", 5);
+
+    Assert.assertNotEquals(topicPartitionInfo1, topicPartitionInfo2);
+    Assert.assertNotEquals(topicPartitionInfo2, topicPartitionInfo3);
+    Assert.assertNotEquals(topicPartitionInfo1, topicPartitionInfo3);
+    Assert.assertEquals(topicPartitionInfo1, topicPartitionInfo4);
+  }
 }
