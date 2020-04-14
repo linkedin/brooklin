@@ -13,12 +13,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.lang.Validate;
+import org.apache.commons.lang3.Validate;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,9 +96,9 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _warnLogLatencyEnabled;
   // Latency threshold at which to log a warning message
   private final long _warnLogLatencyThresholdMs;
-  // Whether to enable logging the list of TopicPartitions with events outside alternative SLA
+  // Whether to enable logging the list of TopicPartitions with events outside alternate SLA
   private final boolean _numEventsOutsideAltSlaLogEnabled;
-  // Frequency at which to log the list of TopicPartitions with events outside alternative SLA
+  // Frequency at which to log the list of TopicPartitions with events outside alternate SLA
   private final long _numEventsOutsideAltSlaFrequencyMs;
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
@@ -106,7 +106,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   private Instant _lastFlushTime = Instant.now();
   private long _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
-  private Map<TopicPartitionInfo, Integer> _trackEventsOutsideAltSlaMap = new HashMap<>();
+  private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new HashMap<>();
 
   /**
    * Construct an EventProducer instance.
@@ -262,17 +262,16 @@ public class EventProducer implements DatastreamEventProducer {
 
     if (_numEventsOutsideAltSlaLogEnabled) {
       if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-        TopicPartitionInfo topicPartitionInfo = new TopicPartitionInfo(metadata.getTopic(), metadata.getPartition());
-        _trackEventsOutsideAltSlaMap.putIfAbsent(topicPartitionInfo, 0);
-        int numEvents = _trackEventsOutsideAltSlaMap.get(topicPartitionInfo);
-        _trackEventsOutsideAltSlaMap.put(topicPartitionInfo, numEvents + 1);
+        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getPartition());
+        int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
+        _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
       }
 
       long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
       if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
-        _trackEventsOutsideAltSlaMap.forEach((topicPartitionInfo, numEvents) ->
-            _logger.warn("{} had {} event(s) with latency greater than alternative SLA of {} ms in the last {} ms",
-                topicPartitionInfo, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog));
+        _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) ->
+            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms",
+                topicPartition, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog));
         _trackEventsOutsideAltSlaMap.clear();
         _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
       }
@@ -327,7 +326,7 @@ public class EventProducer implements DatastreamEventProducer {
           1);
 
       // Log information about events if either warn logging is enabled or logging for topic partitions outside
-      // alternative SLA is enabled
+      // alternate SLA is enabled
       performSlaRelatedLogging(metadata, eventsSourceTimestamp, sourceToDestinationLatencyMs);
     }
 
@@ -455,40 +454,5 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + FLUSH_LATENCY_MS_STRING));
 
     return Collections.unmodifiableList(metrics);
-  }
-
-  /**
-   * This class encapsulates the topic and partition information for a given event
-   */
-  static class TopicPartitionInfo {
-    private final String _topic;
-    private final int _partition;
-
-    TopicPartitionInfo(String topic, int partition) {
-      _topic = topic;
-      _partition = partition;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      TopicPartitionInfo that = (TopicPartitionInfo) o;
-      return _partition == that._partition && Objects.equals(_topic, that._topic);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(_topic, _partition);
-    }
-
-    @Override
-    public String toString() {
-      return _topic + "-" + _partition;
-    }
   }
 }
