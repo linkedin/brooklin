@@ -20,12 +20,14 @@ public abstract class BrooklinMetricInfo {
 
   protected final String _nameOrRegex;
   protected final Optional<List<String>> _attributes;
+  private final int _hashCode;
 
   protected BrooklinMetricInfo(String nameOrRegex, Optional<List<String>> attributes) {
     Validate.notNull(nameOrRegex, "Metric name/regex must be non-null");
     Validate.notNull(attributes, "attributes must be non-null");
     _nameOrRegex = nameOrRegex;
     _attributes = attributes;
+    _hashCode = Objects.hash(_nameOrRegex, _attributes.map(HashSet::new).orElse(null));
   }
 
   public Optional<List<String>> getAttributes() {
@@ -59,10 +61,6 @@ public abstract class BrooklinMetricInfo {
 
   @Override
   public int hashCode() {
-    if (_attributes.isPresent()) {
-      return Objects.hash(_nameOrRegex, new HashSet<>(_attributes.get()));
-    } else {
-      return Objects.hash(_nameOrRegex);
-    }
+    return _hashCode;
   }
 }

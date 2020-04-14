@@ -52,6 +52,7 @@ public class TestBrooklinMetricInfo {
     BrooklinCounterInfo brooklinCounterInfo1 = new BrooklinCounterInfo("counter1");
     BrooklinGaugeInfo brooklinGaugeInfo1 = new BrooklinGaugeInfo("gauge1");
     BrooklinHistogramInfo brooklinHistogramInfo1 = new BrooklinHistogramInfo("histogram1");
+
     Assert.assertNotEquals(brooklinMeterInfo1, brooklinCounterInfo1);
     Assert.assertNotEquals(brooklinMeterInfo1, brooklinGaugeInfo1);
     Assert.assertNotEquals(brooklinMeterInfo1, brooklinHistogramInfo1);
