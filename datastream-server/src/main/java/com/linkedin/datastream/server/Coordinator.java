@@ -998,8 +998,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (succeeded) {
       List<String> instances = new ArrayList<>(liveInstances);
       instances.add(PAUSED_INSTANCE);
-      _adapter.cleanupDeadInstanceAssignments(instances);
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      Set<DatastreamTask> unusedTasks = _adapter.findOldUnusedTasks(previousAssignmentByInstance,
+          newAssignmentsByInstance);
+      _adapter.cleanupDeadInstanceAssignments(instances, unusedTasks);
+      _adapter.cleanupOldUnusedTasks(unusedTasks);
       if (cleanUpOrphanConnectorTasks) {
         performCleanupOrphanConnectorTasks();
       }
