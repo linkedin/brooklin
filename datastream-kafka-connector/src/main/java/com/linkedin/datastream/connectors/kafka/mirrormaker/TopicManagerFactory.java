@@ -10,7 +10,7 @@ import java.util.Properties;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.server.DatastreamTask;
 
 

@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -48,9 +47,9 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.common.diag.KafkaPositionValue;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.server.DatastreamEventProducer;
-import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
@@ -275,31 +274,6 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
-
-    // Update Kafka connector's position data
-    final Optional<KafkaPositionTracker> kafkaPositionTracker = connectorTask.getKafkaPositionTracker();
-    Assert.assertTrue(kafkaPositionTracker.isPresent());
-    try (final Consumer<?, ?> consumer = kafkaPositionTracker.get().getConsumerSupplier().get()) {
-      kafkaPositionTracker.get().queryBrokerForLatestOffsets(consumer,
-          Collections.singleton(new TopicPartition(topic, 0)), Duration.ofSeconds(30));
-    }
-
-    // Test position data
-    final Optional<KafkaPositionValue> position = kafkaPositionTracker.get()
-        .getPositions()
-        .entrySet()
-        .stream()
-        .filter(e -> e.getKey().getTopic().equals(topic))
-        .filter(e -> e.getKey().getPartition() == 0)
-        .map(Map.Entry::getValue)
-        .findAny();
-    Assert.assertTrue(position.isPresent());
-    Assert.assertEquals(position.get().getBrokerOffset(), position.get().getConsumerOffset());
-    final DatastreamProducerRecord lastEvent = datastreamProducer.getEvents()
-        .get(datastreamProducer.getEvents().size() - 1);
-    Assert.assertNotNull(position.get().getLastRecordReceivedTimestamp());
-    Assert.assertEquals(lastEvent.getEventsSourceTimestamp(),
-        position.get().getLastRecordReceivedTimestamp().toEpochMilli());
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

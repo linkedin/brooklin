@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Objects;
 
 /**
  * Represents different event types inside {@link Coordinator}.
@@ -26,11 +27,9 @@ public class CoordinatorEvent {
     HANDLE_ADD_OR_DELETE_DATASTREAM,
     HANDLE_INSTANCE_ERROR,
     HEARTBEAT,
-    NO_OP
+    NO_OP,
   }
 
-  public static final CoordinatorEvent LEADER_DO_ASSIGNMENT_EVENT =
-      new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT);
   public static final CoordinatorEvent HANDLE_ASSIGNMENT_CHANGE_EVENT =
       new CoordinatorEvent(EventType.HANDLE_ASSIGNMENT_CHANGE);
   public static final CoordinatorEvent HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_EVENT =
@@ -60,9 +59,12 @@ public class CoordinatorEvent {
 
   /**
    * Returns an event that indicates a new assignment needs to be done (this is a leader-specific event).
+   * cleanUpOrphanConnectorTasks should be set to true once when the coordinator becomes leader.
+   * If this is set to true, coordinator will check if there are any orphan connector tasks that have no
+   * binding with any live instance, and will verify/clean those nodes from zookeeper.
    */
-  public static CoordinatorEvent createLeaderDoAssignmentEvent() {
-    return LEADER_DO_ASSIGNMENT_EVENT;
+  public static CoordinatorEvent createLeaderDoAssignmentEvent(boolean cleanUpOrphanConnectorTasks) {
+    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT, cleanUpOrphanConnectorTasks);
   }
 
   /**
@@ -80,7 +82,7 @@ public class CoordinatorEvent {
   }
 
   /**
-   * Retrun an event that indicates that partition need to be assigned for a datastream group
+   * Return an event that indicates that partition need to be assigned for a datastream group
    * @param datastreamGroupName the name of datastream group which receives partition changes
    * @return
    */
@@ -124,6 +126,23 @@ public class CoordinatorEvent {
     return "type:" + _eventType;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    CoordinatorEvent that = (CoordinatorEvent) o;
+    return _eventType == that._eventType && Objects.equals(_eventMetadata, that._eventMetadata);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(_eventType, _eventMetadata);
+  }
+
   /**
    * Represents an error event seen inside coordinator. It stores the error event along with the error message.
    */
@@ -137,6 +156,26 @@ public class CoordinatorEvent {
 
     public String getEventData() {
       return _errorMessage;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      if (!super.equals(o)) {
+        return false;
+      }
+      HandleInstanceError that = (HandleInstanceError) o;
+      return Objects.equals(_errorMessage, that._errorMessage);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(super.hashCode(), _errorMessage);
     }
 
     @Override
