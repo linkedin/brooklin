@@ -69,9 +69,14 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_ENCRYPTION_REQUIRED = "system.destination.encryptionRequired";
 
   /**
-   * The name of the schema used to serialize the messages in the destination
+   * The name of the schema used to serialize the payload in the message on the destination
    */
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
+
+  /**
+   * The name of the schema used to serialize the key in the message on the destination
+   */
+  public static final String DESTINATION_KEY_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "keySchemaName";
 
   /**
    * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
