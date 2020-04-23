@@ -368,6 +368,10 @@ public class ZkAdapter {
 
     // if this instance is first in line to become leader. Check if it is already a leader.
     if (index == 0) {
+      if (_currentSubscription != null) {
+        _zkclient.unsubscribeDataChanges(_currentSubscription, _leaderElectionListener);
+      }
+
       if (!_isLeader) {
         onBecomeLeader();
       }
@@ -1226,13 +1230,13 @@ public class ZkAdapter {
    * Data provider class to provide an updated list of datastreams for the cluster by watching
    * ZooKeeper znodes under <i>/{cluster}/dms/</i>.
    */
-  public class ZkBackedDMSDatastreamList implements IZkChildListener, IZkDataListener {
+  private class ZkBackedDMSDatastreamList implements IZkChildListener, IZkDataListener {
     private final String _path;
 
     /**
      * Sets up a watch on the {@code /{cluster}/dms} tree, so it can be notified of future changes.
      */
-    public ZkBackedDMSDatastreamList() {
+    private ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
       LOG.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
@@ -1243,13 +1247,13 @@ public class ZkAdapter {
     /**
      * Unsubscribe from all datastream changes in the cluster
      */
-    public void close() {
+    private void close() {
       LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
     @Override
-    public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+    public synchronized void handleChildChange(String parentPath, List<String> currentChildren) {
       LOG.info(String.format("ZkBackedDMSDatastreamList::Received Child change notification on the datastream list"
           + "parentPath %s,children %s", parentPath, currentChildren));
       if (_listener != null && ZkAdapter.this.isLeader()) {
@@ -1260,7 +1264,7 @@ public class ZkAdapter {
     // Triggered when the /dms is updated. The dms node is updated when someone wants to manually trigger a reassignment
     // due to datastream add or delete.
     @Override
-    public void handleDataChange(String dataPath, Object data) throws Exception {
+    public void handleDataChange(String dataPath, Object data) {
       LOG.info("ZkBackedDMSDatastreamList::Received Data change notification on the path {}, data {}.",
           dataPath, data);
       if (_listener != null) {
@@ -1270,7 +1274,7 @@ public class ZkAdapter {
 
     // Triggered when the /dms is deleted. This can never happen unless someone is deleting the cluster.
     @Override
-    public void handleDataDeleted(String dataPath) throws Exception {
+    public void handleDataDeleted(String dataPath) {
       //
     }
   }
@@ -1292,15 +1296,15 @@ public class ZkAdapter {
    * the new leader is responsible for cleaning up the instance node for the previous leader. This is
    * done in the constructor ZkBackedLiveInstanceListProvider().
    */
-  public class ZkBackedLiveInstanceListProvider implements IZkChildListener {
-    private List<String> _liveInstances = new ArrayList<>();
+  private class ZkBackedLiveInstanceListProvider implements IZkChildListener {
+    private List<String> _liveInstances;
     private final String _path;
 
     /**
      * Sets up a watch on the {@code /{cluster}/liveinstances} tree, so it can be notified
      * of future changes.
      */
-    public ZkBackedLiveInstanceListProvider() {
+    private ZkBackedLiveInstanceListProvider() {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
@@ -1327,17 +1331,17 @@ public class ZkAdapter {
     /**
      * Unsubscribe from all live instance changes in the cluster
      */
-    public void close() {
+    private void close() {
       LOG.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
-    public List<String> getLiveInstances() {
+    private List<String> getLiveInstances() {
       return _liveInstances;
     }
 
     @Override
-    public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+    public void handleChildChange(String parentPath, List<String> currentChildren) {
       LOG.info(String.format(
           "ZkBackedLiveInstanceListProvider::Received Child change notification on the instances list "
               + "parentPath %s,children %s", parentPath, currentChildren));
@@ -1353,14 +1357,14 @@ public class ZkAdapter {
   /**
    * Listener for ZooKeeper leader election updates.
    */
-  public class ZkLeaderElectionListener implements IZkDataListener {
+  private class ZkLeaderElectionListener implements IZkDataListener {
     @Override
-    public void handleDataChange(String dataPath, Object data) throws Exception {
+    public void handleDataChange(String dataPath, Object data) {
       joinLeaderElection();
     }
 
     @Override
-    public void handleDataDeleted(String dataPath) throws Exception {
+    public void handleDataDeleted(String dataPath) {
       joinLeaderElection();
     }
   }
@@ -1370,14 +1374,14 @@ public class ZkAdapter {
    * for a given instance. In addition, it notifies the listener about changes that happened
    * to task node changes under the instance node.
    */
-  public class ZkBackedTaskListProvider implements IZkChildListener, IZkDataListener {
+  private class ZkBackedTaskListProvider implements IZkChildListener, IZkDataListener {
     private final String _path;
 
     /**
      * Constructor
      * @param instanceName Instance for which the datastream task assignment is to be watched.
      */
-    public ZkBackedTaskListProvider(String cluster, String instanceName) {
+    private ZkBackedTaskListProvider(String cluster, String instanceName) {
       _path = KeyBuilder.instanceAssignments(cluster, instanceName);
       LOG.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
@@ -1387,13 +1391,14 @@ public class ZkAdapter {
     /**
      * Unsubscribe to all changes to the task assignment for this instance.
      */
-    public void close() {
+    private void close() {
       LOG.info("ZkBackedTaskListProvider::Unsubscribing to the changes under the path " + _path);
-      _zkclient.unsubscribeChildChanges(KeyBuilder.instanceAssignments(_cluster, _instanceName), this);
+      _zkclient.unsubscribeChildChanges(_path, this);
+      _zkclient.unsubscribeDataChanges(_path, this);
     }
 
     @Override
-    public synchronized void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+    public synchronized void handleChildChange(String parentPath, List<String> currentChildren) {
       LOG.info(String.format(
           "ZkBackedTaskListProvider::Received Child change notification on the datastream task list "
               + "parentPath %s,children %s", parentPath, currentChildren));
@@ -1405,7 +1410,7 @@ public class ZkAdapter {
     // Triggered when the /assignments is updated. We want to handle this when the datastreams behind the tasks get
     // updated, but the list of tasks may remain the same
     @Override
-    public void handleDataChange(String dataPath, Object data) throws Exception {
+    public void handleDataChange(String dataPath, Object data) {
       LOG.info("ZkBackedTaskListProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
       if (_listener != null && data != null && !data.toString().isEmpty()) {
         // only care about the data change when there is an update in the data node
@@ -1414,7 +1419,7 @@ public class ZkAdapter {
     }
 
     @Override
-    public void handleDataDeleted(String dataPath) throws Exception {
+    public void handleDataDeleted(String dataPath) {
       // do nothing
     }
   }
@@ -1422,12 +1427,12 @@ public class ZkAdapter {
   /**
    * ZkTargetAssignmentProvider detect if there is a partition movement being intiated from restful endpoint
    */
-  public class ZkTargetAssignmentProvider implements IZkDataListener {
+  private class ZkTargetAssignmentProvider implements IZkDataListener {
     Set<String> _listenedConnectors = new HashSet<>();
     /**
      * Constructor
      */
-    public ZkTargetAssignmentProvider(Set<String> connectorTypes) {
+    private ZkTargetAssignmentProvider(Set<String> connectorTypes) {
       for (String connectorType : connectorTypes) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.subscribeDataChanges(path, this);
@@ -1439,7 +1444,7 @@ public class ZkAdapter {
     /**
      * add listener for the connector
      */
-    public void addListener(String connectorType) {
+    private void addListener(String connectorType) {
       if (!_listenedConnectors.contains(connectorType)) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.subscribeDataChanges(path, this);
@@ -1451,7 +1456,7 @@ public class ZkAdapter {
     /**
      * Unsubscribe to all changes to the task assignment for this instance.
      */
-    public void close() {
+    private void close() {
       for (String connectorType : _listenedConnectors) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.unsubscribeDataChanges(path, this);
@@ -1460,7 +1465,7 @@ public class ZkAdapter {
     }
 
     @Override
-    public void handleDataChange(String dataPath, Object data) throws Exception {
+    public void handleDataChange(String dataPath, Object data) {
       LOG.info("ZkTargetAssignmentProvider::Received Data change notification on the path {}, data {}.", dataPath, data);
       if (_listener != null && data != null && !data.toString().isEmpty()) {
         // data consists of the timestamp when partition movement is triggered from the client
@@ -1469,7 +1474,7 @@ public class ZkAdapter {
     }
 
     @Override
-    public void handleDataDeleted(String dataPath) throws Exception {
+    public void handleDataDeleted(String dataPath) {
       // do nothing
     }
   }
@@ -1477,13 +1482,15 @@ public class ZkAdapter {
   /**
    * Listener for ZooKeeper state changes.
    */
-  public class ZkStateChangeListener implements IZkStateListener {
+  @VisibleForTesting
+  class ZkStateChangeListener implements IZkStateListener {
     @Override
     public void handleStateChanged(Watcher.Event.KeeperState state) {
       LOG.info("ZkStateChangeListener:: handleStateChanged {}", state.toString());
       switch (state) {
         case Expired:
           _timer.cancel();
+          onBecomeFollower();
           exitOnSessionExpiryOrEstablishmentError();
           return;
         case Disconnected:
@@ -1497,7 +1504,6 @@ public class ZkAdapter {
           return;
         default:
           // Ignoring AuthFailed for now.
-          return;
       }
     }
 
@@ -1517,7 +1523,7 @@ public class ZkAdapter {
     TimerTask timerTask = new TimerTask() {
       public void run() {
         exitOnSessionExpiryOrEstablishmentError();
-      };
+      }
     };
     _timer.schedule(timerTask, _sessionTimeoutMs);
   }
