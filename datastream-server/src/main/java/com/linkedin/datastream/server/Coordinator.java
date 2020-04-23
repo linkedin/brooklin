@@ -1000,8 +1000,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       Set<DatastreamTask> unusedTasks = _adapter.findOldUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance);
-      _adapter.cleanupDeadInstanceAssignments(instances, unusedTasks);
-      _adapter.cleanupOldUnusedTasks(unusedTasks);
+      _adapter.cleanupDeadInstanceAssignmentsAndUnusedTasks(instances, unusedTasks);
       if (cleanUpOrphanConnectorTasks) {
         performCleanupOrphanConnectorTasks();
       }
@@ -1075,7 +1074,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     // schedule retry if failure
     if (succeeded) {
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.findAndCleanupOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
     } else {
@@ -1198,7 +1197,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     }
     if (!shouldRetry) {
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.findAndCleanupOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
     }  else {
