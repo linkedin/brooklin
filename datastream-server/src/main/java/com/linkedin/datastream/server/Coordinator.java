@@ -375,7 +375,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
-    // verify/cleanup the orphan task nodes under connector should be called only once after becoming leader,
+    // verify/cleanUp the orphan task nodes under connector should be called only once after becoming leader,
     // since it is an expensive operation. So, passing cleanUpOrphanNodes = true only on onBecomeLeader.
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     _log.info("Coordinator::onBecomeLeader completed successfully");
@@ -998,11 +998,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (succeeded) {
       List<String> instances = new ArrayList<>(liveInstances);
       instances.add(PAUSED_INSTANCE);
-      Set<DatastreamTask> unusedTasks = _adapter.findOldUnusedTasks(previousAssignmentByInstance,
-          newAssignmentsByInstance);
-      _adapter.cleanupDeadInstanceAssignmentsAndUnusedTasks(instances, unusedTasks);
+      _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
+          newAssignmentsByInstance, instances);
       if (cleanUpOrphanConnectorTasks) {
-        performCleanupOrphanConnectorTasks();
+        performCleanUpOrphanConnectorTasks();
       }
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
@@ -1074,7 +1073,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     // schedule retry if failure
     if (succeeded) {
-      _adapter.findAndCleanupOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.cleanUpOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
     } else {
@@ -1127,7 +1126,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
-      List<DatastreamGroup> toCleanup = new ArrayList<>();
+      List<DatastreamGroup> toCleanUp = new ArrayList<>();
 
       for (String connectorType : _connectors.keySet()) {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
@@ -1166,7 +1165,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
               _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
           assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
-          toCleanup.add(dg);
+          toCleanUp.add(dg);
         }
       }
 
@@ -1177,7 +1176,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.updateAllAssignments(newAssignmentsByInstance);
 
       //clean up stored target assignment after the assignment is updated
-      for (DatastreamGroup dg : toCleanup) {
+      for (DatastreamGroup dg : toCleanUp) {
         _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
       }
 
@@ -1197,7 +1196,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     }
     if (!shouldRetry) {
-      _adapter.findAndCleanupOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.cleanUpOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
     }  else {
@@ -1260,10 +1259,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
-  void performCleanupOrphanConnectorTasks() {
-    _log.info("performCleanupOrphanConnectorTasks called");
+  void performCleanUpOrphanConnectorTasks() {
+    _log.info("performCleanUpOrphanConnectorTasks called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupOrphanConnectorTasks",
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanUpOrphanConnectorTasks",
         NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 

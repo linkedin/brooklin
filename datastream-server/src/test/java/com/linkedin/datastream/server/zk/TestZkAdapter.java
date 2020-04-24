@@ -770,7 +770,7 @@ public class TestZkAdapter {
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 2);
 
-    updateInstanceAssignment(adapter, adapter.getInstanceName(), new ArrayList<>());
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), Collections.emptyList());
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 2);
@@ -798,7 +798,8 @@ public class TestZkAdapter {
     adapter.connect();
 
     List<DatastreamTask> tasks1 = new ArrayList<>();
-    Set<DatastreamTask> unusedTaskSet = new HashSet<>();
+    List<DatastreamTask> newTasks1 = new ArrayList<>();
+    List<DatastreamTask> tasks2 = new ArrayList<>();
 
     // Create some nodes
     for (int i = 0; i < totalTasks; i++) {
@@ -808,25 +809,38 @@ public class TestZkAdapter {
       dsTask.setTaskPrefix(taskPrefix);
       dsTask.setConnectorType(connectorType);
       dsTask.setZkAdapter(adapter);
-      tasks1.add(dsTask);
+
       if (i % 2 == 0) {
-        unusedTaskSet.add(dsTask);
+        tasks1.add(dsTask);
+        newTasks1.add(dsTask);
+      } else {
+        tasks2.add(dsTask);
       }
     }
-    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks1);
 
-    // Send some of the connector tasks as unused tasks to check there are still left over tasks under /connector,
-    // but everything cleaned up under /instance.
-    Assert.assertEquals(unusedTaskSet.size(), totalTasks / 2);
-    adapter.cleanupDeadInstanceAssignmentsAndUnusedTasks(new ArrayList<>(), unusedTaskSet);
-    Assert.assertEquals(unusedTaskSet.size(), 0);
+    Map<String, List<DatastreamTask>> oldAssignments = new HashMap<>();
+    oldAssignments.put(adapter.getInstanceName(), tasks1);
+    oldAssignments.put("deadInstance-999", tasks2);
+    adapter.updateAllAssignments(oldAssignments);
+
+    Map<String, Set<DatastreamTask>> currentAssignments = adapter.getAllAssignedDatastreamTasks();
+    Assert.assertEquals(oldAssignments.keySet(), currentAssignments.keySet());
+    currentAssignments.forEach((k, v) -> Assert.assertEquals(v, new HashSet<>(oldAssignments.get(k))));
+
+    newTasks1.remove(0);
+    Map<String, List<DatastreamTask>> newAssignments = new HashMap<>();
+    newAssignments.put(adapter.getInstanceName(), newTasks1);
+
+    adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(currentAssignments, newAssignments,
+        new ArrayList<>(newAssignments.keySet()));
 
     List<String> leftOverTasks = adapter.getZkClient().getChildren(KeyBuilder.connector(testCluster, connectorType));
     // Verify that unused connector tasks got cleaned up.
-    Assert.assertEquals(leftOverTasks.size(), totalTasks / 2);
+    Assert.assertEquals(leftOverTasks.size(), newTasks1.size());
 
-    // Verify that /instance/<instance> got cleaned up.
-    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, adapter.getInstanceName())));
+    // Verify that dead instance got cleaned up.
+    Assert.assertTrue(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, adapter.getInstanceName())));
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, "deadInstance-999")));
 
     adapter.disconnect();
   }
