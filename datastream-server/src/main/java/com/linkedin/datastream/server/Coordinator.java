@@ -375,7 +375,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
-    // verify/cleanUp the orphan task nodes under connector should be called only once after becoming leader,
+    // verify/clean up the orphan task nodes under connector should be called only once after becoming leader,
     // since it is an expensive operation. So, passing cleanUpOrphanNodes = true only on onBecomeLeader.
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     _log.info("Coordinator::onBecomeLeader completed successfully");
@@ -1001,7 +1001,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance, instances);
       if (cleanUpOrphanConnectorTasks) {
-        performCleanUpOrphanConnectorTasks();
+        performCleanupOrphanConnectorTasks();
       }
       _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
     }
@@ -1259,10 +1259,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
-  void performCleanUpOrphanConnectorTasks() {
-    _log.info("performCleanUpOrphanConnectorTasks called");
+  void performCleanupOrphanConnectorTasks() {
+    _log.info("performCleanupOrphanConnectorTasks called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanUpOrphanConnectorTasks",
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupOrphanConnectorTasks",
         NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 

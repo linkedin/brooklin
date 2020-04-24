@@ -848,21 +848,22 @@ public class ZkAdapter {
    * to us to figure out the obsolete tasks.
    * @param previousAssignmentByInstance Previous task assignment
    * @param newAssignmentsByInstance New task assignment.
-   * @param instances Instances for which nodes are to be cleaned up
+   * @param liveInstances Instances which are currently alive.
    */
   public void cleanUpDeadInstanceDataAndOtherUnusedTasks(
       Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
       Map<String, List<DatastreamTask>> newAssignmentsByInstance,
-      List<String> instances) {
+      List<String> liveInstances) {
 
-    LOG.info("cleanUpDeadInstanceData is called");
+    LOG.info("cleanUpDeadInstanceDataAndOtherUnusedTasks is called");
     Set<DatastreamTask> unusedTasks = findOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
 
     Set<String> deadInstances = previousAssignmentByInstance.keySet();
-    deadInstances.removeAll(instances);
+    deadInstances.removeAll(liveInstances);
 
-    LOG.debug("unusedTasks before cleanUp: {}", unusedTasks.stream()
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())).keySet());
+    LOG.debug("unusedTasks before cleanup: {}", unusedTasks.stream()
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toList()));
     if (deadInstances.size() > 0) {
       LOG.info("Cleaning up assignments for dead instances: " + deadInstances);
 
@@ -907,11 +908,12 @@ public class ZkAdapter {
         _liveTaskMap.remove(instance);
       }
     }
-    LOG.debug("unusedTasks remaining after dead instances cleanUp: {}", unusedTasks.stream()
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())).keySet());
+    LOG.debug("unusedTasks remaining after dead instances cleanup: {}", unusedTasks.stream()
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toList()));
     // Clean the remaining unusedTasks.
     cleanUpOldUnusedTasksFromConnector(unusedTasks);
-    LOG.info("cleanUpDeadInstanceData completed successfully.");
+    LOG.info("cleanUpDeadInstanceDataAndOtherUnusedTasks completed successfully.");
   }
 
   /**
