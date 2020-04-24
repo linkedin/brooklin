@@ -839,7 +839,7 @@ public class ZkAdapter {
 
   /**
    * Remove instance assignment nodes whose instances are dead. This also
-   * removes the node from under /connector if present in unusedTasks.
+   * removes the unused node from under /cluster/<connectorType>/connector/.
    *
    * NOTE: this should only be called after the valid tasks have been
    * reassigned or become safe to discard per strategy requirement.
