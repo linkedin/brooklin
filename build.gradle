@@ -147,6 +147,7 @@ project(':datastream-server-api') {
   dependencies {
     compile project(':datastream-common')
     compile project(':datastream-utils')
+    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
   }
 }
 
