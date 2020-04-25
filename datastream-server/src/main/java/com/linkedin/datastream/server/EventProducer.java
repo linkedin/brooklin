@@ -257,7 +257,7 @@ public class EventProducer implements DatastreamEventProducer {
       long sourceToDestinationLatencyMs) {
     if (_warnLogLatencyEnabled && (sourceToDestinationLatencyMs > _warnLogLatencyThresholdMs)) {
       _logger.warn("Source to destination latency {} ms is higher than {} ms, Source Timestamp: {}, Metadata: {}",
-          sourceToDestinationLatencyMs, _warnLogLatencyThresholdMs, eventsSourceTimestamp, metadata.toString());
+          sourceToDestinationLatencyMs, _warnLogLatencyThresholdMs, eventsSourceTimestamp, metadata);
     }
 
     if (_numEventsOutsideAltSlaLogEnabled) {
