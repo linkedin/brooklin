@@ -199,8 +199,8 @@ public class ZkAdapter {
         _zkclient.delete(liveInstancePath);
 
         // NOTE: we should not delete the instance node which still holds the
-        // assigned tasks. Coordinator will call cleanupDeadInstanceAssignments
-        // to do an ad-hoc cleanup once the tasks haven been properly handled
+        // assigned tasks. Coordinator will call cleanUpDeadInstanceDataAndOtherUnusedTasks
+        // to do an ad-hoc cleanUp once the tasks haven been properly handled
         // per the strategy (reassign or discard).
       } catch (ZkException zke) {
         // do nothing, best effort clean up
@@ -615,17 +615,18 @@ public class ZkAdapter {
   /**
    * Two nodes need to be removed for a removed task:
    * <ol>
-   *  <li>{@code /<cluster>/instances/<instance>/<task>[JSON]}</li>
-   *  <li>{@code /<cluster>/connectors/<connectorType>/<task>}</li>
+   *   <li>{@code /<cluster>/instances/<instance>/<task>[JSON]}</li>
    * </ol>
-   *  If either failed, a RuntimeException will be thrown.
+   *
+   * {@code /<cluster>/connectors/<connectorType>/<task>} gets cleaned up
+   * in {@link #cleanUpDeadInstanceDataAndOtherUnusedTasks} after {@link #updateAllAssignments} is successful.
    */
   private void removeTaskNodes(String instance, String name) {
     LOG.info("Removing Task Node: " + instance + ", task: " + name);
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
 
     // NOTE: we can't remove the connector task node since it has the state (checkpoint/lock).
-    // Instead, we'll keep the task node alive and remove in cleanupDeadInstanceAssignments()
+    // Instead, we'll keep the task node alive and remove in cleanUpDeadInstanceDataAndOtherUnusedTasks()
     // after the assignment strategy has decided to keep or leave the task.
 
     // Remove the task node under instance assignment
@@ -703,11 +704,7 @@ public class ZkAdapter {
           .collect(Collectors.toSet());
 
       // get the old assignment from ZooKeeper
-      Set<String> oldAssignmentNames = new HashSet<>();
-      String instancePath = KeyBuilder.instanceAssignments(_cluster, instance);
-      if (_zkclient.exists(instancePath)) {
-        oldAssignmentNames.addAll(_zkclient.getChildren(instancePath));
-      }
+      List<String> oldAssignmentNames = getInstanceAssignment(instance);
 
       //
       // find assignments removed
@@ -841,22 +838,66 @@ public class ZkAdapter {
   }
 
   /**
-   * Remove instance assignment nodes whose instances are dead
+   * Remove instance assignment nodes whose instances are dead. This also
+   * removes the unused node from under /cluster/<connectorType>/connector/.
    *
    * NOTE: this should only be called after the valid tasks have been
    * reassigned or become safe to discard per strategy requirement.
    * Coordinator is expected to cache the "current" assignment before
    * invoking the assignment strategy and pass the saved assignment
    * to us to figure out the obsolete tasks.
-   * @param instances Instances for which nodes are to be cleaned up
+   * @param previousAssignmentByInstance Previous task assignment
+   * @param newAssignmentsByInstance New task assignment.
+   * @param liveInstances Instances which are currently alive.
    */
-  public void cleanupDeadInstanceAssignments(List<String> instances) {
-    List<String> deadInstances = getAllInstances();
-    deadInstances.removeAll(instances);
+  public void cleanUpDeadInstanceDataAndOtherUnusedTasks(
+      Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
+      Map<String, List<DatastreamTask>> newAssignmentsByInstance,
+      List<String> liveInstances) {
+
+    LOG.info("cleanUpDeadInstanceDataAndOtherUnusedTasks is called");
+    Set<DatastreamTask> unusedTasks = findOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+
+    Set<String> deadInstances = previousAssignmentByInstance.keySet();
+    deadInstances.removeAll(liveInstances);
+
+    LOG.debug("unusedTasks before cleanup: {}", unusedTasks.stream()
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toList()));
     if (deadInstances.size() > 0) {
       LOG.info("Cleaning up assignments for dead instances: " + deadInstances);
 
       for (String instance : deadInstances) {
+        // get the old assignment from ZooKeeper
+        Set<DatastreamTask> oldAssignments = previousAssignmentByInstance.get(instance);
+        for (DatastreamTask oldAssignment : oldAssignments) {
+          // We have two znodes to clean up for every datastream task
+
+          //  1. /<cluster>/instances/{instanceId}/assignments/<task>
+          //  2. /<cluster>/connectors/<connectorType>/<task>
+
+          // (1) should always be deleted first. If we were to delete (2) first,
+          // and the code got interrupted (e.g. due to shutdown), we would run
+          // the risk of having the next leader assign a task to a live host with
+          // no presence in (2). This may cause errors in other pieces of
+          // code because datastream task entries in (2) are needed for host-
+          // independent operations like locking tasks and check-pointing progress.
+
+          // On the other hand, when we delete (1) before (2), if the code is
+          // interrupted in between the two operations, the next leader will not
+          // assign that task to any host; only (2) will become an orphan node
+          // and the next leader will take care of deleting it in cleanUpOrphanConnectorTask().
+
+          // Delete (1)
+          removeTaskNodes(instance, oldAssignment.getDatastreamTaskName());
+
+          boolean found = unusedTasks.remove(oldAssignment);
+          if (found) {
+            // Delete (2)
+            deleteConnectorTask(oldAssignment.getConnectorType(), oldAssignment.getDatastreamTaskName());
+          }
+        }
+
         String path = KeyBuilder.instance(_cluster, instance);
         LOG.info("Deleting zk path recursively: " + path);
         if (!_zkclient.deleteRecursive(path)) {
@@ -867,27 +908,56 @@ public class ZkAdapter {
         _liveTaskMap.remove(instance);
       }
     }
+    LOG.debug("unusedTasks remaining after dead instances cleanup: {}", unusedTasks.stream()
+        .map(DatastreamTask::getDatastreamTaskName)
+        .collect(Collectors.toList()));
+    // Clean the remaining unusedTasks.
+    cleanUpOldUnusedTasksFromConnector(unusedTasks);
+    LOG.info("cleanUpDeadInstanceDataAndOtherUnusedTasks completed successfully.");
   }
 
   /**
+   * It finds old unused tasks.
+   *
    * New assignment may not contain all the tasks from the previous assignment. This means that the diff of the
    * tasks between the new and old assignment are not used any more which can be deleted.
    * @param previousAssignmentByInstance Previous task assignment
    * @param newAssignmentsByInstance New task assignment.
+   * @return Tasks absent in newAssignment but present in oldAssignment.
    */
-  public void cleanupOldUnusedTasks(Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
+  private Set<DatastreamTask> findOldUnusedTasks(Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
       Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
 
     Set<DatastreamTask> newTasks =
         newAssignmentsByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
     Set<DatastreamTask> oldTasks =
         previousAssignmentByInstance.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
-    List<DatastreamTask> unusedTasks =
-        oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toList());
-    LOG.info("Deleting the unused tasks {} ", unusedTasks);
+    Set<DatastreamTask> unusedTasks =
+        oldTasks.stream().filter(x -> !newTasks.contains(x)).collect(Collectors.toSet());
+    LOG.info("Unused tasks to be deleted: {}", unusedTasks);
+    return unusedTasks;
+  }
 
+  /**
+   * Delete the unused connector tasks from zookeeper.
+   * @param unusedTasks Unused tasks.
+   */
+  private void cleanUpOldUnusedTasksFromConnector(Collection<DatastreamTask> unusedTasks) {
     // Delete the connector tasks.
+    LOG.info("cleanUpOldUnusedTasksFromConnector::start total unused tasks: {}", unusedTasks.size());
     unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));
+    LOG.info("cleanUpOldUnusedTasksFromConnector::end");
+  }
+
+  /**
+   * Find the unused tasks and delete the unused connector tasks from zookeeper.
+   * @param previousAssignmentByInstance Previous task assignment
+   * @param newAssignmentsByInstance New task assignment.
+   */
+  public void cleanUpOldUnusedTasksFromConnector(Map<String, Set<DatastreamTask>> previousAssignmentByInstance,
+      Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
+    Set<DatastreamTask> unusedTasks = findOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+    cleanUpOldUnusedTasksFromConnector(unusedTasks);
   }
 
   /**
