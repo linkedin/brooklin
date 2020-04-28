@@ -944,7 +944,9 @@ public class ZkAdapter {
    */
   private void cleanUpOldUnusedTasksFromConnector(Collection<DatastreamTask> unusedTasks) {
     // Delete the connector tasks.
+    LOG.info("cleanUpOldUnusedTasksFromConnector::start total unused tasks: {}", unusedTasks.size());
     unusedTasks.forEach(t -> deleteConnectorTask(t.getConnectorType(), t.getDatastreamTaskName()));
+    LOG.info("cleanUpOldUnusedTasksFromConnector::end");
   }
 
   /**
