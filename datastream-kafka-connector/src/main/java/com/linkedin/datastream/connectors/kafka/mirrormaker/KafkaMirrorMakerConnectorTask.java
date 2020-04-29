@@ -264,9 +264,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
           ((metadata, exception) -> {
             if (exception != null) {
               _logger.warn(
-                  String.format("Detected exception being throw from callback for src partition: %s while sending producer "
-                      + "record: %s, exception: ", srcTopicPartition, datastreamProducerRecord), exception);
-              rewindAndPausePartitionOnException(srcTopicPartition, exception);
+                  String.format("Detected exception being throw from flushless send callback for source "
+                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata),
+                  exception);
+              synchronized (_sendFailureTopicPartitionExceptionMap) {
+                _sendFailureTopicPartitionExceptionMap.put(srcTopicPartition, exception);
+              }
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
             }
@@ -357,6 +360,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         _datastreamTask.getEventProducer().flush();
+        rewindAndPausePartitionsOnSendException();
         commitSafeOffsets(consumer);
 
         // clear the flushless producer state after flushing all messages and checkpointing

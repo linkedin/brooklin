@@ -109,6 +109,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected Consumer<?, ?> _consumer;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
+  // TopicPartitions which have seen exceptions on send. Access to this map must be synchronized.
+  protected final Map<TopicPartition, Exception> _sendFailureTopicPartitionExceptionMap = new HashMap<>();
+
   // Datastream task updates that need to be processed
   protected final Set<DatastreamConstants.UpdateType> _taskUpdates = Sets.newConcurrentHashSet();
   @VisibleForTesting
@@ -229,8 +232,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
-          if (_autoPausedSourcePartitions.containsKey(topicPartition)) {
-            _logger.warn("Abort sending as {} is auto-paused, rewind offset", topicPartition);
+          boolean skipRecord;
+          synchronized (_sendFailureTopicPartitionExceptionMap) {
+            skipRecord = _autoPausedSourcePartitions.containsKey(topicPartition)
+                || _sendFailureTopicPartitionExceptionMap.containsKey(topicPartition);
+          }
+          if (skipRecord) {
+            _logger.warn("Abort sending as {} is auto-paused or saw a send failure, rewind offset", topicPartition);
             seekToLastCheckpoint(Collections.singleton(topicPartition));
             break;
           } else {
@@ -257,15 +265,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
       partitionRewound = true;
     } catch (Exception e) {
-      _logger.error("Partition rewind failed due to ", e);
+      _logger.error(String.format("Partition rewind for %s failed due to ", srcTopicPartition), e);
     }
     if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
-      // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
-      // add to auto-paused set
+      // If partition rewind failed or the exception is not of type DatastreamTransientException and it is configured to
+      // pause partition on error conditions, add it to the auto-paused set
       _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
       _autoPausedSourcePartitions.put(srcTopicPartition,
           PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    }
+  }
+
+  protected void rewindAndPausePartitionsOnSendException() {
+    // For all topic partitions which have seen send exceptions, attempt to rewind them to the last checkpoint
+    synchronized (_sendFailureTopicPartitionExceptionMap) {
+      _sendFailureTopicPartitionExceptionMap.forEach(this::rewindAndPausePartitionOnException);
+      _sendFailureTopicPartitionExceptionMap.clear();
     }
   }
 
@@ -283,10 +299,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       TopicPartition srcTopicPartition, int numBytes, SendCallback sendCallback) {
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
       if (exception != null) {
-        String msg = String.format("Detect exception being thrown from callback for src partition: %s while "
-            + "sending, metadata: %s , exception: ", srcTopicPartition, metadata);
+        String msg = String.format("Detected exception being thrown from send callback for source topic-partition: %s "
+            + "with metadata: %s, exception: ", srcTopicPartition, metadata);
         _logger.warn(msg, exception);
-        rewindAndPausePartitionOnException(srcTopicPartition, exception);
+        synchronized (_sendFailureTopicPartitionExceptionMap) {
+          _sendFailureTopicPartitionExceptionMap.put(srcTopicPartition, exception);
+        }
       } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
       }
@@ -522,6 +540,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
+      rewindAndPausePartitionsOnSendException();
       try {
         commitWithRetries(consumer, Optional.empty());
         _lastCommittedTime = System.currentTimeMillis();
@@ -676,6 +695,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * new update type when there is any update to datastream task (in method checkForUpdateTask())
    */
   protected void preConsumerPollHook() {
+    // check if any send failures were seen on the last poll and rewind them before the next poll
+    rewindAndPausePartitionsOnSendException();
+
     // check if any auto-paused partitions need to be resumed
     checkForPartitionsToAutoResume();
 
