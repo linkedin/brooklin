@@ -238,7 +238,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
                 || _sendFailureTopicPartitionExceptionMap.containsKey(topicPartition);
           }
           if (skipRecord) {
-            _logger.warn("Abort sending as {} is auto-paused or saw a send failure, rewind offset", topicPartition);
+            _logger.warn("Abort sending as {} {}, rewind offset", topicPartition,
+                _autoPausedSourcePartitions.containsKey(topicPartition) ? "is auto-paused" : "saw a send failure");
             seekToLastCheckpoint(Collections.singleton(topicPartition));
             break;
           } else {
