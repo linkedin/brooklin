@@ -11,6 +11,8 @@ import java.util.Properties;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 
 
 /**
@@ -19,7 +21,6 @@ import com.linkedin.datastream.common.VerifiableProperties;
 public class KafkaBasedConnectorConfig {
 
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
-  public static final String DOMAIN_KAFKA_POSITION_TRACKER = "kafkaPositionTracker";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_COMMIT_TIMEOUT_MILLIS = "commitTimeoutMs";
   public static final String CONFIG_POLL_TIMEOUT_MILLIS = "pollTimeoutMs";
@@ -49,7 +50,6 @@ public class KafkaBasedConnectorConfig {
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
-  private final KafkaPositionTrackerConfig _kafkaPositionTrackerConfig;
 
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
@@ -109,9 +109,6 @@ public class KafkaBasedConnectorConfig {
 
     _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
     _connectorProps = verifiableProperties;
-
-    Properties kafkaPositionTrackerConfigProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_POSITION_TRACKER);
-    _kafkaPositionTrackerConfig = new KafkaPositionTrackerConfig(kafkaPositionTrackerConfigProps);
   }
 
   public String getDefaultKeySerde() {
@@ -181,9 +178,5 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
-  }
-
-  public KafkaPositionTrackerConfig getKafkaPositionTrackerConfig() {
-    return _kafkaPositionTrackerConfig;
   }
 }

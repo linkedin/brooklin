@@ -23,6 +23,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.server.Coordinator;
 import com.linkedin.datastream.server.SourceBasedDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
