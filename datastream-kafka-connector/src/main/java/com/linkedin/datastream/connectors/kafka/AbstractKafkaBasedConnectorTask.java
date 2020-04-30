@@ -110,6 +110,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
   // TopicPartitions which have seen exceptions on send. Access to this map must be synchronized.
+  // A ConcurrentHashMap is not used here due to the need for having more than one operation performed together as an
+  // atomic block
   private final Map<TopicPartition, Exception> _sendFailureTopicPartitionExceptionMap = new HashMap<>();
 
   // Datastream task updates that need to be processed
