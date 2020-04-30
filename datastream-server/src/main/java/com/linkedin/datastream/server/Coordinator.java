@@ -978,7 +978,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (cleanUpOrphanConnectorTasks) {
         performCleanupOrphanConnectorTasks();
       }
-      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBLANCES, 1);
+      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
     }
 
     // schedule retry if failure
@@ -1787,7 +1787,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      * Coordinator metrics of type {@link com.codahale.metrics.Meter}
      */
     public enum Meter {
-      NUM_REBLANCES("numRebalances"),
+      NUM_REBALANCES("numRebalances"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements");
