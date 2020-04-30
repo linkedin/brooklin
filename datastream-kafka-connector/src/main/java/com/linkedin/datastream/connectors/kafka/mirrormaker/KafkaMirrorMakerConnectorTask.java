@@ -267,9 +267,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
                   String.format("Detected exception being throw from flushless send callback for source "
                       + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata),
                   exception);
-              synchronized (_sendFailureTopicPartitionExceptionMap) {
-                _sendFailureTopicPartitionExceptionMap.put(srcTopicPartition, exception);
-              }
+              updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
             }
@@ -360,6 +358,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         _datastreamTask.getEventProducer().flush();
+        // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
+        // outstanding send() calls have completed, without providing any guarantees about their successful completion.
+        // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
+        // to their last committed offset to avoid data loss.
         rewindAndPausePartitionsOnSendException();
         commitSafeOffsets(consumer);
 

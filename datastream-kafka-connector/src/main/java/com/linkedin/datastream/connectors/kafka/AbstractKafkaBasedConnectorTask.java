@@ -110,7 +110,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
 
   // TopicPartitions which have seen exceptions on send. Access to this map must be synchronized.
-  protected final Map<TopicPartition, Exception> _sendFailureTopicPartitionExceptionMap = new HashMap<>();
+  private final Map<TopicPartition, Exception> _sendFailureTopicPartitionExceptionMap = new HashMap<>();
 
   // Datastream task updates that need to be processed
   protected final Set<DatastreamConstants.UpdateType> _taskUpdates = Sets.newConcurrentHashSet();
@@ -232,14 +232,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
-          boolean skipRecord;
+          boolean partitionPaused;
+          boolean sendFailure;
           synchronized (_sendFailureTopicPartitionExceptionMap) {
-            skipRecord = _autoPausedSourcePartitions.containsKey(topicPartition)
-                || _sendFailureTopicPartitionExceptionMap.containsKey(topicPartition);
+            partitionPaused = _autoPausedSourcePartitions.containsKey(topicPartition);
+            sendFailure = _sendFailureTopicPartitionExceptionMap.containsKey(topicPartition);
           }
-          if (skipRecord) {
-            _logger.warn("Abort sending as {} {}, rewind offset", topicPartition,
-                _autoPausedSourcePartitions.containsKey(topicPartition) ? "is auto-paused" : "saw a send failure");
+          if (partitionPaused || sendFailure) {
+            _logger.warn("Abort sending for {}, auto-paused: {}, send failure: {}, rewind offset", topicPartition,
+                partitionPaused, sendFailure);
             seekToLastCheckpoint(Collections.singleton(topicPartition));
             break;
           } else {
@@ -269,8 +270,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.error(String.format("Partition rewind for %s failed due to ", srcTopicPartition), e);
     }
     if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
-      // If partition rewind failed or the exception is not of type DatastreamTransientException and it is configured to
-      // pause partition on error conditions, add it to the auto-paused set
+      // If partition rewind failed or the exception is not of type DatastreamTransientException and
+      // it is configured to pause partition on error conditions, add it to the auto-paused set
       _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
       _autoPausedSourcePartitions.put(srcTopicPartition,
           PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
@@ -280,6 +281,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void rewindAndPausePartitionsOnSendException() {
     // For all topic partitions which have seen send exceptions, attempt to rewind them to the last checkpoint
+    // If the same TopicPartition sees send failures across multiple calls of this function, the attempt to rewind
+    // it to the last committed offset may be performed multiple times. TopicPartitions may be added to the auto-pause
+    // list for two reasons, a) the send exception is not transient, b) partition rewind failed. The auto-pause list
+    // can potentially be checked, and such superfluous rewinds can be avoided, but this will take away the chance
+    // to attempt an offset rewind for TopicPartitions that failed to rewind. When TopicPartitions are resumed, no
+    // rewind is performed.
+    // TODO: Check if a TopicPartition already exists on the auto-pause list and avoid re-rewinding it if it was added
+    // due to a non-transient exception.
     synchronized (_sendFailureTopicPartitionExceptionMap) {
       _sendFailureTopicPartitionExceptionMap.forEach(this::rewindAndPausePartitionOnException);
       _sendFailureTopicPartitionExceptionMap.clear();
@@ -296,6 +305,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return false;
   }
 
+  protected void updateSendFailureTopicPartitionExceptionMap(TopicPartition topicPartition, Exception exception) {
+    synchronized (_sendFailureTopicPartitionExceptionMap) {
+      _sendFailureTopicPartitionExceptionMap.put(topicPartition, exception);
+    }
+  }
+
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
       TopicPartition srcTopicPartition, int numBytes, SendCallback sendCallback) {
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
@@ -303,9 +318,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         String msg = String.format("Detected exception being thrown from send callback for source topic-partition: %s "
             + "with metadata: %s, exception: ", srcTopicPartition, metadata);
         _logger.warn(msg, exception);
-        synchronized (_sendFailureTopicPartitionExceptionMap) {
-          _sendFailureTopicPartitionExceptionMap.put(srcTopicPartition, exception);
-        }
+        updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
       } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
       }
@@ -541,6 +554,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
+      // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
+      // outstanding send() calls have completed, without providing any guarantees about their successful completion.
+      // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
+      // to their last committed offset to avoid data loss.
       rewindAndPausePartitionsOnSendException();
       try {
         commitWithRetries(consumer, Optional.empty());
