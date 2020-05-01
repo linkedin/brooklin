@@ -331,6 +331,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
   }
 
+  @Test
   public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
