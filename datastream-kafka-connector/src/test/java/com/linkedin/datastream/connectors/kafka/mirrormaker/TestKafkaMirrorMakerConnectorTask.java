@@ -16,6 +16,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -23,6 +24,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -37,6 +39,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
@@ -51,9 +54,12 @@ import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR;
@@ -323,6 +329,38 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
     verify(task, times(1)).acquire(any());
     Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
+  }
+
+  public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockFlushFailureDatastreamEventProducer datastreamProducer = new MockFlushFailureDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, connectorConfig);
+    Thread connectorThread = new Thread(connectorTask, "connector thread");
+    connectorThread.setDaemon(true);
+    AtomicReference<Throwable> uncaughtException = new AtomicReference<>();
+    connectorThread.setUncaughtExceptionHandler((t, e) -> uncaughtException.set(e));
+    connectorThread.start();
+    if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
+      Assert.fail("connector did not start within timeout");
+    }
+    connectorThread.join();
+
+    Assert.assertEquals(uncaughtException.get().getClass(), DatastreamRuntimeException.class);
   }
 
   @Test
@@ -1053,5 +1091,18 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
                 String.join(".", task, stream, KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS))).getValue()
             == numConfigPausedPartitions, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
         "numConfigPausedPartitions metric failed to update");
+  }
+
+  private static class MockFlushFailureDatastreamEventProducer implements DatastreamEventProducer {
+
+    @Override
+    public void send(DatastreamProducerRecord event, SendCallback callback) {
+
+    }
+
+    @Override
+    public void flush() {
+      throw new InterruptException(new InterruptedException("Throwing flush exception"));
+    }
   }
 }

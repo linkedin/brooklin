@@ -35,6 +35,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
@@ -302,6 +303,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Starting the Kafka-based connector task for {}", _datastreamTask);
     _connectorTaskThread = Thread.currentThread();
     boolean startingUp = true;
+    boolean isInterrupted = false;
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
 
     _eventsProcessedCountLoggedTime = Instant.now();
@@ -346,6 +348,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         throw e;
       }
     } catch (Exception e) {
+      if (e instanceof InterruptException || e instanceof InterruptedException) {
+        // If the current thread is interrupted, any actions performed in the finally block may fail. To give
+        // cleanup actions a chance to complete, we temporarily reset the interrupted status of the thread.
+        isInterrupted = Thread.interrupted();
+      }
+
       _logger.error(String.format("%s failed with exception.", _taskName), e);
       _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
@@ -355,10 +363,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         try {
           _consumer.close();
         } catch (Exception e) {
+          if (e instanceof InterruptException) {
+            // If the consumer.close() call is interrupted, any actions performed later may fail. To give further
+            // cleanup actions a chance to complete, we temporarily reset the interrupted status of the thread.
+            isInterrupted = Thread.interrupted();
+          }
           _logger.warn(String.format("Got exception on consumer close for task %s.", _taskName), e);
         }
       }
       postShutdownHook();
+
+      if (isInterrupted) {
+        // If the thread was originally interrupted, we should reset its status.
+        Thread.currentThread().interrupt();
+      }
       _logger.info("{} stopped", _taskName);
     }
   }
