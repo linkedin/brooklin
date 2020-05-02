@@ -302,7 +302,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _logger.info("Starting the Kafka-based connector task for {}", _datastreamTask);
     _connectorTaskThread = Thread.currentThread();
     boolean startingUp = true;
-    boolean isInterrupted = false;
     long pollInterval = 0; // so 1st call to poll is fast for purposes of startup
 
     _eventsProcessedCountLoggedTime = Instant.now();
