@@ -56,6 +56,7 @@ import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -73,6 +74,7 @@ import static org.mockito.Mockito.anyMapOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -331,12 +333,45 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
   }
 
+  static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
+    boolean postShutdownHookExceptionCaught;
+
+    /**
+     * Constructor for TestInterruptKafkaMirrorMakerConnectorTask
+     * @param config Task configuration properties
+     * @param task Datastream task
+     * @param connectorName Connector name
+     * @param isFlushlessModeEnabled true if {@value KafkaMirrorMakerConnector#IS_FLUSHLESS_MODE_ENABLED}
+     *                               is set to true for the connector identified with {@code connectorName}
+     * @param groupIdConstructor Kafka consumer group ID constructor
+     */
+    public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
+        String connectorName, boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
+      super(config, task, connectorName, isFlushlessModeEnabled, groupIdConstructor);
+    }
+
+    @Override
+    protected void postShutdownHook() {
+      try {
+        super.postShutdownHook();
+      } catch (Exception e) {
+        postShutdownHookExceptionCaught = true;
+      }
+    }
+
+    boolean isPostShutdownHookExceptionCaught() {
+      return postShutdownHookExceptionCaught;
+    }
+  }
+
   @Test
   public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
-    MockFlushFailureDatastreamEventProducer datastreamProducer = new MockFlushFailureDatastreamEventProducer();
-    task.setEventProducer(datastreamProducer);
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptException.class).when(mockDatastreamEventProducer).flush();
+    doNothing().when(mockDatastreamEventProducer).send(any(DatastreamProducerRecord.class), any(SendCallback.class));
+    task.setEventProducer(mockDatastreamEventProducer);
 
     KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
         .setConsumerFactory(new LiKafkaConsumerFactory())
@@ -349,8 +384,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task.setZkAdapter(zkAdatper);
     zkAdatper.connect();
 
-    KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, connectorConfig);
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
     Thread connectorThread = new Thread(connectorTask, "connector thread");
     connectorThread.setDaemon(true);
     AtomicReference<Throwable> uncaughtException = new AtomicReference<>();
@@ -361,7 +396,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     }
     connectorThread.join();
 
-    Assert.assertEquals(uncaughtException.get().getClass(), DatastreamRuntimeException.class);
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
   }
 
   @Test
@@ -1092,18 +1127,5 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
                 String.join(".", task, stream, KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS))).getValue()
             == numConfigPausedPartitions, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
         "numConfigPausedPartitions metric failed to update");
-  }
-
-  private static class MockFlushFailureDatastreamEventProducer implements DatastreamEventProducer {
-
-    @Override
-    public void send(DatastreamProducerRecord event, SendCallback callback) {
-
-    }
-
-    @Override
-    public void flush() {
-      throw new InterruptException(new InterruptedException("Throwing flush exception"));
-    }
   }
 }

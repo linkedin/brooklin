@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -382,10 +383,27 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected void postShutdownHook() {
     if (_enablePartitionAssignment) {
-      // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
-      // consume any further). The shutdown process must complete and the consumer must be closed.
-      LOG.info("Releasing the lock on datastreamTask: {}", _datastreamTask);
-      _datastreamTask.release();
+      boolean isInterrupted = false;
+      for (int numAttempts = 0; numAttempts < 3; ++numAttempts) {
+        try {
+          // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
+          // consume any further). The shutdown process must complete and the consumer must be closed.
+          LOG.info("Releasing the lock on datastreamTask: {}, isInterrupted: {}", _datastreamTask, isInterrupted);
+          _datastreamTask.release();
+          return;
+        } catch (ZkInterruptedException e) {
+          LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
+          if (Thread.currentThread().isInterrupted()) {
+            // The interrupted status of the current thread must be reset to allow the task lock to be released
+            isInterrupted = Thread.interrupted();
+          }
+        } finally {
+          if (isInterrupted) {
+            // Setting the status of the thread back to interrupted
+            Thread.currentThread().interrupt();
+          }
+        }
+      }
     }
   }
 
