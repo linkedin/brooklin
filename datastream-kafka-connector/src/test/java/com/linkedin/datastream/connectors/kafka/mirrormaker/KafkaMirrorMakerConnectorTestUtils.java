@@ -130,7 +130,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
-  static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
+  static Thread runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
       throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
@@ -139,6 +139,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
     }
+    return t;
   }
 
   static KafkaBasedConnectorConfigBuilder getKafkaBasedConnectorConfigBuilder() {
