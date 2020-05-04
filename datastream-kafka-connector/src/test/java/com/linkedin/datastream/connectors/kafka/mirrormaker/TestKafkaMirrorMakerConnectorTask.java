@@ -400,6 +400,43 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testPartitionManagedLockReleaseOnThreadInterrupt() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptedException.class).when(mockDatastreamEventProducer).flush();
+    doNothing().when(mockDatastreamEventProducer).send(any(DatastreamProducerRecord.class), any(SendCallback.class));
+    task.setEventProducer(mockDatastreamEventProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    Thread connectorThread = new Thread(connectorTask, "connector thread");
+    connectorThread.setDaemon(true);
+    AtomicReference<Throwable> uncaughtException = new AtomicReference<>();
+    connectorThread.setUncaughtExceptionHandler((t, e) -> uncaughtException.set(e));
+    connectorThread.start();
+    if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
+      Assert.fail("connector did not start within timeout");
+    }
+    // Interrupt the connector thread
+    connectorThread.interrupt();
+    connectorThread.join();
+
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
+  }
+
+  @Test
   public void testRegularCommitWithFlushlessProducer() throws Exception {
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");

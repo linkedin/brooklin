@@ -383,26 +383,35 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected void postShutdownHook() {
     if (_enablePartitionAssignment) {
-      boolean isInterrupted = false;
-      for (int numAttempts = 0; numAttempts < 3; ++numAttempts) {
+      DatastreamRuntimeException exception = null;
+      boolean resetInterrupted = false;
+      for (int numAttempts = 1; numAttempts <= 3; ++numAttempts) {
         try {
           // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
           // consume any further). The shutdown process must complete and the consumer must be closed.
-          LOG.info("Releasing the lock on datastreamTask: {}, isInterrupted: {}", _datastreamTask, isInterrupted);
+          LOG.info("Releasing the lock on datastreamTask: {}, was thread interrupted: {}, attempt: {}", _datastreamTask,
+              resetInterrupted, numAttempts);
           _datastreamTask.release();
-          return;
+          break;
         } catch (ZkInterruptedException e) {
           LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
           if (Thread.currentThread().isInterrupted()) {
             // The interrupted status of the current thread must be reset to allow the task lock to be released
-            isInterrupted = Thread.interrupted();
+            resetInterrupted = Thread.interrupted();
           }
-        } finally {
-          if (isInterrupted) {
-            // Setting the status of the thread back to interrupted
-            Thread.currentThread().interrupt();
-          }
+        } catch (Exception e) {
+          exception = new DatastreamRuntimeException("Failed to perform post shutdown actions", e);
+          break;
         }
+      }
+
+      if (resetInterrupted) {
+        // Setting the status of the thread back to interrupted
+        Thread.currentThread().interrupt();
+      }
+
+      if (exception != null) {
+        throw exception;
       }
     }
   }
