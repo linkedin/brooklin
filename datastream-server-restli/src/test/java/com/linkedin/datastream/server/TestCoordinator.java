@@ -2090,7 +2090,8 @@ public class TestCoordinator {
       return null;
     }).when(dynMM).createOrUpdateCounter(anyString(), anyObject(), anyLong());
 
-    ReflectionUtils.setField(coordinator, "_dynamicMetricsManager", dynMM);
+    Object metrics = ReflectionUtils.getField(coordinator, "_metrics");
+    ReflectionUtils.setField(metrics, "_dynamicMetricsManager", dynMM);
 
     coordinator.start();
 
