@@ -100,5 +100,4 @@ public final class CoordinatorConfig {
   public boolean getExitOnZkSessionExpiry() {
     return _exitOnZkSessionExpiry;
   }
-
 }

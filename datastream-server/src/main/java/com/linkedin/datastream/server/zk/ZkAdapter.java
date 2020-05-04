@@ -186,6 +186,7 @@ public class ZkAdapter {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
         listener, exitOnSessionExpiry);
   }
+
   /**
    * Constructor
    * @param zkServers ZooKeeper server address to connect to
@@ -195,6 +196,7 @@ public class ZkAdapter {
    * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
+  @VisibleForTesting
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
       int connectionTimeoutMs, ZkAdapterListener listener) {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
@@ -368,8 +370,10 @@ public class ZkAdapter {
 
     // if this instance is first in line to become leader. Check if it is already a leader.
     if (index == 0) {
+      // The node at index 0 is a leader and does not have to listen on a previous node anymore.
       if (_currentSubscription != null) {
         _zkclient.unsubscribeDataChanges(_currentSubscription, _leaderElectionListener);
+        _currentSubscription = null;
       }
 
       if (!_isLeader) {
@@ -1250,6 +1254,7 @@ public class ZkAdapter {
     private void close() {
       LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
+      _zkclient.unsubscribeDataChanges(_path, this);
     }
 
     @Override
@@ -1304,7 +1309,7 @@ public class ZkAdapter {
      * Sets up a watch on the {@code /{cluster}/liveinstances} tree, so it can be notified
      * of future changes.
      */
-    private ZkBackedLiveInstanceListProvider() {
+    public ZkBackedLiveInstanceListProvider() {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
@@ -1331,7 +1336,7 @@ public class ZkAdapter {
     /**
      * Unsubscribe from all live instance changes in the cluster
      */
-    private void close() {
+    public void close() {
       LOG.info("ZkBackedLiveInstanceListProvider::Unsubscribing to the under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
     }
@@ -1381,7 +1386,7 @@ public class ZkAdapter {
      * Constructor
      * @param instanceName Instance for which the datastream task assignment is to be watched.
      */
-    private ZkBackedTaskListProvider(String cluster, String instanceName) {
+    public ZkBackedTaskListProvider(String cluster, String instanceName) {
       _path = KeyBuilder.instanceAssignments(cluster, instanceName);
       LOG.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
@@ -1391,7 +1396,7 @@ public class ZkAdapter {
     /**
      * Unsubscribe to all changes to the task assignment for this instance.
      */
-    private void close() {
+    public void close() {
       LOG.info("ZkBackedTaskListProvider::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
       _zkclient.unsubscribeDataChanges(_path, this);
@@ -1432,7 +1437,7 @@ public class ZkAdapter {
     /**
      * Constructor
      */
-    private ZkTargetAssignmentProvider(Set<String> connectorTypes) {
+    public ZkTargetAssignmentProvider(Set<String> connectorTypes) {
       for (String connectorType : connectorTypes) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.subscribeDataChanges(path, this);
@@ -1444,7 +1449,7 @@ public class ZkAdapter {
     /**
      * add listener for the connector
      */
-    private void addListener(String connectorType) {
+    public void addListener(String connectorType) {
       if (!_listenedConnectors.contains(connectorType)) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.subscribeDataChanges(path, this);
@@ -1456,7 +1461,7 @@ public class ZkAdapter {
     /**
      * Unsubscribe to all changes to the task assignment for this instance.
      */
-    private void close() {
+    public void close() {
       for (String connectorType : _listenedConnectors) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.unsubscribeDataChanges(path, this);
@@ -1486,7 +1491,7 @@ public class ZkAdapter {
   class ZkStateChangeListener implements IZkStateListener {
     @Override
     public void handleStateChanged(Watcher.Event.KeeperState state) {
-      LOG.info("ZkStateChangeListener:: handleStateChanged {}", state.toString());
+      LOG.info("ZkStateChangeListener::handleStateChanged {}", state.toString());
       switch (state) {
         case Expired:
           _timer.cancel();
@@ -1494,8 +1499,8 @@ public class ZkAdapter {
           exitOnSessionExpiryOrEstablishmentError();
           return;
         case Disconnected:
-          // if the session has expired it means that all the registration's ephemeral nodes are gone.
-          LOG.warn("Got {} event. Scheduling a system stop.", state.toString());
+          // Wait for session timeout after disconnect to consider that the session has expired.
+          LOG.warn("ZkStateChangeListener::Got {} event. Scheduling a system stop.", state.toString());
           scheduleExpiryTimerAfterSessionTimeout();
           return;
         case SyncConnected:
@@ -1509,12 +1514,12 @@ public class ZkAdapter {
 
     @Override
     public void handleNewSession() {
-      LOG.info("ZkStateChangeListener:: A new session established.");
+      LOG.info("ZkStateChangeListener::A new session has been established.");
     }
 
     @Override
     public void handleSessionEstablishmentError(final Throwable error) {
-      LOG.error("ZkStateChangeListener:: Failed to establish session.", error);
+      LOG.error("ZkStateChangeListener::Failed to establish session.", error);
       exitOnSessionExpiryOrEstablishmentError();
     }
   }
@@ -1530,11 +1535,15 @@ public class ZkAdapter {
 
   // This is a temporary change to bring down the node on session expiry. We expect this to happen rarely.
   // We are working on the transition of leader to follower on session expiry. On session expiry,
-  // the live instance (ephemeral nodes) gets deleted by the server and node automatically lose the election.
+  // the live instance (ephemeral nodes) gets deleted by the server and node is no longer a leader and has
+  // to participate in leader election again.
   // By bringing down the node, the health monitoring services to restart the service is expected.
-  // This exit call will invoke the shutdownhook and will bring down the system. This is currently
-  // supported using a knob and adding shutdownhook will ensure the clean shutdown.
-  private void exitOnSessionExpiryOrEstablishmentError() {
+  // Calling exit will invoke the shutdown hook and bring down the system via a clean shutdown.
+  //
+  // This behavior to bring down the system on session expiry is controlled via a config option.
+  // A health monitoring service is expected to be in place to restart the Brooklin service.
+  @VisibleForTesting
+  void exitOnSessionExpiryOrEstablishmentError() {
     if (_exitOnSessionExpiry) {
       LOG.warn("Calling Exit 1");
       exit(1);

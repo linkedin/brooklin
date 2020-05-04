@@ -705,8 +705,8 @@ public class TestZkAdapter {
   }
 
   private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster, int sessionTimeoutMs) {
-    return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        sessionTimeoutMs, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    return spy(new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        sessionTimeoutMs, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null));
   }
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
@@ -739,7 +739,7 @@ public class TestZkAdapter {
 
     @Override
     ZkStateChangeListener getOrCreateStateChangeListener() {
-      _zkClientMockStateChangeListener = new ZkClientMockStateChangeListener();
+      _zkClientMockStateChangeListener = spy(new ZkClientMockStateChangeListener());
       return _zkClientMockStateChangeListener;
     }
 
@@ -777,6 +777,7 @@ public class TestZkAdapter {
 
     Thread.sleep(5000);
     Assert.assertTrue(adapter.getZkStateChangeListener().sessionExpired);
+    Mockito.verify(adapter, Mockito.times(1)).exitOnSessionExpiryOrEstablishmentError();
   }
 
   private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
