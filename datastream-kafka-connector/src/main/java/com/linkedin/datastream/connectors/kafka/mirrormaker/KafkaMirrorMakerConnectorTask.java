@@ -383,35 +383,29 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected void postShutdownHook() {
     if (_enablePartitionAssignment) {
-      DatastreamRuntimeException exception = null;
       boolean resetInterrupted = false;
-      for (int numAttempts = 1; numAttempts <= 3; ++numAttempts) {
-        try {
-          // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
-          // consume any further). The shutdown process must complete and the consumer must be closed.
-          LOG.info("Releasing the lock on datastreamTask: {}, was thread interrupted: {}, attempt: {}", _datastreamTask,
-              resetInterrupted, numAttempts);
-          _datastreamTask.release();
-          break;
-        } catch (ZkInterruptedException e) {
-          LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
-          if (Thread.currentThread().isInterrupted()) {
-            // The interrupted status of the current thread must be reset to allow the task lock to be released
-            resetInterrupted = Thread.interrupted();
+      try {
+        for (int numAttempts = 1; numAttempts <= 3; ++numAttempts) {
+          try {
+            // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
+            // consume any further). The shutdown process must complete and the consumer must be closed.
+            LOG.info("Releasing the lock on datastreamTask: {}, was thread interrupted: {}, attempt: {}",
+                _datastreamTask, resetInterrupted, numAttempts);
+            _datastreamTask.release();
+            break;
+          } catch (ZkInterruptedException e) {
+            LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
+            if (Thread.currentThread().isInterrupted()) {
+              // The interrupted status of the current thread must be reset to allow the task lock to be released
+              resetInterrupted = Thread.interrupted();
+            }
           }
-        } catch (Exception e) {
-          exception = new DatastreamRuntimeException("Failed to perform post shutdown actions", e);
-          break;
         }
-      }
-
-      if (resetInterrupted) {
-        // Setting the status of the thread back to interrupted
-        Thread.currentThread().interrupt();
-      }
-
-      if (exception != null) {
-        throw exception;
+      } finally {
+        if (resetInterrupted) {
+          // Setting the status of the thread back to interrupted
+          Thread.currentThread().interrupt();
+        }
       }
     }
   }
