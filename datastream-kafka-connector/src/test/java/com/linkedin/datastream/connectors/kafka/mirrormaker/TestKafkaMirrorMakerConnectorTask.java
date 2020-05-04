@@ -23,6 +23,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -37,6 +38,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
@@ -51,9 +53,12 @@ import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR;
@@ -67,6 +72,7 @@ import static org.mockito.Mockito.anyMapOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -323,6 +329,84 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
     verify(task, times(1)).acquire(any());
     Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
+  }
+
+  private static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
+    private boolean postShutdownHookExceptionCaught;
+
+    public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
+        String connectorName, boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
+      super(config, task, connectorName, isFlushlessModeEnabled, groupIdConstructor);
+    }
+
+    @Override
+    protected void postShutdownHook() {
+      try {
+        super.postShutdownHook();
+      } catch (Exception e) {
+        postShutdownHookExceptionCaught = true;
+      }
+    }
+
+    boolean isPostShutdownHookExceptionCaught() {
+      return postShutdownHookExceptionCaught;
+    }
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptException.class).when(mockDatastreamEventProducer).flush();
+    task.setEventProducer(mockDatastreamEventProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    Thread connectorThread = KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+    connectorThread.join();
+
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnThreadInterrupt() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptedException.class).when(mockDatastreamEventProducer).flush();
+    task.setEventProducer(mockDatastreamEventProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    Thread connectorThread = KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+    // Interrupt the connector thread
+    connectorThread.interrupt();
+    connectorThread.join();
+
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
   }
 
   @Test
