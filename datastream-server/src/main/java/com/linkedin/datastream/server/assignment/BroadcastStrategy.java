@@ -81,7 +81,6 @@ public class BroadcastStrategy implements AssignmentStrategy {
 
     for (String instance : instances) {
       newAssignment.put(instance, new HashSet<>());
-      currentAssignmentCopy.computeIfAbsent(instance, i -> new HashSet<>());
       Set<DatastreamTask> instanceTasks = currentAssignmentCopy.computeIfAbsent(instance, i -> new HashSet<>());
       tasksAvailableToReuse.removeAll(instanceTasks);
     }
@@ -100,8 +99,7 @@ public class BroadcastStrategy implements AssignmentStrategy {
             .stream()
             .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
             .findFirst()
-            .orElseGet(() -> (!reuseTasksPerDg.isEmpty()) ? reuseTasksPerDg.remove(reuseTasksPerDg.size() - 1) :
-              new DatastreamTaskImpl(dg.getDatastreams()));
+            .orElseGet(() -> getOrCreateDatastreamTask(reuseTasksPerDg, dg));
 
         currentAssignmentCopy.get(instance).remove(foundDatastreamTask);
         newAssignment.get(instance).add(foundDatastreamTask);
@@ -114,6 +112,12 @@ public class BroadcastStrategy implements AssignmentStrategy {
     LOG.info("New assignment is {}", newAssignment);
 
     return newAssignment;
+  }
+
+  private DatastreamTask getOrCreateDatastreamTask(List<DatastreamTask> reuseTasksPerDg, DatastreamGroup dg) {
+    return (!reuseTasksPerDg.isEmpty()) ?
+        reuseTasksPerDg.remove(reuseTasksPerDg.size() - 1) :
+        new DatastreamTaskImpl(dg.getDatastreams());
   }
 
   private int getNumTasks(DatastreamGroup dg, int numInstances) {

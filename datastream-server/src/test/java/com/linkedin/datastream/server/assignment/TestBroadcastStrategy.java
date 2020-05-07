@@ -294,6 +294,7 @@ public class TestBroadcastStrategy {
     Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     Assert.assertEquals(oldAssignmentTasks, newAssignmentTasks);
+    // make sure no task is assigned to more than one instance
     int totalTasks = newAssignment.values().stream().mapToInt(Set::size).sum();
     Assert.assertEquals(totalTasks, newAssignmentTasks.size());
   }
