@@ -293,8 +293,8 @@ public class TestBroadcastStrategy {
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
     Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
-    LOG.info("{}", oldAssignmentTasks);
-    LOG.info("{}", newAssignmentTasks);
-    Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
+    Assert.assertEquals(oldAssignmentTasks, newAssignmentTasks);
+    int totalTasks = newAssignment.values().stream().mapToInt(Set::size).sum();
+    Assert.assertEquals(totalTasks, newAssignmentTasks.size());
   }
 }

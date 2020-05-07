@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.assignment;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -65,21 +66,31 @@ public class BroadcastStrategy implements AssignmentStrategy {
     Map<String, Set<DatastreamTask>> currentAssignmentCopy = new HashMap<>(currentAssignment.size());
     currentAssignment.forEach((k, v) -> {
       currentAssignmentCopy.put(k, new HashSet<>(v));
-      // building the full list and then removing the reused tasks rather than building the list from dead tasks
-      // to avoid assignment of same task from dead instance to two live instances in case of interrupt exception.
+      // The service comes up as a new instance node on every restart with a new live instance number.
+      // In this strategy, we will reuse the task from the dead instances rather than creating a new task, to avoid
+      // extra zookeeper write operations to delete the unused task and create a new task.
+
+      // A leader can get interrupted while doing the dead instance cleanup during leader assignment because of shutdown
+      // sequence. There is a make before break logic in the code. So, if the leader got interrupted before cleaning up
+      // the dead instance and the task is already assigned to another live-instance, the next leader must avoid
+      // reassigning the same task. So, building the full list and then removing the reused tasks rather than building the
+      // list from dead tasks is important. Otherwise, two live-instances can get the same task because of reuse logic
+      // resulting in updateAllAssignments to fail.
       tasksAvailableToReuse.addAll(v);
     });
 
     for (String instance : instances) {
       newAssignment.put(instance, new HashSet<>());
-      currentAssignmentCopy.putIfAbsent(instance, new HashSet<>());
-      tasksAvailableToReuse.removeAll(currentAssignmentCopy.get(instance));
+      currentAssignmentCopy.computeIfAbsent(instance, i -> new HashSet<>());
+      Set<DatastreamTask> instanceTasks = currentAssignmentCopy.computeIfAbsent(instance, i -> new HashSet<>());
+      tasksAvailableToReuse.removeAll(instanceTasks);
     }
 
+    Map<String, List<DatastreamTask>> reuseTaskMap =
+        tasksAvailableToReuse.stream().collect(Collectors.groupingBy(DatastreamTask::getTaskPrefix));
     int instancePos = 0;
     for (DatastreamGroup dg : datastreams) {
-      List<DatastreamTask> reuseTasksPerDg = tasksAvailableToReuse.stream().filter(x ->
-          x.getTaskPrefix().equals(dg.getTaskPrefix())).collect(Collectors.toList());
+      List<DatastreamTask> reuseTasksPerDg = reuseTaskMap.getOrDefault(dg.getTaskPrefix(), Collections.emptyList());
 
       int numTasks = getNumTasks(dg, instances.size());
       for (int taskPos = 0; taskPos < numTasks; taskPos++) {
@@ -89,10 +100,8 @@ public class BroadcastStrategy implements AssignmentStrategy {
             .stream()
             .filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()))
             .findFirst()
-            .orElse(null);
-        if (foundDatastreamTask == null) {
-          foundDatastreamTask = getOrCreateDatastreamTask(reuseTasksPerDg, dg);
-        }
+            .orElseGet(() -> (!reuseTasksPerDg.isEmpty()) ? reuseTasksPerDg.remove(reuseTasksPerDg.size() - 1) :
+              new DatastreamTaskImpl(dg.getDatastreams()));
 
         currentAssignmentCopy.get(instance).remove(foundDatastreamTask);
         newAssignment.get(instance).add(foundDatastreamTask);
@@ -105,13 +114,6 @@ public class BroadcastStrategy implements AssignmentStrategy {
     LOG.info("New assignment is {}", newAssignment);
 
     return newAssignment;
-  }
-
-  private DatastreamTask getOrCreateDatastreamTask(List<DatastreamTask> reuseTasksPerDg, DatastreamGroup dg) {
-    if (reuseTasksPerDg.size() > 0) {
-      return reuseTasksPerDg.remove(0);
-    }
-    return new DatastreamTaskImpl(dg.getDatastreams());
   }
 
   private int getNumTasks(DatastreamGroup dg, int numInstances) {
