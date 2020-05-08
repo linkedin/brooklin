@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
@@ -278,5 +279,23 @@ public class TestBroadcastStrategy {
     }
 
     Assert.assertEquals(newAssignment.get(instance4).size(), expectedNumTasksPerInstance);
+  }
+
+  @Test
+  public void testDontCreateNewTasksWhenInstanceChanged() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    instances = new String[]{"instance1", "instance2", "instance4"};
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Assert.assertEquals(oldAssignmentTasks, newAssignmentTasks);
+    // make sure no task is assigned to more than one instance
+    int totalTasks = newAssignment.values().stream().mapToInt(Set::size).sum();
+    Assert.assertEquals(totalTasks, newAssignmentTasks.size());
   }
 }
