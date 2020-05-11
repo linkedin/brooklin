@@ -23,6 +23,9 @@ allprojects {
     mavenCentral()
     jcenter()
     mavenLocal()
+    maven {
+      url "http://packages.confluent.io/maven/"
+    }
   }
 }
 
@@ -140,6 +143,40 @@ project(':datastream-common') {
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
+  }
+}
+
+project(':datastream-cloud-storage') {
+  dependencies {
+
+    compile "org.apache.avro:avro:$avroVersion"
+    compile "org.apache.hadoop:hadoop-common:$hadoopCommonVersion"
+    compile "org.apache.hadoop:hadoop-client:$parquetHadoopVersion"
+    compile "org.apache.kafka:kafka-clients:$kafkaClientsVersion"
+    compile "org.apache.parquet:parquet-avro:$parquetAvroVersion"
+    compile "org.apache.parquet:parquet-column:$parquetWriterVersion"
+
+    compile "io.confluent:kafka-avro-serializer:$kafkaSchemaRegistryClientVersion"
+    compile "io.confluent:kafka-schema-registry:$kafkaSchemaRegistryVersion"
+    compile "io.confluent:kafka-schema-registry-client:$kafkaSchemaRegistryClientVersion"
+      
+    compile "com.google.cloud:google-cloud-storage:$googleCloudStorageVersion"
+
+    compile project(':datastream-server')
+    compile project(':datastream-server-api')
+    compile project(':datastream-utils')
+    
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
+
+    tasks.create(name: "copyDependentLibs", type: Copy) {
+      from (configurations.runtime) {
+      }
+      into "$buildDir/dependent-libs"
+    }
+
+    jar {
+      dependsOn 'copyDependentLibs'
+    }
   }
 }
 
@@ -267,6 +304,8 @@ project(':datastream-tools') {
     from(rootProject.file("config")) { into "config/" }
     from(configurations.runtime) { into("libs/") }
     from(configurations.archives.artifacts.files) { into("libs/") }
+    from(project(':datastream-cloud-storage').jar) { into("libs/") }
+    from(project(':datastream-cloud-storage').configurations.runtime) { into("libs/") }
     from(project(':datastream-tools').jar) { into("libs/") }
     from(project(':datastream-tools').configurations.runtime) { into("libs/") }
     from(project(':datastream-server').jar) { into("libs/") }

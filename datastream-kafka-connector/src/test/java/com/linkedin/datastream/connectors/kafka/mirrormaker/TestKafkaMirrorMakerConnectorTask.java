@@ -840,28 +840,29 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task.setEventProducer(datastreamProducer);
 
     KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 50, 100,
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 1, 2,
             Duration.ofDays(1));
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce events to each topic
     KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
-    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 2, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 4, _kafkaCluster);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(spicyTopic, 1, _kafkaCluster);
 
-    // verify that in-flight message count for each topic is 1
+    // verify that in-flight message count for saltyTopic should be only 3 as it hits max inflight threshold of 2
     Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(yummyTopic, 0) == 1, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
         "yummyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
             yummyTopic, 0));
-    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(saltyTopic, 0) == 1, POLL_PERIOD_MS,
+    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(saltyTopic, 0) == 3, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
-        "saltyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
+        "saltyTopic should have in-flight message count of 3 but was: " + connectorTask.getInFlightMessagesCount(
             saltyTopic, 0));
     Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(spicyTopic, 0) == 1, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
         "spicyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
             spicyTopic, 0));
+
 
     // verify the states response returned by diagnostics endpoint contains correct counts
     KafkaDatastreamStatesResponse statesResponse = connectorTask.getKafkaDatastreamStatesResponse();
@@ -872,7 +873,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(saltyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
+        Long.valueOf(3), "In flight message count for yummyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
@@ -896,7 +897,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask2);
 
     // verify that the 4 records can be read
-    if (!PollUtils.poll(() -> datastreamProducer2.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+    if (!PollUtils.poll(() -> datastreamProducer2.getEvents().size() == 6, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
 

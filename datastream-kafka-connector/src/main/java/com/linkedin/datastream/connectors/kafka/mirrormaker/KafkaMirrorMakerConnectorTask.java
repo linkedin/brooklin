@@ -256,7 +256,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
             if (exception != null) {
               _logger.warn("Detected exception being throw from callback for src partition: {} while sending producer "
                   + "record: {}, exception: ", srcTopicPartition, datastreamProducerRecord, exception);
-              rewindAndPausePartitionOnException(srcTopicPartition, exception);
+              setTopicPartitionForRewindAndPause(srcTopicPartition, exception);
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
             }
