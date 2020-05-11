@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS;
@@ -18,8 +19,7 @@ import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_COUNT;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS;
-import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.DOMAIN_KAFKA_POSITION_TRACKER;
-import static com.linkedin.datastream.connectors.kafka.KafkaPositionTrackerConfig.CONFIG_ENABLE_POSITION_TRACKER;
+import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.ENABLE_PARTITION_ASSIGNMENT;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -150,10 +150,10 @@ public class KafkaBasedConnectorConfigBuilder {
   }
 
   /**
-   * Enable/disable the position tracker
+   * Set enable partition managed
    */
-  public KafkaBasedConnectorConfigBuilder setEnablePositionTracker(boolean enablePositionTracker) {
-    _properties.put(DOMAIN_KAFKA_POSITION_TRACKER + "." + CONFIG_ENABLE_POSITION_TRACKER, enablePositionTracker);
+  public KafkaBasedConnectorConfigBuilder setEnablePartitionManaged(boolean enablePartitionManaged) {
+    _properties.put(ENABLE_PARTITION_ASSIGNMENT, Boolean.toString(enablePartitionManaged));
     return this;
   }
 }

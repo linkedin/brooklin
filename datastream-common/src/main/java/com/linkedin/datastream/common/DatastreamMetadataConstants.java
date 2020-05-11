@@ -59,14 +59,30 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_RETENTION_MS = SYSTEM_DESTINATION_PREFIX + "retention.ms";
 
   /**
-   * Indicates if the data store in destination requires to be encrypted or not
+   * Indicates whether or not the data consumed from the source should be decrypted
+   */
+  public static final String SOURCE_DECRYPTION_REQUIRED = "system.source.decryptionRequired";
+
+  /**
+   * Indicates whether or not the data produced to the destination should be encrypted
    */
   public static final String DESTINATION_ENCRYPTION_REQUIRED = "system.destination.encryptionRequired";
 
   /**
-   * The name of the schema used to serialize the messages in the destination
+   * The name of the schema used to serialize the payload in the message on the destination
    */
   public static final String DESTINATION_PAYLOAD_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "payloadSchemaName";
+
+  /**
+   * The name of the schema used to serialize the key in the message on the destination
+   */
+  public static final String DESTINATION_KEY_SCHEMA_NAME = SYSTEM_DESTINATION_PREFIX + "keySchemaName";
+
+  /**
+   * This metadata, if set to a non-blank value, prepends a prefix to the destination topic name for all topics
+   * being mirrored by this cluster. E.g. source topic: foo, destination prefix: bar, destination topic: barfoo
+   */
+  public static final String DESTINATION_TOPIC_PREFIX = SYSTEM_DESTINATION_PREFIX + "destinationTopicPrefix";
 
   /**
    * Timestamp of datastream creation in epoch-millis

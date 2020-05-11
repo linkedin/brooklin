@@ -6,6 +6,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -129,7 +130,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
-  static void runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
+  static Thread runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
       throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
@@ -138,6 +139,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
     }
+    return t;
   }
 
   static KafkaBasedConnectorConfigBuilder getKafkaBasedConnectorConfigBuilder() {
@@ -158,5 +160,25 @@ final class KafkaMirrorMakerConnectorTestUtils {
     props.put("segment.deserializer.class", NoOpSegmentDeserializer.class.getCanonicalName());
     props.put("auditor.class", NoOpAuditor.class.getCanonicalName());
     return props;
+  }
+
+  /**
+   * Get the default config properties of a Kafka-based connector
+   * @param override Configuration properties to override default config properties
+   */
+  public static Properties getDefaultConfig(Optional<Properties> override) {
+    Properties config = new Properties();
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_KEY_SERDE, "keySerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_DEFAULT_VALUE_SERDE, "valueSerde");
+    config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS, "10000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS, "1000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_POLL_TIMEOUT_MILLIS, "5000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_CONSUMER_FACTORY_CLASS, LiKafkaConsumerFactory.class.getName());
+    config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_PARTITION_ON_ERROR, Boolean.TRUE.toString());
+    config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS, "1000");
+    config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS,
+        String.valueOf(Duration.ofSeconds(5).toMillis()));
+    override.ifPresent(config::putAll);
+    return config;
   }
 }

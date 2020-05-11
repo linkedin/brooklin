@@ -21,7 +21,9 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -36,23 +38,27 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfigBuilder;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.KafkaGroupIdConstructor;
 import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR;
@@ -64,7 +70,12 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyCollectionOf;
 import static org.mockito.Mockito.anyMapOf;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 /**
@@ -110,6 +121,59 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       String destinationTopic = record.getDestination().get();
       Assert.assertTrue(destinationTopic.endsWith("Pizza"),
           "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+      Assert.assertTrue(destinationTopic.equals(yummyTopic) || destinationTopic.equals(saltyTopic),
+          "Destination topic name does not match expected topics. Topic: " + destinationTopic);
+    }
+
+    // verify the states response returned by diagnostics endpoint contains correct counts
+    validateTaskConsumerAssignment(connectorTask,
+        Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testConsumeFromMultipleTopicsWithDestinationTopicPrefixMetadata() throws Exception {
+    String yummyTopic = "YummyPizza";
+    String saltyTopic = "SaltyPizza";
+    String saladTopic = "HealthySalad";
+
+    String destinationTopicPrefixOverride = "newPrefix";
+
+    createTopic(_zkUtils, saladTopic);
+    createTopic(_zkUtils, yummyTopic);
+    createTopic(_zkUtils, saltyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    datastream.getMetadata().put(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, destinationTopicPrefixOverride);
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    // produce an event to each of the 3 topics
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(saladTopic, 1, _kafkaCluster);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
+    for (DatastreamProducerRecord record : records) {
+      String destinationTopic = record.getDestination().get();
+      Assert.assertTrue(destinationTopic.endsWith("Pizza"),
+          "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+      Assert.assertTrue(destinationTopic.startsWith(destinationTopicPrefixOverride),
+          "Destination topic prefix enabled, topic should start with prefix. Topic: " + destinationTopic);
     }
 
     // verify the states response returned by diagnostics endpoint contains correct counts
@@ -188,7 +252,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", false, new KafkaGroupIdConstructor(false, "testCluster"));
+        connectorConfig, task, "", false,
+        new KafkaGroupIdConstructor(false, "testCluster"));
 
     KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
@@ -208,6 +273,140 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // verify that flush was called on the producer
     Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnConsumerCloseException() throws Exception {
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = spy(new DatastreamTaskImpl(Collections.singletonList(datastream)));
+    // Mocking out the behavior of acquire() since it involves ZK
+    doNothing().when(task).acquire(any());
+    CountDownLatch releaseCall = new CountDownLatch(1);
+    doAnswer(invocation -> { releaseCall.countDown(); return null; }).when(task).release();
+    task.setEventProducer(datastreamProducer);
+
+    // Set up a factory to create a Kafka consumer that tracks how many times commitSync is invoked
+    CountDownLatch remainingCommitSyncCalls = new CountDownLatch(3);
+    KafkaConsumerFactory<byte[], byte[]> kafkaConsumerFactory = new KafkaConsumerFactoryImpl() {
+      @Override
+      public Consumer<byte[], byte[]> createConsumer(Properties properties) {
+        Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
+        doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
+            .when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        doThrow(new KafkaException("Throwing close exception"))
+            .when(result).close();
+        return result;
+      }
+    };
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(kafkaConsumerFactory)
+        .setCommitIntervalMillis(200)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
+        connectorConfig, task, "", true,
+        new KafkaGroupIdConstructor(false, "test"));
+
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    verify(task, times(1)).acquire(any());
+    verify(task, times(0)).release();
+
+    // Wait for KafkaMirrorMakerConnectorTask to invoke commitSync on Kafka consumer
+    Assert.assertTrue(remainingCommitSyncCalls.await(10, TimeUnit.SECONDS),
+        "Kafka consumer commitSync was not invoked as often as expected");
+
+    // producer shouldn't flush before the shutdown
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 0);
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+    Assert.assertEquals(datastreamProducer.getNumFlushes(), 1);
+    verify(task, times(1)).acquire(any());
+    Assert.assertTrue(releaseCall.await(10, TimeUnit.SECONDS), "DatastreamTask never released");
+  }
+
+  private static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
+    private boolean postShutdownHookExceptionCaught;
+
+    public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
+        String connectorName, boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
+      super(config, task, connectorName, isFlushlessModeEnabled, groupIdConstructor);
+    }
+
+    @Override
+    protected void postShutdownHook() {
+      try {
+        super.postShutdownHook();
+      } catch (Exception e) {
+        postShutdownHookExceptionCaught = true;
+      }
+    }
+
+    boolean isPostShutdownHookExceptionCaught() {
+      return postShutdownHookExceptionCaught;
+    }
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptException.class).when(mockDatastreamEventProducer).flush();
+    task.setEventProducer(mockDatastreamEventProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    Thread connectorThread = KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+    connectorThread.join();
+
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
+  }
+
+  @Test
+  public void testPartitionManagedLockReleaseOnThreadInterrupt() throws InterruptedException {
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
+    doThrow(InterruptedException.class).when(mockDatastreamEventProducer).flush();
+    task.setEventProducer(mockDatastreamEventProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdatper);
+    zkAdatper.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    Thread connectorThread = KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+    // Interrupt the connector thread
+    connectorThread.interrupt();
+    connectorThread.join();
+
+    Assert.assertFalse(connectorTask.isPostShutdownHookExceptionCaught());
   }
 
   @Test
@@ -236,7 +435,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTask connectorTask = new KafkaMirrorMakerConnectorTask(
-        connectorConfig, task, "", true, new KafkaGroupIdConstructor(false, "test"));
+        connectorConfig, task, "", true,
+        new KafkaGroupIdConstructor(false, "test"));
 
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
@@ -705,26 +905,26 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // Testing with default group id
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         defaultGrpId);
 
     // Test with setting explicit group id in one datastream
     datastream1.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         "MyGroupId");
 
     // Test with explicitly setting group id in both datastream
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "MyGroupId");
     Assert.assertEquals(
-        KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG),
+        KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG),
         "MyGroupId");
 
     // now set different group ids in 2 datastreams and make sure validation fails
     datastream2.getMetadata().put(ConsumerConfig.GROUP_ID_CONFIG, "invalidGroupId");
     boolean exceptionSeen = false;
     try {
-      KafkaMirrorMakerConnectorTask.getMirrorMakerGroupId(task, groupIdConstructor, consumerMetrics, LOG);
+      KafkaMirrorMakerConnectorTask.getKafkaGroupId(task, groupIdConstructor, consumerMetrics, LOG);
     } catch (DatastreamRuntimeException e) {
       exceptionSeen = true;
     }
