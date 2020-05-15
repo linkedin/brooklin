@@ -113,7 +113,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final TopicManager _topicManager;
 
   // variables for flushless mode and flow control
-  private final boolean _isFlushlessModeEnabled;
+  protected final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
   private final boolean _enablePartitionAssignment;
   private final String _destinationTopicPrefix;
