@@ -222,9 +222,11 @@ public class EventProducer implements DatastreamEventProducer {
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
       record.setEventsSendTimestamp(System.currentTimeMillis());
+      long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
+      long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
       _transportProvider.send(destination, record,
-          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, record.getEventsSourceTimestamp(),
-              record.getEventsSendTimestamp().orElse(0L)));
+          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
+              recordEventsSendTimestamp));
     } catch (Exception e) {
       String errorMessage = String.format("Failed send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
