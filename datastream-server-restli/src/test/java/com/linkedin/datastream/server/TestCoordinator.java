@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
@@ -37,8 +38,11 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 
@@ -56,6 +60,10 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.kafka.KafkaDestination;
 import com.linkedin.datastream.kafka.KafkaTransportProviderAdmin;
+import com.linkedin.datastream.metrics.BrooklinCounterInfo;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.connector.Connector;
@@ -101,6 +109,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link Coordinator}
  */
+@Test
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
@@ -172,6 +181,54 @@ public class TestCoordinator {
   @AfterMethod
   public void teardown() throws IOException {
     _embeddedZookeeper.shutdown();
+  }
+
+  @Test
+  public void testRegistersMetricsCorrectly() throws Exception {
+    String testCluster = "testCoordinatorMetrics";
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    // Make sure the set of metrics the Coordinator registers with the DynamicMetricsManager
+    // matches the metricInfos the Coordinator returns from getMetricInfos().
+    List<BrooklinMetricInfo> metricInfos = coordinator.getMetricInfos();
+    DynamicMetricsManager metricsManager = DynamicMetricsManager.getInstance();
+
+    String coordinatorSimpleClassName = Coordinator.class.getSimpleName();
+    // Keep Coordinator metricInfos
+    Map<String, BrooklinMetricInfo> metricInfoByName = metricInfos.stream()
+        .filter(info -> info.getNameOrRegex().startsWith(coordinatorSimpleClassName))
+        .collect(Collectors.toMap(BrooklinMetricInfo::getNameOrRegex, Function.identity()));
+
+    // Keep Coordinator metrics
+    Map<String, Metric> metrics = metricsManager.getMetricRegistry().getMetrics().entrySet().stream()
+        .filter(entry -> entry.getKey().startsWith(coordinatorSimpleClassName))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    Assert.assertEquals(metricInfoByName.size(), metrics.size());
+
+    // Mapping of BrooklinMetricInfo sub-type -> com.codahale.metrics type
+    Map<Class<? extends BrooklinMetricInfo>, Class<? extends Metric>> metricInfoTypeToMetricType = new HashMap<>();
+    metricInfoTypeToMetricType.put(BrooklinCounterInfo.class, Counter.class);
+    metricInfoTypeToMetricType.put(BrooklinGaugeInfo.class, Gauge.class);
+    metricInfoTypeToMetricType.put(BrooklinHistogramInfo.class, Histogram.class);
+    metricInfoTypeToMetricType.put(BrooklinMeterInfo.class, Meter.class);
+
+    for (Map.Entry<String, BrooklinMetricInfo> entry : metricInfoByName.entrySet()) {
+      String metricInfoKey = entry.getKey();
+      BrooklinMetricInfo metricInfo = entry.getValue();
+
+      // For every BrooklinMetricInfo, there must be a registered codahale metric
+      Metric metric = metrics.get(metricInfoKey);
+      Assert.assertNotNull(metric);
+
+      // The registered codahale metric type must correspond to the BrooklinMetricInfo sub-type
+      Class<? extends Metric> actualMetricClazz = metric.getClass();
+      Class<? extends Metric> expectedMetricClazz = metricInfoTypeToMetricType.get(metricInfo.getClass());
+      Assert.assertTrue(expectedMetricClazz.isAssignableFrom(actualMetricClazz));
+    }
+
+    coordinator.stop();
   }
 
   /**

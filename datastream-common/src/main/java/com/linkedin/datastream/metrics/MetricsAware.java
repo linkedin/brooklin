@@ -48,6 +48,13 @@ public interface MetricsAware {
   }
 
   /**
+   * Get the metric name prepended with the caller's class name
+   */
+  default String buildMetricName(String classSimpleName, String key, String metricName) {
+    return MetricRegistry.name(classSimpleName, key, metricName);
+  }
+
+  /**
    * Get a regular expression for all dynamic metrics created within the class.
    *
    * For example, this regular expression should capture all topic-specific metrics emitted by KafkaTransportProvider

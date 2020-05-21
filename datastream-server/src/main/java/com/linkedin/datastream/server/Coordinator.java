@@ -1769,7 +1769,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private void registerKeyedMeter(KeyedMeter metric) {
       String metricName = metric.getName();
       _dynamicMetricsManager.registerMetric(MODULE, metric.getKey(), metricName, com.codahale.metrics.Meter.class);
-      _metricInfos.add(new BrooklinMeterInfo(_coordinator.buildMetricName(MODULE, metricName)));
+      _metricInfos.add(new BrooklinMeterInfo(_coordinator.buildMetricName(MODULE, metric.getKey(), metricName)));
     }
 
     private void registerGauge(String metricName, Supplier<?> valueSupplier) {
