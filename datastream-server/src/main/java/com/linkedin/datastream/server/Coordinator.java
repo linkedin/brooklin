@@ -575,7 +575,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       return _assignmentChangeThreadPool.get(connectorType).submit(() -> {
         try {
-          connector.onAssignmentChange(assignment);
+          // Send a new copy of assignment to connector to ensure that assignment is not modified.
+          // Any modification to assignment object directly will cause discrepancy in the current assignment list.
+          connector.onAssignmentChange(new ArrayList<>(assignment));
           // Unassign tasks with producers
           removedTasks.forEach(this::uninitializeTask);
         } catch (Exception ex) {
