@@ -1741,7 +1741,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     private void registerMeterMetrics() {
       // These metrics are eagerly created (i.e. they are registered with _dynamicMetricsManager
-      // even before they are ever updated + we use BrooklinMeterInfo that specify metrics by full name)
+      // even before they are ever updated + we use BrooklinMeterInfos that specify metrics by full name)
       Arrays.stream(Meter.values()).forEach(this::registerMeter);
     }
 

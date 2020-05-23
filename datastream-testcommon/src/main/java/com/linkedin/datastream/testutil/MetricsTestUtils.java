@@ -82,7 +82,7 @@ public class MetricsTestUtils {
 
     Map<String, BrooklinMetricInfo> metricInfoByName = new HashMap<>();
     List<BrooklinMetricInfo> regexMetricInfos = new ArrayList<>();
-    classifyMetricInfos(metricInfos, metricsAware, metricInfoByName, regexMetricInfos);
+    classifyMetricInfos(metricInfos, metricInfoByName, regexMetricInfos);
 
     Collection<Map.Entry<String, Metric>> metricEntries = metricsManager.getMetricRegistry().getMetrics().entrySet().stream()
         .filter(metricEntry -> metricFilter.test(metricEntry.getKey()))
@@ -97,11 +97,11 @@ public class MetricsTestUtils {
     }
   }
 
-  private static void classifyMetricInfos(Collection<BrooklinMetricInfo> metricInfos, MetricsAware metricsAware,
+  private static void classifyMetricInfos(Collection<BrooklinMetricInfo> metricInfos,
       Map<String, BrooklinMetricInfo> metricInfoByName, List<BrooklinMetricInfo> regexMetricInfos) {
     for (BrooklinMetricInfo metricInfo : metricInfos) {
       String nameOrRegex = metricInfo.getNameOrRegex();
-      if (nameOrRegex.contains(metricsAware.KEY_REGEX)) {
+      if (nameOrRegex.contains(MetricsAware.KEY_REGEX)) {
         regexMetricInfos.add(metricInfo);
       } else {
         metricInfoByName.put(nameOrRegex, metricInfo);
