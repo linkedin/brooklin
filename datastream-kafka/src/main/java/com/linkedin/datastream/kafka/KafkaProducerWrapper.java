@@ -108,7 +108,7 @@ class KafkaProducerWrapper<K, V> {
   private final Object _producerLock = new Object();
 
   // An executor to spawn threads to close the producer.
-  private final ExecutorService _producerCloseExecutorService = Executors.newFixedThreadPool(1,
+  private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
       new ThreadFactoryBuilder().setNameFormat("KafkaProducerWrapperClose-%d").build());
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
