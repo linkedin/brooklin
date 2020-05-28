@@ -31,7 +31,8 @@ public class DatastreamProducerRecord {
   // timestamp of when the record was sent to transport provider
   private Optional<Long> _eventsSendTimestamp = Optional.empty();
 
-  private Optional<Long> _eventsAuditTimestamp = Optional.empty();
+  // timestamp for the events obtained from kafka header
+  private Optional<Long> _eventsKafkaHeaderTimestamp = Optional.empty();
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
@@ -96,17 +97,17 @@ public class DatastreamProducerRecord {
   }
 
   /**
-   * Get timestamp in Epoch-millis for when the events have been audited
+   * Get timestamp of the events obtained from kafka header expressed in Epoch-millis
    */
-  public Optional<Long> getEventsAuditTimestamp() {
-    return _eventsAuditTimestamp;
+  public Optional<Long> getEventsKafkaHeaderTimestamp() {
+    return _eventsKafkaHeaderTimestamp;
   }
 
   /**
-   * Set timestamp in Epoch-millis for when the events have been audited
+   * Set timestamp of the events obtained from kafka header expressed in Epoch-millis
    */
-  public void setEventsAuditTimestamp(long timestamp) {
-    _eventsAuditTimestamp = Optional.of(timestamp);
+  public void setEventsKafkaHeaderTimestamp(long timestamp) {
+    _eventsKafkaHeaderTimestamp = Optional.of(timestamp);
   }
 
   /**
@@ -165,5 +166,4 @@ public class DatastreamProducerRecord {
   public Optional<String> getDestination() {
     return _destination;
   }
-
 }
