@@ -31,6 +31,8 @@ public class DatastreamProducerRecord {
   // timestamp of when the record was sent to transport provider
   private Optional<Long> _eventsSendTimestamp = Optional.empty();
 
+  private Optional<Long> _eventsAuditTimestamp = Optional.empty();
+
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
     this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp);
@@ -94,6 +96,20 @@ public class DatastreamProducerRecord {
   }
 
   /**
+   * Get timestamp in Epoch-millis for when the events have been audited
+   */
+  public Optional<Long> getEventsAuditTimestamp() {
+    return _eventsAuditTimestamp;
+  }
+
+  /**
+   * Set timestamp in Epoch-millis for when the events have been audited
+   */
+  public void setEventsAuditTimestamp(long timestamp) {
+    _eventsAuditTimestamp = Optional.of(timestamp);
+  }
+
+  /**
    * Get destination partition within the destination
    */
   public Optional<Integer> getPartition() {
@@ -149,4 +165,5 @@ public class DatastreamProducerRecord {
   public Optional<String> getDestination() {
     return _destination;
   }
+
 }
