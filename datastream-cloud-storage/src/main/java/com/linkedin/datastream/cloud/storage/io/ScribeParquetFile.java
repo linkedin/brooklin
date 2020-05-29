@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.cloud.storage.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
+
 /**
  * Implementation of {@link com.linkedin.datastream.cloud.storage.io.File} to support parquet file format for scribe
  */
@@ -36,9 +37,11 @@ public class ScribeParquetFile implements com.linkedin.datastream.cloud.storage.
             .fields()
             .name(LOGLINE_NAME).type().stringType().noDefault()
             .endRecord();
+
     private Path _path;
     private ParquetWriter<GenericRecord> _parquetWriter;
     private int _pageSize;
+
     /**
      * Constructor for ScribeParquetFile
      *
@@ -51,10 +54,12 @@ public class ScribeParquetFile implements com.linkedin.datastream.cloud.storage.
         this._parquetWriter = null;
         this._pageSize = props.getInt(CONFIG_PAGE_SIZE, DEFAULT_PAGE_SIZE);
     }
+
     @Override
     public long length() {
         return this._parquetWriter.getDataSize();
     }
+
     @Override
     public void write(Package aPackage) throws IOException {
         if (_parquetWriter == null) {
@@ -68,15 +73,18 @@ public class ScribeParquetFile implements com.linkedin.datastream.cloud.storage.
         record.put(LOGLINE_NAME, new String((byte[]) aPackage.getRecord().getValue(), StandardCharsets.UTF_8));
         _parquetWriter.write(record);
     }
+
     @Override
     public void close() throws IOException {
         this._parquetWriter.close();
         _parquetWriter = null;
     }
+
     @Override
     public String getPath() {
         return _path.toString();
     }
+
     @Override
     public String getFileFormat() {
         return "parquet";
