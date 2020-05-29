@@ -94,7 +94,7 @@ public class MetricsTestUtils {
         .collect(Collectors.toList());
 
     // Assert that every metric has exactly one metricInfo whose nameOrRegex matches the metric's name
-    for (Map.Entry<String, Metric> metricEntry: metricEntries) {
+    for (Map.Entry<String, Metric> metricEntry : metricEntries) {
       int count = getMatchingMetricInfoCount(metricEntry, metricInfoByName, regexMetricInfos);
       Assert.assertEquals(count, 1,
           String.format("Metric %s must match exactly one BrooklinMetricInfo but it matched %d",
