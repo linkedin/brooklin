@@ -132,9 +132,15 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static Thread runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask)
       throws InterruptedException {
+    return runKafkaMirrorMakerConnectorTask(connectorTask, (t, e) -> Assert.fail("connector thread died", e));
+  }
+
+  static Thread runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask,
+      Thread.UncaughtExceptionHandler exceptionHandler)
+      throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
-    t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));
+    t.setUncaughtExceptionHandler(exceptionHandler);
     t.start();
     if (!connectorTask.awaitStart(60, TimeUnit.SECONDS)) {
       Assert.fail("connector did not start within timeout");
