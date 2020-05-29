@@ -63,4 +63,10 @@ public abstract class BrooklinMetricInfo {
   public int hashCode() {
     return _hashCode;
   }
+
+  @Override
+  public String toString() {
+    return String.format("%s: nameOrRegex=%s, attributes=%s", getClass().getSimpleName(), _nameOrRegex,
+        _attributes.map(attrs -> String.join(",", attrs)).orElse("[]"));
+  }
 }
