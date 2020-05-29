@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -104,7 +105,7 @@ class KafkaProducerWrapper<K, V> {
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
 
-  // A lock used to synchronized access to operations performed on the _kafkaProducer object
+  // A lock used to synchronize access to operations performed on the _kafkaProducer object
   private final Object _producerLock = new Object();
 
   // An executor to spawn threads to close the producer.
@@ -129,7 +130,7 @@ class KafkaProducerWrapper<K, V> {
     _dynamicMetricsManager.registerGauge(_metricsNamesPrefix, AGGREGATE, PRODUCER_COUNT, PRODUCER_GAUGE);
 
     _clientId = transportProviderProperties.getProperty(ProducerConfig.CLIENT_ID_CONFIG);
-    if (_clientId == null || _clientId.isEmpty()) {
+    if (StringUtils.isEmpty(_clientId)) {
       _log.warn("Client ID is either null or empty");
     }
 
@@ -276,10 +277,10 @@ class KafkaProducerWrapper<K, V> {
   private DatastreamRuntimeException generateSendFailure(Exception exception) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
-      _log.warn("send failed transiently with exception: ", exception);
+      _log.warn("Send failed transiently with exception: ", exception);
       return new DatastreamTransientException(exception);
     } else {
-      _log.warn("send failed, restart producer, exception: ", exception);
+      _log.warn("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
       shutdownProducer();
       return new DatastreamRuntimeException(exception);
     }
