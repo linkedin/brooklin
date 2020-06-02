@@ -380,10 +380,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
         ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdatper);
-    zkAdatper.connect();
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));

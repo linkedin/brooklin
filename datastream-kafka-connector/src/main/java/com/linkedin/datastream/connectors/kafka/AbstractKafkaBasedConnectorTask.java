@@ -290,8 +290,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     //    not added to the auto-pause list.
     // 2) The rewind is successful and the Exception returned by the SendCallback is non-transient. This TopicPartition
     //    is added to the auto-pause list with SEND_ERROR as the reason.
-    // 3) The rewind itself failed. An exception is thrown, and the connector task is brought down to avoid wrongfully
-    //    committing checkpoints.
+    // 3) The rewind itself failed. An exception is thrown and the connector task is brought down to avoid committing
+    //    incorrect checkpoints.
     //
     // If the same TopicPartition sees send failures across multiple calls of this function, the attempt to rewind
     // it to the last committed offset may be performed multiple times. The auto-pause list can potentially be

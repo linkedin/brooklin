@@ -136,8 +136,7 @@ final class KafkaMirrorMakerConnectorTestUtils {
   }
 
   static Thread runKafkaMirrorMakerConnectorTask(KafkaMirrorMakerConnectorTask connectorTask,
-      Thread.UncaughtExceptionHandler exceptionHandler)
-      throws InterruptedException {
+      Thread.UncaughtExceptionHandler exceptionHandler) throws InterruptedException {
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler(exceptionHandler);
