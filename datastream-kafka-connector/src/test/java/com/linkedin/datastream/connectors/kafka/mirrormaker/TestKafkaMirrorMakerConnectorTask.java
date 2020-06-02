@@ -407,10 +407,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
         ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdatper);
-    zkAdatper.connect();
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -848,10 +848,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
     task.setEventProducer(datastreamProducer);
 
-    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
         ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdatper);
-    zkAdatper.connect();
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
 
     Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
