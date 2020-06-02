@@ -263,17 +263,19 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void rewindAndPausePartitionOnException(TopicPartition srcTopicPartition, Exception ex) {
     _consumerMetrics.updateErrorRate(1);
     Instant start = Instant.now();
-    // seek to previous checkpoints for this topic partition
-    boolean partitionRewound = false;
+    // Seek to previous checkpoints for this topic partition
     try {
       seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
-      partitionRewound = true;
     } catch (Exception e) {
-      _logger.error(String.format("Partition rewind for %s failed due to ", srcTopicPartition), e);
+      // Seek to last checkpoint failed. Throw an exception to avoid any data loss scenarios where the consumed
+      // offset can be committed even though the send for that offset has failed.
+      String errorMessage = String.format("Partition rewind for %s failed due to ", srcTopicPartition);
+      _logger.error(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
-    if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
-      // If partition rewind failed or the exception is not of type DatastreamTransientException and
-      // it is configured to pause partition on error conditions, add it to the auto-paused set
+    if (_pausePartitionOnError && !containsTransientException(ex)) {
+      // If the exception is not of type DatastreamTransientException and it is configured
+      // to pause partition on error conditions, add it to the auto-paused set
       _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
       _autoPausedSourcePartitions.put(srcTopicPartition,
           PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
@@ -282,15 +284,21 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected void rewindAndPausePartitionsOnSendException() {
-    // For all topic partitions which have seen send exceptions, attempt to rewind them to the last checkpoint
+    // For all topic partitions which have seen send exceptions, attempt to rewind them to the last checkpoint.
+    // The outcome of the rewind can fall into three categories:
+    // 1) The rewind is successful and the Exception returned by the SendCallback is transient. This TopicPartition is
+    //    not added to the auto-pause list.
+    // 2) The rewind is successful and the Exception returned by the SendCallback is non-transient. This TopicPartition
+    //    is added to the auto-pause list with SEND_ERROR as the reason.
+    // 3) The rewind itself failed. An exception is thrown and the connector task is brought down to avoid committing
+    //    incorrect checkpoints.
+    //
     // If the same TopicPartition sees send failures across multiple calls of this function, the attempt to rewind
-    // it to the last committed offset may be performed multiple times. TopicPartitions may be added to the auto-pause
-    // list for two reasons, a) the send exception is not transient, b) partition rewind failed. The auto-pause list
-    // can potentially be checked, and such superfluous rewinds can be avoided, but this will take away the chance
-    // to attempt an offset rewind for TopicPartitions that failed to rewind. When TopicPartitions are resumed, no
-    // rewind is performed.
-    // TODO: Check if a TopicPartition already exists on the auto-pause list and avoid re-rewinding it if it was added
-    // due to a non-transient exception.
+    // it to the last committed offset may be performed multiple times. The auto-pause list can potentially be
+    // checked, and a subset of such superfluous rewinds can be avoided (i.e. TopicPartitions which fall under
+    // case (2)).
+    // TODO: Check if a TopicPartition already exists on the auto-pause list and avoid re-rewinding it if its
+    // auto-pause reason is SEND_ERROR.
     synchronized (_sendFailureTopicPartitionExceptionMap) {
       _sendFailureTopicPartitionExceptionMap.forEach(this::rewindAndPausePartitionOnException);
       _sendFailureTopicPartitionExceptionMap.clear();
@@ -608,7 +616,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Seek to the last checkpoint for the given topicPartitions.
    */
-  void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+  @VisibleForTesting
+  protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
     _logger.info("Trying to seek to previous checkpoint for partitions: {}", topicPartitions);
     Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
     Set<TopicPartition> tpWithNoCommits = new HashSet<>();
