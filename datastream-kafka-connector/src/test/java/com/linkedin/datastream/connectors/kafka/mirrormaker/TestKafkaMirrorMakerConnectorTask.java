@@ -332,7 +332,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   private static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
-    private boolean postShutdownHookExceptionCaught;
+    private boolean _postShutdownHookExceptionCaught;
+    private boolean _failOnSeekToLastCheckpoint;
 
     public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
         String connectorName, boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
@@ -344,12 +345,24 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       try {
         super.postShutdownHook();
       } catch (Exception e) {
-        postShutdownHookExceptionCaught = true;
+        _postShutdownHookExceptionCaught = true;
       }
     }
 
+    @Override
+    protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+      if (_failOnSeekToLastCheckpoint) {
+        throw new KafkaException("KafkaException: failed to seek");
+      }
+      super.seekToLastCheckpoint(topicPartitions);
+    }
+
+    void setFailOnSeekToLastCheckpoint(boolean failOnSeekToLastCheckpoint) {
+      _failOnSeekToLastCheckpoint = failOnSeekToLastCheckpoint;
+    }
+
     boolean isPostShutdownHookExceptionCaught() {
-      return postShutdownHookExceptionCaught;
+      return _postShutdownHookExceptionCaught;
     }
   }
 
@@ -367,10 +380,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
         ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdatper);
-    zkAdatper.connect();
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -394,10 +407,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdatper = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
         ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdatper);
-    zkAdatper.connect();
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -819,6 +832,56 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+
+  @Test
+  public void testValidateTaskDiesOnRewindFailure() throws InterruptedException {
+    String yummyTopic = "YummyPizza";
+    createTopic(_zkUtils, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    // create event producer that fails on 3rd event (of 5)
+    MockDatastreamEventProducer datastreamProducer =
+        new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
+    task.setEventProducer(datastreamProducer);
+
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
+
+    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    KafkaBasedConnectorConfig connectorConfig = KafkaMirrorMakerConnectorTestUtils
+        .getKafkaBasedConnectorConfigBuilder()
+        .setConsumerProps(consumerProps)
+        .build();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    connectorTask.setFailOnSeekToLastCheckpoint(true);
+
+    CountDownLatch exceptionCaught = new CountDownLatch(1);
+    Thread connectorThread =
+        KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask, (t, e) -> {
+          Assert.assertEquals(DatastreamRuntimeException.class, e.getClass());
+          exceptionCaught.countDown();
+        });
+
+    // produce 5 events
+    KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, 5, _kafkaCluster);
+
+    Assert.assertTrue(exceptionCaught.await(30, TimeUnit.SECONDS),
+        "Exception was not thrown by the KafkaMirrorMakerConnectorTask");
+
+    // Assert that the first two events made it
+    Assert.assertEquals(datastreamProducer.getEvents().size(), 2,
+        "The events before the failure should have been sent");
+
+    connectorThread.join();
   }
 
   @Test
