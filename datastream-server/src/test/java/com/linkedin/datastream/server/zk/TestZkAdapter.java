@@ -729,8 +729,14 @@ public class TestZkAdapter {
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
     adapter.connect();
 
-    List<DatastreamTask> tasks = new ArrayList<>();
+    // lock node
+    DatastreamTaskImpl lockTask = new DatastreamTaskImpl();
+    lockTask.setId("task" + "lock");
+    lockTask.setTaskPrefix("taskPrefix" + "lock");
+    lockTask.setConnectorType(connectorType);
+    lockTask.setZkAdapter(adapter);
 
+    List<DatastreamTask> tasks = new ArrayList<>();
     // Create some nodes
     for (int i = 0; i < 10; i++) {
       DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
@@ -742,6 +748,7 @@ public class TestZkAdapter {
       tasks.add(dsTask);
     }
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+    adapter.acquireTask(lockTask, Duration.ofSeconds(2));
 
     ZkClient zkClient = Mockito.spy(adapter.getZkClient());
 
@@ -758,32 +765,37 @@ public class TestZkAdapter {
     Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
 
     List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(false);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(true);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     updateInstanceAssignment(adapter, adapter.getInstanceName(), Collections.emptyList());
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(false);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(true);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 0);
+    Assert.assertEquals(leftOverTasks.size(), 1);
+
+    // lock root node does not get deleted, once created.
+    adapter.releaseTask(lockTask);
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 1);
 
     adapter.disconnect();
   }
