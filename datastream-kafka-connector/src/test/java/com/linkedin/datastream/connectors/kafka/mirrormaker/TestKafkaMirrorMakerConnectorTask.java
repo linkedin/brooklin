@@ -357,8 +357,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       super.seekToLastCheckpoint(topicPartitions);
     }
 
-    void setFailOnSeekToLastCheckpoint() {
-      _failOnSeekToLastCheckpoint = true;
+    void setFailOnSeekToLastCheckpoint(boolean failOnSeekToLastCheckpoint) {
+      _failOnSeekToLastCheckpoint = failOnSeekToLastCheckpoint;
     }
 
     boolean isPostShutdownHookExceptionCaught() {
@@ -862,7 +862,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
-    connectorTask.setFailOnSeekToLastCheckpoint();
+    connectorTask.setFailOnSeekToLastCheckpoint(true);
 
     CountDownLatch exceptionCaught = new CountDownLatch(1);
     Thread connectorThread =
