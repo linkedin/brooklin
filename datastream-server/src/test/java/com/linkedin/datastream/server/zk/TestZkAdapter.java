@@ -791,6 +791,7 @@ public class TestZkAdapter {
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 1);
+    Assert.assertEquals(leftOverTasks.get(0), KeyBuilder.DATASTREAM_TASK_LOCK_ROOT_NAME);
 
     // lock root node does not get deleted, once created.
     adapter.releaseTask(lockTask);
