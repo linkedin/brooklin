@@ -992,6 +992,9 @@ public class ZkAdapter {
           .map(DatastreamTask::getDatastreamTaskName)
           .collect(Collectors.toSet()));
 
+      // ignore the lock root node.
+      connectorTaskList.remove(KeyBuilder.DATASTREAM_TASK_LOCK_ROOT_NAME);
+
       if (connectorTaskList.size() > 0) {
         LOG.warn("Found orphan tasks: {} in connector: {}", connectorTaskList, connector);
         if (cleanUpOrphanTasksInConnector) {
