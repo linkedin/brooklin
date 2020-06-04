@@ -60,11 +60,15 @@ public final class KeyBuilder {
    */
   private static final String DATASTREAM_TASK_CONFIG = CONNECTOR + "/%s/config";
 
+  /**
+   * Lock node
+   */
+  static final String DATASTREAM_TASK_LOCK_ROOT_NAME = "lock";
 
   /**
    * Task lock root path under connectorType
    */
-  private static final String DATASTREAM_TASK_LOCK_ROOT = CONNECTOR + "/lock";
+  private static final String DATASTREAM_TASK_LOCK_ROOT = CONNECTOR + "/" + DATASTREAM_TASK_LOCK_ROOT_NAME;
 
   /**
    * Task lock node under connectorType/lock/{taskName}
