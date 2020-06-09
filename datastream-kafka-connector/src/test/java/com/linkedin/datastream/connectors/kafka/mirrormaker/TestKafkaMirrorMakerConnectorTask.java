@@ -30,6 +30,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.Sets;
 
@@ -364,6 +365,44 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     boolean isPostShutdownHookExceptionCaught() {
       return _postShutdownHookExceptionCaught;
     }
+  }
+
+  @Test
+  public void testPartitionManagedLockAcquireFailMetric() throws InterruptedException {
+    String datastreamName = "pizzaStream";
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream(datastreamName, _broker, "\\w+Pizza");
+    DatastreamTaskImpl task = spy(new DatastreamTaskImpl(Collections.singletonList(datastream)));
+    doThrow(DatastreamRuntimeException.class).when(task).acquire(any(Duration.class));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
+        .setConsumerFactory(new LiKafkaConsumerFactory())
+        .setCommitIntervalMillis(10000)
+        .setEnablePartitionManaged(true)
+        .build();
+
+    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
+
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    // We don't want to wait for the task to start, since it will throw before the start countdown latch can be downed.
+    Thread t = new Thread(connectorTask, "connector thread");
+    t.setDaemon(true);
+    t.setUncaughtExceptionHandler((t1, e) -> Assert.assertEquals(DatastreamRuntimeException.class, e.getClass()));
+    t.start();
+    t.join();
+
+    // verify that the metric to indicate task lock acquire errors is incremented
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Meter metric = DynamicMetricsManager.getInstance()
+          .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + "." + datastreamName + "."
+              + "taskLockAcquireErrorRate");
+      return ((metric != null) && (metric.getCount() == 1));
+    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS), "taskLockAcquireErrorRate metric should have a count of 1");
   }
 
   @Test
