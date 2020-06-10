@@ -16,6 +16,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -53,7 +54,9 @@ import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -61,6 +64,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES;
@@ -387,22 +391,33 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task.setZkAdapter(zkAdapter);
     zkAdapter.connect();
 
-    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
+    String connectorName = "KafkaMirrorMaker";
+    KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, connectorName,
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
     // We don't want to wait for the task to start, since it will throw before the start countdown latch can be downed.
-    Thread t = new Thread(connectorTask, "connector thread");
-    t.setDaemon(true);
-    t.setUncaughtExceptionHandler((t1, e) -> Assert.assertEquals(DatastreamRuntimeException.class, e.getClass()));
-    t.start();
-    t.join();
+    AtomicReference<Throwable> throwable = new AtomicReference<>();
+    Thread connectorThread =
+        KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask, (t1, e) -> throwable.set(e),
+            false);
+    connectorThread.join();
+
+    Assert.assertEquals(DatastreamRuntimeException.class, throwable.get().getClass());
 
     // verify that the metric to indicate task lock acquire errors is incremented
-    Assert.assertTrue(PollUtils.poll(() -> {
-      Meter metric = DynamicMetricsManager.getInstance()
-          .getMetric(KafkaMirrorMakerConnectorTask.class.getSimpleName() + "." + datastreamName + "."
-              + "taskLockAcquireErrorRate");
-      return ((metric != null) && (metric.getCount() == 1));
-    }, POLL_PERIOD_MS, POLL_TIMEOUT_MS), "taskLockAcquireErrorRate metric should have a count of 1");
+    Meter metric = DynamicMetricsManager.getInstance()
+        .getMetric(connectorName + "." + KafkaMirrorMakerConnectorTask.class.getSimpleName() + "." + datastreamName
+            + "." + "taskLockAcquireErrorRate");
+    Assert.assertNotNull(metric);
+    Assert.assertEquals(metric.getCount(), 1);
+
+    // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
+    // connector name of interest.
+    MetricsTestUtils.verifyMetrics(new MetricsAware() {
+      @Override
+      public List<BrooklinMetricInfo> getMetricInfos() {
+        return KafkaMirrorMakerConnectorTaskTest.getMetricInfos(connectorName);
+      }
+    }, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -904,9 +919,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.setFailOnSeekToLastCheckpoint(true);
 
     CountDownLatch exceptionCaught = new CountDownLatch(1);
+    AtomicReference<Throwable> throwable = new AtomicReference<>();
     Thread connectorThread =
         KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask, (t, e) -> {
-          Assert.assertEquals(DatastreamRuntimeException.class, e.getClass());
+          throwable.set(e);
           exceptionCaught.countDown();
         });
 
@@ -915,6 +931,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     Assert.assertTrue(exceptionCaught.await(30, TimeUnit.SECONDS),
         "Exception was not thrown by the KafkaMirrorMakerConnectorTask");
+    Assert.assertEquals(DatastreamRuntimeException.class, throwable.get().getClass());
 
     // Assert that the first two events made it
     Assert.assertEquals(datastreamProducer.getEvents().size(), 2,
