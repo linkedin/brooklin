@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,6 +89,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
+  //precalculated hash
+  private int _hashValue;
 
   /**
    * Constructor for DatastreamTaskImpl.
@@ -99,6 +102,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _partitions = new ArrayList<>();
     _partitionsV2 = new ArrayList<>();
     _dependencies = new ArrayList<>();
+    computeHash();
   }
 
   /**
@@ -147,6 +151,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
     LOG.info("Created new DatastreamTask " + this);
     _dependencies = new ArrayList<>();
+    computeHash();
   }
 
 
@@ -178,6 +183,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     _dependencies = new ArrayList<>();
     _dependencies.add(predecessor.getDatastreamTaskName());
+    computeHash();
   }
 
     /**
@@ -244,6 +250,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void setPartitions(List<Integer> partitions) {
     Validate.notNull(partitions);
     _partitions = partitions;
+    computeHash();
   }
 
   /**
@@ -253,6 +260,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void setPartitionsV2(List<String> partitionsV2) {
     Validate.notNull(partitionsV2);
     _partitionsV2 = partitionsV2;
+    computeHash();
   }
 
   @JsonIgnore
@@ -289,6 +297,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     // destination and connector type should be immutable
     _transportProviderName = _datastreams.get(0).getTransportProviderName();
     _connectorType = _datastreams.get(0).getConnectorName();
+    computeHash();
   }
 
   @Override
@@ -351,8 +360,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _connectorType;
   }
 
+  /**
+   * set connector type
+   * @param connectorType
+   */
   public void setConnectorType(String connectorType) {
     _connectorType = connectorType;
+    computeHash();
   }
 
   @Override
@@ -368,16 +382,26 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _id;
   }
 
+  /**
+   * set id
+   * @param id id for the task
+   */
   public void setId(String id) {
     _id = id;
+    computeHash();
   }
 
   public String getTaskPrefix() {
     return _taskPrefix;
   }
 
+  /**
+   * set taskPrefix
+   * @param taskPrefix Prefix for the task
+   */
   public void setTaskPrefix(String taskPrefix) {
     _taskPrefix = taskPrefix;
+    computeHash();
   }
 
   @JsonIgnore
@@ -426,13 +450,17 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
     return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects.equals(
-        _taskPrefix, task._taskPrefix) && Objects.equals(_partitions, task._partitions)
-        && Objects.equals(_partitionsV2, task._partitionsV2);
+        _taskPrefix, task._taskPrefix) && Objects.equals(new HashSet<>(_partitions), new HashSet<>(task._partitions))
+        && Objects.equals(new HashSet<>(_partitionsV2), new HashSet<>(task._partitionsV2));
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _taskPrefix, _partitions, _partitionsV2);
+    return _hashValue;
+  }
+
+  private void computeHash() {
+    _hashValue = Objects.hash(_connectorType, _id, _taskPrefix, new HashSet<>(_partitions), new HashSet<>(_partitionsV2));
   }
 
   @Override
