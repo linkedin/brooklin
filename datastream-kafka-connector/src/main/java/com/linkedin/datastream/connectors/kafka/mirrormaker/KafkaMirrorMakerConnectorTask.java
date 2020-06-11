@@ -51,6 +51,7 @@ import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -85,7 +86,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
-  private static final String NUM_LOCK_FAILS = "numLockFails";
+  private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -103,9 +104,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
+  protected final DynamicMetricsManager _dynamicMetricsManager;
+  protected final String _connectorName;
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
-  private final DynamicMetricsManager _dynamicMetricsManager;
 
   // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
   // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
@@ -139,6 +142,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
+    _connectorName = connectorName;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
@@ -321,7 +325,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
       } catch (DatastreamRuntimeException ex) {
         LOG.error(String.format("Failed to acquire lock for datastreamTask %s", _datastreamTask), ex);
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, NUM_LOCK_FAILS, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(generateMetricsPrefix(_connectorName, CLASS_NAME), _datastreamName,
+            TASK_LOCK_ACQUIRE_ERROR_RATE, 1);
         throw ex;
       }
     }
@@ -423,6 +428,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX));
+    metrics.add(new BrooklinMeterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX
+        + TASK_LOCK_ACQUIRE_ERROR_RATE));
     // As topic manager is plugged in as part of task creation, one can't know
     // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
     // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)
