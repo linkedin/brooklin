@@ -559,10 +559,18 @@ public class TestDatastreamResources {
     Set<String> missingFields = new HashSet<>();
 
     // happy path
-    Datastream fullDatastream = generateDatastream(1);
+    Datastream fullDatastream = generateDatastream(0);
     CreateResponse response = resource.create(fullDatastream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    Datastream whitespaceDatastream = generateDatastream(1);
+    String originalName = whitespaceDatastream.getName();
+    whitespaceDatastream.setName(String.format(" %s ", whitespaceDatastream.getName()));
+    response = resource.create(whitespaceDatastream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(response.getId(), originalName);
 
     missingFields.add("target");
     Datastream allRequiredFields = generateDatastream(2, missingFields);
