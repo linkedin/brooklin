@@ -762,7 +762,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
 
       String datastreamName = datastream.getName();
-      String trimmedDatastreamName = (datastreamName == null) ? null : datastreamName.trim();
+      String trimmedDatastreamName = datastreamName.trim();
       if (!Objects.equals(datastreamName, trimmedDatastreamName)) {
         datastream.setName(trimmedDatastreamName);
         LOG.info("Leading and/or trailing whitespace found in datastream name. Name trimmed from '{}' to '{}'",
