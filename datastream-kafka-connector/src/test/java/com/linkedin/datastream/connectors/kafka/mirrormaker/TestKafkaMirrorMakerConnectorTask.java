@@ -1142,7 +1142,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  @Test
+  @Test (enabled = false) // Test disabled since it has been flaky
   public void testInFlightMessageCount() throws Exception {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
