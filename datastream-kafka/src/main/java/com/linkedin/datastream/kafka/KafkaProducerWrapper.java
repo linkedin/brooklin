@@ -60,15 +60,30 @@ class KafkaProducerWrapper<K, V> {
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
 
+  // Default producer configuration for no data loss pipeline.
+  private static final String DEFAULT_PRODUCER_ACKS_CONFIG_VALUE = "all";
+  private static final String DEFAULT_MAX_BLOCK_MS_CONFIG_VALUE = String.valueOf(Integer.MAX_VALUE);
+  private static final String DEFAULT_MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION_VALUE = "1";
+
+  private static final long DEFAULT_SEND_FAILURE_RETRY_WAIT_MS = Duration.ofSeconds(5).toMillis();
+  private static final int DEFAULT_PRODUCER_FLUSH_TIMEOUT_MS = Integer.MAX_VALUE;
+  private static final Double DEFAULT_RATE_LIMITER = 0.1;
+
+  private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
+  private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
+  private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
+  private static final String CFG_PRODUCER_FLUSH_TIMEOUT_MS = "producerFlushTimeoutMs";
+
   private static final AtomicInteger NUM_PRODUCERS = new AtomicInteger();
   private static final Supplier<Integer> PRODUCER_GAUGE = NUM_PRODUCERS::get;
 
-  private static final int TIME_OUT = 2000;
+  private static final int CLOSE_TIME_OUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
   private static final Duration PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
 
   private final Logger _log;
   private final long _sendFailureRetryWaitTimeMs;
+  private final int _producerFlushTimeoutMs;
 
   private final String _clientId;
   private final Properties _props;
@@ -88,19 +103,7 @@ class KafkaProducerWrapper<K, V> {
   // but subsequent calls will be limited to 1 every 10 seconds by default.
   // The reason is to give time to the Kafka producer to release resources and
   // close threads before creating a new one.
-  private static final Double DEFAULT_RATE_LIMITER = 0.1;
   private final RateLimiter _rateLimiter;
-
-  // Default producer configuration for no data loss pipeline.
-  private static final String DEFAULT_PRODUCER_ACKS_CONFIG_VALUE = "all";
-  private static final String DEFAULT_MAX_BLOCK_MS_CONFIG_VALUE = String.valueOf(Integer.MAX_VALUE);
-  private static final String DEFAULT_MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION_VALUE = "1";
-
-  private static final long DEFAULT_SEND_FAILURE_RETRY_WAIT_MS = Duration.ofSeconds(5).toMillis();
-
-  private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
-  private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
-  private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
@@ -136,6 +139,9 @@ class KafkaProducerWrapper<K, V> {
 
     _sendFailureRetryWaitTimeMs =
         transportProviderProperties.getLong(CFG_SEND_FAILURE_RETRY_WAIT_MS, DEFAULT_SEND_FAILURE_RETRY_WAIT_MS);
+
+    _producerFlushTimeoutMs =
+        transportProviderProperties.getInt(CFG_PRODUCER_FLUSH_TIMEOUT_MS, DEFAULT_PRODUCER_FLUSH_TIMEOUT_MS);
 
     _rateLimiter =
         RateLimiter.create(transportProviderProperties.getDouble(CFG_RATE_LIMITER_CFG, DEFAULT_RATE_LIMITER));
@@ -267,7 +273,7 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       _producerCloseExecutorService.submit(() -> {
         _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
-        producer.close(TIME_OUT, TimeUnit.MILLISECONDS);
+        producer.close(CLOSE_TIME_OUT_MS, TimeUnit.MILLISECONDS);
         NUM_PRODUCERS.decrementAndGet();
         _log.info("KafkaProducerWrapper: Kafka Producer is closed");
       });
@@ -290,7 +296,7 @@ class KafkaProducerWrapper<K, V> {
     synchronized (_producerLock) {
       try {
         if (_kafkaProducer != null) {
-          _kafkaProducer.flush();
+          _kafkaProducer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
         }
       } catch (InterruptException e) {
         // The KafkaProducer object should not be reused on an interrupted flush

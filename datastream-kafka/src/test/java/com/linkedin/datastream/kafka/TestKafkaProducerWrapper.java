@@ -32,6 +32,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -130,7 +131,7 @@ public class TestKafkaProducerWrapper {
       Producer<K, V> producer = (Producer<K, V>) mock(Producer.class);
       // Calling flush() on the first producer created will throw an InterruptException.
       if (!_createKafkaProducerCalled) {
-        doThrow(InterruptException.class).when(producer).flush();
+        doThrow(InterruptException.class).when(producer).flush(anyInt(), any(TimeUnit.class));
       }
 
       _mockProducer = producer;
@@ -150,7 +151,7 @@ public class TestKafkaProducerWrapper {
     }
 
     void verifyFlush(int numExpected) {
-      verify(_mockProducer, times(numExpected)).flush();
+      verify(_mockProducer, times(numExpected)).flush(anyInt(), any(TimeUnit.class));
     }
 
     void verifyClose(int numExpected) throws NoSuchMethodException {
