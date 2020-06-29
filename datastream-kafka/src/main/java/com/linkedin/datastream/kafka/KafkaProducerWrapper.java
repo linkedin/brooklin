@@ -57,8 +57,6 @@ import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_
 class KafkaProducerWrapper<K, V> {
   private static final String CLASS_NAME = KafkaProducerWrapper.class.getSimpleName();
   private static final String PRODUCER_ERROR = "producerError";
-  @VisibleForTesting
-  static final String PRODUCER_COUNT = "producerCount";
 
   // Default producer configuration for no data loss pipeline.
   private static final String DEFAULT_PRODUCER_ACKS_CONFIG_VALUE = "all";
@@ -72,14 +70,19 @@ class KafkaProducerWrapper<K, V> {
   private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
   private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
   private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
-  private static final String CFG_PRODUCER_FLUSH_TIMEOUT_MS = "producerFlushTimeoutMs";
 
   private static final AtomicInteger NUM_PRODUCERS = new AtomicInteger();
   private static final Supplier<Integer> PRODUCER_GAUGE = NUM_PRODUCERS::get;
 
-  private static final int CLOSE_TIME_OUT_MS = 2000;
+  private static final int CLOSE_TIMEOUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
   private static final Duration PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+
+  @VisibleForTesting
+  static final String PRODUCER_COUNT = "producerCount";
+
+  @VisibleForTesting
+  static final String CFG_PRODUCER_FLUSH_TIMEOUT_MS = "producerFlushTimeoutMs";
 
   private final Logger _log;
   private final long _sendFailureRetryWaitTimeMs;
@@ -273,7 +276,7 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       _producerCloseExecutorService.submit(() -> {
         _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
-        producer.close(CLOSE_TIME_OUT_MS, TimeUnit.MILLISECONDS);
+        producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         NUM_PRODUCERS.decrementAndGet();
         _log.info("KafkaProducerWrapper: Kafka Producer is closed");
       });
