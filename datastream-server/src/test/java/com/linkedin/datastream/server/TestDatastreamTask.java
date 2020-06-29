@@ -119,17 +119,22 @@ public class TestDatastreamTask {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream), "dummyId", new ArrayList<>());
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(Collections.singletonList(stream), "dummyId", new ArrayList<>());
     Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
 
     task.setPartitions(Arrays.asList(1, 2));
     task2.setPartitions(Arrays.asList(2, 1, 3));
     Assert.assertNotEquals(task, task2);
+    Assert.assertNotEquals(task.hashCode(), task2.hashCode());
     task2.setPartitions(Arrays.asList(2, 1));
     Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
 
     task.setPartitionsV2(Arrays.asList("1", "2"));
     task2.setPartitionsV2(Arrays.asList("2", "1", "3"));
     Assert.assertNotEquals(task, task2);
+    Assert.assertNotEquals(task.hashCode(), task2.hashCode());
     task2.setPartitionsV2(Arrays.asList("2", "1"));
     Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
   }
 }
