@@ -575,7 +575,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Dispatch the onAssignmentChange to the connector in a separate thread.
       return _assignmentChangeThreadPool.get(connectorType).submit(() -> {
         try {
-          connector.onAssignmentChange(assignment);
+          // Send a new copy of assignment to connector to ensure that assignment is not modified.
+          // Any modification to assignment object directly will cause discrepancy in the current assignment list.
+          connector.onAssignmentChange(new ArrayList<>(assignment));
           // Unassign tasks with producers
           removedTasks.forEach(this::uninitializeTask);
         } catch (Exception ex) {
@@ -1236,7 +1238,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   void performCleanupOrphanConnectorTasks() {
     _log.info("performCleanupOrphanConnectorTasks called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.PERFORM_CLEANUP_ORPHAN_CONNECTOR_TASKS, orphanCount);
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
   }
 
   /**
@@ -1740,14 +1742,30 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     private void registerMeterMetrics() {
+      // These metrics are eagerly created (i.e. they are registered with _dynamicMetricsManager
+      // even before they are ever updated + we use BrooklinMeterInfos that specify metrics by full name)
       Arrays.stream(Meter.values()).forEach(this::registerMeter);
     }
 
     private void registerKeyedMeterMetrics() {
-      Arrays.stream(KeyedMeter.values()).forEach(this::registerKeyedMeter);
+      // Our intent is to create KeyedMeter metrics lazily (i.e. only create the JMX metrics
+      // when the metrics are actually updated).
+      //
+      // To accomplish this, we:
+      //   - Refrain from registering metrics with _dynamicMetricsManager,
+      //     and rely on createOrUpdate*() methods so they are created upon
+      //     update instead.
+      //   - Return regex-based BrooklinMeterInfo as opposed to ones that
+      //     specify metrics by their full names
+
+      // All KeyedMeter metrics are covered by these two regex-based BrooklinMeterInfo objects
+      String prefix = _coordinator.getDynamicMetricPrefixRegex();
+      _metricInfos.add(new BrooklinMeterInfo(prefix + NUM_ERRORS));
+      _metricInfos.add(new BrooklinMeterInfo(prefix + NUM_RETRIES));
     }
 
     private void registerGaugeMetrics() {
+      // Gauges must be eagerly created
       ImmutableMap<String, Supplier<?>> gaugeMetrics = ImmutableMap.<String, Supplier<?>>builder()
           .put(MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get)
           .put(NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get)
@@ -1757,18 +1775,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     private void registerCounterMetrics() {
+      // These metrics are eagerly created
       Arrays.stream(Counter.values()).forEach(this::registerCounter);
     }
 
     private void registerMeter(Meter metric) {
       String metricName = metric.getName();
       _dynamicMetricsManager.registerMetric(MODULE, metricName, com.codahale.metrics.Meter.class);
-      _metricInfos.add(new BrooklinMeterInfo(_coordinator.buildMetricName(MODULE, metricName)));
-    }
-
-    private void registerKeyedMeter(KeyedMeter metric) {
-      String metricName = metric.getName();
-      _dynamicMetricsManager.registerMetric(MODULE, metric.getKey(), metricName, com.codahale.metrics.Meter.class);
       _metricInfos.add(new BrooklinMeterInfo(_coordinator.buildMetricName(MODULE, metricName)));
     }
 
@@ -1790,7 +1803,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_REBALANCES("numRebalances"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
-      NUM_PARTITION_MOVEMENTS("numPartitionMovements");
+      NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
+      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks");
 
       private final String _name;
 
@@ -1816,7 +1830,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       IS_PARTITION_ASSIGNMENT_SUPPORTED_NUM_ERRORS("isPartitionAssignmentSupported", NUM_ERRORS),
       IS_DATASTREAM_UPDATE_TYPE_SUPPORTED_NUM_ERRORS("isDatastreamUpdateTypeSupported", NUM_ERRORS),
       INITIALIZE_DATASTREAM_NUM_ERRORS("initializeDatastream", NUM_ERRORS),
-      PERFORM_CLEANUP_ORPHAN_CONNECTOR_TASKS("performCleanupOrphanConnectorTasks", "numOrphanConnectorTasks"),
       /* Coordinator event metrics */
       LEADER_DO_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_DO_ASSIGNMENT, NUM_ERRORS),
       LEADER_PARTITION_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_ASSIGNMENT, NUM_ERRORS),

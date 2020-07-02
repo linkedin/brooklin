@@ -559,10 +559,21 @@ public class TestDatastreamResources {
     Set<String> missingFields = new HashSet<>();
 
     // happy path
-    Datastream fullDatastream = generateDatastream(1);
+    Datastream fullDatastream = generateDatastream(0);
     CreateResponse response = resource.create(fullDatastream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // datastream names with leading and/or trailing whitespace are trimmed
+    Datastream whitespaceDatastream = generateDatastream(1);
+    String originalName = whitespaceDatastream.getName();
+    // make sure the generated datastream name has no leading or tailing whitespace to begin with
+    Assert.assertEquals(originalName, originalName.trim());
+    whitespaceDatastream.setName(String.format(" %s ", whitespaceDatastream.getName()));  // Add whitespace to name
+    response = resource.create(whitespaceDatastream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(response.getId(), originalName);
 
     missingFields.add("target");
     Datastream allRequiredFields = generateDatastream(2, missingFields);
