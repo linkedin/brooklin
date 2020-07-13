@@ -777,7 +777,7 @@ public class TestZkAdapter {
 
     Thread.sleep(5000);
     Assert.assertTrue(adapter.getZkStateChangeListener().sessionExpired);
-    Mockito.verify(adapter, Mockito.times(1)).exitOnSessionExpiryOrEstablishmentError();
+    Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
   }
 
   private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {

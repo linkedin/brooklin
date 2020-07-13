@@ -29,11 +29,4 @@
     <Class name="com.linkedin.datastream.common.zk.ZkClient" />
     <Bug pattern="NM_SAME_SIMPLE_NAME_AS_SUPERCLASS" />
   </Match>
-
-  <!-- Suppress warning about ignored CountDownLatch::await -->
-  <Match>
-    <Class name="com.linkedin.datastream.server.zk.ZkAdapter" />
-    <Method name="ZkStateChangeListener.exitOnSessionExpiryOrEstablishmentError" />
-    <Bug pattern="DM_EXIT" />
-  </Match>
 </FindBugsFilter>

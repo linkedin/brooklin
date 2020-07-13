@@ -46,8 +46,6 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.HostTargetAssignment;
 
-import static java.lang.System.exit;
-
 
 /**
  *
@@ -127,7 +125,6 @@ public class ZkAdapter {
 
   private volatile boolean _isLeader = false;
   private final ZkAdapterListener _listener;
-  private final boolean _exitOnSessionExpiry;
 
   // the current znode this node is listening to
   private String _currentSubscription = null;
@@ -157,34 +154,16 @@ public class ZkAdapter {
    * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
    *                         considered as retry forever until a connection has been reestablished.
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
-   * @param exitOnSessionExpiry boolean to decide whether to exit on session expiry or not.
    */
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener, boolean exitOnSessionExpiry) {
+      int connectionTimeoutMs, int operationRetryTimeoutMs, ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeoutMs = sessionTimeoutMs;
     _connectionTimeoutMs = connectionTimeoutMs;
     _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _listener = listener;
-    _exitOnSessionExpiry = exitOnSessionExpiry;
     _defaultTransportProviderName = defaultTransportProviderName;
-  }
-
-  /**
-   * Constructor
-   * @param zkServers ZooKeeper server address to connect to
-   * @param cluster Brooklin cluster this instance belongs to
-   * @param defaultTransportProviderName Default transport provider to use for a newly created task
-   * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
-   * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
-   * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
-   * @param exitOnSessionExpiry boolean to decide whether to exit on session expiry or not.
-   */
-  public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, ZkAdapterListener listener, boolean exitOnSessionExpiry) {
-    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        listener, exitOnSessionExpiry);
   }
 
   /**
@@ -200,7 +179,7 @@ public class ZkAdapter {
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
       int connectionTimeoutMs, ZkAdapterListener listener) {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        listener, false);
+        listener);
   }
 
   /**
@@ -1495,8 +1474,7 @@ public class ZkAdapter {
       switch (state) {
         case Expired:
           _timer.cancel();
-          onBecomeFollower();
-          exitOnSessionExpiryOrEstablishmentError();
+          onSessionExpired();
           return;
         case Disconnected:
           // Wait for session timeout after disconnect to consider that the session has expired.
@@ -1520,33 +1498,21 @@ public class ZkAdapter {
     @Override
     public void handleSessionEstablishmentError(final Throwable error) {
       LOG.error("ZkStateChangeListener::Failed to establish session.", error);
-      exitOnSessionExpiryOrEstablishmentError();
     }
   }
 
   private void scheduleExpiryTimerAfterSessionTimeout() {
     TimerTask timerTask = new TimerTask() {
       public void run() {
-        exitOnSessionExpiryOrEstablishmentError();
+        onSessionExpired();
       }
     };
     _timer.schedule(timerTask, _sessionTimeoutMs);
   }
 
-  // This is a temporary change to bring down the node on session expiry. We expect this to happen rarely.
-  // We are working on the transition of leader to follower on session expiry. On session expiry,
-  // the live instance (ephemeral nodes) gets deleted by the server and node is no longer a leader and has
-  // to participate in leader election again.
-  // By bringing down the node, the health monitoring services to restart the service is expected.
-  // Calling exit will invoke the shutdown hook and bring down the system via a clean shutdown.
-  //
-  // This behavior to bring down the system on session expiry is controlled via a config option.
-  // A health monitoring service is expected to be in place to restart the Brooklin service.
   @VisibleForTesting
-  void exitOnSessionExpiryOrEstablishmentError() {
-    if (_exitOnSessionExpiry) {
-      LOG.warn("Calling Exit 1");
-      exit(1);
-    }
+  void onSessionExpired() {
+    LOG.error("Zookeeper session expired.");
+    onBecomeFollower();
   }
 }
