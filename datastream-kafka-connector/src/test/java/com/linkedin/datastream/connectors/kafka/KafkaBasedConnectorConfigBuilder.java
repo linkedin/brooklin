@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_INTERVAL_MILLIS;
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig.CONFIG_COMMIT_TIMEOUT_MILLIS;

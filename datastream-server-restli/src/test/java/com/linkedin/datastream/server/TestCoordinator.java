@@ -74,6 +74,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.BatchUpdateRequest;
 import com.linkedin.restli.server.CreateResponse;
@@ -101,6 +102,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link Coordinator}
  */
+@Test
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
@@ -172,6 +174,19 @@ public class TestCoordinator {
   @AfterMethod
   public void teardown() throws IOException {
     _embeddedZookeeper.shutdown();
+  }
+
+  @Test
+  public void testRegistersMetricsCorrectly() throws Exception {
+    String testCluster = "testCoordinatorMetrics";
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    // Make sure the set of metrics the Coordinator registers with the DynamicMetricsManager
+    // matches the metricInfos the Coordinator returns from getMetricInfos().
+    MetricsTestUtils.verifyMetrics(coordinator, DynamicMetricsManager.getInstance());
+
+    coordinator.stop();
   }
 
   /**
@@ -2090,7 +2105,8 @@ public class TestCoordinator {
       return null;
     }).when(dynMM).createOrUpdateCounter(anyString(), anyObject(), anyLong());
 
-    ReflectionUtils.setField(coordinator, "_dynamicMetricsManager", dynMM);
+    Object metrics = ReflectionUtils.getField(coordinator, "_metrics");
+    ReflectionUtils.setField(metrics, "_dynamicMetricsManager", dynMM);
 
     coordinator.start();
 
