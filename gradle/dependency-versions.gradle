@@ -1,5 +1,5 @@
 ext {
-    LIKafkaVersion = "1.0.4"
+    LIKafkaVersion = "1.0.41"
     apacheHttpClientVersion = "4.5.3"
     avroVersion = "1.7.7"
     commonsCliVersion = "1.2"
@@ -10,14 +10,14 @@ ext {
     guavaVersion = "25.0-jre"
     intellijAnnotationsVersion = "12.0"
     jacksonVersion = "1.8.5"
-    kafkaVersion = "2.0.0"
+    kafkaVersion = "2.0.0.25"
     log4jVersion = "1.2.17"
     metricsCoreVersion = "4.1.0"
     mockitoVersion = "1.10.19"
     pegasusVersion = "20.0.4"
     scalaVersion = "2.11"
     slf4jVersion = "1.7.5"
-    testngVersion = "6.4"
+    testngVersion = "7.1.0"
     zkclientVersion = "0.11"
     zookeeperVersion = "3.4.13"
 }

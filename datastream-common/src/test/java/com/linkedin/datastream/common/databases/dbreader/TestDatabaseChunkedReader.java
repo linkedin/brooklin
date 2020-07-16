@@ -23,12 +23,12 @@ import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
 import org.mockito.Mockito;
+import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
-import junit.framework.Assert;
 
 import com.linkedin.datastream.avrogenerator.DatabaseSource;
 import com.linkedin.datastream.avrogenerator.SchemaGenerationException;

@@ -37,8 +37,8 @@ import com.linkedin.datastream.connectors.kafka.AbstractKafkaConnector;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactory;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerFactoryImpl;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamGroup;
@@ -63,12 +63,13 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   protected static final String PARTITION_FETCH_INTERVAL = "PartitionFetchIntervalMs";
   protected static final String MM_TOPIC_PLACEHOLDER = "*";
 
+  protected final boolean _isFlushlessModeEnabled;
+
   private static final Logger LOG = LoggerFactory.getLogger(KafkaMirrorMakerConnector.class);
   private static final String DEST_CONSUMER_GROUP_ID_SUFFIX = "-topic-partition-listener";
   private static final long DEFAULT_PARTITION_FETCH_INTERVAL = Duration.ofSeconds(30).toMillis();
   private static final String NUM_PARTITION_FETCH_ERRORS = "numPartitionFetchErrors";
 
-  private final boolean _isFlushlessModeEnabled;
   private final long _partitionFetchIntervalMs;
   private final KafkaConsumerFactory<?, ?> _listenerConsumerFactory;
   private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new ConcurrentHashMap<>();
