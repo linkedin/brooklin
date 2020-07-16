@@ -663,7 +663,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
-
+    boolean isLeader = _adapter.isLeader();
+    if (skipLeaderEvent(event.getType(), isLeader)) {
+      _log.info("Skipping event {} isLeader {}", event.getType(), isLeader);
+      return;
+    }
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
@@ -719,6 +723,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _log.info("END: Handle event " + event);
+  }
+
+  private boolean skipLeaderEvent(CoordinatorEvent.EventType eventType, boolean isLeader) {
+    switch (eventType) {
+      case LEADER_DO_ASSIGNMENT:
+      case HANDLE_ADD_OR_DELETE_DATASTREAM:
+      case LEADER_PARTITION_ASSIGNMENT:
+      case LEADER_PARTITION_MOVEMENT:
+        return !isLeader;
+      default:
+        return false;
+    }
   }
 
   // when we encounter an error, we need to persist the error message in ZooKeeper. We only persist the
@@ -777,10 +793,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * either. Also, expired streams are excluded from any future task assignments.
    */
   private void handleDatastreamAddOrDelete() {
-    if (!_adapter.isLeader()) {
-      _log.warn("skipping handleDatastreamAddOrDelete isLeader {}", _adapter.isLeader());
-      return;
-    }
     boolean shouldRetry = false;
 
     // Get the list of all datastreams
@@ -941,10 +953,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * any instance after old unused tasks are cleaned up.
    */
   private void handleLeaderDoAssignment(boolean cleanUpOrphanConnectorTasks) {
-    if (!_adapter.isLeader()) {
-      _log.warn("skipping handleLeaderDoAssignment isLeader {}", _adapter.isLeader());
-      return;
-    }
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -1009,10 +1017,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param datastreamGroupName the datastreamGroup that needs to perform the partition assignment
    */
   private void performPartitionAssignment(String datastreamGroupName) {
-    if (!_adapter.isLeader()) {
-      _log.warn("skipping performPartitionAssignment isLeader {}", _adapter.isLeader());
-      return;
-    }
     boolean succeeded = false;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1109,10 +1113,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param notifyTimestamp the timestamp when partition movement is triggered
    */
   private void performPartitionMovement(Long notifyTimestamp) {
-    if (!_adapter.isLeader()) {
-      _log.warn("skipping performPartitionMovement isLeader {}", _adapter.isLeader());
-      return;
-    }
     boolean shouldRetry = true;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
