@@ -1151,11 +1151,11 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "SaltyCaramelCookie"
     };
 
-    for (String topic: cookieTopics) {
+    for (String topic : cookieTopics) {
       createTopic(_zkUtils, topic);
     }
 
-    // create a datastream to consume from topics ending in "Pizza"
+    // create a datastream to consume from topics ending in "Cookie"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("cookieStream", _broker, "\\w+Cookie");
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
@@ -1167,12 +1167,15 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
             Duration.ofDays(1));
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
-    for (String topic: cookieTopics) {
+    for (String topic : cookieTopics) {
       KafkaMirrorMakerConnectorTestUtils.produceEvents(topic, 1, _kafkaCluster);
     }
 
     Assert.assertTrue(PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().size() == cookieTopics.length, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
         "All topics should have had auto-paused partitions");
+
+    // verify that none of the events were sent because of send error
+    Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
@@ -1226,10 +1229,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(saltyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
+        Long.valueOf(1), "In flight message count for saltyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
+        Long.valueOf(1), "In flight message count for spicyTopic was incorrect");
 
     // verify that none of the events were sent because of send error
     Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");
