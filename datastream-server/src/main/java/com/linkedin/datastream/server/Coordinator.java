@@ -664,7 +664,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   protected synchronized void handleEvent(CoordinatorEvent event) {
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
     boolean isLeader = _adapter.isLeader();
-    if (skipLeaderEvent(event.getType(), isLeader)) {
+    if (!isLeader && isLeaderEvent(event.getType())) {
       _log.info("Skipping event {} isLeader {}", event.getType(), isLeader);
       return;
     }
@@ -725,13 +725,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("END: Handle event " + event);
   }
 
-  private boolean skipLeaderEvent(CoordinatorEvent.EventType eventType, boolean isLeader) {
+  private boolean isLeaderEvent(CoordinatorEvent.EventType eventType) {
     switch (eventType) {
       case LEADER_DO_ASSIGNMENT:
       case HANDLE_ADD_OR_DELETE_DATASTREAM:
       case LEADER_PARTITION_ASSIGNMENT:
       case LEADER_PARTITION_MOVEMENT:
-        return !isLeader;
+        return true;
       default:
         return false;
     }
