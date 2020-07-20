@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- *
+ * This will manage the shutdown of the tasks and ensure that the task threads/future are cancelled within the set timeout.
  */
 public class ShutdownTaskHandler {
 
