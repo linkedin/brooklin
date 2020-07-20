@@ -20,6 +20,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -29,6 +33,7 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -41,8 +46,9 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
-import com.linkedin.datastream.server.AbstractConnector;
+import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 
@@ -58,7 +64,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
  *  <li>Restarting stalled {@link DatastreamTask}s</li>
  * </ul>
  */
-public abstract class AbstractKafkaConnector extends AbstractConnector implements DiagnosticsAware {
+public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
@@ -67,13 +73,30 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
+  protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
   protected final GroupIdConstructor _groupIdConstructor;
   protected final String _clusterName;
 
+  private final Logger _logger;
   private final AtomicInteger _threadCounter = new AtomicInteger(0);
   // Access to this map must be synchronized at all times since it can be accessed by multiple concurrent threads.
   private final Map<DatastreamTask, ConnectorTaskEntry> _runningTasks = new HashMap<>();
+
+  // A daemon executor to constantly check whether all tasks are running and restart them if not.
+  private final ScheduledExecutorService _daemonThreadExecutorService =
+      Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(@NotNull Runnable r) {
+          Thread t = new Thread(r);
+          t.setDaemon(true);
+          t.setName(String.format("%s daemon thread", _connectorName));
+          return t;
+        }
+      });
+
+  // An executor to spawn threads to stop tasks, and cancel them if stuck too long in onAssignmentChange().
+  private final ExecutorService _shutdownExecutorService = Executors.newCachedThreadPool();
 
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
@@ -90,11 +113,11 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
    */
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
       String clusterName, Logger logger) {
-    super(connectorName, SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT, logger);
+    _connectorName = connectorName;
+    _logger = logger;
     _clusterName = clusterName;
     _config = new KafkaBasedConnectorConfig(config);
     _groupIdConstructor = groupIdConstructor;
-    setDaemonThreadIntervalInSecond(_config.getDaemonThreadIntervalSeconds());
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -114,8 +137,8 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
         // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
         // requires that onAssignmentChange() must complete quickly, and will kill the assignment threads if they take
         // too long.
-        submitShutdownTask(() -> { stopTask(task, connectorTaskEntry);
-          return null;
+        _shutdownExecutorService.submit(() -> {
+          stopTask(task, connectorTaskEntry);
         });
       }
 
@@ -161,7 +184,16 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
 
   @Override
   public void start(CheckpointProvider checkpointProvider) {
-    super.start(checkpointProvider);
+    _daemonThreadExecutorService.scheduleAtFixedRate(() -> {
+          try {
+            restartDeadTasks();
+          } catch (Exception e) {
+            // catch any exceptions here so that subsequent check can continue
+            // see java doc of scheduleAtFixedRate
+            _logger.warn("Failed to check status of kafka connector tasks.", e);
+          }
+        }, getThreadDelayTimeInSecond(OffsetDateTime.now(ZoneOffset.UTC), _config.getDaemonThreadIntervalSeconds()),
+        _config.getDaemonThreadIntervalSeconds(), TimeUnit.SECONDS);
   }
 
   /**
@@ -247,12 +279,15 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
 
   @Override
   public void stop() {
+    _daemonThreadExecutorService.shutdown();
     synchronized (_runningTasks) {
       // Try to stop the the tasks
       _runningTasks.forEach(this::stopTask);
       _runningTasks.clear();
     }
-    super.stop();
+    _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
+        SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
+    ThreadUtils.shutdownExecutor(_shutdownExecutorService, SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT, _logger);
     _logger.info("Connector stopped.");
   }
 
@@ -424,7 +459,7 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
 
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
         KafkaTopicPartitionStatsResponse response = new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(),
-          tracker.getTopicPartitions(), datastreamNames);
+            tracker.getTopicPartitions(), datastreamNames);
         serializedResponses.add(response);
       });
     }
@@ -499,11 +534,6 @@ public abstract class AbstractKafkaConnector extends AbstractConnector implement
         .filter(pair -> pair.getName().equalsIgnoreCase(key))
         .map(NameValuePair::getValue)
         .findFirst();
-  }
-
-  @Override
-  protected long getDaemonThreadDelayTimeInSecond(int daemonThreadIntervalSeconds) {
-    return getThreadDelayTimeInSecond(OffsetDateTime.now(ZoneOffset.UTC), daemonThreadIntervalSeconds);
   }
 
   protected static class ConnectorTaskEntry {

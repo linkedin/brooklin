@@ -37,8 +37,16 @@ public class ShutdownTaskHandler {
    * to the last known slightly older checkpoint and the connector will produce some duplicate events.
    */
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
 
   private final Duration _shutdownTimeout;
+
+  /**
+   * Default constructor
+   */
+  public ShutdownTaskHandler() {
+    this(DEFAULT_SHUTDOWN_TIMEOUT);
+  }
 
   /**
    * @param shutdownTimeout timeout to shutdown the executor service
@@ -46,6 +54,7 @@ public class ShutdownTaskHandler {
   public ShutdownTaskHandler(Duration shutdownTimeout) {
     _shutdownTimeout = shutdownTimeout;
   }
+
   /**
    * Method to start the connector.
    * This is called immediately after the connector is instantiated. This typically happens when brooklin server starts up.
@@ -73,7 +82,7 @@ public class ShutdownTaskHandler {
    */
   public void verifyStopOrCancelTaskFuture(Future<?> taskFuture) {
     if (taskFuture != null && !taskFuture.isDone()) {
-      LOG.info("Force to shutdown the consumer thread. Cancel timeout : {}", CANCEL_TASK_TIMEOUT);
+      LOG.info("Force to shutdown the consumer thread. Cancel timeout : {}", CANCEL_TASK_TIMEOUT.toMillis());
       try {
         taskFuture.get(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       } catch (TimeoutException | ExecutionException | InterruptedException e) {
