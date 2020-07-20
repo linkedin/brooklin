@@ -26,6 +26,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.PassThroughConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
 import org.slf4j.Logger;
@@ -48,6 +49,8 @@ import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
+import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
+import com.linkedin.datastream.kafka.KafkaPassthroughRecordMagicConverter;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -241,6 +244,16 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
+    if (Boolean.TRUE.toString()
+        .equals(_datastream.getMetadata().get(KafkaDatastreamMetadataConstants.USE_PASSTHROUGH_COMPRESSION))) {
+      // If passthrough mode is enabled, we need to create a Kafka header on the transport side for supporting
+      // Kafka broker message format bump. The magic byte contains details about the message format for the passthrough
+      // record and it needs to be preserved and set via the Kafka headers to ensure that the correct message format
+      // can be negotiated.
+      PassThroughConsumerRecord<?, ?> passThroughConsumerRecord = (PassThroughConsumerRecord<?, ?>) fromKafka;
+      metadata.put(KafkaPassthroughRecordMagicConverter.PASS_THROUGH_MAGIC_VALUE,
+          KafkaPassthroughRecordMagicConverter.convertMagicToString(passThroughConsumerRecord.magic()));
+    }
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
