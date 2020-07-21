@@ -1142,7 +1142,47 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "did not shut down on time");
   }
 
-  @Test (enabled = false) // Test disabled since it has been flaky
+  @Test
+  public void testAutoPauseOnSendError() throws Exception {
+    String[] cookieTopics = new String[] {
+        "MacadamiaWhiteChocolateCookie",
+        "AlmondCookie",
+        "ChocolateChipCookie",
+        "SaltyCaramelCookie"
+    };
+
+    for (String topic : cookieTopics) {
+      createTopic(_zkUtils, topic);
+    }
+
+    // create a datastream to consume from topics ending in "Cookie"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("cookieStream", _broker, "\\w+Cookie");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer((r) -> true);
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createFlushlessKafkaMirrorMakerConnectorTask(task, true, 50, 100,
+            Duration.ofDays(1));
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    for (String topic : cookieTopics) {
+      KafkaMirrorMakerConnectorTestUtils.produceEvents(topic, 1, _kafkaCluster);
+    }
+
+    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getAutoPausedSourcePartitions().size() == cookieTopics.length, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
+        "All topics should have had auto-paused partitions");
+
+    // verify that none of the events were sent because of send error
+    Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
   public void testInFlightMessageCount() throws Exception {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
@@ -1184,17 +1224,15 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     // verify the states response returned by diagnostics endpoint contains correct counts
     KafkaDatastreamStatesResponse statesResponse = connectorTask.getKafkaDatastreamStatesResponse();
-    Assert.assertEquals(statesResponse.getAutoPausedPartitions().size(), 3,
-        "All topics should have had auto-paused partitions");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(yummyTopic, 0)),
         Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(saltyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
+        Long.valueOf(1), "In flight message count for saltyTopic was incorrect");
     Assert.assertEquals(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
+        Long.valueOf(1), "In flight message count for spicyTopic was incorrect");
 
     // verify that none of the events were sent because of send error
     Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");
