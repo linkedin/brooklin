@@ -668,6 +668,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public Datastream get(String name) {
     Datastream stream = null;
     try {
+      LOG.info("Get datastream called for datastream {}", name);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
       stream = _store.getDatastream(name);
     } catch (Exception e) {
