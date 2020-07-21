@@ -6,7 +6,6 @@
 package com.linkedin.datastream.server.zk;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,10 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.I0Itec.zkclient.ZkConnection;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.server.ZooKeeperServer;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -726,7 +722,7 @@ public class TestZkAdapter {
       return _zkClient;
     }
 
-    public class ZkClientMockStateChangeListener extends ZkStateChangeListener {
+    private class ZkClientMockStateChangeListener extends ZkStateChangeListener {
       boolean sessionExpired = false;
       @Override
       public void handleStateChanged(Watcher.Event.KeeperState state) {
@@ -753,7 +749,7 @@ public class TestZkAdapter {
     }
   }
 
-  @Test
+  @Test(enabled = false)
   public void testZookeeperSessionExpiry() throws InterruptedException {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
@@ -767,8 +763,7 @@ public class TestZkAdapter {
     task.setConnectorType(connectorType);
     task.setZkAdapter(adapter);
 
-    List<DatastreamTask> tasks = new ArrayList<>();
-    tasks.add(task);
+    List<DatastreamTask> tasks = Collections.singletonList(task);
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
 
     LOG.info("Acquire from instance1 should succeed");
@@ -782,21 +777,9 @@ public class TestZkAdapter {
   }
 
   private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
-    ZkConnection zkConnection = null;
-    try {
-      Field privateField = ZkClient.class.getSuperclass().getDeclaredField("_connection");
-      privateField.setAccessible(true);
-      zkConnection = (ZkConnection) privateField.get(adapter.getZkClient());
-    } catch (NoSuchFieldException | IllegalAccessException e) {
-      Assert.fail(e.toString());
-    }
-
-    ZooKeeper zookeeper = zkConnection.getZookeeper();
-    long sessionId = zookeeper.getSessionId();
-
-    LOG.info("Closing/expiring session:" + sessionId);
-    ZooKeeperServer zkServer = _embeddedZookeeper.getZooKeeperServer();
-    zkServer.closeSession(sessionId);
+    long sessionId = adapter.getSessionId();
+    LOG.info("Closing/expiring session: " + sessionId);
+    _embeddedZookeeper.closeSession(sessionId);
   }
 
   @Test

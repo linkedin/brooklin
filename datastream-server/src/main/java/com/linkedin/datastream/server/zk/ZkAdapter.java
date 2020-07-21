@@ -131,7 +131,7 @@ public class ZkAdapter {
 
   private final Random randomGenerator = new Random();
 
-  private ZkLeaderElectionListener _leaderElectionListener;
+  private ZkLeaderElectionListener _leaderElectionListener = null;
   private ZkBackedTaskListProvider _assignmentList = null;
   private ZkStateChangeListener _stateChangeListener = null;
 
@@ -142,7 +142,6 @@ public class ZkAdapter {
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
-  private Timer _timer = new Timer();
 
   /**
    * Constructor
@@ -178,8 +177,7 @@ public class ZkAdapter {
   @VisibleForTesting
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
       int connectionTimeoutMs, ZkAdapterListener listener) {
-    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        listener);
+    this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1, listener);
   }
 
   /**
@@ -212,10 +210,7 @@ public class ZkAdapter {
       } catch (ZkException zke) {
         // do nothing, best effort clean up
       } finally {
-        if (_assignmentList != null) {
-          _assignmentList.close();
-          _assignmentList = null;
-        }
+        closeZkListener(true);
         _zkclient.close();
         _zkclient = null;
         _leaderElectionListener = null;
@@ -285,6 +280,34 @@ public class ZkAdapter {
   private void onBecomeFollower() {
     LOG.info("Instance " + _instanceName + " becomes follower");
 
+    closeZkListener(false);
+
+    _isLeader = false;
+  }
+
+  private void closeZkListener(boolean isDisconnect) {
+
+    // Clean the following listeners only during zookeeper disconnect
+    if (isDisconnect) {
+      if (_stateChangeListener != null) {
+        _zkclient.unsubscribeStateChanges(_stateChangeListener);
+        _stateChangeListener = null;
+      }
+
+      if (_assignmentList != null) {
+        _assignmentList.close();
+        _assignmentList = null;
+      }
+
+      if (_currentSubscription != null) {
+        _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
+        _currentSubscription = null;
+      }
+
+      // unsubscribe any other left subscription.
+      _zkclient.unsubscribeAll();
+    }
+
     if (_datastreamList != null) {
       _datastreamList.close();
       _datastreamList = null;
@@ -299,8 +322,6 @@ public class ZkAdapter {
       _targetAssignmentProvider.close();
       _targetAssignmentProvider = null;
     }
-
-    _isLeader = false;
   }
 
   /**
@@ -351,7 +372,7 @@ public class ZkAdapter {
     if (index == 0) {
       // The node at index 0 is a leader and does not have to listen on a previous node anymore.
       if (_currentSubscription != null) {
-        _zkclient.unsubscribeDataChanges(_currentSubscription, _leaderElectionListener);
+        _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
         _currentSubscription = null;
       }
 
@@ -369,7 +390,7 @@ public class ZkAdapter {
     // if the prev candidate is not the current subscription, reset it
     if (!prevCandidate.equals(_currentSubscription)) {
       if (_currentSubscription != null) {
-        _zkclient.unsubscribeDataChanges(_currentSubscription, _leaderElectionListener);
+        _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
       }
 
       _currentSubscription = prevCandidate;
@@ -1541,9 +1562,10 @@ public class ZkAdapter {
    */
   @VisibleForTesting
   class ZkStateChangeListener implements IZkStateListener {
+    private final Timer _timer = new Timer(true);
     @Override
     public void handleStateChanged(Watcher.Event.KeeperState state) {
-      LOG.info("ZkStateChangeListener::handleStateChanged {}", state.toString());
+      LOG.info("ZkStateChangeListener::handleStateChanged {}", state);
       switch (state) {
         case Expired:
           _timer.cancel();
@@ -1551,7 +1573,7 @@ public class ZkAdapter {
           return;
         case Disconnected:
           // Wait for session timeout after disconnect to consider that the session has expired.
-          LOG.warn("ZkStateChangeListener::Got {} event. Scheduling a system stop.", state.toString());
+          LOG.warn("ZkStateChangeListener::Got {} event. Scheduling a system stop.", state);
           scheduleExpiryTimerAfterSessionTimeout();
           return;
         case SyncConnected:
@@ -1572,20 +1594,25 @@ public class ZkAdapter {
     public void handleSessionEstablishmentError(final Throwable error) {
       LOG.error("ZkStateChangeListener::Failed to establish session.", error);
     }
-  }
 
-  private void scheduleExpiryTimerAfterSessionTimeout() {
-    TimerTask timerTask = new TimerTask() {
-      public void run() {
-        onSessionExpired();
-      }
-    };
-    _timer.schedule(timerTask, _sessionTimeoutMs);
+    private void scheduleExpiryTimerAfterSessionTimeout() {
+      TimerTask timerTask = new TimerTask() {
+        public void run() {
+          onSessionExpired();
+        }
+      };
+      _timer.schedule(timerTask, _sessionTimeoutMs);
+    }
   }
 
   @VisibleForTesting
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
     onBecomeFollower();
+  }
+
+  @VisibleForTesting
+  long getSessionId() {
+    return _zkclient.getSessionId(); //getSessionId();_
   }
 }

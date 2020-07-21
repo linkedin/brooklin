@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.common.zk;
 
+
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -21,6 +22,8 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
 
 
 /**
@@ -343,6 +346,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       return null;
     }
     return (T) _zkSerializer.deserialize(data);
+  }
+
+  @VisibleForTesting
+  public long getSessionId() {
+    return ((ZkConnection) _connection).getZookeeper().getSessionId();
   }
 
   private static class ZKStringSerializer implements ZkSerializer {

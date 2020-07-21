@@ -138,6 +138,14 @@ public class EmbeddedZookeeper {
   }
 
   /**
+   * Close the session
+   * @param sessionId sessionId to close
+   */
+  public void closeSession(long sessionId) {
+    _zooKeeperServer.closeSession(sessionId);
+  }
+
+  /**
    * Get connection URI
    */
   public String getConnection() {

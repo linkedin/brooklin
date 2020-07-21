@@ -256,6 +256,7 @@ public class TestCoordinator {
     // should be called once
     //
     PollUtils.poll(() -> taskNames.size() == 1, 500, 30000);
+    Assert.assertEquals(taskNames.size(), 1);
     String name1 = (String) taskNames.toArray()[0];
     String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType, name1, "counter");
     Assert.assertTrue(PollUtils.poll(zkClient::exists, 500, 30000, datastream1CounterPath));
