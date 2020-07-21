@@ -40,10 +40,6 @@ public class EmbeddedZookeeper {
 
   private boolean _started;
 
-  public ZooKeeperServer getZooKeeperServer() {
-    return _zooKeeperServer;
-  }
-
   private ZooKeeperServer _zooKeeperServer;
 
   /**

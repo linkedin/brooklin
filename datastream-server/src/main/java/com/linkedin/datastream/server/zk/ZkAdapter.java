@@ -22,6 +22,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -143,6 +144,8 @@ public class ZkAdapter {
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
 
+  private final AtomicBoolean resetSession = new AtomicBoolean(false);
+
   /**
    * Constructor
    * @param zkServers ZooKeeper server address to connect to
@@ -224,14 +227,6 @@ public class ZkAdapter {
     return new ZkClient(_zkServers, _sessionTimeoutMs, _connectionTimeoutMs, _operationRetryTimeoutMs);
   }
 
-  @VisibleForTesting
-  ZkStateChangeListener getOrCreateStateChangeListener() {
-    if (_stateChangeListener == null) {
-      _stateChangeListener = new ZkStateChangeListener();
-    }
-    return _stateChangeListener;
-  }
-
   /**
    * Connect the adapter so that it can connect and bridge events between ZooKeeper changes and
    * the actions that need to be taken with them, which are implemented in the Coordinator class
@@ -239,7 +234,7 @@ public class ZkAdapter {
   public void connect() {
     disconnect(); // Guard against leaking an existing zookeeper session
     _zkclient = createZkClient();
-    _zkclient.subscribeStateChanges(getOrCreateStateChangeListener());
+    _stateChangeListener = new ZkStateChangeListener();
     _leaderElectionListener = new ZkLeaderElectionListener();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
@@ -290,7 +285,7 @@ public class ZkAdapter {
     // Clean the following listeners only during zookeeper disconnect
     if (isDisconnect) {
       if (_stateChangeListener != null) {
-        _zkclient.unsubscribeStateChanges(_stateChangeListener);
+        _stateChangeListener.close();
         _stateChangeListener = null;
       }
 
@@ -1313,7 +1308,7 @@ public class ZkAdapter {
     /**
      * Sets up a watch on the {@code /{cluster}/dms} tree, so it can be notified of future changes.
      */
-    private ZkBackedDMSDatastreamList() {
+    public ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
       LOG.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
@@ -1324,7 +1319,7 @@ public class ZkAdapter {
     /**
      * Unsubscribe from all datastream changes in the cluster
      */
-    private void close() {
+    public void close() {
       LOG.info("ZkBackedDMSDatastreamList::Unsubscribing to the changes under the path " + _path);
       _zkclient.unsubscribeChildChanges(_path, this);
       _zkclient.unsubscribeDataChanges(_path, this);
@@ -1386,8 +1381,8 @@ public class ZkAdapter {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
-      _zkclient.subscribeChildChanges(_path, this);
       _liveInstances = getLiveInstanceNames(_zkclient.getChildren(_path));
+      _zkclient.subscribeChildChanges(_path, this);
     }
 
     // translate list of node names in the form of sequence number to list of instance names
@@ -1414,7 +1409,7 @@ public class ZkAdapter {
       _zkclient.unsubscribeChildChanges(_path, this);
     }
 
-    private List<String> getLiveInstances() {
+    public List<String> getLiveInstances() {
       return _liveInstances;
     }
 
@@ -1506,7 +1501,7 @@ public class ZkAdapter {
    * ZkTargetAssignmentProvider detect if there is a partition movement being intiated from restful endpoint
    */
   private class ZkTargetAssignmentProvider implements IZkDataListener {
-    Set<String> _listenedConnectors = new HashSet<>();
+    private final Set<String> _listenedConnectors = new HashSet<>();
     /**
      * Constructor
      */
@@ -1562,23 +1557,29 @@ public class ZkAdapter {
    */
   @VisibleForTesting
   class ZkStateChangeListener implements IZkStateListener {
-    private final Timer _timer = new Timer(true);
+    private Timer _timer;
+
+    public ZkStateChangeListener() {
+      _zkclient.subscribeStateChanges(this);
+    }
+
     @Override
     public void handleStateChanged(Watcher.Event.KeeperState state) {
       LOG.info("ZkStateChangeListener::handleStateChanged {}", state);
       switch (state) {
         case Expired:
-          _timer.cancel();
+          cancelTimer();
           onSessionExpired();
           return;
         case Disconnected:
           // Wait for session timeout after disconnect to consider that the session has expired.
           LOG.warn("ZkStateChangeListener::Got {} event. Scheduling a system stop.", state);
           scheduleExpiryTimerAfterSessionTimeout();
+          resetSession.set(true);
           return;
         case SyncConnected:
           LOG.info("ZkStateChangeListener::Connected. Canceling timer.");
-          _timer.cancel();
+          cancelTimer();
           return;
         default:
           // Ignoring AuthFailed for now.
@@ -1595,24 +1596,41 @@ public class ZkAdapter {
       LOG.error("ZkStateChangeListener::Failed to establish session.", error);
     }
 
+    public void close() {
+      _zkclient.unsubscribeStateChanges(this);
+    }
+
     private void scheduleExpiryTimerAfterSessionTimeout() {
+      if (_timer == null) {
+        _timer = new Timer(true);
+      }
       TimerTask timerTask = new TimerTask() {
         public void run() {
-          onSessionExpired();
+          if (resetSession.get()) {
+            onSessionExpired();
+          }
         }
       };
       _timer.schedule(timerTask, _sessionTimeoutMs);
+    }
+
+    private void cancelTimer() {
+      if (_timer != null) {
+        _timer.cancel();
+        _timer = null;
+      }
     }
   }
 
   @VisibleForTesting
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
+    resetSession.set(false);
     onBecomeFollower();
   }
 
   @VisibleForTesting
   long getSessionId() {
-    return _zkclient.getSessionId(); //getSessionId();_
+    return _zkclient.getSessionId();
   }
 }

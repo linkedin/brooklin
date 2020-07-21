@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.zk;
 
+
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -16,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.zookeeper.Watcher;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -708,7 +708,6 @@ public class TestZkAdapter {
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
     private ZkClient _zkClient;
-    private ZkClientMockStateChangeListener _zkClientMockStateChangeListener;
 
     public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
         int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, ZkAdapterListener listener) {
@@ -722,30 +721,8 @@ public class TestZkAdapter {
       return _zkClient;
     }
 
-    private class ZkClientMockStateChangeListener extends ZkStateChangeListener {
-      boolean sessionExpired = false;
-      @Override
-      public void handleStateChanged(Watcher.Event.KeeperState state) {
-        super.handleStateChanged(state);
-        if (state == Watcher.Event.KeeperState.Expired) {
-          LOG.info("ZkStateChangeListener::Session expired.");
-          sessionExpired = true;
-        }
-      }
-    }
-
-    @Override
-    ZkStateChangeListener getOrCreateStateChangeListener() {
-      _zkClientMockStateChangeListener = spy(new ZkClientMockStateChangeListener());
-      return _zkClientMockStateChangeListener;
-    }
-
     public ZkClient getZkClient() {
       return _zkClient;
-    }
-
-    public ZkClientMockStateChangeListener getZkStateChangeListener() {
-      return _zkClientMockStateChangeListener;
     }
   }
 
@@ -772,7 +749,6 @@ public class TestZkAdapter {
     simulateSessionExpiration(adapter);
 
     Thread.sleep(5000);
-    Assert.assertTrue(adapter.getZkStateChangeListener().sessionExpired);
     Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
   }
 

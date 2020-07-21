@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.common.zk;
 
-
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
