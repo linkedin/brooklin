@@ -663,7 +663,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
-
+    boolean isLeader = _adapter.isLeader();
+    if (!isLeader && isLeaderEvent(event.getType())) {
+      _log.info("Skipping event {} isLeader {}", event.getType(), isLeader);
+      return;
+    }
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
@@ -719,6 +723,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _log.info("END: Handle event " + event);
+  }
+
+  private boolean isLeaderEvent(CoordinatorEvent.EventType eventType) {
+    switch (eventType) {
+      case LEADER_DO_ASSIGNMENT:
+      case HANDLE_ADD_OR_DELETE_DATASTREAM:
+      case LEADER_PARTITION_ASSIGNMENT:
+      case LEADER_PARTITION_MOVEMENT:
+        return true;
+      default:
+        return false;
+    }
   }
 
   // when we encounter an error, we need to persist the error message in ZooKeeper. We only persist the
