@@ -749,7 +749,7 @@ public class TestZkAdapter {
     }
   }
 
-  @Test(enabled = false)
+  @Test
   public void testZookeeperSessionExpiry() throws InterruptedException {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
