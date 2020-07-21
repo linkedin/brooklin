@@ -666,21 +666,22 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public Datastream get(String name) {
+    Datastream stream = null;
     try {
-      LOG.info("Get datastream called for datastream {}", name);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
-      Instant startTime = Instant.now();
-      Datastream stream = _store.getDatastream(name);
-      LOG.info("Get datastream call took {} ms", Duration.between(startTime, Instant.now()).toMillis());
-      return stream;
+      stream = _store.getDatastream(name);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Get datastream failed for datastream: " + name, e);
     }
 
-    // Returning null will automatically trigger a 404 Not Found response
-    return null;
+    if (stream == null) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Datastream not found: " + name);
+    }
+
+    return stream;
   }
 
   @SuppressWarnings("deprecated")
