@@ -1555,8 +1555,7 @@ public class ZkAdapter {
   /**
    * Listener for ZooKeeper state changes.
    */
-  @VisibleForTesting
-  class ZkStateChangeListener implements IZkStateListener {
+  private class ZkStateChangeListener implements IZkStateListener {
     private Timer _timer;
 
     public ZkStateChangeListener() {
