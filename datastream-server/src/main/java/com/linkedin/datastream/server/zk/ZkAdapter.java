@@ -18,11 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -143,8 +145,6 @@ public class ZkAdapter {
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
-
-  private final AtomicBoolean resetSession = new AtomicBoolean(false);
 
   /**
    * Constructor
@@ -273,10 +273,13 @@ public class ZkAdapter {
   }
 
   private void onBecomeFollower() {
+    if (!_isLeader) {
+      return;
+    }
+
     LOG.info("Instance " + _instanceName + " becomes follower");
 
     closeZkListener(false);
-
     _isLeader = false;
   }
 
@@ -1556,7 +1559,9 @@ public class ZkAdapter {
    * Listener for ZooKeeper state changes.
    */
   private class ZkStateChangeListener implements IZkStateListener {
-    private Timer _timer;
+    private final ScheduledExecutorService _scheduledExecutorService = Executors.newScheduledThreadPool(1,
+        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("SessionExpiryScheduler-%d").build());
+    private Future<?> _zkSessionExpiryFuture = CompletableFuture.completedFuture("completed");
 
     public ZkStateChangeListener() {
       _zkclient.subscribeStateChanges(this);
@@ -1567,18 +1572,17 @@ public class ZkAdapter {
       LOG.info("ZkStateChangeListener::handleStateChanged {}", state);
       switch (state) {
         case Expired:
-          cancelTimer();
+          _zkSessionExpiryFuture.cancel(false);
           onSessionExpired();
           return;
         case Disconnected:
           // Wait for session timeout after disconnect to consider that the session has expired.
           LOG.warn("ZkStateChangeListener::Got {} event. Scheduling a system stop.", state);
           scheduleExpiryTimerAfterSessionTimeout();
-          resetSession.set(true);
           return;
         case SyncConnected:
           LOG.info("ZkStateChangeListener::Connected. Canceling timer.");
-          cancelTimer();
+          _zkSessionExpiryFuture.cancel(false);
           return;
         default:
           // Ignoring AuthFailed for now.
@@ -1600,31 +1604,15 @@ public class ZkAdapter {
     }
 
     private void scheduleExpiryTimerAfterSessionTimeout() {
-      if (_timer == null) {
-        _timer = new Timer(true);
-      }
-      TimerTask timerTask = new TimerTask() {
-        public void run() {
-          if (resetSession.get()) {
-            onSessionExpired();
-          }
-        }
-      };
-      _timer.schedule(timerTask, _sessionTimeoutMs);
-    }
-
-    private void cancelTimer() {
-      if (_timer != null) {
-        _timer.cancel();
-        _timer = null;
-      }
+      _zkSessionExpiryFuture =
+          _scheduledExecutorService.schedule(ZkAdapter.this::onSessionExpired, _sessionTimeoutMs,
+              TimeUnit.MILLISECONDS);
     }
   }
 
   @VisibleForTesting
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
-    resetSession.set(false);
     onBecomeFollower();
   }
 
