@@ -68,7 +68,6 @@ import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
-import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -878,7 +877,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _adapter.deleteDatastream(ds.getName());
   }
 
-  private String createTopic(Datastream datastream) throws TransportException {
+  private void createTopic(Datastream datastream) {
     _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
 
     // For deduped datastreams, all destination-related metadata have been copied by
@@ -898,8 +897,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
       }
     }
-
-    return datastream.getDestination().getConnectionString();
   }
 
   private void deleteTopic(Datastream datastream) {
@@ -1017,7 +1014,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param datastreamGroupName the datastreamGroup that needs to perform the partition assignment
    */
   private void performPartitionAssignment(String datastreamGroupName) {
-    boolean succeeded = false;
+    boolean succeeded;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
