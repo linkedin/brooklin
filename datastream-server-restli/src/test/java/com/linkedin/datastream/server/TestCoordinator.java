@@ -2194,7 +2194,15 @@ public class TestCoordinator {
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
     // Poll up to 30s for stream1 to get deleted
-    PollUtils.poll(() -> setup._resource.get(streams[0].getName()) == null, 200, Duration.ofSeconds(30).toMillis());
+    PollUtils.poll(() -> {
+      try {
+        setup._resource.get(streams[0].getName());
+        return false;
+      } catch (RestLiServiceException e) {
+        Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
+        return true;
+      }
+    }, 200, Duration.ofSeconds(30).toMillis());
   }
 
   @Test
