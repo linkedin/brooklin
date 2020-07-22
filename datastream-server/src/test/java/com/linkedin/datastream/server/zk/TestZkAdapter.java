@@ -697,8 +697,12 @@ public class TestZkAdapter {
   }
 
   private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster) {
-    return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    return createInterceptingZkAdapter(testCluster, ZkClient.DEFAULT_SESSION_TIMEOUT);
+  }
+
+  private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster, int sessionTimeoutMs) {
+    return spy(new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        sessionTimeoutMs, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null));
   }
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
@@ -719,6 +723,38 @@ public class TestZkAdapter {
     public ZkClient getZkClient() {
       return _zkClient;
     }
+  }
+
+  @Test
+  public void testZookeeperSessionExpiry() throws InterruptedException {
+    String testCluster = "testDeleteTaskWithPrefix";
+    String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000);
+    adapter.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter);
+
+    List<DatastreamTask> tasks = Collections.singletonList(task);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
+
+    simulateSessionExpiration(adapter);
+
+    Thread.sleep(5000);
+    Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
+  }
+
+  private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
+    long sessionId = adapter.getSessionId();
+    LOG.info("Closing/expiring session: " + sessionId);
+    _embeddedZookeeper.closeSession(sessionId);
   }
 
   @Test
