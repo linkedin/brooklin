@@ -40,6 +40,8 @@ public class EmbeddedZookeeper {
 
   private boolean _started;
 
+  private ZooKeeperServer _zooKeeperServer;
+
   /**
    * Construct an EmbeddedZookeeper bound to a random port
    */
@@ -96,7 +98,8 @@ public class EmbeddedZookeeper {
     }
 
     try {
-      _factory.startup(new ZooKeeperServer(this._snapshotDir, this._logDir, this._tickTime));
+      _zooKeeperServer = new ZooKeeperServer(this._snapshotDir, this._logDir, this._tickTime);
+      _factory.startup(_zooKeeperServer);
       _started = true;
     } catch (InterruptedException e) {
       throw new IOException(e);
@@ -127,6 +130,15 @@ public class EmbeddedZookeeper {
       // ignore
     }
     _started = false;
+    _zooKeeperServer = null;
+  }
+
+  /**
+   * Close the session
+   * @param sessionId sessionId to close
+   */
+  public void closeSession(long sessionId) {
+    _zooKeeperServer.closeSession(sessionId);
   }
 
   /**

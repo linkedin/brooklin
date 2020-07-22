@@ -89,5 +89,4 @@ public final class CoordinatorConfig {
   public boolean getZkCleanUpOrphanConnectorTask() {
     return _zkCleanUpOrphanConnectorTask;
   }
-
 }
