@@ -98,8 +98,8 @@ public class KafkaTopicPartitionTracker {
       List<? extends ConsumerRecord<?, ?>> partitionRecords = consumerRecords.records(topicPartition);
       ConsumerRecord<?, ?> lastRecord = partitionRecords.get(partitionRecords.size() - 1);
 
-      Map<Integer, Long> partitionOffsetMap = _consumerOffsets.putIfAbsent(topicPartition.topic(),
-          new ConcurrentHashMap<>());
+      Map<Integer, Long> partitionOffsetMap = _consumerOffsets.computeIfAbsent(topicPartition.topic(),
+          k -> new ConcurrentHashMap<>());
       partitionOffsetMap.put(topicPartition.partition(), lastRecord.offset());
     });
   }
