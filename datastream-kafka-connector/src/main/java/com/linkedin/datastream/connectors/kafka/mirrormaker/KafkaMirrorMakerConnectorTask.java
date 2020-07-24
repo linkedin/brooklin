@@ -49,7 +49,6 @@ import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
 import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
-import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.kafka.KafkaPassthroughRecordMagicConverter;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -121,6 +120,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   // variables for flushless mode and flow control
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
+  private final boolean _isPassthroughEnabled;
   private final boolean _enablePartitionAssignment;
   private final String _destinationTopicPrefix;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
@@ -147,6 +147,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
     _connectorName = connectorName;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
+    _isPassthroughEnabled = KafkaMirrorMakerDatastreamMetadata.isPassthroughEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
@@ -244,8 +245,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
-    if (Boolean.TRUE.toString()
-        .equals(_datastream.getMetadata().get(KafkaDatastreamMetadataConstants.USE_PASSTHROUGH_COMPRESSION))) {
+    if (_isPassthroughEnabled) {
       // If passthrough mode is enabled, we need to create a Kafka header on the transport side for supporting
       // Kafka broker message format bump. The magic byte contains details about the message format for the passthrough
       // record and it needs to be preserved and set via the Kafka headers to ensure that the correct message format

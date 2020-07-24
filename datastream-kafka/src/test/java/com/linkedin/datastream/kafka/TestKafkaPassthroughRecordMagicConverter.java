@@ -18,21 +18,17 @@ public class TestKafkaPassthroughRecordMagicConverter {
 
   @Test
   public void testMagicConversion() {
-    String magicValue0 = KafkaPassthroughRecordMagicConverter.convertMagicToString(RecordBatch.MAGIC_VALUE_V0);
-    Assert.assertEquals(new byte[] { RecordBatch.MAGIC_VALUE_V0 },
-        KafkaPassthroughRecordMagicConverter.convertMagicStringToByteArray(magicValue0));
+    byte[] magics = {
+        RecordBatch.MAGIC_VALUE_V0,
+        RecordBatch.MAGIC_VALUE_V1,
+        RecordBatch.MAGIC_VALUE_V2,
+        RecordBatch.CURRENT_MAGIC_VALUE
+    };
 
-    String magicValue1 = KafkaPassthroughRecordMagicConverter.convertMagicToString(RecordBatch.MAGIC_VALUE_V1);
-    Assert.assertEquals(new byte[] { RecordBatch.MAGIC_VALUE_V1 },
-        KafkaPassthroughRecordMagicConverter.convertMagicStringToByteArray(magicValue1));
-
-    String magicValue2 = KafkaPassthroughRecordMagicConverter.convertMagicToString(RecordBatch.MAGIC_VALUE_V2);
-    Assert.assertEquals(new byte[] { RecordBatch.MAGIC_VALUE_V2 },
-        KafkaPassthroughRecordMagicConverter.convertMagicStringToByteArray(magicValue2));
-
-    String magicValueCurrent =
-        KafkaPassthroughRecordMagicConverter.convertMagicToString(RecordBatch.CURRENT_MAGIC_VALUE);
-    Assert.assertEquals(new byte[] { RecordBatch.CURRENT_MAGIC_VALUE },
-        KafkaPassthroughRecordMagicConverter.convertMagicStringToByteArray(magicValueCurrent));
+    for (byte magic : magics) {
+      String magicString = KafkaPassthroughRecordMagicConverter.convertMagicToString(magic);
+      Assert.assertEquals(new byte[] { magic },
+          KafkaPassthroughRecordMagicConverter.convertMagicStringToByteArray(magicString));
+    }
   }
 }
