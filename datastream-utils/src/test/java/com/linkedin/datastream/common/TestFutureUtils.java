@@ -17,35 +17,38 @@ import org.testng.annotations.Test;
 /**
  * Tests for {@link FutureUtils}
  */
+@Test
 public class TestFutureUtils {
 
   @Test
   public void withinFutureTimesOutAfterDuration() throws ExecutionException, InterruptedException {
-    runAndVerifyTimeoutFuture(10000, 10, true);
-    runAndVerifyTimeoutFuture(5, 10, false);
+    runAndVerifyTimeoutFuture(Duration.ofMillis(10000), Duration.ofMillis(10), true);
+    runAndVerifyTimeoutFuture(Duration.ofMillis(5), Duration.ofMillis(10), false);
   }
 
-  private void runAndVerifyTimeoutFuture(long futureRunTime, long timeout, boolean expectedException)
+  private void runAndVerifyTimeoutFuture(Duration futureRunTime, Duration timeout, boolean expectException)
       throws ExecutionException, InterruptedException {
     CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
       try {
-        Thread.sleep(futureRunTime);
+        Thread.sleep(futureRunTime.toMillis());
         return 10;
       } catch (Exception ex) {
         throw new RuntimeException();
       }
     });
 
-    boolean exception = false;
-    FutureUtils.getIfDoneOrCancel(future, Duration.ofMillis(timeout));
+    boolean exceptionThrown = false;
+    FutureUtils.getIfDoneOrCancel(future, timeout);
     try {
       future.join();
     } catch (Exception ex) {
       Assert.assertTrue(ex instanceof CancellationException);
-      exception = true;
+      exceptionThrown = true;
     }
-    Assert.assertEquals(exception, expectedException);
-    if (!exception) {
+    Assert.assertTrue(future.isDone());
+    Assert.assertEquals(exceptionThrown, expectException);
+    Assert.assertEquals(future.isCompletedExceptionally(), expectException);
+    if (!exceptionThrown) {
       Assert.assertEquals((Integer) 10, future.get());
     }
   }

@@ -157,6 +157,7 @@ project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
     compile "com.101tec:zkclient:$zkclientVersion"
+    compile "com.google.guava:guava:$guavaVersion"
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-testcommon')
   }
