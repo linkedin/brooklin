@@ -37,9 +37,9 @@ public class FutureUtils {
    * executor thread, or call {@link CompletableFuture#supplyAsync(Supplier)} or {@link CompletableFuture#supplyAsync(Supplier, Executor)}
    * which uses another thread to execute and does not block the main executor thread.
    * @param future {@code future} to check/cancel
-   * @param after time to wait before aborting {@code future}
+   * @param after time to wait before checking/aborting {@code future} if necessary
    * @return {@link CompletableFuture} completed with computed result of {@code future}, if {@code future} was done after {@code after} elapsed.
-   *         {@link CompletableFuture} completed exceptionally with {@link InterruptedException}, if the thread retrieve the
+   *         {@link CompletableFuture} completed exceptionally with {@link InterruptedException}, if the thread retrieving the
    *         result of the {@code future} was interrupted.
    *         {@link CompletableFuture} completed exceptionally with the exception thrown by {@code future}'s computation if it threw one.
    *         {@link CompletableFuture} cancelled, if {@code future}'s computation was cancelled before it completed normally.
@@ -47,6 +47,7 @@ public class FutureUtils {
    */
   public static <T> CompletableFuture<T> getIfDoneOrCancel(Future<T> future, Duration after) {
     Validate.notNull(future);
+    Validate.notNull(after);
 
     CompletableFuture<T> result = new CompletableFuture<>();
 

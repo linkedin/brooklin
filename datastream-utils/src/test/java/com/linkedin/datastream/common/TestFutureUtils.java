@@ -38,18 +38,27 @@ public class TestFutureUtils {
     });
 
     boolean exceptionThrown = false;
-    FutureUtils.getIfDoneOrCancel(future, timeout);
+    long startTime = System.currentTimeMillis();
+    long endTime;
+    CompletableFuture<Integer> result = FutureUtils.getIfDoneOrCancel(future, timeout);
     try {
-      future.join();
+      result.join();
+      endTime = System.currentTimeMillis();
     } catch (Exception ex) {
+      endTime = System.currentTimeMillis();
       Assert.assertTrue(ex instanceof CancellationException);
       exceptionThrown = true;
     }
     Assert.assertTrue(future.isDone());
     Assert.assertEquals(exceptionThrown, expectException);
     Assert.assertEquals(future.isCompletedExceptionally(), expectException);
+    Assert.assertTrue(result.isDone());
+    Assert.assertEquals(result.isCancelled(), expectException);
     if (!exceptionThrown) {
       Assert.assertEquals((Integer) 10, future.get());
+      Assert.assertEquals((Integer) 10, result.get());
+    } else {
+      Assert.assertTrue((endTime - startTime) < futureRunTime.toMillis());
     }
   }
 }
