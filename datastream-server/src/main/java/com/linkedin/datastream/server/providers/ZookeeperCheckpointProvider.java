@@ -112,7 +112,9 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   @Override
   public void flush() {
+    LOG.info("Flushing checkpoints for {} datatstream tasks to ZooKeeper", _checkpointsToCommit.size());
     _checkpointsToCommit.keySet().forEach(this::writeCheckpointsToStore);
+    LOG.info("Flushing checkpoints to ZooKeeper completed successfully");
   }
 
   private Map<Integer, String> mergeAndGetSafeCheckpoints(DatastreamTask task, Map<Integer, String> safeCheckpoints) {

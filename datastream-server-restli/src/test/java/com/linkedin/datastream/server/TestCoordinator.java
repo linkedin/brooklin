@@ -74,6 +74,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.BatchUpdateRequest;
 import com.linkedin.restli.server.CreateResponse;
@@ -101,6 +102,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link Coordinator}
  */
+@Test
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
@@ -174,6 +176,19 @@ public class TestCoordinator {
     _embeddedZookeeper.shutdown();
   }
 
+  @Test
+  public void testRegistersMetricsCorrectly() throws Exception {
+    String testCluster = "testCoordinatorMetrics";
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    // Make sure the set of metrics the Coordinator registers with the DynamicMetricsManager
+    // matches the metricInfos the Coordinator returns from getMetricInfos().
+    MetricsTestUtils.verifyMetrics(coordinator, DynamicMetricsManager.getInstance());
+
+    coordinator.stop();
+  }
+
   /**
    * testConnectorStateSetAndGet makes sure that the connector can read and write state that
    * is specific to each DatastreamTask.
@@ -241,6 +256,7 @@ public class TestCoordinator {
     // should be called once
     //
     PollUtils.poll(() -> taskNames.size() == 1, 500, 30000);
+    Assert.assertEquals(taskNames.size(), 1);
     String name1 = (String) taskNames.toArray()[0];
     String datastream1CounterPath = KeyBuilder.datastreamTaskStateKey(testCluster, testConnectorType, name1, "counter");
     Assert.assertTrue(PollUtils.poll(zkClient::exists, 500, 30000, datastream1CounterPath));
@@ -2090,7 +2106,8 @@ public class TestCoordinator {
       return null;
     }).when(dynMM).createOrUpdateCounter(anyString(), anyObject(), anyLong());
 
-    ReflectionUtils.setField(coordinator, "_dynamicMetricsManager", dynMM);
+    Object metrics = ReflectionUtils.getField(coordinator, "_metrics");
+    ReflectionUtils.setField(metrics, "_dynamicMetricsManager", dynMM);
 
     coordinator.start();
 
@@ -2178,7 +2195,15 @@ public class TestCoordinator {
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
     // Poll up to 30s for stream1 to get deleted
-    PollUtils.poll(() -> setup._resource.get(streams[0].getName()) == null, 200, Duration.ofSeconds(30).toMillis());
+    PollUtils.poll(() -> {
+      try {
+        setup._resource.get(streams[0].getName());
+        return false;
+      } catch (RestLiServiceException e) {
+        Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
+        return true;
+      }
+    }, 200, Duration.ofSeconds(30).toMillis());
   }
 
   @Test

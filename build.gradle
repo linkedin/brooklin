@@ -21,7 +21,9 @@ allprojects {
 
   repositories {
     mavenCentral()
-    jcenter()
+    maven {
+      url  "https://linkedin.bintray.com/maven"
+    }
     mavenLocal()
   }
 }
@@ -147,6 +149,7 @@ project(':datastream-server-api') {
   dependencies {
     compile project(':datastream-common')
     compile project(':datastream-utils')
+    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
   }
 }
 
@@ -183,7 +186,7 @@ project(':datastream-directory') {
 
 project(':datastream-kafka') {
   dependencies {
-    compile "org.apache.kafka:kafka_$scalaVersion:$kafkaVersion"
+    compile "com.linkedin.kafka:kafka_$scalaVersion:$kafkaVersion"
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
@@ -218,6 +221,7 @@ project(':datastream-kafka-factory-impl') {
 project(':datastream-kafka-connector') {
   dependencies {
     compile project(':datastream-server-api')
+    compile project(':datastream-kafka')
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
@@ -244,6 +248,7 @@ project(':datastream-testcommon') {
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "org.testng:testng:$testngVersion"
+    compile "com.google.guava:guava:$guavaVersion"
   }
 }
 
@@ -319,7 +324,7 @@ project(':datastream-server') {
     compile project(':datastream-client')
 
     testCompile project(':datastream-kafka')
-    testCompile "org.apache.kafka:kafka_$scalaVersion:$kafkaVersion"
+    testCompile "com.linkedin.kafka:kafka_$scalaVersion:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
@@ -353,7 +358,7 @@ project(':datastream-server-restli') {
     compile project(':datastream-common')
 
     testCompile project(':datastream-kafka')
-    testCompile "org.apache.kafka:kafka_$scalaVersion:$kafkaVersion"
+    testCompile "com.linkedin.kafka:kafka_$scalaVersion:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-file-connector')
     testCompile project(':datastream-testcommon')
