@@ -8,6 +8,7 @@ package com.linkedin.datastream.connectors.kafka.mirrormaker;
 import java.util.Optional;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 
 
 /**
@@ -23,6 +24,15 @@ public final class KafkaMirrorMakerDatastreamMetadata {
   public static boolean isIdentityPartitioningEnabled(Datastream datastream) {
     return Boolean.parseBoolean(Optional.ofNullable(datastream)
         .map(d -> d.getMetadata().get(IDENTITY_PARTITIONING_ENABLED))
+        .orElse(Boolean.FALSE.toString()));
+  }
+
+  /**
+   * Getter for whether passthrough is enabled for this datastream. The default is false.
+   */
+  public static boolean isPassthroughEnabled(Datastream datastream) {
+    return Boolean.parseBoolean(Optional.ofNullable(datastream)
+        .map(d -> d.getMetadata().get(KafkaDatastreamMetadataConstants.USE_PASSTHROUGH_COMPRESSION))
         .orElse(Boolean.FALSE.toString()));
   }
 }

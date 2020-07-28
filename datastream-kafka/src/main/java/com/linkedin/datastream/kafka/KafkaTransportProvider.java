@@ -17,6 +17,7 @@ import org.apache.commons.lang3.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,6 +104,7 @@ public class KafkaTransportProvider implements TransportProvider {
 
     byte[] keyValue = null;
     byte[] payloadValue = new byte[0];
+    RecordHeaders recordHeaders = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
       if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
@@ -112,6 +114,10 @@ public class KafkaTransportProvider implements TransportProvider {
       if (envelope.value().isPresent() && envelope.value().get() instanceof byte[]) {
         payloadValue = (byte[]) envelope.value().get();
       }
+
+      String magic = envelope.getMetadata().getOrDefault(KafkaPassthroughRecordMagicConverter.PASS_THROUGH_MAGIC_VALUE,
+          null);
+      recordHeaders = KafkaPassthroughRecordMagicConverter.convertMagicStringToRecordHeaders(magic);
     } else if (event instanceof byte[]) {
       payloadValue = (byte[]) event;
     }
