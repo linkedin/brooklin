@@ -7,7 +7,7 @@ package com.linkedin.datastream.cloud.storage.io;
 
 import java.io.IOException;
 
-import com.linkedin.datastream.cloud.storage.Package;
+import com.linkedin.datastream.common.Package;
 
 /**
  * File interface that should be implemented to support different file formats. Examples, SequenceFile, Parquet

@@ -18,8 +18,8 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
+import com.linkedin.datastream.common.SendCallback;
 
 import static com.linkedin.datastream.server.FlushlessEventProducerHandler.SourcePartition;
 

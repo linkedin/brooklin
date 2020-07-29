@@ -16,11 +16,11 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
 /**

@@ -17,9 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.cloud.storage.committer.ObjectCommitter;
+
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
 import com.linkedin.datastream.common.DatastreamTransientException;
+import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 
 /**
  * This is an Object Builder that writes events to the local files before submitting it for the commit to cloud storage.

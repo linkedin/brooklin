@@ -25,7 +25,7 @@ import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 
-import com.linkedin.datastream.cloud.storage.Package;
+import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**

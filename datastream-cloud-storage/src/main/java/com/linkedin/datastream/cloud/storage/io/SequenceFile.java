@@ -15,7 +15,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile.Writer;
 
-import com.linkedin.datastream.cloud.storage.Package;
+import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**

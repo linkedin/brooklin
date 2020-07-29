@@ -8,9 +8,10 @@ package com.linkedin.datastream.cloud.storage.committer;
 import java.util.List;
 
 import com.linkedin.datastream.cloud.storage.CommitCallback;
+
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 /**
  * This is an Noop Object Committer that simply discards the files to commit, analogous to /dev/null.

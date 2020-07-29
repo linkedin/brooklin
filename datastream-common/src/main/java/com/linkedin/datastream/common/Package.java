@@ -3,9 +3,7 @@
  *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
  *  See the NOTICE file in the project root for additional information regarding copyright ownership.
  */
-package com.linkedin.datastream.cloud.storage;
-
-import com.linkedin.datastream.server.api.transport.SendCallback;
+package com.linkedin.datastream.common;
 
 /**
  * Record and it's associated metadata
@@ -28,7 +26,7 @@ public class Package extends PackageTracking {
     private String _topic;
     private int _partition;
     private long _offset;
-    private String _timestamp;
+    private long _timestamp;
     private String _checkpoint;
 
     private Package() {
@@ -94,7 +92,7 @@ public class Package extends PackageTracking {
      * get the timestamp
      * @return timestamp
      */
-    public String getTimestamp() {
+    public long getTimestamp() {
         validateCall();
         return _timestamp;
     }
@@ -156,14 +154,14 @@ public class Package extends PackageTracking {
     }
 
     /**
-     * Builder class for {@link com.linkedin.datastream.cloud.storage.Package}
+     * Builder class for {@link Package}
      */
     public static class PackageBuilder {
         private Record _record;
         private String _topic;
         private String _partition;
         private String _offset;
-        private String _timestamp;
+        private long _timestamp;
         private String _destination;
         private SendCallback _ackCallback;
         private String _checkpoint;
@@ -203,7 +201,7 @@ public class Package extends PackageTracking {
         /**
          * Set source timestamp
          */
-        public PackageBuilder setTimestamp(String timestamp) {
+        public PackageBuilder setTimestamp(long timestamp) {
             this._timestamp = timestamp;
             return this;
         }

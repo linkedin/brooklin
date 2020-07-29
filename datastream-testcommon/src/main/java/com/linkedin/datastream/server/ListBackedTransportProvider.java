@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
-import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
 

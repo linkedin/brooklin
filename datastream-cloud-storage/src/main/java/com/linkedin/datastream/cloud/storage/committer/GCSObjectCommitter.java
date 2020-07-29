@@ -35,13 +35,14 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
-
 import com.linkedin.datastream.cloud.storage.CommitCallback;
+
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
 import com.linkedin.datastream.common.DatastreamTransientException;
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.common.VerifiableProperties;
+
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 /**
  * This is an GCS Object Committer that will commit given files to google cloud storage.

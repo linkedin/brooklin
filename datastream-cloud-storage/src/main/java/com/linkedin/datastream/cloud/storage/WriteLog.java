@@ -18,13 +18,13 @@ import com.codahale.metrics.Meter;
 import com.linkedin.datastream.cloud.storage.committer.ObjectCommitter;
 import com.linkedin.datastream.cloud.storage.io.File;
 
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
+import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
-
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
 
 /**
  * This class writes the messages to local file. Which can be committed to cloud storage later.

@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.api.transport;
 
+import com.linkedin.datastream.common.SendCallback;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 
 

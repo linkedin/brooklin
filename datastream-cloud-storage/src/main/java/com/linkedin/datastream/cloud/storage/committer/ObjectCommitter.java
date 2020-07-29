@@ -8,8 +8,9 @@ package com.linkedin.datastream.cloud.storage.committer;
 import java.util.List;
 
 import com.linkedin.datastream.cloud.storage.CommitCallback;
-import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
-import com.linkedin.datastream.server.api.transport.SendCallback;
+
+import com.linkedin.datastream.common.DatastreamRecordMetadata;
+import com.linkedin.datastream.common.SendCallback;
 
 /**
  * Cloud Storage Committer interface that should be implemented to commit files to specific cloud provider storage.
