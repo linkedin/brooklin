@@ -19,6 +19,6 @@ public class KafkaTransportProviderAdminFactory implements TransportProviderAdmi
   @Override
   public TransportProviderAdmin createTransportProviderAdmin(String transportProviderName,
       Properties transportProviderProperties) {
-      return new KafkaTransportProviderAdmin(transportProviderName, transportProviderProperties);
+      return new KafkaTransportProviderAdmin<byte[], byte[]>(transportProviderName, transportProviderProperties);
   }
 }

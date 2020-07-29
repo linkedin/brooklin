@@ -54,10 +54,10 @@ public class TestKafkaConnectorUtils {
   /**
    * Create a Kafka transport provider admin for an embedded Kafka cluster
    */
-  public static KafkaTransportProviderAdmin createKafkaTransportProviderAdmin(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+  public static KafkaTransportProviderAdmin<byte[], byte[]> createKafkaTransportProviderAdmin(DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
     Properties props = new Properties();
     props.put("zookeeper.connect", kafkaCluster.getZkConnection());
     props.put("bootstrap.servers", kafkaCluster.getBrokers());
-    return new KafkaTransportProviderAdmin("test", props);
+    return new KafkaTransportProviderAdmin<>("test", props);
   }
 }

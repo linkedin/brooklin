@@ -173,7 +173,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
-    KafkaTransportProviderAdmin transportProviderAdmin =
+    KafkaTransportProviderAdmin<byte[], byte[]> transportProviderAdmin =
         TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
@@ -206,7 +206,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
-    KafkaTransportProviderAdmin transportProviderAdmin =
+    KafkaTransportProviderAdmin<byte[], byte[]> transportProviderAdmin =
         TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();
@@ -751,7 +751,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.addConnector("KafkaMirrorMaker", connector, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
     String transportProviderName = "kafkaTransportProvider";
-    KafkaTransportProviderAdmin transportProviderAdmin =
+    KafkaTransportProviderAdmin<byte[], byte[]> transportProviderAdmin =
         TestKafkaConnectorUtils.createKafkaTransportProviderAdmin(_kafkaCluster);
     coordinator.addTransportProvider(transportProviderName, transportProviderAdmin);
     coordinator.start();

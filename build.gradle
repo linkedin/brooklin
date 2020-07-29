@@ -26,6 +26,15 @@ allprojects {
     maven {
       url "http://packages.confluent.io/maven/"
     }
+    maven {
+      url "https://jcenter.bintray.com/"
+    }
+    maven {
+      url "http://mvn.martiansoftware.com/"
+    }
+    maven {
+      url "https://artifactory.service.bo1.csnzoo.com/artifactory/mvn-all/"
+    }
   }
 }
 
@@ -236,6 +245,24 @@ project(':datastream-file-connector') {
   }
 }
 
+project(':datastream-jdbc-connector') {
+  dependencies {
+    compile project(':datastream-server')
+    compile project(':datastream-server-api')
+    compile project(':datastream-utils')
+    compile project(':datastream-common')
+
+    compile "commons-dbcp:commons-dbcp:$dbcpVersion"
+    compile "org.apache.nifi:nifi-standard-processors:$nifiVersion"
+    compile "com.microsoft.sqlserver:mssql-jdbc:$mssqlJDBCVersion"
+    compile "com.wayfair.crypto:crypto:$wayfairCryptoVersion"
+
+    testCompile project(':datastream-server')
+    testCompile project(':datastream-testcommon')
+    testCompile "org.mockito:mockito-core:$mockitoVersion"
+  }
+}
+
 project(':datastream-directory') {
   dependencies {
     compile project(':datastream-server-api')
@@ -343,6 +370,8 @@ project(':datastream-tools') {
     from(project(':datastream-server').configurations.runtime) { into("libs/") }
     from(project(':datastream-file-connector').jar) { into("libs/") }
     from(project(':datastream-file-connector').configurations.runtime) { into("libs/") }
+    from(project(':datastream-jdbc-connector').jar) { into("libs/") }
+    from(project(':datastream-jdbc-connector').configurations.runtime) { into("libs/") }
     from(project(':datastream-directory').jar) { into("libs/") }
     from(project(':datastream-directory').configurations.runtime) { into("libs/") }
     from(project(':datastream-testcommon').jar) { into("libs/") }
@@ -381,6 +410,7 @@ project(':datastream-client') {
 project(':datastream-server') {
 
   dependencies {
+    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
@@ -428,6 +458,7 @@ project(':datastream-server-restli') {
     testCompile "org.apache.kafka:kafka_$scalaVersion:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-file-connector')
+    testCompile project(':datastream-jdbc-connector')
     testCompile project(':datastream-testcommon')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }

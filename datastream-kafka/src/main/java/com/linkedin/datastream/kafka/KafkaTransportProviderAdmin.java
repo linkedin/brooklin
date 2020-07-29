@@ -52,8 +52,11 @@ import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
  *  <li>Takes care of topic creation/deletion on the datastream destination</li>
  *  <li>Sets up the correct destination connection string/Kafka brokers</li>
  * </ul>
+ *
+ * @param <K> type of the key
+ * @param <V> type of the value
  */
-public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
+public class KafkaTransportProviderAdmin<K, V> implements TransportProviderAdmin {
   public static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderAdmin.class);
   public static final int DEFAULT_PRODUCERS_PER_CONNECTOR = 10;
   public static final String DEFAULT_REPLICATION_FACTOR = "1";
@@ -80,12 +83,12 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   private final Optional<String> _zkAddress;
   private final Optional<ZkUtils> _zkUtils;
 
-  private final Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
+  private final Map<DatastreamTask, KafkaTransportProvider<K, V>> _transportProviders = new HashMap<>();
 
   // List of Kafka producers per connector-destination (broker address) pair.
   // The numProducersPerConnector config is actually the number of producers per connector-destination pair, if the
   // transport provider handles multiple destination brokers.
-  private final Map<String, Map<String, List<KafkaProducerWrapper<byte[], byte[]>>>> _kafkaProducers = new HashMap<>();
+  private final Map<String, Map<String, List<KafkaProducerWrapper<K, V>>>> _kafkaProducers = new HashMap<>();
 
   /**
    * Constructor for KafkaTransportProviderAdmin.
@@ -132,14 +135,14 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
       if (!_kafkaProducers.containsKey(connectorType) || !_kafkaProducers.get(connectorType).containsKey(destinationBrokers)) {
         initializeKafkaProducersForConnectorDestination(connectorType, destinationBrokers);
       }
-      List<KafkaProducerWrapper<byte[], byte[]>> producers =
+      List<KafkaProducerWrapper<K, V>> producers =
           getNextKafkaProducers(connectorType, destinationBrokers, numProducersPerTask(task));
 
       Properties transportProviderProperties = new Properties();
       transportProviderProperties.putAll(_transportProviderProperties);
       transportProviderProperties.putIfAbsent(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, destinationBrokers);
       _transportProviders.put(task,
-          new KafkaTransportProvider(task, producers, transportProviderProperties, _transportProviderMetricsNamesPrefix));
+          new KafkaTransportProvider<>(task, producers, transportProviderProperties, _transportProviderMetricsNamesPrefix));
       producers.forEach(p -> p.assignTask(task));
     } else {
       LOG.warn("Trying to assign transport provider to task {} which is already assigned.", task);
@@ -152,8 +155,8 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     Properties transportProviderProperties = new Properties();
     transportProviderProperties.putAll(_transportProviderProperties);
     transportProviderProperties.putIfAbsent(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, destinationBrokers);
-    List<KafkaProducerWrapper<byte[], byte[]>> producers = IntStream.range(0, _numProducersPerConnector)
-        .mapToObj(x -> new KafkaProducerWrapper<byte[], byte[]>(String.format("%s:%s", connectorType, x), transportProviderProperties,
+    List<KafkaProducerWrapper<K, V>> producers = IntStream.range(0, _numProducersPerConnector)
+        .mapToObj(x -> new KafkaProducerWrapper<K, V>(String.format("%s:%s", connectorType, x), transportProviderProperties,
             _transportProviderMetricsNamesPrefix))
         .collect(Collectors.toList());
     _kafkaProducers.putIfAbsent(connectorType, new HashMap<>());
@@ -165,7 +168,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public void unassignTransportProvider(DatastreamTask task) {
     Validate.notNull(task, "null task");
     if (_transportProviders.containsKey(task)) {
-      KafkaTransportProvider transportProvider = _transportProviders.remove(task);
+      KafkaTransportProvider<K, V> transportProvider = _transportProviders.remove(task);
       transportProvider.getProducers().forEach(p -> p.unassignTask(task));
     } else {
       LOG.warn("Trying to unassign already unassigned transport provider.");
@@ -283,7 +286,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     }
   }
 
-  private List<KafkaProducerWrapper<byte[], byte[]>> getNextKafkaProducers(String connectorType, String destinationBrokers, int count) {
+  private List<KafkaProducerWrapper<K, V>> getNextKafkaProducers(String connectorType, String destinationBrokers, int count) {
     // Return the least used Kafka producers.
     return _kafkaProducers.get(connectorType)
         .get(destinationBrokers)

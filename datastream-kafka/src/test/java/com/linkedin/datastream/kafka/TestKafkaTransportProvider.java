@@ -67,9 +67,10 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testAssign() {
     String topicName = getUniqueTopicName();
-    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+    KafkaTransportProviderAdmin<byte[], byte[]> provider = new KafkaTransportProviderAdmin<>("test", _transportProviderProperties);
     int numberOfPartitions = 32;
 
     Datastream ds =
@@ -77,7 +78,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
             provider.getDestination(null, topicName), numberOfPartitions);
     Set<KafkaProducerWrapper<byte[], byte[]>> producers =
         IntStream.range(0, KafkaTransportProviderAdmin.DEFAULT_PRODUCERS_PER_CONNECTOR)
-            .mapToObj(x -> ((KafkaTransportProvider) provider.assignTransportProvider(
+            .mapToObj(x -> ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
                 new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers().get(0))
             .collect(Collectors.toSet());
 
@@ -85,7 +86,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     Set<KafkaProducerWrapper<byte[], byte[]>> producers2 =
         IntStream.range(0, KafkaTransportProviderAdmin.DEFAULT_PRODUCERS_PER_CONNECTOR)
-            .mapToObj(x -> ((KafkaTransportProvider) provider.assignTransportProvider(
+            .mapToObj(x -> ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
                 new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers().get(0))
             .collect(Collectors.toSet());
 
@@ -95,9 +96,10 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testAssignMultipleProducers() {
     String topicName = getUniqueTopicName();
-    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+    KafkaTransportProviderAdmin<byte[], byte[]> provider = new KafkaTransportProviderAdmin<>("test", _transportProviderProperties);
     int numberOfPartitions = 32;
 
     Datastream ds =
@@ -105,19 +107,19 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
             provider.getDestination(null, topicName), numberOfPartitions);
 
     // Check that the default number of producers per task is 1
-    List<KafkaProducerWrapper<byte[], byte[]>> producers = ((KafkaTransportProvider) provider.assignTransportProvider(
+    List<KafkaProducerWrapper<byte[], byte[]>> producers = ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
         new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers();
     Assert.assertEquals(producers.size(), 1);
 
     // Check now with an override of 3 producers per task
     ds.getMetadata().put(KafkaTransportProviderAdmin.CONFIG_PRODUCERS_PER_TASK, "3");
-    producers = ((KafkaTransportProvider) provider.assignTransportProvider(
+    producers = ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
         new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers();
     Assert.assertEquals(producers.size(), 3);
 
     // Asking more producers than are in the pool
     ds.getMetadata().put(KafkaTransportProviderAdmin.CONFIG_PRODUCERS_PER_TASK, "3333");
-    producers = ((KafkaTransportProvider) provider.assignTransportProvider(
+    producers = ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
         new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers();
     Assert.assertEquals(producers.size(), KafkaTransportProviderAdmin.DEFAULT_PRODUCERS_PER_CONNECTOR);
 
@@ -125,14 +127,15 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     Properties prop2 = new Properties();
     prop2.putAll(_transportProviderProperties);
     prop2.put(KafkaTransportProviderAdmin.CONFIG_PRODUCERS_PER_TASK, "4");
-    provider = new KafkaTransportProviderAdmin("test", prop2);
+    provider = new KafkaTransportProviderAdmin<>("test", prop2);
     ds.getMetadata().remove(KafkaTransportProviderAdmin.CONFIG_PRODUCERS_PER_TASK);
-    producers = ((KafkaTransportProvider) provider.assignTransportProvider(
+    producers = ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
         new DatastreamTaskImpl(Collections.singletonList(ds)))).getProducers();
     Assert.assertEquals(producers.size(), 4);
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testReAssignBuggyProducer() throws Exception {
     String badDestUri = "kafka://badLocations:1234/Badtopic";
     String goodDestUri = "kafka://goodLocation:1234/goodtopic";
@@ -140,7 +143,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     _transportProviderProperties.remove(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
 
     List<DatastreamProducerRecord> datastreamEvents = Collections.singletonList(mock(DatastreamProducerRecord.class));
-    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+    KafkaTransportProviderAdmin<byte[], byte[]> provider = new KafkaTransportProviderAdmin<>("test", _transportProviderProperties);
 
     Datastream stream = DatastreamTestUtils.createDatastream("test", "testGetBrokers", "source", badDestUri, 2);
     provider.initializeDestinationForDatastream(stream, null);
@@ -148,7 +151,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     //Verify bad producer has been initiated and the send can be terminated upon unassigned
 
     DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(stream));
-    KafkaTransportProvider transportProvider = (KafkaTransportProvider) provider.assignTransportProvider(task);
+    KafkaTransportProvider<byte[], byte[]> transportProvider = (KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(task);
     transportProvider.getProducers().
         forEach(p -> Assert.assertEquals("badLocations:1234", p.getProperties().get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)));
 
@@ -172,7 +175,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     Set<KafkaProducerWrapper<byte[], byte[]>> newProducers =
         IntStream.range(0, KafkaTransportProviderAdmin.DEFAULT_PRODUCERS_PER_CONNECTOR)
-            .mapToObj(x -> ((KafkaTransportProvider) provider.assignTransportProvider(
+            .mapToObj(x -> ((KafkaTransportProvider<byte[], byte[]>) provider.assignTransportProvider(
                 new DatastreamTaskImpl(Collections.singletonList(stream2)))).getProducers().get(0))
             .collect(Collectors.toSet());
     newProducers.forEach(p ->
@@ -213,7 +216,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     if (metricsPrefix != null) {
       _transportProviderProperties.put(KafkaTransportProviderAdmin.CONFIG_METRICS_NAMES_PREFIX, metricsPrefix);
     }
-    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+    KafkaTransportProviderAdmin<byte[], byte[]> provider = new KafkaTransportProviderAdmin<>("test", _transportProviderProperties);
 
     String destinationUri = provider.getDestination(null, topicName);
 
@@ -262,19 +265,12 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
           .add(KafkaTransportProvider.EVENT_WRITE_RATE)
           .toString();
 
-      String eventByteWriteRateMetricName = new StringJoiner(".").add(metricsPrefix)
-          .add(KafkaTransportProvider.class.getSimpleName())
-          .add(KafkaTransportProvider.AGGREGATE)
-          .add(KafkaTransportProvider.EVENT_BYTE_WRITE_RATE)
-          .toString();
-
       String producerCountMetricName = new StringJoiner(".").add(metricsPrefix)
           .add(KafkaProducerWrapper.class.getSimpleName())
           .add(KafkaTransportProvider.AGGREGATE)
           .add(KafkaProducerWrapper.PRODUCER_COUNT)
           .toString();
       Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventWriteRateMetricName));
-      Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventByteWriteRateMetricName));
       Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(producerCountMetricName));
     }
   }
