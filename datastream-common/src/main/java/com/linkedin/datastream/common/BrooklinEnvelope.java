@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import org.apache.avro.reflect.Nullable;
 import org.apache.commons.lang.Validate;
+import org.apache.kafka.common.header.Header;
 
 
 /**
@@ -29,6 +30,8 @@ public class BrooklinEnvelope {
 
   private Map<String, String> _metadata;
 
+  private Iterable<Header> _headers;
+
   /**
    * Construct a BrooklinEnvelope using record key, value, and metadata
    * @param key The record key (e.g. primary key)
@@ -36,7 +39,7 @@ public class BrooklinEnvelope {
    * @param metadata Additional metadata to associate with the change event
    */
   public BrooklinEnvelope(Object key, Object value, Map<String, String> metadata) {
-    this(key, value, null, metadata);
+    this(key, value, null, null, metadata);
   }
 
   /**
@@ -48,11 +51,25 @@ public class BrooklinEnvelope {
    */
   public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
       Map<String, String> metadata) {
+    this(key, value, previousValue, null, metadata);
+  }
+
+  /**
+   * Construct a {@link BrooklinEnvelope} using record key, value, headers and metadata
+   * @param key The record key (e.g. primary key)
+   * @param value The new record value
+   * @param previousValue The old record value
+   * @param headers Kafka headers to associate with the change event
+   * @param metadata Additional metadata to associate with the change event
+   */
+  public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
+      @Nullable Iterable<Header> headers, Map<String, String> metadata) {
     Validate.notNull(metadata, "metadata cannot be null");
     setKey(key);
     setValue(value);
     setPreviousValue(previousValue);
     setMetadata(metadata);
+    setHeaders(headers);
   }
 
   /**
@@ -73,6 +90,20 @@ public class BrooklinEnvelope {
    */
   public void setPreviousValue(Object previousValue) {
     _previousValue = previousValue instanceof Optional ? ((Optional<?>) previousValue).orElse(null) : previousValue;
+  }
+
+  /**
+   * Get the Kafka headers
+   */
+  public Iterable<Header> getHeaders() {
+    return _headers;
+  }
+
+  /**
+   * Set the Kafka headers
+   */
+  public void setHeaders(Iterable<Header> headers) {
+    _headers = headers;
   }
 
   @Nullable
