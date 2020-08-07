@@ -17,6 +17,7 @@ import org.apache.commons.lang3.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.Headers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,8 +100,10 @@ public class KafkaTransportProvider implements TransportProvider {
 
     byte[] keyValue = null;
     byte[] payloadValue = new byte[0];
+    Headers headers = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
+      headers = envelope.getHeaders();
       if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
         keyValue = (byte[]) envelope.key().get();
       }
@@ -114,13 +117,13 @@ public class KafkaTransportProvider implements TransportProvider {
 
     if (partition.isPresent() && partition.get() >= 0) {
       // If the partition is specified. We send the record to the specific partition
-      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue);
+      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue, headers);
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
       keyValue = record.getPartitionKey().isPresent()
               ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : keyValue;
-      return new ProducerRecord<>(topicName, keyValue, payloadValue);
+      return new ProducerRecord<>(topicName, null, keyValue, payloadValue, headers);
     }
   }
 
