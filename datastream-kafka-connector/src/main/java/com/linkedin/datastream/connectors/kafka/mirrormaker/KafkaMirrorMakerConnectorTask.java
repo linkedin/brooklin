@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -50,6 +51,7 @@ import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -84,7 +86,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
-  private static final String NUM_LOCK_FAILS = "numLockFails";
+  private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -102,9 +104,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
+  protected final DynamicMetricsManager _dynamicMetricsManager;
+  protected final String _connectorName;
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
-  private final DynamicMetricsManager _dynamicMetricsManager;
 
   // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
   // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
@@ -138,6 +142,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
+    _connectorName = connectorName;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
@@ -236,7 +241,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
-    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
+    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null,
+        fromKafka.headers(), metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
@@ -264,9 +270,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
           ((metadata, exception) -> {
             if (exception != null) {
               _logger.warn(
-                  String.format("Detected exception being throw from callback for src partition: %s while sending producer "
-                      + "record: %s, exception: ", srcTopicPartition, datastreamProducerRecord), exception);
-              rewindAndPausePartitionOnException(srcTopicPartition, exception);
+                  String.format("Detected exception being throw from flushless send callback for source "
+                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata),
+                  exception);
+              updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
             }
@@ -319,7 +326,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
       } catch (DatastreamRuntimeException ex) {
         LOG.error(String.format("Failed to acquire lock for datastreamTask %s", _datastreamTask), ex);
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, NUM_LOCK_FAILS, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(generateMetricsPrefix(_connectorName, CLASS_NAME), _datastreamName,
+            TASK_LOCK_ACQUIRE_ERROR_RATE, 1);
         throw ex;
       }
     }
@@ -357,6 +365,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         _datastreamTask.getEventProducer().flush();
+        // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
+        // outstanding send() calls have completed, without providing any guarantees about their successful completion.
+        // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
+        // to their last committed offset to avoid data loss.
+        rewindAndPausePartitionsOnSendException();
         commitSafeOffsets(consumer);
 
         // clear the flushless producer state after flushing all messages and checkpointing
@@ -382,10 +395,30 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected void postShutdownHook() {
     if (_enablePartitionAssignment) {
-      // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
-      // consume any further). The shutdown process must complete and the consumer must be closed.
-      LOG.info("Releasing the lock on datastreamTask: {}", _datastreamTask);
-      _datastreamTask.release();
+      boolean resetInterrupted = false;
+      try {
+        for (int numAttempts = 1; numAttempts <= 3; ++numAttempts) {
+          try {
+            // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
+            // consume any further). The shutdown process must complete and the consumer must be closed.
+            LOG.info("Releasing the lock on datastreamTask: {}, was thread interrupted: {}, attempt: {}",
+                _datastreamTask, resetInterrupted, numAttempts);
+            _datastreamTask.release();
+            break;
+          } catch (ZkInterruptedException e) {
+            LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
+            if (Thread.currentThread().isInterrupted()) {
+              // The interrupted status of the current thread must be reset to allow the task lock to be released
+              resetInterrupted = Thread.interrupted();
+            }
+          }
+        }
+      } finally {
+        if (resetInterrupted) {
+          // Setting the status of the thread back to interrupted
+          Thread.currentThread().interrupt();
+        }
+      }
     }
   }
 
@@ -396,6 +429,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX));
+    metrics.add(new BrooklinMeterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX
+        + TASK_LOCK_ACQUIRE_ERROR_RATE));
     // As topic manager is plugged in as part of task creation, one can't know
     // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
     // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)

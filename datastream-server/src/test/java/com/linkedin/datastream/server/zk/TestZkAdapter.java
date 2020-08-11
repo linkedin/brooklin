@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -696,8 +697,12 @@ public class TestZkAdapter {
   }
 
   private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster) {
-    return new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+    return createInterceptingZkAdapter(testCluster, ZkClient.DEFAULT_SESSION_TIMEOUT);
+  }
+
+  private ZkClientInterceptingAdapter createInterceptingZkAdapter(String testCluster, int sessionTimeoutMs) {
+    return spy(new ZkClientInterceptingAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
+        sessionTimeoutMs, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null));
   }
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
@@ -721,6 +726,38 @@ public class TestZkAdapter {
   }
 
   @Test
+  public void testZookeeperSessionExpiry() throws InterruptedException {
+    String testCluster = "testDeleteTaskWithPrefix";
+    String connectorType = "connectorType";
+    Duration timeout = Duration.ofMinutes(1);
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000);
+    adapter.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter);
+
+    List<DatastreamTask> tasks = Collections.singletonList(task);
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
+
+    simulateSessionExpiration(adapter);
+
+    Thread.sleep(5000);
+    Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
+  }
+
+  private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
+    long sessionId = adapter.getSessionId();
+    LOG.info("Closing/expiring session: " + sessionId);
+    _embeddedZookeeper.closeSession(sessionId);
+  }
+
+  @Test
   public void testDeleteTasksWithPrefix() {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
@@ -728,8 +765,14 @@ public class TestZkAdapter {
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
     adapter.connect();
 
-    List<DatastreamTask> tasks = new ArrayList<>();
+    // lock node
+    DatastreamTaskImpl lockTask = new DatastreamTaskImpl();
+    lockTask.setId("task" + "lock");
+    lockTask.setTaskPrefix("taskPrefix" + "lock");
+    lockTask.setConnectorType(connectorType);
+    lockTask.setZkAdapter(adapter);
 
+    List<DatastreamTask> tasks = new ArrayList<>();
     // Create some nodes
     for (int i = 0; i < 10; i++) {
       DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
@@ -741,6 +784,7 @@ public class TestZkAdapter {
       tasks.add(dsTask);
     }
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
+    adapter.acquireTask(lockTask, Duration.ofSeconds(2));
 
     ZkClient zkClient = Mockito.spy(adapter.getZkClient());
 
@@ -757,32 +801,95 @@ public class TestZkAdapter {
     Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
 
     List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(false);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(true);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
-    updateInstanceAssignment(adapter, adapter.getInstanceName(), new ArrayList<DatastreamTask>());
+    updateInstanceAssignment(adapter, adapter.getInstanceName(), Collections.emptyList());
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(false);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 2);
+    Assert.assertEquals(leftOverTasks.size(), 3);
 
     adapter.cleanUpOrphanConnectorTasks(true);
 
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
-    Assert.assertEquals(leftOverTasks.size(), 0);
+    Assert.assertEquals(leftOverTasks.size(), 1);
+    Assert.assertEquals(leftOverTasks.get(0), KeyBuilder.DATASTREAM_TASK_LOCK_ROOT_NAME);
+
+    // lock root node does not get deleted, once created.
+    adapter.releaseTask(lockTask);
+    leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(leftOverTasks.size(), 1);
+
+    adapter.disconnect();
+  }
+
+  @Test
+  public void testUpdateAssignmentDeleteUnusedTasks() {
+    String testCluster = "testUpdateAssignmentDeleteUnusedTasks";
+    String connectorType = "connectorType";
+    int totalTasks = 10;
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
+    adapter.connect();
+
+    List<DatastreamTask> tasks1 = new ArrayList<>();
+    List<DatastreamTask> newTasks1 = new ArrayList<>();
+    List<DatastreamTask> tasks2 = new ArrayList<>();
+
+    // Create some nodes
+    for (int i = 0; i < totalTasks; i++) {
+      DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
+      dsTask.setId("task1" + i);
+      String taskPrefix = "taskPrefix1" + i;
+      dsTask.setTaskPrefix(taskPrefix);
+      dsTask.setConnectorType(connectorType);
+      dsTask.setZkAdapter(adapter);
+
+      if (i % 2 == 0) {
+        tasks1.add(dsTask);
+        newTasks1.add(dsTask);
+      } else {
+        tasks2.add(dsTask);
+      }
+    }
+
+    Map<String, List<DatastreamTask>> oldAssignments = new HashMap<>();
+    oldAssignments.put(adapter.getInstanceName(), tasks1);
+    oldAssignments.put("deadInstance-999", tasks2);
+    adapter.updateAllAssignments(oldAssignments);
+
+    Map<String, Set<DatastreamTask>> currentAssignments = adapter.getAllAssignedDatastreamTasks();
+    Assert.assertEquals(oldAssignments.keySet(), currentAssignments.keySet());
+    currentAssignments.forEach((k, v) -> Assert.assertEquals(v, new HashSet<>(oldAssignments.get(k))));
+
+    newTasks1.remove(0);
+    Map<String, List<DatastreamTask>> newAssignments = new HashMap<>();
+    newAssignments.put(adapter.getInstanceName(), newTasks1);
+
+    adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(currentAssignments, newAssignments,
+        new ArrayList<>(newAssignments.keySet()));
+
+    List<String> leftOverTasks = adapter.getZkClient().getChildren(KeyBuilder.connector(testCluster, connectorType));
+    // Verify that unused connector tasks got cleaned up.
+    Assert.assertEquals(leftOverTasks.size(), newTasks1.size());
+
+    // Verify that dead instance got cleaned up.
+    Assert.assertTrue(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, adapter.getInstanceName())));
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, "deadInstance-999")));
 
     adapter.disconnect();
   }
