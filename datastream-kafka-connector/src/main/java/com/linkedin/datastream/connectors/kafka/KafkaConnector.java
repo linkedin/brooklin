@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +51,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
   public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(
             Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
-        clusterName, LOG);
+        clusterName, LOG, generateMetricsPrefix(connectorName, KafkaConnector.class.getSimpleName()));
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =
@@ -135,7 +136,11 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return Collections.unmodifiableList(KafkaConnectorTask.getMetricInfos(_connectorName));
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+
+    metrics.addAll(super.getMetricInfos());
+    metrics.addAll(KafkaConnectorTask.getMetricInfos(_connectorName));
+    return Collections.unmodifiableList(metrics);
   }
 
   private Boolean isWhiteListedCluster(KafkaConnectionString connectionStr) {

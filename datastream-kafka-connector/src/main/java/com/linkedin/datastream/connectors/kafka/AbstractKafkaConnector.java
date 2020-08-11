@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -47,6 +48,10 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -72,6 +77,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
+
+  private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
+
+  private final DynamicMetricsManager _dynamicMetricsManager;
+  private final String _metricsPrefix;
 
   protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
@@ -112,12 +122,18 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * @see KafkaBasedConnectorConfig
    */
   public AbstractKafkaConnector(String connectorName, Properties config, GroupIdConstructor groupIdConstructor,
-      String clusterName, Logger logger) {
+      String clusterName, Logger logger, String metricsPrefix) {
     _connectorName = connectorName;
     _logger = logger;
     _clusterName = clusterName;
     _config = new KafkaBasedConnectorConfig(config);
     _groupIdConstructor = groupIdConstructor;
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _metricsPrefix = metricsPrefix;
+  }
+
+  protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
+    return StringUtils.isBlank(connectorName) ? simpleClassName : connectorName + "." + simpleClassName;
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -229,6 +245,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.warn("Creating a new connector task for the datastream task {}", datastreamTask);
         _runningTasks.put(datastreamTask, createKafkaConnectorTask(datastreamTask));
       });
+      _dynamicMetricsManager.createOrUpdateCounter(_metricsPrefix, NUM_TASK_RESTARTS, deadDatastreamTasks.size());
     }
   }
 
@@ -552,5 +569,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     public AbstractKafkaBasedConnectorTask getConnectorTask() {
       return _task;
     }
+  }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinMeterInfo(buildMetricName(_metricsPrefix + MetricsAware.KEY_REGEX + NUM_TASK_RESTARTS)));
+
+    return Collections.unmodifiableList(metrics);
   }
 }
