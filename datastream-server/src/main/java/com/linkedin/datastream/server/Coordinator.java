@@ -1762,14 +1762,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     private void registerKeyedMeterMetrics() {
       // Our intent is to create KeyedMeter metrics lazily (i.e. only create the JMX metrics
-      // when the metrics are actually updated).
+      // when the metrics are actually updated), unless their isEagerlyRegister flag is set to true.
       //
-      // To accomplish this, we:
+      // To accomplish creating metrics lazily, we:
       //   - Refrain from registering metrics with _dynamicMetricsManager,
       //     and rely on createOrUpdate*() methods so they are created upon
       //     update instead.
       //   - Return regex-based BrooklinMeterInfo as opposed to ones that
       //     specify metrics by their full names
+
+      // We register some KeyedMeter metrics eagerly
+      for (KeyedMeter keyedMeter : KeyedMeter.values()) {
+        if (keyedMeter.isEagerlyRegistered()) {
+          _dynamicMetricsManager.registerMetric(MODULE, keyedMeter.getKey(), keyedMeter.getName(),
+              com.codahale.metrics.Meter.class);
+        }
+      }
 
       // All KeyedMeter metrics are covered by these two regex-based BrooklinMeterInfo objects
       String prefix = _coordinator.getDynamicMetricPrefixRegex();
@@ -1835,8 +1843,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      */
     public enum KeyedMeter {
       HANDLE_DATASTREAM_ADD_OR_DELETE_NUM_RETRIES("handleDatastreamAddOrDelete", NUM_RETRIES),
-      HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES("handleLeaderDoAssignment", NUM_RETRIES),
-      HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES("handleLeaderPartitionAssignment", NUM_RETRIES),
+      HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES("handleLeaderDoAssignment", NUM_RETRIES, true),
+      HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES("handleLeaderPartitionAssignment", NUM_RETRIES, true),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_ERRORS("handleLeaderPartitionMovement", NUM_ERRORS),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES("handleLeaderPartitionMovement", NUM_RETRIES),
       VALIDATE_DATASTREAMS_UPDATE_NUM_ERRORS("validateDatastreamsUpdate", NUM_ERRORS),
@@ -1856,10 +1864,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       private final String _key;
       private final String _name;
+      private final boolean _isEagerlyRegistered;
 
       KeyedMeter(String key, String name) {
+        this(key, name, false);
+      }
+
+      KeyedMeter(String key, String name, boolean isEagerlyRegistered) {
         _key = key;
         _name = name;
+        _isEagerlyRegistered = isEagerlyRegistered;
       }
 
       public String getKey() {
@@ -1868,6 +1882,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       public String getName() {
         return _name;
+      }
+
+      public boolean isEagerlyRegistered() {
+        return _isEagerlyRegistered;
       }
     }
 
