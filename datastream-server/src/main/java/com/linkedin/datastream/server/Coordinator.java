@@ -1867,9 +1867,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       private final boolean _isEagerlyRegistered;
 
       KeyedMeter(String key, String name) {
-        _key = key;
-        _name = name;
-        _isEagerlyRegistered = false;
+        this(key, name, false);
       }
 
       KeyedMeter(String key, String name, boolean isEagerlyRegistered) {
