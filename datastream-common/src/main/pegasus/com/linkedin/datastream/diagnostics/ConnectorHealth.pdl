@@ -1,0 +1,22 @@
+namespace com.linkedin.datastream.diagnostics
+
+/**
+ * Datastream connector health
+ */
+record ConnectorHealth {
+
+  /**
+   * name of the connector.
+   */
+  connectorName: string
+
+  /**
+   * Strategy used by the connector.
+   */
+  strategy: string
+
+  /**
+   * tasks assigned to the connector Instance.
+   */
+  tasks: array[TaskHealth]
+}
