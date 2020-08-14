@@ -23,7 +23,8 @@
         "name" : "content",
         "type" : "string",
         "optional" : true
-      } ]
+      } ],
+      "pagingSupported" : true
     }, {
       "name" : "status",
       "doc" : "Finder Request to get the status from one server instance.\n You can access this FINDER method via /diag?q=stat&type=connector&scope=espresso&content=...",
@@ -37,7 +38,8 @@
         "name" : "content",
         "type" : "string",
         "optional" : true
-      } ]
+      } ],
+      "pagingSupported" : true
     } ],
     "entity" : {
       "path" : "/diag/{diagId}"

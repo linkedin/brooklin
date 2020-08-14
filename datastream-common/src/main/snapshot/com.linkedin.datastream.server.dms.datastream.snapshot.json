@@ -1,51 +1,6 @@
 {
   "models" : [ {
     "type" : "record",
-    "name" : "DatastreamSource",
-    "namespace" : "com.linkedin.datastream.common",
-    "doc" : "Datastream source that connector will use to consume events",
-    "fields" : [ {
-      "name" : "connectionString",
-      "type" : "string",
-      "doc" : "Source connection string to consume the data from."
-    }, {
-      "name" : "partitions",
-      "type" : "int",
-      "doc" : "Number of partitions in the source."
-    } ]
-  }, {
-    "type" : "enum",
-    "name" : "DatastreamStatus",
-    "namespace" : "com.linkedin.datastream.common",
-    "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING", "STOPPED" ]
-  }, {
-    "type" : "record",
-    "name" : "DatastreamDestination",
-    "namespace" : "com.linkedin.datastream.common",
-    "doc" : "Datastream destination details that the transport provider will use to send events",
-    "fields" : [ {
-      "name" : "connectionString",
-      "type" : "string",
-      "doc" : "Destination connection string to write the data to."
-    }, {
-      "name" : "partitions",
-      "type" : "int",
-      "doc" : "Number of partitions in the destination."
-    }, {
-      "name" : "keySerDe",
-      "type" : "string",
-      "doc" : "SerDe used to serialize/deserialize the key."
-    }, {
-      "name" : "payloadSerDe",
-      "type" : "string",
-      "doc" : "SerDe used to serialize/deserialize the payload."
-    }, {
-      "name" : "envelopeSerDe",
-      "type" : "string",
-      "doc" : "SerDe used to serialize/deserialize the envelope."
-    } ]
-  }, {
-    "type" : "record",
     "name" : "Datastream",
     "namespace" : "com.linkedin.datastream.common",
     "doc" : "Data model of Datastream",
@@ -63,19 +18,61 @@
       "doc" : "Name of the transport provider."
     }, {
       "name" : "source",
-      "type" : "DatastreamSource",
+      "type" : {
+        "type" : "record",
+        "name" : "DatastreamSource",
+        "doc" : "Datastream source that connector will use to consume events",
+        "fields" : [ {
+          "name" : "connectionString",
+          "type" : "string",
+          "doc" : "Source connection string to consume the data from."
+        }, {
+          "name" : "partitions",
+          "type" : "int",
+          "doc" : "Number of partitions in the source."
+        } ]
+      },
       "doc" : "Source that connector can use to connect to the data store and consume the data."
     }, {
       "name" : "Status",
-      "type" : "DatastreamStatus",
+      "type" : {
+        "type" : "enum",
+        "name" : "DatastreamStatus",
+        "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING", "STOPPED" ]
+      },
       "doc" : "Status of the datastream",
       "symbolDocs" : {
-        "READY" : "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption.",
-        "INITIALIZING" : "Datastream is created, but not initialized yet."
+        "INITIALIZING" : "Datastream is created, but not initialized yet.",
+        "READY" : "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption."
       }
     }, {
       "name" : "destination",
-      "type" : "DatastreamDestination",
+      "type" : {
+        "type" : "record",
+        "name" : "DatastreamDestination",
+        "doc" : "Datastream destination details that the transport provider will use to send events",
+        "fields" : [ {
+          "name" : "connectionString",
+          "type" : "string",
+          "doc" : "Destination connection string to write the data to."
+        }, {
+          "name" : "partitions",
+          "type" : "int",
+          "doc" : "Number of partitions in the destination."
+        }, {
+          "name" : "keySerDe",
+          "type" : "string",
+          "doc" : "SerDe used to serialize/deserialize the key."
+        }, {
+          "name" : "payloadSerDe",
+          "type" : "string",
+          "doc" : "SerDe used to serialize/deserialize the payload."
+        }, {
+          "name" : "envelopeSerDe",
+          "type" : "string",
+          "doc" : "SerDe used to serialize/deserialize the envelope."
+        } ]
+      },
       "doc" : "Datastream destination string that the transport provider will use to send the events",
       "optional" : true
     }, {
@@ -87,7 +84,7 @@
       "doc" : "Generic metadata for Datastream (e.g. owner, expiration, etc). Metadata is stored as user defined name/value pair.",
       "optional" : true
     } ]
-  } ],
+  }, "com.linkedin.datastream.common.DatastreamDestination", "com.linkedin.datastream.common.DatastreamSource", "com.linkedin.datastream.common.DatastreamStatus" ],
   "schema" : {
     "name" : "datastream",
     "namespace" : "com.linkedin.datastream.server.dms",
