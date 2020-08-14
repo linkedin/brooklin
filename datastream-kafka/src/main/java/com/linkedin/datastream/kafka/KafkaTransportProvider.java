@@ -17,6 +17,7 @@ import org.apache.commons.lang3.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.Headers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,10 +98,12 @@ public class KafkaTransportProvider implements TransportProvider {
 
     Optional<Integer> partition = record.getPartition();
 
-    byte[] keyValue = new byte[0];
+    byte[] keyValue = null;
     byte[] payloadValue = new byte[0];
+    Headers headers = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
+      headers = envelope.getHeaders();
       if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
         keyValue = (byte[]) envelope.key().get();
       }
@@ -114,13 +117,13 @@ public class KafkaTransportProvider implements TransportProvider {
 
     if (partition.isPresent() && partition.get() >= 0) {
       // If the partition is specified. We send the record to the specific partition
-      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue);
+      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue, headers);
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
       keyValue = record.getPartitionKey().isPresent()
-          ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : null;
-      return new ProducerRecord<>(topicName, keyValue, payloadValue);
+              ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : keyValue;
+      return new ProducerRecord<>(topicName, null, keyValue, payloadValue, headers);
     }
   }
 
@@ -134,7 +137,8 @@ public class KafkaTransportProvider implements TransportProvider {
 
       LOG.debug("Sending Datastream event record: {}", record);
 
-      for (Object event : record.getEvents()) {
+      for (int i = 0; i < record.getEvents().size(); ++i) {
+        BrooklinEnvelope event = record.getEvents().get(i);
         ProducerRecord<byte[], byte[]> outgoing = convertToProducerRecord(topicName, record, event);
 
         // Update topic-specific metrics and aggregate metrics
@@ -146,13 +150,14 @@ public class KafkaTransportProvider implements TransportProvider {
         KafkaProducerWrapper<byte[], byte[]> producer =
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
+        final int eventIndex = i;
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
             LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                     + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
           }
-          doOnSendCallback(record, onSendComplete, metadata, exception);
+          doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex);
         });
 
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
@@ -184,11 +189,11 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
-      Exception exception) {
+      Exception exception, int eventIndex) {
     if (onComplete != null) {
       onComplete.onCompletion(
           metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
-              metadata.partition()) : null, exception);
+              metadata.partition(), eventIndex) : null, exception);
     }
   }
 

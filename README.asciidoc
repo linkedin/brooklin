@@ -28,7 +28,7 @@ Brooklin is a distributed system intended for streaming data between various het
 ** Brooklin also exposes a diagnostics REST endpoint that enables on-demand querying of a data stream's status.
 
 * *Battle-tested at scale with Kafka*
-** While it is not limited to any particular system, Brooklin provides capabilities for reading/writing massive amounts of data to/from Kafka with high reliability at scale. You can learn more about this in the <<Use Cases>> section.
+** While it is not limited to any particular system, Brooklin provides capabilities for reading/writing massive amounts of data to/from Kafka with high reliability at scale. You can learn more about this in the <<Use cases>> section.
 
 * *Supports Change Data Capture with bootstrap*
 ** Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc. 

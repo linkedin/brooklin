@@ -1,0 +1,22 @@
+namespace com.linkedin.datastream.diagnostics
+
+/**
+ * Datastream server health
+ */
+record ServerHealth {
+
+  /**
+   * Name of the cluster.
+   */
+  clusterName: string
+
+  /**
+   * Name of the current Instance.
+   */
+  instanceName: string
+
+  /**
+   * Connectors that are loaded in the instance.
+   */
+  connectors: array[ConnectorHealth]
+}

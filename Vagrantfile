@@ -90,7 +90,7 @@ Vagrant.configure("2") do |config|
     KAFKA_TGZ="$KAFKA_FILENAME.tgz"
 
     echo "Downloading Kafka"
-    curl -s -o $KAFKA_TGZ 'https://www-us.apache.org/dist/kafka/'$KAFKA_VERSION'/'$KAFKA_TGZ
+    curl -L -s -o $KAFKA_TGZ 'https://archive.apache.org/dist/kafka/'$KAFKA_VERSION'/'$KAFKA_TGZ
     exitIfError "Encountered an error while downloading Kafka"
 
     tar -xzf $KAFKA_TGZ
