@@ -51,7 +51,7 @@ public class KafkaConnector extends AbstractKafkaConnector {
   public KafkaConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaGroupIdConstructor(
             Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
-        clusterName, LOG, generateMetricsPrefix(connectorName, KafkaConnector.class.getSimpleName()));
+        clusterName, LOG);
 
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     List<KafkaBrokerAddress> brokers =

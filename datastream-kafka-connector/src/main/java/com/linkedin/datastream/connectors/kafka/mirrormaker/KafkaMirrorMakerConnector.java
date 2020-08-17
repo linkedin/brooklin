@@ -90,11 +90,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   public KafkaMirrorMakerConnector(String connectorName, Properties config, String clusterName) {
     super(connectorName, config, new KafkaMirrorMakerGroupIdConstructor(
             Boolean.parseBoolean(config.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())), clusterName),
-        clusterName, LOG, generateMetricsPrefix(connectorName, KafkaMirrorMakerConnector.class.getSimpleName()));
+        clusterName, LOG);
     _isFlushlessModeEnabled =
         Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
-    _partitionFetchIntervalMs = Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL,
-        Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
+    _partitionFetchIntervalMs =
+        Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL, Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     _consumerProperties = verifiableProperties.getDomainProperties(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER);
     _listenerConsumerFactory = new KafkaConsumerFactoryImpl();

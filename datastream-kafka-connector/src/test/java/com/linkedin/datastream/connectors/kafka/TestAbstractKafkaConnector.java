@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import com.codahale.metrics.Gauge;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -21,7 +22,6 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
@@ -62,11 +62,11 @@ public class TestAbstractKafkaConnector {
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
 
-    // verify metric for nanny task restarts get incremented
-    Counter metric = DynamicMetricsManager.getInstance()
+    // Verify metric for nanny task restarts get incremented
+    Gauge<Long> metric = DynamicMetricsManager.getInstance()
         .getMetric("test" + "." + TestKafkaConnector.class.getSimpleName() + "." + "numTaskRestarts");
     Assert.assertNotNull(metric);
-    Assert.assertEquals(metric.getCount(), connector.getCreateTaskCalled() - 1);
+    Assert.assertEquals(metric.getValue(), Long.valueOf(1));
 
     // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
     // connector name of interest.
@@ -145,9 +145,8 @@ public class TestAbstractKafkaConnector {
      */
     public TestKafkaConnector(boolean restartThrows, Properties props) {
       super("test", props, new KafkaGroupIdConstructor(
-              Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),
-              "TestkafkaConnectorCluster"), "TestkafkaConnectorCluster", LOG,
-          generateMetricsPrefix("test", TestKafkaConnector.class.getSimpleName()));
+          Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),
+          "TestkafkaConnectorCluster"), "TestkafkaConnectorCluster", LOG);
       _restartThrows = restartThrows;
     }
 
