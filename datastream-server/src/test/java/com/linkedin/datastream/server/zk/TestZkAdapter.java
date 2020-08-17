@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import java.util.concurrent.TimeUnit;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -751,6 +752,51 @@ public class TestZkAdapter {
     Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
   }
 
+  @Test
+  public void testZookeeperLockAcquire() throws InterruptedException {
+    String testCluster = "testLockAcquire";
+    String connectorType = "connectorType";
+    //
+    // start two ZkAdapters, which is corresponding to two Coordinator instances
+    //
+    ZkClientInterceptingAdapter adapter1 = createInterceptingZkAdapter(testCluster, 5000);//new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName, 1000, 15000, null);
+    adapter1.connect();
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setId("3");
+    task.setConnectorType(connectorType);
+    task.setZkAdapter(adapter1);
+
+    List<DatastreamTask> tasks = Collections.singletonList(task);
+    updateInstanceAssignment(adapter1, adapter1.getInstanceName(), tasks);
+
+    LOG.info("Acquire from instance1 should succeed");
+    Duration timeout = Duration.ofSeconds(10);
+    Assert.assertTrue(expectException(() -> adapter1.acquireTask(task, timeout), false));
+    String owner = adapter1.getZkClient().readData(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+
+    ZkClientInterceptingAdapter adapter2 = createInterceptingZkAdapter(testCluster, 5000);// new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName, 1000, 15000, null);
+    adapter2.connect();
+    simulateSessionExpiration(adapter1);
+
+    Thread.sleep(5000);
+    Assert.assertTrue(expectException(() -> adapter1._zkClient.waitUntilConnected(5, TimeUnit.SECONDS), false));
+
+    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    Assert.assertTrue(expectException(() -> adapter2.acquireTask(task, timeout), true));
+
+    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    String owner2 = adapter2.getZkClient().readData(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    Assert.assertEquals(owner, owner2);
+
+
+    Assert.assertTrue(expectException(() -> adapter2.acquireTask(task, Duration.ofSeconds(30)), false));
+
+    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    owner2 = adapter2.getZkClient().readData(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    Assert.assertNotEquals(owner, owner2);
+
+  }
   private void simulateSessionExpiration(ZkClientInterceptingAdapter adapter) {
     long sessionId = adapter.getSessionId();
     LOG.info("Closing/expiring session: " + sessionId);

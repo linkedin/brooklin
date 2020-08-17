@@ -236,6 +236,7 @@ public class ZkAdapter {
     _zkclient = createZkClient();
     _stateChangeListener = new ZkStateChangeListener();
     _leaderElectionListener = new ZkLeaderElectionListener();
+    _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -258,7 +259,7 @@ public class ZkAdapter {
     LOG.info("Instance " + _instanceName + " becomes leader");
 
     _datastreamList = new ZkBackedDMSDatastreamList();
-    _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
+    //_liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
     _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
 
     // Load all existing tasks when we just become the new leader. This is needed
@@ -302,6 +303,11 @@ public class ZkAdapter {
         _currentSubscription = null;
       }
 
+      if (_liveInstancesProvider != null) {
+        _liveInstancesProvider.close();
+        _liveInstancesProvider = null;
+      }
+
       // unsubscribe any other left subscription.
       _zkclient.unsubscribeAll();
     }
@@ -311,10 +317,10 @@ public class ZkAdapter {
       _datastreamList = null;
     }
 
-    if (_liveInstancesProvider != null) {
+    /*if (_liveInstancesProvider != null) {
       _liveInstancesProvider.close();
       _liveInstancesProvider = null;
-    }
+    }*/
 
     if (_targetAssignmentProvider != null) {
       _targetAssignmentProvider.close();
@@ -1085,6 +1091,7 @@ public class ZkAdapter {
     _zkclient.ensurePath(KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType()));
     String lockPath = KeyBuilder.datastreamTaskLock(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     String owner = null;
+    boolean deadOwner = false;
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.ensureReadData(lockPath);
       if (owner.equals(_instanceName)) {
@@ -1092,13 +1099,51 @@ public class ZkAdapter {
         return;
       }
 
-      waitForTaskRelease(task, timeout.toMillis(), lockPath);
+      Duration debounceTimer = Duration.ofSeconds(30);
+      Duration waitTimeout = debounceTimer;
+      if (_liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
+        if (timeout.minus(debounceTimer).toMillis() >= 0) {
+          deadOwner = true;
+        } else {
+          waitTimeout = timeout;
+        }
+      } else {
+        if (timeout.minus(debounceTimer).toMillis() >= 0) {
+          waitForTaskRelease(task, timeout.toMillis() - debounceTimer.toMillis(), lockPath);
+          if (!_zkclient.exists(lockPath)) {
+            _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
+            LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
+            return;
+          }
+          owner = _zkclient.ensureReadData(lockPath);
+          if (_liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
+            deadOwner = true;
+          }
+        }
+      }
+      waitForTaskRelease(task, waitTimeout.toMillis(), lockPath);
     }
 
     if (!_zkclient.exists(lockPath)) {
-      _zkclient.createEphemeral(lockPath, _instanceName);
+      _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
       LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
     } else {
+      if (deadOwner) {
+        String tempOwner = _zkclient.ensureReadData(lockPath);
+        if (!tempOwner.equals(owner)) {
+          LOG.warn("Owner for the lock changed from dead owner: {} to {}. Not able to clear the lock. Retry again.", owner, tempOwner);
+          owner = tempOwner;
+        } else {
+          _zkclient.delete(lockPath);
+          _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
+          owner = _zkclient.ensureReadData(lockPath);
+          if (owner.equals(_instanceName)) {
+            LOG.info("{} successfully acquired the lock on {} by kicking out {}", _instanceName, task, owner);
+            return;
+          }
+        }
+      }
+
       String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
           timeout.toMillis(), owner);
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
@@ -1614,6 +1659,7 @@ public class ZkAdapter {
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
     onBecomeFollower();
+    connect();
   }
 
   @VisibleForTesting
