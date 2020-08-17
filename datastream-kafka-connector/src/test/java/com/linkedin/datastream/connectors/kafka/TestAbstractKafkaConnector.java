@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.codahale.metrics.Gauge;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -22,6 +21,7 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;

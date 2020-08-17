@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -49,6 +48,7 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
