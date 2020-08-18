@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -17,13 +18,19 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
@@ -38,6 +45,11 @@ public class TestAbstractKafkaConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestAbstractKafkaConnector.class);
 
+  @BeforeMethod
+  public void setup(Method method) {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), method.getName());
+  }
+
   @Test
   public void testConnectorRestartCalled() {
     Properties props = new Properties();
@@ -49,6 +61,16 @@ public class TestAbstractKafkaConnector {
     PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
         Duration.ofSeconds(10).toMillis());
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
+
+    // Verify metric for nanny task restarts get incremented
+    Gauge<Long> metric = DynamicMetricsManager.getInstance()
+        .getMetric("test" + "." + TestKafkaConnector.class.getSimpleName() + "." + "numTaskRestarts");
+    Assert.assertNotNull(metric);
+    Assert.assertEquals(metric.getValue(), Long.valueOf(1));
+
+    // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
+    // connector name of interest.
+    MetricsTestUtils.verifyMetrics(connector, DynamicMetricsManager.getInstance(), s -> s.startsWith("test"));
 
     connector.stop();
   }
@@ -112,7 +134,6 @@ public class TestAbstractKafkaConnector {
    * Dummy implementation of {@link AbstractKafkaConnector} for testing purposes
    */
   public class TestKafkaConnector extends AbstractKafkaConnector {
-
     private boolean _restartThrows;
     private int _createTaskCalled = 0;
 

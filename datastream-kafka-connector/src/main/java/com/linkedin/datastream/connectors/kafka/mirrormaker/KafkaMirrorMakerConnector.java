@@ -40,7 +40,6 @@ import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -74,7 +73,6 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
   private final KafkaConsumerFactory<?, ?> _listenerConsumerFactory;
   private final Map<String, PartitionDiscoveryThread> _partitionDiscoveryThreadMap = new ConcurrentHashMap<>();
   private final Properties _consumerProperties;
-  private final DynamicMetricsManager _dynamicMetricsManager;
 
   private final boolean _enablePartitionAssignment;
 
@@ -93,13 +91,12 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         clusterName, LOG);
     _isFlushlessModeEnabled =
         Boolean.parseBoolean(config.getProperty(IS_FLUSHLESS_MODE_ENABLED, Boolean.FALSE.toString()));
-    _partitionFetchIntervalMs = Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL,
-        Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
+    _partitionFetchIntervalMs =
+        Long.parseLong(config.getProperty(PARTITION_FETCH_INTERVAL, Long.toString(DEFAULT_PARTITION_FETCH_INTERVAL)));
     VerifiableProperties verifiableProperties = new VerifiableProperties(config);
     _consumerProperties = verifiableProperties.getDomainProperties(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER);
     _listenerConsumerFactory = new KafkaConsumerFactoryImpl();
     _enablePartitionAssignment = _config.getEnablePartitionAssignment();
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _shutdown = false;
     if (_enablePartitionAssignment) {
       LOG.info("PartitionAssignment enabled for KafkaMirrorConnector");
@@ -154,7 +151,11 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return Collections.unmodifiableList(KafkaMirrorMakerConnectorTask.getMetricInfos(_connectorName));
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+
+    metrics.addAll(super.getMetricInfos());
+    metrics.addAll(KafkaMirrorMakerConnectorTask.getMetricInfos(_connectorName));
+    return Collections.unmodifiableList(metrics);
   }
 
   @Override
