@@ -227,6 +227,7 @@ project(':datastream-kafka-connector') {
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
+    compile "org.apache.commons:commons-lang3:$commonslang3Version"
 
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-testcommon')

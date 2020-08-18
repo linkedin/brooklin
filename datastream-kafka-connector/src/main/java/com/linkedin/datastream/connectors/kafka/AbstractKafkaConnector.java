@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -78,7 +78,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
   private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
-  private long _numTaskRestarts = 0;
+  private volatile long _numTaskRestarts = 0;
   private final String _metricsPrefix;
 
   protected final DynamicMetricsManager _dynamicMetricsManager;

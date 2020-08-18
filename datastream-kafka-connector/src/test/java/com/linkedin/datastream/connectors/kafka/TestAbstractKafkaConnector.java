@@ -70,7 +70,7 @@ public class TestAbstractKafkaConnector {
 
     // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
     // connector name of interest.
-    MetricsTestUtils.verifyMetrics(connector, DynamicMetricsManager.getInstance());
+    MetricsTestUtils.verifyMetrics(connector, DynamicMetricsManager.getInstance(), s -> s.startsWith("test"));
 
     connector.stop();
   }
