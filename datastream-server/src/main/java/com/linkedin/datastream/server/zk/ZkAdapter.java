@@ -1299,6 +1299,11 @@ public class ZkAdapter {
      * @param notifyTimestamp the timestamp that partitionMovement is triggered
      */
     void onPartitionMovement(Long notifyTimestamp);
+
+    /**
+     * onSessionExpired is called when the zookeeper session expires.
+     */
+    void onSessionExpired();
   }
 
   /**
@@ -1614,6 +1619,10 @@ public class ZkAdapter {
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
     onBecomeFollower();
+    if (_listener != null) {
+      _listener.onSessionExpired();
+    }
+    connect();
   }
 
   @VisibleForTesting
