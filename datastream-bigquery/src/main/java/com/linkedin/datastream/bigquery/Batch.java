@@ -19,6 +19,7 @@ import com.linkedin.datastream.bigquery.translator.RecordTranslator;
 import com.linkedin.datastream.bigquery.translator.SchemaTranslator;
 import com.linkedin.datastream.common.DatastreamRecordMetadata;
 import com.linkedin.datastream.common.Package;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.api.transport.buffered.AbstractBatch;
 
 /**
@@ -77,6 +78,19 @@ public class Batch extends AbstractBatch {
     public void write(Package aPackage) throws InterruptedException {
         if (aPackage.isDataPackage()) {
 
+            if (aPackage.getRecord().getValue() == null) {
+                LOG.info("Null record received from topic {}, partition {}, and offset {}",
+                        aPackage.getTopic(), aPackage.getPartition(), aPackage.getOffset());
+                DynamicMetricsManager.getInstance().createOrUpdateMeter(
+                        this.getClass().getSimpleName(),
+                        aPackage.getTopic(),
+                        "nullRecordsCount",
+                        1);
+                aPackage.getAckCallback().onCompletion(new DatastreamRecordMetadata(
+                        aPackage.getCheckpoint(), aPackage.getTopic(), aPackage.getPartition()), null);
+                return;
+            }
+
             if (_destination == null) {
                 String[] datasetTableSuffix = aPackage.getDestination().split("/");
                 if (datasetTableSuffix.length == 2) {
@@ -109,6 +123,7 @@ public class Batch extends AbstractBatch {
                 return;
             }
         }
+
         if (_batch.size() >= _maxBatchSize ||
                 System.currentTimeMillis() - _batchCreateTimeStamp >= _maxBatchAge ||
                 aPackage.isForceFlushSignal()) {

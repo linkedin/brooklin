@@ -284,16 +284,17 @@ public class SchemaTranslator {
                 if (LogicalTypeIdentifier.isTimeType(avroSchema)) {
                     type = StandardSQLTypeName.TIME;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
                 } else if (LogicalTypeIdentifier.isTimestampType(avroSchema)) {
                     type = StandardSQLTypeName.TIMESTAMP;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
+                } else if (LogicalTypeIdentifier.isDatetimeType(avroSchema)) {
+                    type = StandardSQLTypeName.DATETIME;
+                    fieldBuilder = Field.newBuilder(name, type);
                 } else {
                     type = StandardSQLTypeName.INT64;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
                 }
+                break;
             case FLOAT:
             case DOUBLE:
                 type = StandardSQLTypeName.FLOAT64;
@@ -303,16 +304,17 @@ public class SchemaTranslator {
                 if (LogicalTypeIdentifier.isZonedTime(avroSchema)) {
                     type = StandardSQLTypeName.TIME;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
                 } else if (LogicalTypeIdentifier.isZonedTimestamp(avroSchema)) {
                     type = StandardSQLTypeName.TIMESTAMP;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
+                } else if (LogicalTypeIdentifier.isLSN(name)) {
+                    type = StandardSQLTypeName.NUMERIC;
+                    fieldBuilder = Field.newBuilder(name, type);
                 } else {
                     type = StandardSQLTypeName.STRING;
                     fieldBuilder = Field.newBuilder(name, type);
-                    break;
                 }
+                break;
             case NULL:
                 return null;
             default:

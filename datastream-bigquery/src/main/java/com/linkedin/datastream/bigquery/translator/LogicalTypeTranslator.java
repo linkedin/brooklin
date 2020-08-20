@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.bigquery.translator;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
 import java.time.OffsetDateTime;
@@ -23,6 +24,7 @@ class LogicalTypeTranslator {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd";
     private static final String TIME_FORMAT = "HH:mm:ss";
+    private static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 
     /**
      * Translates avro date to BQ date
@@ -44,8 +46,25 @@ class LogicalTypeTranslator {
             return new DateTime(new Date(instant));
         } else if (LogicalTypeIdentifier.isMicroTimestamp(avroSchema)) {
             return new DateTime(new Date(instant / 1000));
-        } else if (LogicalTypeIdentifier.isNanoTimestamp(avroSchema)) {
-            return new DateTime(new Date(instant / 1000000));
+        }
+        return null;
+    }
+
+    /**
+     * Translates avro timestamp to BQ datetime
+     * @param instant datetime instant
+     * @param avroSchema avro schema
+     * @return BQ datetime
+     */
+    static String translateDatetimeType(long instant, Schema avroSchema) {
+        SimpleDateFormat dateTimeFmt = new SimpleDateFormat(DATETIME_FORMAT);
+        dateTimeFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        if (LogicalTypeIdentifier.isMilliDatetime(avroSchema)) {
+            return dateTimeFmt.format(new Date(instant)) + "." + String.format("%06d", (instant % 1000) * 1000);
+        } else if (LogicalTypeIdentifier.isMicroDatetime(avroSchema)) {
+            return dateTimeFmt.format(new Date(instant / 1000)) + "." + String.format("%06d", instant % 1000000);
+        } else if (LogicalTypeIdentifier.isNanoDatetime(avroSchema)) {
+            return dateTimeFmt.format(new Date(instant / 1000000)) + "." + String.format("%06d", (instant % 1000000000) / 1000);
         }
         return null;
     }
@@ -100,16 +119,9 @@ class LogicalTypeTranslator {
     /**
      * Translates hex format LSN to decimal
      * @param lsn LSN in hex string format
-     * @return decimal LSN
+     * @return decimal LSN in decimal
      */
-    static byte[] translateLSN(String lsn) {
-        String[] parts = lsn.split(":");
-        if (parts.length != 3) {
-            return null;
-        }
-        return new BigInteger("0").add(BigInteger.valueOf(Long.parseLong(parts[2], 16))).
-                add(BigInteger.valueOf(Long.parseLong(parts[1], 16) *  100000L)).
-                add(BigInteger.valueOf(Long.parseLong(parts[0], 16)).multiply(BigInteger.valueOf(1000000000000000L))).
-                toByteArray();
+    static BigDecimal translateLSN(String lsn) {
+        return new BigDecimal(new BigInteger(lsn.replace(":", ""), 16));
     }
 }

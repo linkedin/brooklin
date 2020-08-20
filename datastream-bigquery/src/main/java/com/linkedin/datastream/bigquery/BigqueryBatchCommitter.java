@@ -8,9 +8,12 @@ package com.linkedin.datastream.bigquery;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -143,8 +146,14 @@ public class BigqueryBatchCommitter implements BatchCommitter<List<InsertAllRequ
             try {
                 createTableIfAbsent(destination);
 
+                TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+                SimpleDateFormat timeFmt = new SimpleDateFormat("yyyyMMdd");
+                timeFmt.setTimeZone(utcTimeZone);
+
                 String[] datasetTable = destination.split("/");
-                TableId tableId = TableId.of(datasetTable[0], sanitizeTableName(datasetTable[1]));
+                TableId tableId = TableId.of(datasetTable[0],
+                        sanitizeTableName(datasetTable[1]) + "$" + timeFmt.format(
+                                Calendar.getInstance(utcTimeZone).getTimeInMillis()));
 
                 LOG.debug("Committing a batch to dataset {} and table {}", datasetTable[0], sanitizeTableName(datasetTable[1]));
                 long start = System.currentTimeMillis();

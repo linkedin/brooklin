@@ -410,6 +410,9 @@ project(':datastream-client') {
 project(':datastream-server') {
 
   dependencies {
+    compile "com.googlecode.json-simple:json-simple:$simpleJsonVersion"
+    compile "org.graylog2:gelfj:$gelfJVersion"
+
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"

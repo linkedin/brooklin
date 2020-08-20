@@ -140,14 +140,12 @@ public class RecordTranslator {
             case STRING:
                 if (LogicalTypeIdentifier.isTimeType(avroSchema)) {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimeType(String.valueOf(record), avroSchema));
-                    break;
                 } else if (LogicalTypeIdentifier.isTimestampType(avroSchema)) {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimestampType(String.valueOf(record), avroSchema));
-                    break;
                 } else {
                     result = new AbstractMap.SimpleEntry<>(name, String.valueOf(record));
-                    break;
                 }
+                break;
             case FLOAT:
             case DOUBLE:
                 result = new AbstractMap.SimpleEntry<>(name, record);
@@ -163,14 +161,14 @@ public class RecordTranslator {
             case LONG:
                 if (LogicalTypeIdentifier.isTimeType(avroSchema)) {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimeType((Long) record, avroSchema));
-                    break;
                 } else if (LogicalTypeIdentifier.isTimestampType(avroSchema)) {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimestampType((Long) record, avroSchema));
-                    break;
+                } else if (LogicalTypeIdentifier.isDatetimeType(avroSchema)) {
+                    result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateDatetimeType((Long) record, avroSchema));
                 } else {
                     result = new AbstractMap.SimpleEntry<>(name, record);
-                    break;
                 }
+                break;
             case BOOLEAN:
                 result = new AbstractMap.SimpleEntry<>(name, record);
                 break;
@@ -422,7 +420,12 @@ public class RecordTranslator {
                     fields.put(avroField.name(), translateRecord((GenericData.Record) record.get(avroField.name())));
                 }
             } else if (avroField.schema().getType() == Schema.Type.UNION) {
-                fields.put(avroField.name(), translateUnionTypeObject(record.get(avroField.name()), avroField.schema()));
+                if (record.get(avroField.name()) != null && LogicalTypeIdentifier.isLSN(avroField.name())) {
+                    fields.put(avroField.name(),
+                            LogicalTypeTranslator.translateLSN(String.valueOf(record.get(avroField.name()))));
+                } else {
+                    fields.put(avroField.name(), translateUnionTypeObject(record.get(avroField.name()), avroField.schema()));
+                }
             } else if (avroField.schema().getType() == Schema.Type.FIXED) {
                 fields.put(avroField.name(), translateFixedTypeObject(record.get(avroField.name()), avroField.schema()));
             } else if (avroField.schema().getType() == Schema.Type.MAP) {

@@ -79,9 +79,17 @@ class LogicalTypeIdentifier {
      * @return true if the avro schema is timestamp logical type
      */
     static boolean isTimestampType(Schema avroSchema) {
-        return (avroSchema.getLogicalType() != null && AVRO_TIMESTAMP_TYPES.contains(avroSchema.getLogicalType().getName()))
-                || (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
-                    DEBEZIUM_TIMESTAMP_TYPES.contains(avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY)));
+        return avroSchema.getLogicalType() != null && AVRO_TIMESTAMP_TYPES.contains(avroSchema.getLogicalType().getName());
+    }
+
+    /**
+     * checks if avro schema is Datetime type
+     * @param avroSchema avro schema to inspect
+     * @return true if the avro schema is datetime logical type
+     */
+    static boolean isDatetimeType(Schema avroSchema) {
+        return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
+                DEBEZIUM_TIMESTAMP_TYPES.contains(avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY)));
     }
 
     /**
@@ -141,9 +149,7 @@ class LogicalTypeIdentifier {
      * @return true if the avro schema is timestamp logical type with millisecond precision
      */
     static boolean isMilliTimestamp(Schema avroSchema) {
-        return (avroSchema.getLogicalType() != null && avroSchema.getLogicalType().getName().equals(AVRO_TIMESTAMPMILLIS_NAME))
-                || (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
-                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_TIMESTAMP_NAME));
+        return avroSchema.getLogicalType() != null && avroSchema.getLogicalType().getName().equals(AVRO_TIMESTAMPMILLIS_NAME);
     }
 
     /**
@@ -152,19 +158,7 @@ class LogicalTypeIdentifier {
      * @return true if the avro schema is timestamp logical type with microsecond precision
      */
     static boolean isMicroTimestamp(Schema avroSchema) {
-        return (avroSchema.getLogicalType() != null && avroSchema.getLogicalType().getName().equals(AVRO_TIMESTAMPMICROS_NAME))
-                || (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
-                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_MICROTIMESTAMP_NAME));
-    }
-
-    /**
-     * checks if avro schema is Timestamp type with nanosecond precision
-     * @param avroSchema avro schema to inspect
-     * @return true if the avro schema is timestamp logical type with nanosecond precision
-     */
-    static boolean isNanoTimestamp(Schema avroSchema) {
-        return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
-                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_NANOTIMESTAMP_NAME));
+        return avroSchema.getLogicalType() != null && avroSchema.getLogicalType().getName().equals(AVRO_TIMESTAMPMICROS_NAME);
     }
 
     /**
@@ -175,6 +169,36 @@ class LogicalTypeIdentifier {
     static boolean isZonedTimestamp(Schema avroSchema) {
         return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
                 avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_ZONEDTIMESTAMP_NAME));
+    }
+
+    /**
+     * checks if avro schema is Datetime type with millisecond precision
+     * @param avroSchema avro schema to inspect
+     * @return true if the avro schema is datetime logical type with millisecond precision
+     */
+    static boolean isMilliDatetime(Schema avroSchema) {
+        return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
+                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_TIMESTAMP_NAME));
+    }
+
+    /**
+     * checks if avro schema is Datetime type with microsecond precision
+     * @param avroSchema avro schema to inspect
+     * @return true if the avro schema is datetime logical type with microsecond precision
+     */
+    static boolean isMicroDatetime(Schema avroSchema) {
+        return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
+                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_MICROTIMESTAMP_NAME));
+    }
+
+    /**
+     * checks if avro schema is Datetime type with nanosecond precision
+     * @param avroSchema avro schema to inspect
+     * @return true if the avro schema is datetime logical type with nanosecond precision
+     */
+    static boolean isNanoDatetime(Schema avroSchema) {
+        return (avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY) != null &&
+                avroSchema.getProp(DEBEZIUM_LOGICAL_TYPE_PROPERTY).equals(DEBEZIUM_NANOTIMESTAMP_NAME));
     }
 
     /**
