@@ -234,7 +234,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), _config.getDebounceTimerMs(), this);
   }
 
   /**
@@ -1252,6 +1252,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("performCleanupOrphanConnectorTasks called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
     _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
+    int orphanLockCount = _adapter.cleanUpOrphanConnectorTaskLocks(_config.getZkCleanUpOrphanConnectorTask());
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASK_LOCKS, orphanLockCount);
   }
 
   /**
@@ -1825,7 +1827,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
-      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks");
+      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
 
       private final String _name;
 

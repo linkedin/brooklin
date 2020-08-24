@@ -39,6 +39,7 @@ public class TestZookeeperCheckpointProvider {
   private EmbeddedZookeeper _zookeeper;
 
   private final String defaultTransportProviderName = "test";
+  private static final long DEBOUNCE_TIMER_MS = 1000;
 
   @BeforeMethod
   public void setup(Method method) throws IOException {
@@ -55,7 +56,7 @@ public class TestZookeeperCheckpointProvider {
   @Test
   public void testUnassign() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
-        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, DEBOUNCE_TIMER_MS, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     Datastream ds1 = generateDatastream(1);
@@ -84,7 +85,7 @@ public class TestZookeeperCheckpointProvider {
   @Test
   public void testCommitAndReadCheckpoints() {
     ZkAdapter adapter = new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
-        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, DEBOUNCE_TIMER_MS, null);
     adapter.connect();
     ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(1)));
