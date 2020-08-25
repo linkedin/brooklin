@@ -456,15 +456,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _leaderDatastreamAddOrDeleteEventScheduled.set(false);
     if (_leaderDatastreamAddOrDeleteEventScheduledFuture != null) {
       _leaderDatastreamAddOrDeleteEventScheduledFuture.cancel(true);
+      _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
     }
+
     _leaderDoAssignmentScheduled.set(false);
     if (_leaderDoAssignmentScheduledFuture != null) {
       _leaderDoAssignmentScheduledFuture.cancel(true);
+      _leaderDoAssignmentScheduledFuture = null;
     }
 
     _eventQueue.clear();
+
     // Stopping all the connectors so that they stop producing.
-    //for (String connectorType : _connectors.keySet()) {
     List<Future<Boolean>> assignmentChangeFutures = _connectors.keySet().stream()
         .map(connectorType -> {
           _assignmentChangeThreadPool.get(connectorType).shutdownNow();
@@ -487,13 +490,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         assignmentChangeFutures.forEach(future -> future.cancel(true));
       }
     });
-    _assignedDatastreamTasks.clear();
 
-    if (!_shutdown) {
-      createEventThread();
-      startEventThread();
-      //_adapter.connect();
-    }
+    onDatastreamChange(new ArrayList<>());
+    _assignedDatastreamTasks.clear();
   }
 
   private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)
@@ -1643,6 +1642,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public String getClusterName() {
     return _clusterName;
   }
+
+  @VisibleForTesting
+  CoordinatorEventProcessor getEventThread() {
+    return _eventThread;
+  }
+
 
   /**
    * Add a transport provider that the coordinator can assign to datastreams it creates.

@@ -304,8 +304,6 @@ public class TestCoordinator {
     Assert.assertTrue(latch.getCount() < 1);
   }
 
-
-
   // verify that connector znodes are created as soon as Coordinator instance is started
   @Test
   public void testConnectorZkNodes() throws Exception {
@@ -2597,6 +2595,36 @@ public class TestCoordinator {
     instance2.stop();
   }
 
+  @Test
+  public void testOnSessionExpired() throws Exception {
+    String testCluster = "testCoordinationSmoke3";
+    String testConnectorType = "testConnectorType";
+    String datastreamName = "datastreamNameSessionExpired";
+
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    instance1.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
+            DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName);
+    //verify the assignment
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
+
+    instance1.onSessionExpired();
+    Assert.assertEquals(connector1._tasks.size(), 0);
+    Assert.assertEquals(instance1.getDatastreamTasks().size(), 0);
+    Thread t = instance1.getEventThread();
+    Assert.assertFalse(t != null && t.isAlive());
+
+    instance1.stop();
+  }
+
   // helper method: assert that within a timeout value, the connector are assigned the specific
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, String... datastreamNames)
@@ -2701,9 +2729,7 @@ public class TestCoordinator {
 
       _tasks = tasks;
       for (DatastreamTask task : tasks) {
-        if (task.getEventProducer() == null) {
-          Assert.assertNotNull(task.getEventProducer());
-        }
+        Assert.assertNotNull(task.getEventProducer());
       }
 
       LOG.info("END: onAssignmentChange");

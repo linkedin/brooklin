@@ -1622,6 +1622,7 @@ public class ZkAdapter {
     if (_listener != null) {
       _listener.onSessionExpired();
     }
+    // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
     connect();
   }
 
