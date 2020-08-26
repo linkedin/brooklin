@@ -8,6 +8,8 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.codehaus.jackson.annotate.JsonProperty;
+
 
 /**
  * Response structure used for consumer offsets diagnostics-endpoint requests
@@ -21,7 +23,8 @@ public class KafkaConsumerOffsetsResponse {
    * @param consumerOffsets Consumer offsets for all topic partitions
    * @param consumerGroupId Consumer group ID
    */
-  public KafkaConsumerOffsetsResponse(Map<String, Map<Integer, Long>> consumerOffsets, String consumerGroupId) {
+  public KafkaConsumerOffsetsResponse(@JsonProperty("consumerOffsets") Map<String, Map<Integer, Long>> consumerOffsets,
+      @JsonProperty("consumerGroupId") String consumerGroupId) {
     _consumerGroupId = consumerGroupId;
     _consumerOffsets = consumerOffsets;
   }
