@@ -667,7 +667,7 @@ public class TestZkAdapter {
    * Test task acquire when there are dependencies
    */
   @Test
-  public void testTaskAcquireWithDependencies() {
+  public void testTaskAcquireWithDependencies() throws InterruptedException {
     String testCluster = "testTaskAcquireReleaseOwnerUncleanBounce";
     String connectorType = "connectorType";
 
@@ -689,9 +689,10 @@ public class TestZkAdapter {
     //The task2 cannot be acquired as the dependencies are not released
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task1, new ArrayList<>());
     Assert.assertTrue(expectException(() -> task2.acquire(Duration.ofMillis(100)), true));
-
+    Assert.assertTrue(expectException(() -> task2.acquire(Duration.ofMillis(ZK_DEBOUNCE_TIMER_MS)), true));
+    Thread.sleep(2000);
     //Verify the task2 can be locked after task1 is released
-    Thread acquireThread = new Thread(() -> task2.acquire(Duration.ofSeconds(10)));
+    Thread acquireThread = new Thread(() -> task2.acquire(Duration.ofSeconds(3)));
     Thread releaseThread = new Thread(task1::release);
 
     acquireThread.start();
@@ -787,12 +788,12 @@ public class TestZkAdapter {
     Assert.assertTrue(expectException(() -> adapter1._zkClient.waitUntilConnected(5, TimeUnit.SECONDS), false));
 
     // adapter2 not able to acquire lock
-    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
-        task.getTaskPrefix(), task.getDatastreamTaskName()));
+    Assert.assertTrue(adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
+        task.getTaskPrefix(), task.getDatastreamTaskName())));
     Assert.assertTrue(expectException(() -> adapter2.acquireTask(task, timeout), true));
 
-    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
-        task.getTaskPrefix(), task.getDatastreamTaskName()));
+    Assert.assertTrue(adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
+        task.getTaskPrefix(), task.getDatastreamTaskName())));
     String owner2 = adapter2.getZkClient().readData(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
         task.getTaskPrefix(), task.getDatastreamTaskName()));
     Assert.assertEquals(owner, owner2);
@@ -800,8 +801,8 @@ public class TestZkAdapter {
     // adapter 2 able to acquire lock
     Assert.assertTrue(expectException(() -> adapter2.acquireTask(task, Duration.ofSeconds(15)), false));
 
-    adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
-        task.getTaskPrefix(), task.getDatastreamTaskName()));
+    Assert.assertTrue(adapter2.getZkClient().exists(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
+        task.getTaskPrefix(), task.getDatastreamTaskName())));
     owner2 = adapter2.getZkClient().readData(KeyBuilder.datastreamTaskLock(testCluster, task.getConnectorType(),
         task.getTaskPrefix(), task.getDatastreamTaskName()));
     Assert.assertNotEquals(owner, owner2);
@@ -865,7 +866,7 @@ public class TestZkAdapter {
     leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 3);
 
-    //Verify orphan locks, lockTask is the only orphan task.
+    // Verify orphan locks, lockTask is the only orphan task.
     // expected 1 * 2, because its the only node, it needs to delete the prefix node as well.
     Assert.assertEquals(adapter.cleanUpOrphanConnectorTaskLocks(false), 1 * 2);
     Map<String, Set<String>> taskLocks = adapter.getAllConnectorTaskLocks(connectorType);
@@ -893,7 +894,7 @@ public class TestZkAdapter {
     Assert.assertEquals(taskLocks.get("taskPrefix0").size(), 1);
     Assert.assertEquals(taskLocks.get("taskPrefixlock").size(), 1);
 
-    //Thread sleep to wait for debounce timer orphan lock cleanup.
+    // Thread sleep to wait for debounce timer orphan lock cleanup.
     Thread.sleep(5000);
     taskLocks = adapter.getAllConnectorTaskLocks(connectorType);
     Assert.assertEquals(taskLocks.size(), 0);

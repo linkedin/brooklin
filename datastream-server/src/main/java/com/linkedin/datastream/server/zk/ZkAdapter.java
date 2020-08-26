@@ -50,6 +50,10 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.HostTargetAssignment;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toSet;
+
 
 /**
  *
@@ -137,10 +141,10 @@ public class ZkAdapter {
   private ZkLeaderElectionListener _leaderElectionListener = null;
   private ZkBackedTaskListProvider _assignmentList = null;
   private ZkStateChangeListener _stateChangeListener = null;
+  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
   // only the leader should maintain this list and listen to the changes of live instances
   private ZkBackedDMSDatastreamList _datastreamList = null;
-  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
   private ZkTargetAssignmentProvider _targetAssignmentProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
@@ -1025,7 +1029,7 @@ public class ZkAdapter {
    * This is a costly operation which involves getting all children of /cluster/connectors from Zookeeper. So,
    * it should be called only once the leader gets elected and has finished the assignment and cleaned up dead
    * tasks. Ideally, we should not find anything in this check to clean up.
-   * @param cleanUpOrphanTasksInConnector Boolean whether orphan tasks should be removed from zookeeper or just
+   * @param cleanUpOrphanTasksInConnector whether orphan tasks should be removed from zookeeper or just
    *                                      print warning logs.
    * @return total orphan task nodes identified/cleaned.
    */
@@ -1034,16 +1038,15 @@ public class ZkAdapter {
       return 0;
     }
 
-    Set<DatastreamTask> validTasks = getDatastreamTasks();
+    LOG.info("cleanUpOrphanConnectorTasks called");
+
+    Map<String, Set<String>> validTaskNamesConnectorMap = getDatastreamTaskNamesGroupedByConnector();
     List<String> allConnectors = getAllConnectors();
     int orphanCount = 0;
     for (String connector : allConnectors) {
       Set<String> connectorTaskList = getConnectorTasks(connector);
-
-      connectorTaskList.removeAll(validTasks.stream()
-          .filter(x -> x.getConnectorType().equals(connector))
-          .map(DatastreamTask::getDatastreamTaskName)
-          .collect(Collectors.toSet()));
+      Set<String> validTaskNamesSet = validTaskNamesConnectorMap.getOrDefault(connector, Collections.emptySet());
+      connectorTaskList.removeAll(validTaskNamesSet);
 
       // ignore the lock root node.
       connectorTaskList.remove(KeyBuilder.DATASTREAM_TASK_LOCK_ROOT_NAME);
@@ -1059,42 +1062,49 @@ public class ZkAdapter {
     return orphanCount;
   }
 
-  private Set<DatastreamTask> getDatastreamTasks() {
-    return getAllAssignedDatastreamTasks().values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+  private Map<String, Set<String>> getDatastreamTaskNamesGroupedByConnector() {
+    return getAllAssignedDatastreamTasks()
+        .values()
+        .stream()
+        .flatMap(Collection::stream)
+        .collect(groupingBy(DatastreamTask::getConnectorType, mapping(DatastreamTask::getDatastreamTaskName, toSet())));
   }
 
   /**
    * Identify orphan connector task locks for which there is no corresponding connector task node present and schedule
-   * the clean up after the debounce timer. There is no way for the leader to know that the task corresponding to the
-   * lock has stopped or not. It makes sense to clear it after the debounce timer.
+   * the clean up after the debounce time.
+   * Lock cleanup must be scheduled after a debounce timer because:
+   *
+   * a. There is no easy way to know if the task is still running even though it is [un/re]assigned.
+   * b. All tasks which are unassigned must be stopped within a fixed amount of time which is <= debounce timer.
+   *
+   * Thus waiting for the debounce timer gives the guarantee that reassigned/dead tasks have actually stopped.
    *
    * NOTE: this should be called after the valid tasks have been reassigned or become safe to discard per
    * strategy requirement.
    *
    * This is a costly operation which involves getting all children of /cluster/connectors/lock from Zookeeper. So,
-   * it should be called only once the leader get elected and has finished the assignment and cleaned up dead tasks.
-   * @param cleanUpOrphanTaskLocksInConnector Boolean whether orphan task locks should be removed from zookeeper or just
+   * it should be called only once the leader gets elected and has finished the assignment and cleaned up dead tasks.
+   * @param cleanUpOrphanTaskLocksInConnector whether orphan task locks should be removed from zookeeper or just
    *                                      print warning logs.
    * @return total orphan task locks identified/cleaned.
    */
   public int cleanUpOrphanConnectorTaskLocks(boolean cleanUpOrphanTaskLocksInConnector) {
     // do not perform this operation if not a leader or another operation is going on.
     if (!_isLeader || !_orphanLockCleanupFuture.isDone()) {
+      LOG.info("Skipping cleanUpOrphanConnectorTaskLocks. isLeader: {} lock cleanup scheduled: {}",
+          _isLeader, _orphanLockCleanupFuture.isDone());
       return 0;
     }
 
-    Set<DatastreamTask> validTasks = getDatastreamTasks();
+    LOG.info("cleanUpOrphanConnectorTaskLocks called");
+    Map<String, Set<String>> validTaskNamesConnectorMap = getDatastreamTaskNamesGroupedByConnector();
     List<String> allConnectors = getAllConnectors();
 
     int orphanCount = 0;
     for (String connector : allConnectors) {
       Map<String, Set<String>> locksByTaskPrefix = getAllConnectorTaskLocks(connector);
-
-      Set<String> validTaskNamesSet = validTasks.stream()
-          .filter(x -> x.getConnectorType().equals(connector))
-          .map(DatastreamTask::getDatastreamTaskName)
-          .collect(Collectors.toSet());
-
+      Set<String> validTaskNamesSet = validTaskNamesConnectorMap.getOrDefault(connector, Collections.emptySet());
       List<String> orphanLockList = new ArrayList<>();
 
       locksByTaskPrefix.forEach((taskPrefix, taskList) -> {
@@ -1122,7 +1132,7 @@ public class ZkAdapter {
       }
     }
 
-    if (cleanUpOrphanTaskLocksInConnector) {
+    if (cleanUpOrphanTaskLocksInConnector && _finalOrphanLockList.size() > 0) {
       // waiting for the debounce time to ensure that the task thread should stop processing by then.
       _orphanLockCleanupFuture = _scheduledExecutorServiceOrphanLockCleanup.schedule(this::cleanUpOrphanLocks,
           _debounceTimerMs, TimeUnit.MILLISECONDS);
@@ -1139,20 +1149,15 @@ public class ZkAdapter {
   }
 
   /*
-   * wait for the task lock to release and delete if the lock is owned by dead owner
+   * Wait for the task lock to be released and delete it if the lock is held by a dead owner
    */
   private void waitForTaskReleaseOrForceIfOwnerIsDead(DatastreamTask task, long timeoutMs, String lockPath) {
     boolean deadOwner = false;
     if (_zkclient.exists(lockPath)) {
       String owner = _zkclient.readData(lockPath, true);
-      if (owner != null && owner.equals(_instanceName)) {
-        LOG.info("{} already owns the lock on {}", _instanceName, task);
-        //release the lock.
-        return;
-      }
 
       long waitTimeout = timeoutMs;
-      // if the timeout is greater than debounce timer, only then identify and clean the task lock.
+      // Only try to identify dead owners of the task lock if the timeout is greater than the debounce timer.
       if (timeoutMs >= _debounceTimerMs) {
         // check if the owner is dead.
         if (_liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
@@ -1178,6 +1183,9 @@ public class ZkAdapter {
         String tempOwner = _zkclient.readData(lockPath, true);
         if (tempOwner != null && tempOwner.equals(owner)) {
           _zkclient.delete(lockPath);
+        } else {
+          LOG.warn("Not deleting the lock for the task {} since the owner changed from dead owner {} to {}.",
+              task.getDatastreamTaskName(), owner, tempOwner);
         }
       }
     }
@@ -1234,11 +1242,8 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
-      owner = _zkclient.readData(lockPath, true);
-      if ((owner != null && owner.equals(_instanceName))) {
-        LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
-        return;
-      }
+      LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
+      return;
     }
 
     String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
@@ -1757,9 +1762,11 @@ public class ZkAdapter {
   @VisibleForTesting
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
-    //cancel the lock clean up
+    // cancel the lock clean up
     _orphanLockCleanupFuture.cancel(true);
     onBecomeFollower();
+    // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
+    // is not re-initialized till reconnect path is fixed.
     connect();
   }
 

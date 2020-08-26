@@ -38,7 +38,9 @@ public final class KeyBuilder {
    *
    * Below keys represent the various locations under connectors for parts of
    * a DatastreamTask can be persisted.
+   */
 
+  /**
    * Task node under connectorType
    */
   private static final String CONNECTOR_DATASTREAM_TASK = CONNECTOR + "/%s";
@@ -74,7 +76,7 @@ public final class KeyBuilder {
   private static final String DATASTREAM_TASK_LOCK_PREFIX = DATASTREAM_TASK_LOCK_ROOT + "/%s";
 
   /**
-   * Task lock node under connectorType/lock/{taskPrefix}/{task}
+   * Task lock node under connectorType/lock/{taskPrefix}/{taskName }
    */
   private static final String DATASTREAM_TASK_LOCK = DATASTREAM_TASK_LOCK_PREFIX + "/%s";
 
@@ -296,7 +298,8 @@ public final class KeyBuilder {
 
   /**
    * Get the ZooKeeper znode for a specific datastream task's lock
-   * The lock is ephemeral node and it should not be stored under task node
+   * The lock is persistent node and it should not be stored under task node to handle the race condition where the connector
+   * tries   to acquire the lock while the coordinator deletes the task node.
    *
    * <pre>Example: /{cluster}/connectors/{connectorType}/lock/{task-prefix}/{taskName}</pre>
    * @param cluster Brooklin cluster name
