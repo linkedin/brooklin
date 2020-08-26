@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2020 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.util.ArrayList;
@@ -17,13 +22,16 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
-import com.linkedin.datastream.connectors.kafka.KafkaConsumerOffsetsResponse;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectorDiagUtils;
+import com.linkedin.datastream.connectors.kafka.KafkaConsumerOffsetsResponse;
 import com.linkedin.datastream.connectors.kafka.MockDatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 
 
+/**
+ * Tests for kafka consumer offsets diagnostic endpoint
+ */
 @Test
 public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
 
@@ -76,7 +84,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
 
     consumerOffsets.values().forEach(partitionOffsets -> Assert.assertEquals(partitionOffsets.size(), PARTITION_COUNT));
     consumerOffsets.values().forEach(partitionOffsets -> partitionOffsets.values()
-        .forEach(offset -> Assert.assertEquals((long)offset, PARTITION_MESSAGE_COUNT - 1))); // 0-based offsets
+        .forEach(offset -> Assert.assertEquals((long) offset, PARTITION_MESSAGE_COUNT - 1))); // 0-based offsets
 
     // shutdown
     connector.stop();
@@ -95,63 +103,63 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     String instance2 = "i2";
 
     // constructing instance1 consumer offsets
-    List<KafkaConsumerOffsetsResponse> i1_responseList = new ArrayList<>();
+    List<KafkaConsumerOffsetsResponse> responseList1 = new ArrayList<>();
 
     // instance 1 consumer group 1
-    Map<String, Map<Integer, Long>> i1_cg1_topicPartitionOffsets = new HashMap<>();
+    Map<String, Map<Integer, Long>> topicPartitionOffsets1 = new HashMap<>();
 
-    Map<Integer, Long> i1_cg1_t1_partitionOffsets = new HashMap<>();
-    i1_cg1_t1_partitionOffsets.put(0, 10L);
-    i1_cg1_t1_partitionOffsets.put(1, 10L);
-    i1_cg1_topicPartitionOffsets.put(topic1, i1_cg1_t1_partitionOffsets);
+    Map<Integer, Long> partitionOffsets1 = new HashMap<>();
+    partitionOffsets1.put(0, 10L);
+    partitionOffsets1.put(1, 10L);
+    topicPartitionOffsets1.put(topic1, partitionOffsets1);
 
-    Map<Integer, Long> i1_cg1_t2_partitionOffsets = new HashMap<>();
-    i1_cg1_t2_partitionOffsets.put(0, 10L);
-    i1_cg1_t2_partitionOffsets.put(1, 10L);
-    i1_cg1_topicPartitionOffsets.put(topic2, i1_cg1_t2_partitionOffsets);
+    Map<Integer, Long> partitionOffsets2 = new HashMap<>();
+    partitionOffsets2.put(0, 10L);
+    partitionOffsets2.put(1, 10L);
+    topicPartitionOffsets1.put(topic2, partitionOffsets2);
 
-    i1_responseList.add(new KafkaConsumerOffsetsResponse(i1_cg1_topicPartitionOffsets, consumerGroup1));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, consumerGroup1));
 
     // instance 1 consumer group 2
-    Map<String, Map<Integer, Long>> i1_cg2_topicPartitionOffsets = new HashMap<>();
+    Map<String, Map<Integer, Long>> topicPartitionOffsets2 = new HashMap<>();
 
-    Map<Integer, Long> i1_cg2_t1_partitionOffsets = new HashMap<>();
-    i1_cg2_t1_partitionOffsets.put(0, 20L);
-    i1_cg2_t1_partitionOffsets.put(1, 20L);
-    i1_cg2_topicPartitionOffsets.put(topic1, i1_cg2_t1_partitionOffsets);
+    Map<Integer, Long> partitionOffsets3 = new HashMap<>();
+    partitionOffsets3.put(0, 20L);
+    partitionOffsets3.put(1, 20L);
+    topicPartitionOffsets2.put(topic1, partitionOffsets3);
 
-    Map<Integer, Long> i1_cg2_t2_partitionOffsets = new HashMap<>();
-    i1_cg2_t2_partitionOffsets.put(0, 20L);
-    i1_cg2_t2_partitionOffsets.put(1, 20L);
-    i1_cg2_topicPartitionOffsets.put(topic2, i1_cg2_t2_partitionOffsets);
+    Map<Integer, Long> partitionOffsets4 = new HashMap<>();
+    partitionOffsets4.put(0, 20L);
+    partitionOffsets4.put(1, 20L);
+    topicPartitionOffsets2.put(topic2, partitionOffsets4);
 
-    i1_responseList.add(new KafkaConsumerOffsetsResponse(i1_cg2_topicPartitionOffsets, consumerGroup2));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, consumerGroup2));
 
     // constructing instance2 consumer offsets
-    List<KafkaConsumerOffsetsResponse> i2_responseList = new ArrayList<>();
+    List<KafkaConsumerOffsetsResponse> responseList2 = new ArrayList<>();
 
     // instance 2 consumer group 1
-    Map<String, Map<Integer, Long>> i2_cg1_topicPartitionOffsets = new HashMap<>();
+    Map<String, Map<Integer, Long>> topicPartitionOffsets3 = new HashMap<>();
 
-    Map<Integer, Long> i2_cg1_t1_partitionOffsets = new HashMap<>();
-    i2_cg1_t1_partitionOffsets.put(2, 10L);
-    i2_cg1_t1_partitionOffsets.put(3, 10L);
-    i2_cg1_topicPartitionOffsets.put(topic1, i2_cg1_t1_partitionOffsets);
+    Map<Integer, Long> partitionOffsets5 = new HashMap<>();
+    partitionOffsets5.put(2, 10L);
+    partitionOffsets5.put(3, 10L);
+    topicPartitionOffsets3.put(topic1, partitionOffsets5);
 
-    i2_responseList.add(new KafkaConsumerOffsetsResponse(i2_cg1_topicPartitionOffsets, consumerGroup1));
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, consumerGroup1));
 
     // instance 2 consumer group 3
-    Map<String, Map<Integer, Long>> i2_cg3_topicPartitionOffsets = new HashMap<>();
+    Map<String, Map<Integer, Long>> topicPartitionOffsets4 = new HashMap<>();
 
-    Map<Integer, Long> i2_cg3_t2_partitionOffsets = new HashMap<>();
-    i2_cg3_t2_partitionOffsets.put(0, 30L);
-    i2_cg3_topicPartitionOffsets.put(topic2, i2_cg3_t2_partitionOffsets);
-    i2_responseList.add(new KafkaConsumerOffsetsResponse(i2_cg3_topicPartitionOffsets, consumerGroup3));
+    Map<Integer, Long> partitionOffsets6 = new HashMap<>();
+    partitionOffsets6.put(0, 30L);
+    topicPartitionOffsets4.put(topic2, partitionOffsets6);
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, consumerGroup3));
 
     // reducing responses and asserting correctness
     Map<String, String> responseMap = new HashMap<>();
-    responseMap.put(instance1, JsonUtils.toJson(i1_responseList));
-    responseMap.put(instance2, JsonUtils.toJson(i2_responseList));
+    responseMap.put(instance1, JsonUtils.toJson(responseList1));
+    responseMap.put(instance2, JsonUtils.toJson(responseList2));
 
     String reducedMapJson = KafkaConnectorDiagUtils.reduceConsumerOffsetsResponses(responseMap, LOG);
     List<KafkaConsumerOffsetsResponse> responseList =
