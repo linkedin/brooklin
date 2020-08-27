@@ -75,7 +75,9 @@ public class KafkaTopicPartitionTracker {
       }
     });
 
-    // Remove consumer offsets for partitions that have been revoked
+    // Remove consumer offsets for partitions that have been revoked. The reason to remove the consumer offsets
+    // here is that another host may handle these partitions due to rebalance, and we don't want to have duplicate
+    // consumer offsets for affected partitions (even though the ones with larger offsets wins).
     topicPartitions.forEach(topicPartition -> {
       Map<Integer, Long> partitions = _consumerOffsets.get(topicPartition.topic());
       if (partitions != null) {

@@ -178,7 +178,9 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
         JsonUtils.fromJson(jsonStr, new TypeReference<List<KafkaConsumerOffsetsResponse>>() {
         });
 
-    Assert.assertEquals(responseList.size(), 1);
+    if (responseList == null || responseList.size() != 1) {
+      return false;
+    }
     KafkaConsumerOffsetsResponse offsetResponse = responseList.get(0);
 
     // check that all topic partitions were polled and offsets were updated
