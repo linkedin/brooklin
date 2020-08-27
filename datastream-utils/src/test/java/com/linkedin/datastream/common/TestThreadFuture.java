@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2019 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.common;
 
 import java.util.concurrent.CancellationException;
@@ -11,6 +16,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 
+/**
+ * Tests for {@link ThreadFuture}
+ */
 @Test(timeOut = 5000)
 public class TestThreadFuture {
 
@@ -148,6 +156,9 @@ public class TestThreadFuture {
     }
   }
 
+  /**
+   * Tests for {@link ThreadFuture#get()} and {@link ThreadFuture#get(long, TimeUnit)}.
+   */
   @Test
   public static class GetTests {
     @Test

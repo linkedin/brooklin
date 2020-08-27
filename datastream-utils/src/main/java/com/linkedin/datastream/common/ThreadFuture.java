@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2019 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.common;
 
 import java.util.concurrent.CancellationException;
@@ -18,6 +23,9 @@ public class ThreadFuture implements Future<Void> {
   // Indicates whether the Future has been cancelled successfully
   private volatile boolean _isCancelled;
 
+  /**
+   * Constructs a ThreadFuture
+   */
   public ThreadFuture(Thread thread) {
     Validate.notNull(thread);
     _thread = thread;
