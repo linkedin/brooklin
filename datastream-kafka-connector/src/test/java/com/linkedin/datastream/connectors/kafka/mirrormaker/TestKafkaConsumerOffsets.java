@@ -64,27 +64,11 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
 
     connector.onAssignmentChange(Collections.singletonList(task));
 
-    // wait until the consumer offsets are updated
+    // wait until the consumer offsets are updated for each topic partition
     if (!PollUtils.poll(() -> testConsumerOffsetsAreUpdated(connector),
         KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS, KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS)) {
-      Assert.fail("Topic partitions still not assigned");
+      Assert.fail("Consumer offsets were not updated correctly");
     }
-
-    // query consumer offsets and assert that they're correct
-    String jsonStr = connector.process(CONSUMER_OFFSETS);
-    List<KafkaConsumerOffsetsResponse> responseList =
-        JsonUtils.fromJson(jsonStr, new TypeReference<List<KafkaConsumerOffsetsResponse>>() {
-        });
-
-    Assert.assertEquals(responseList.size(), 1);
-    KafkaConsumerOffsetsResponse offsetResponse = responseList.get(0);
-
-    Assert.assertEquals(offsetResponse.getConsumerOffsets().size(), TOPIC_COUNT);
-    Map<String, Map<Integer, Long>> consumerOffsets = offsetResponse.getConsumerOffsets();
-
-    consumerOffsets.values().forEach(partitionOffsets -> Assert.assertEquals(partitionOffsets.size(), PARTITION_COUNT));
-    consumerOffsets.values().forEach(partitionOffsets -> partitionOffsets.values()
-        .forEach(offset -> Assert.assertEquals((long) offset, PARTITION_MESSAGE_COUNT - 1))); // 0-based offsets
 
     // shutdown
     connector.stop();
@@ -197,6 +181,26 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     Assert.assertEquals(responseList.size(), 1);
     KafkaConsumerOffsetsResponse offsetResponse = responseList.get(0);
 
-    return offsetResponse.getConsumerOffsets().size() == TOPIC_COUNT;
+    // check that all topic partitions were polled and offsets were updated
+    boolean allTopicsWerePolled = offsetResponse.getConsumerOffsets().size() == TOPIC_COUNT;
+    boolean allPartitionsWerePolled = offsetResponse.getConsumerOffsets().values().stream().
+        allMatch(m -> m.keySet().size() == PARTITION_COUNT);
+
+    if (!allTopicsWerePolled || !allPartitionsWerePolled) {
+      return false;
+    }
+
+    for (String topic : offsetResponse.getConsumerOffsets().keySet()) {
+      Map<Integer, Long> partitionOffsets = offsetResponse.getConsumerOffsets().get(topic);
+
+      for (Integer partition : partitionOffsets.keySet()) {
+        // check consumer offsets. Note that offsets are zero based
+        if (partitionOffsets.get(partition) != PARTITION_MESSAGE_COUNT - 1) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 }
