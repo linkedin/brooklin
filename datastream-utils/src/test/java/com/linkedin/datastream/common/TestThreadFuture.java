@@ -19,10 +19,11 @@ import org.testng.annotations.Test;
 /**
  * Tests for {@link ThreadFuture}
  */
-@Test(timeOut = 5000)
+@Test
 public class TestThreadFuture {
+  private static final long TEST_TIMEOUT_MS = 5000;
 
-  @Test(expectedExceptions = NullPointerException.class)
+  @Test(expectedExceptions = NullPointerException.class, timeOut = TEST_TIMEOUT_MS)
   public void testCtorThrowsOnNullThread() {
     new ThreadFuture(null);
   }
@@ -44,7 +45,7 @@ public class TestThreadFuture {
   public static class CancellationTests {
     private static final boolean[] TRUTH_VALUES = {true, false};
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testInterruptsThreadIfDesired() throws InterruptedException {
       TestThread thread = new TestThread.Builder().build();
       Future<?> future = new ThreadFuture(thread.get());
@@ -56,7 +57,7 @@ public class TestThreadFuture {
       Assert.assertTrue(thread.isInterrupted());
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testDoesNotInterruptThreadIfNotDesired() throws InterruptedException {
       TestThread thread = new TestThread.Builder().build();
       Future<?> future = new ThreadFuture(thread.get());
@@ -68,7 +69,7 @@ public class TestThreadFuture {
       Assert.assertFalse(thread.isInterrupted());
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsFalseIfThreadIsNotStarted() {
       for (boolean mayInterruptIfRunning : TRUTH_VALUES) {
         TestThread thread = new TestThread.Builder().startOnCreation(false).build();
@@ -78,7 +79,7 @@ public class TestThreadFuture {
       }
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsFalseIfThreadExited() throws InterruptedException {
       for (boolean throwOnExit : TRUTH_VALUES) {
         for (boolean mayInterruptIfRunning : TRUTH_VALUES) {
@@ -91,7 +92,7 @@ public class TestThreadFuture {
       }
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsFalseIfAlreadyCancelled() {
       for (boolean mayInterruptIfRunning : TRUTH_VALUES) {
         TestThread thread = new TestThread.Builder().build();
@@ -124,13 +125,13 @@ public class TestThreadFuture {
    */
   @Test
   public static class IsDoneTests {
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsTrueIfThreadIsNotAlive() throws InterruptedException {
       testReturnsTrueIfThreadIsNotAliveHelper(true);
       testReturnsTrueIfThreadIsNotAliveHelper(false);
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsTrueIfCancelled() {
       testReturnsTrueIfCancelledHelper(true);
       testReturnsTrueIfCancelledHelper(false);
@@ -161,13 +162,13 @@ public class TestThreadFuture {
    */
   @Test
   public static class GetTests {
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testReturnsWhenThreadExits() throws ExecutionException, InterruptedException {
       testReturnsWhenThreadExitsHelper(true);
       testReturnsWhenThreadExitsHelper(false);
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testTimesOut() throws InterruptedException, ExecutionException, TimeoutException {
       TestThread thread = new TestThread.Builder().build();
       Future<?> future = new ThreadFuture(thread.get());
@@ -178,7 +179,7 @@ public class TestThreadFuture {
       Assert.assertTrue(thread.isAlive());
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testIsInterruptable() throws InterruptedException {
       TestThread thread = new TestThread.Builder().build();
       Future<?> future = new ThreadFuture(thread.get());
@@ -201,7 +202,7 @@ public class TestThreadFuture {
       Assert.assertTrue(thread.isAlive());
     }
 
-    @Test
+    @Test(timeOut = TEST_TIMEOUT_MS)
     public void testThrowsIfCancelled() throws InterruptedException {
       TestThread thread = new TestThread.Builder().build();
       Future<?> future = new ThreadFuture(thread.get());
