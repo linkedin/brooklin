@@ -24,7 +24,7 @@ class LogicalTypeTranslator {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd";
     private static final String TIME_FORMAT = "HH:mm:ss";
-    private static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    private static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
 
     /**
      * Translates avro date to BQ date
@@ -59,12 +59,13 @@ class LogicalTypeTranslator {
     static String translateDatetimeType(long instant, Schema avroSchema) {
         SimpleDateFormat dateTimeFmt = new SimpleDateFormat(DATETIME_FORMAT);
         dateTimeFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
         if (LogicalTypeIdentifier.isMilliDatetime(avroSchema)) {
-            return dateTimeFmt.format(new Date(instant)) + "." + String.format("%06d", (instant % 1000) * 1000);
+            return dateTimeFmt.format(new Date(instant)) + "000";
         } else if (LogicalTypeIdentifier.isMicroDatetime(avroSchema)) {
-            return dateTimeFmt.format(new Date(instant / 1000)) + "." + String.format("%06d", instant % 1000000);
+            return dateTimeFmt.format(new Date(instant / 1000)) + "000";
         } else if (LogicalTypeIdentifier.isNanoDatetime(avroSchema)) {
-            return dateTimeFmt.format(new Date(instant / 1000000)) + "." + String.format("%06d", (instant % 1000000000) / 1000);
+            return dateTimeFmt.format(new Date(instant / 1000000)) + "000";
         }
         return null;
     }

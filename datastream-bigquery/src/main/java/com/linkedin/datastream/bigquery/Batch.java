@@ -5,10 +5,12 @@
  */
 package com.linkedin.datastream.bigquery;
 
+import java.nio.BufferUnderflowException;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.avro.generic.GenericRecord;
+import org.apache.kafka.common.errors.SerializationException;
 
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.Schema;
@@ -78,6 +80,7 @@ public class Batch extends AbstractBatch {
     public void write(Package aPackage) throws InterruptedException {
         if (aPackage.isDataPackage()) {
 
+            // skip null records
             if (aPackage.getRecord().getValue() == null) {
                 LOG.info("Null record received from topic {}, partition {}, and offset {}",
                         aPackage.getTopic(), aPackage.getPartition(), aPackage.getOffset());
@@ -106,11 +109,33 @@ public class Batch extends AbstractBatch {
                 _committer.setDestTableSchema(_destination, _schema);
             }
 
-            _batch.add(RecordTranslator.translate(
-                            (GenericRecord) _deserializer.deserialize(
-                                    aPackage.getTopic(),
-                                    (byte[]) aPackage.getRecord().getValue()),
-                            _avroSchema));
+            GenericRecord record;
+            try {
+                record = (GenericRecord) _deserializer.deserialize(
+                        aPackage.getTopic(),
+                        (byte[]) aPackage.getRecord().getValue());
+            } catch (SerializationException e) {
+                if (e.getCause() instanceof BufferUnderflowException) {
+                    LOG.warn("Skipping message at Topic {} - Partition {} - Offset {} - Reason {} - Exception {}",
+                            aPackage.getTopic(),
+                            aPackage.getPartition(),
+                            aPackage.getOffset(),
+                            e.getMessage(),
+                            e.getCause().getClass());
+                    DynamicMetricsManager.getInstance().createOrUpdateMeter(
+                            this.getClass().getSimpleName(),
+                            aPackage.getTopic(),
+                            "deserializerErrorCount",
+                            1);
+                    aPackage.getAckCallback().onCompletion(new DatastreamRecordMetadata(
+                            aPackage.getCheckpoint(), aPackage.getTopic(), aPackage.getPartition()), null);
+                    return;
+                } else {
+                    throw e;
+                }
+            }
+
+            _batch.add(RecordTranslator.translate(record, _avroSchema));
 
             _ackCallbacks.add(aPackage.getAckCallback());
             _recordMetadata.add(new DatastreamRecordMetadata(aPackage.getCheckpoint(),
