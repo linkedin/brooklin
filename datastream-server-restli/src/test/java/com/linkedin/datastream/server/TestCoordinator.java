@@ -588,7 +588,7 @@ public class TestCoordinator {
     }
     waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    //Verify the assignment, each datastream should be assigned to four tasks
+    // Verify the assignment, each datastream should be assigned to four tasks
     Map<String, List<Connector>> assignment1 = collectDatastreamAssignment(connectors);
     assignment1.values().forEach(set -> Assert.assertEquals(set.size(), 4));
 
@@ -599,20 +599,20 @@ public class TestCoordinator {
 
     waitTillAssignmentIsComplete(12, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    //Verify the assignment for datastream1, datastream2, datastream4 are still the same, but not the case for ds3
+    // Verify the assignment for datastream1, datastream2, datastream4 are still the same, but not the case for ds3
     Map<String, List<Connector>> assignment2 = collectDatastreamAssignment(connectors);
     Assert.assertEquals(assignment1.get("datastream1"), assignment2.get("datastream1"));
     Assert.assertEquals(assignment1.get("datastream2"), assignment2.get("datastream2"));
     Assert.assertEquals(assignment1.get("datastream4"), assignment2.get("datastream4"));
     Assert.assertFalse(assignment2.containsKey("datastream3"));
 
-    //resume the data stream
+    // resume the data stream
     ds3 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream3");
     ds3.setStatus(DatastreamStatus.READY);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds3);
     waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connector1, connector2, connector3);
 
-    //verify the assignment is still sticky, same as previous assignment
+    // verify the assignment is still sticky, same as previous assignment
     Map<String, List<Connector>> assignment3 = collectDatastreamAssignment(connectors);
     Assert.assertEquals(assignment1.get("datastream1"), assignment3.get("datastream1"));
     Assert.assertEquals(assignment1.get("datastream2"), assignment3.get("datastream2"));
@@ -620,14 +620,14 @@ public class TestCoordinator {
     Assert.assertEquals(assignment3.get("datastream3").size(), 4);
     waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    //Stop the instance 1, force a leader change
+    // Stop the instance 1, force a leader change
     instance1.stop();
     deleteLiveInstanceNode(zkClient, testCluster, instance1);
 
     connectors.remove(0);
     waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()]));
 
-    //now add another instance, make sure it's getting rebalanced
+    // now add another instance, make sure it's getting rebalanced
     Coordinator instance4 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector4 = new TestHookConnector("connector4", testConnectorType);
     instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
@@ -635,7 +635,7 @@ public class TestCoordinator {
     instance4.start();
 
     connectors.add(connector4);
-    //verify connector4 get at least 5 task assignment
+    // verify connector4 get at least 5 task assignment
     waitTillAssignmentIsComplete(5, WAIT_TIMEOUT_MS, connector4);
 
     instance2.stop();
@@ -694,7 +694,7 @@ public class TestCoordinator {
 
     Assert.assertTrue(
         PollUtils.poll(() -> {
-      //Verify all the partitions are assigned
+      // Verify all the partitions are assigned
       Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
       return assignment2.get("datastream1").size() == partitions1.size() && assignment2.get("datastream2").size() == partitions2.size();
     }, interval, WAIT_TIMEOUT_MS));
@@ -738,7 +738,7 @@ public class TestCoordinator {
 
       @Override
       public void onAssignmentChange(List<DatastreamTask> tasks) {
-        _tasks.forEach(t -> t.release());
+        _tasks.forEach(DatastreamTask::release);
         _tasks = tasks;
         _tasks.forEach(t -> t.acquire(Duration.ofSeconds(10)));
       }
@@ -751,7 +751,7 @@ public class TestCoordinator {
 
       @Override
       public void stop() {
-        _tasks.forEach(t -> t.release());
+        _tasks.forEach(DatastreamTask::release);
         super.stop();
         if (_callbackThread != null) {
           _callbackThread.interrupt();
@@ -2613,7 +2613,7 @@ public class TestCoordinator {
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName);
-    //verify the assignment
+    // verify the assignment
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
 
     instance1.onSessionExpired();

@@ -135,9 +135,9 @@ import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
  * │              │       │ │          │  ┌────────────────────┐    │    │                 │
  * │              │       │ │          ├──▶ onDatastreamUpdate ├────┼────▶                 │
  * │              │       │ │          │  └────────────────────┘    │    │                 │
- * │              │       │ └──────────┘                            │    │                 │
- * │              │       │                                         │    │                 │
- * └──────────────┘       │                                         │    │                 │
+ * │              │       │ |          |  ┌────────────────────┐    │    │                 │
+ * │              │       │ |          |──▶ onSessionExpiry    ├────┼────▶                 │
+ * └──────────────┘       │ └──────────┘  └────────────────────┘    │    │                 │
  *                        └─────────────────────────────────────────┘    └─────────────────┘
  *
  */
@@ -233,25 +233,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _metrics = new CoordinatorMetrics(this);
   }
 
-  private synchronized void createEventThread() {
-    _eventThread = new CoordinatorEventProcessor();
-    _eventThread.setDaemon(true);
-  }
-
-  private synchronized boolean stopEventThread() {
-    // interrupt the thread if it's not gracefully shutdown
-    while (_eventThread.isAlive()) {
-      try {
-        _eventThread.interrupt();
-        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
-      } catch (InterruptedException e) {
-        _log.warn("Exception caught while stopping coordinator", e);
-        return true;
-      }
-    }
-    return false;
-  }
-
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
@@ -295,10 +276,39 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
+  private synchronized void createEventThread() {
+    _eventThread = new CoordinatorEventProcessor();
+    _eventThread.setDaemon(true);
+  }
+
   private synchronized void startEventThread() {
     if (!_shutdown) {
       _eventThread.start();
     }
+  }
+
+  private synchronized boolean stopEventThread() {
+    // interrupt the thread if it's not gracefully shutdown
+    while (_eventThread.isAlive()) {
+      try {
+        _eventThread.interrupt();
+        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
+      } catch (InterruptedException e) {
+        _log.warn("Exception caught while interrupting the event thread", e);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private synchronized boolean waitForEventThreadToJoin() {
+    try {
+      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
+    } catch (InterruptedException e) {
+      _log.warn("Exception caught while waiting the event thread to stop", e);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -316,6 +326,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (waitForEventThreadToJoin()) {
       return;
     }
+
     if (stopEventThread()) {
       return;
     }
@@ -333,20 +344,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // Shutdown the event producer.
     for (DatastreamTask task : _assignedDatastreamTasks.values()) {
-      ((EventProducer) task.getEventProducer()).shutdown();
+      ((EventProducer) task.getEventProducer()).shutdown(false);
     }
     _adapter.disconnect();
     _log.info("Coordinator stopped");
-  }
-
-  private synchronized boolean waitForEventThreadToJoin() {
-    try {
-      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
-    } catch (InterruptedException e) {
-      _log.warn("Exception caught while waiting event thread to stop", e);
-      return true;
-    }
-    return false;
   }
 
   /**
@@ -484,7 +485,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       try {
         getAssignmentsFuture(assignmentChangeFutures, start);
       } catch (Exception e) {
-        // if it's timeout then we will retry
         _log.warn("Hit exception while clearing the assignment list", e);
       } finally {
         assignmentChangeFutures.forEach(future -> future.cancel(true));
@@ -492,6 +492,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     });
 
     onDatastreamChange(new ArrayList<>());
+    // Shutdown the event producer.
+    for (DatastreamTask task : _assignedDatastreamTasks.values()) {
+      ((EventProducer) task.getEventProducer()).shutdown(true);
+    }
     _assignedDatastreamTasks.clear();
   }
 
@@ -714,8 +718,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
 
     Datastream datastream = task.getDatastreams().get(0);
-    if (datastream.hasMetadata() && datastream.getMetadata() != null &&
-        datastream.getMetadata().containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
+    if (datastream.hasMetadata() &&
+        Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
       customCheckpointing = Boolean.parseBoolean(
           datastream.getMetadata().get(DatastreamMetadataConstants.CUSTOM_CHECKPOINT));
       _log.info(String.format("Custom checkpointing overridden by metadata to be: %b for datastream: %s",
