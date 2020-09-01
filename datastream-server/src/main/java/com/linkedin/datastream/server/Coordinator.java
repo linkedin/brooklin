@@ -136,7 +136,7 @@ import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
  * │              │       │ │          ├──▶ onDatastreamUpdate ├────┼────▶                 │
  * │              │       │ │          │  └────────────────────┘    │    │                 │
  * │              │       │ |          |  ┌────────────────────┐    │    │                 │
- * │              │       │ |          |──▶ onSessionExpiry    ├────┼────▶                 │
+ * │              │       │ |          |──▶ onSessionExpired   ├────┼────▶                 │
  * └──────────────┘       │ └──────────┘  └────────────────────┘    │    │                 │
  *                        └─────────────────────────────────────────┘    └─────────────────┘
  *
@@ -168,7 +168,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final CheckpointProvider _cpProvider;
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
   private final CoordinatorEventBlockingQueue _eventQueue;
-  private CoordinatorEventProcessor _eventThread;
   private final CoordinatorMetrics _metrics;
   private final Map<String, ExecutorService> _assignmentChangeThreadPool = new ConcurrentHashMap<>();
   private final String _clusterName;
@@ -195,12 +194,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean _leaderDoAssignmentScheduled = new AtomicBoolean(false);
 
-  private Future<?> _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
-  private Future<?> _leaderDoAssignmentScheduledFuture = null;
-
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
+
+  private CoordinatorEventProcessor _eventThread;
+  private Future<?> _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
+  private Future<?> _leaderDoAssignmentScheduledFuture = null;
+  private volatile boolean _zkSessionExpired = false;
+
   /**
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
@@ -449,6 +451,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   @Override
   public void onSessionExpired() {
+    _log.info("Coordinator::onSessionExpired is called");
+    _zkSessionExpired = true;
+
     if (_shutdown) {
       return;
     }
@@ -478,6 +483,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
+    onDatastreamChange(new ArrayList<>());
+    // Shutdown the event producer to stop any further production of records.
+    // Event producer shutdown sequence does not need to wait for onAssignmentChange to complete.
+    // This will ensure that even if any task thread does not respond to thread interruption, it will
+    // still not be able to produce any records to destination.
+    for (DatastreamTask task : _assignedDatastreamTasks.values()) {
+      ((EventProducer) task.getEventProducer()).shutdown(true);
+    }
+
     // Wait till all the futures are complete or timeout.
     ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(1);
     threadPoolExecutor.submit(() -> {
@@ -491,12 +505,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     });
 
-    onDatastreamChange(new ArrayList<>());
-    // Shutdown the event producer.
-    for (DatastreamTask task : _assignedDatastreamTasks.values()) {
-      ((EventProducer) task.getEventProducer()).shutdown(true);
-    }
     _assignedDatastreamTasks.clear();
+    _log.info("Coordinator::onSessionExpired completed successfully.");
+  }
+
+  @VisibleForTesting
+  boolean isZkSessionExpired() {
+    return _zkSessionExpired;
   }
 
   private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)
@@ -1720,6 +1735,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _connectors.get(name).getConnector().getConnectorInstance();
   }
 
+  @VisibleForTesting
+  CachedDatastreamReader getDatastreamCache() {
+    return _datastreamCache;
+  }
+
   private class CoordinatorEventProcessor extends Thread {
     @Override
     public void run() {
@@ -1765,6 +1785,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
     private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
     private static final String IS_LEADER = "isLeader";
+    private static final String ZK_SESSION_EXPIRED = "zkSessionExpired";
 
     // Connector common metrics
     private static final String NUM_DATASTREAMS = "numDatastreams";
@@ -1894,6 +1915,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .put(MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get)
           .put(NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get)
           .put(IS_LEADER, () -> _coordinator.getIsLeader().getAsBoolean() ? 1 : 0)
+          .put(ZK_SESSION_EXPIRED, () -> _coordinator.isZkSessionExpired() ? 1 : 0)
           .build();
       gaugeMetrics.forEach(this::registerGauge);
     }
