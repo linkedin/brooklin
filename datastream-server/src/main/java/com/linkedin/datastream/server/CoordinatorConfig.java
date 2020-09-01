@@ -21,9 +21,12 @@ public final class CoordinatorConfig {
   public static final String CONFIG_ZK_ADDRESS = PREFIX + "zkAddress";
   public static final String CONFIG_ZK_SESSION_TIMEOUT = PREFIX + "zkSessionTimeout";
   public static final String CONFIG_ZK_CONNECTION_TIMEOUT = PREFIX + "zkConnectionTimeout";
+  // debounce timer is used to postpone the operations by a certain time to handle zookeeper session expiry.
+  public static final String CONFIG_DEBOUNCE_TIMER_MS = PREFIX + "debounceTimerMs";
   public static final String CONFIG_RETRY_INTERVAL = PREFIX + "retryIntervalMs";
   public static final String CONFIG_HEARTBEAT_PERIOD_MS = PREFIX + "heartbeatPeriodMs";
   public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK = PREFIX + "zkCleanUpOrphanConnectorTask";
+  public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK = PREFIX + "zkCleanUpOrphanConnectorTaskLock";
 
   private final String _cluster;
   private final String _zkAddress;
@@ -32,9 +35,11 @@ public final class CoordinatorConfig {
   private final Properties _config;
   private final VerifiableProperties _properties;
   private final int _retryIntervalMs;
+  private final long _debounceTimerMs;
   private final long _heartbeatPeriodMs;
   private final String _defaultTransportProviderName;
   private final boolean _zkCleanUpOrphanConnectorTask;
+  private final boolean _zkCleanUpOrphanConnectorTaskLock;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -50,8 +55,10 @@ public final class CoordinatorConfig {
     _zkConnectionTimeout = _properties.getInt(CONFIG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
     _retryIntervalMs = _properties.getInt(CONFIG_RETRY_INTERVAL, 1000 /* 1 second */);
     _heartbeatPeriodMs = _properties.getLong(CONFIG_HEARTBEAT_PERIOD_MS, Duration.ofMinutes(1).toMillis());
+    _debounceTimerMs = _properties.getLong(CONFIG_DEBOUNCE_TIMER_MS, Duration.ofSeconds(30).toMillis());
     _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
     _zkCleanUpOrphanConnectorTask = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK, false);
+    _zkCleanUpOrphanConnectorTaskLock = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK, false);
   }
 
   public Properties getConfigProperties() {
@@ -88,5 +95,13 @@ public final class CoordinatorConfig {
 
   public boolean getZkCleanUpOrphanConnectorTask() {
     return _zkCleanUpOrphanConnectorTask;
+  }
+
+  public boolean getZkCleanUpOrphanConnectorTaskLock() {
+    return _zkCleanUpOrphanConnectorTaskLock;
+  }
+
+  public long getDebounceTimerMs() {
+    return _debounceTimerMs;
   }
 }

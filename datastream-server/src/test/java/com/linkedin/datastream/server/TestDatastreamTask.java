@@ -61,7 +61,7 @@ public class TestDatastreamTask {
     task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
-    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(false);
+    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(false);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
   }
 
@@ -74,7 +74,7 @@ public class TestDatastreamTask {
     task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
-    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(true);
+    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
     Assert.assertEquals(new HashSet<>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
   }
