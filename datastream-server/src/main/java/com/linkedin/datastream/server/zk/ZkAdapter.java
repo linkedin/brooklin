@@ -152,7 +152,7 @@ public class ZkAdapter {
 
   // cleanup orphan lock in separate thread.
   private final ScheduledExecutorService _scheduledExecutorServiceOrphanLockCleanup = Executors.newScheduledThreadPool(1,
-      new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OrphanLockCleanupScheduler-%d").build());
+      new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OrphanLockCleanupThread-%d").build());
   private List<String> _finalOrphanLockList = new ArrayList<>();
   private Future<?> _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
 
@@ -845,7 +845,7 @@ public class ZkAdapter {
     return _zkclient.getChildren(KeyBuilder.datastreamTaskLockRoot(_cluster, connector))
         .stream()
         .collect(Collectors.toMap(Function.identity(),
-            x -> new HashSet<>(_zkclient.getChildren(KeyBuilder.datastreamTaskLockPrefix(_cluster, connector, x)))));
+            prefix -> new HashSet<>(_zkclient.getChildren(KeyBuilder.datastreamTaskLockPrefix(_cluster, connector, prefix)))));
   }
 
   /**
@@ -1097,7 +1097,7 @@ public class ZkAdapter {
       return 0;
     }
 
-    LOG.info("cleanUpOrphanConnectorTaskLocks called");
+    LOG.info("cleanUpOrphanConnectorTaskLocks called. clean up: {}", cleanUpOrphanTaskLocksInConnector);
     Map<String, Set<String>> validTaskNamesConnectorMap = getDatastreamTaskNamesGroupedByConnector();
     List<String> allConnectors = getAllConnectors();
 
@@ -1160,7 +1160,7 @@ public class ZkAdapter {
       // Only try to identify dead owners of the task lock if the timeout is greater than the debounce timer.
       if (timeoutMs >= _debounceTimerMs) {
         // check if the owner is dead.
-        if (_liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
+        if (owner != null && _liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
           LOG.info("dead owner {} found for the lock on the task {}", owner, task.getDatastreamTaskName());
           deadOwner = true;
         } else {
