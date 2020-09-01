@@ -301,13 +301,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
     try {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
-           if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), predecessor)) {
-             String msg = String.format("previous task %s failed to release lock in %dms", predecessor,
-                 timeout.toMillis());
-             throw new DatastreamRuntimeException(msg);
-           }
+        if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), this.getTaskPrefix(), predecessor)) {
+          String msg = String.format("previous task %s failed to release lock in %dms", predecessor, timeout.toMillis());
+          throw new DatastreamRuntimeException(msg);
         }
-      );
+      });
 
       _zkAdapter.acquireTask(this, timeout);
     } catch (Exception e) {
@@ -323,7 +321,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   public boolean isLocked() {
     Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
-    return _zkAdapter.checkIsTaskLocked(_connectorType, getDatastreamTaskName());
+    return _zkAdapter.checkIsTaskLocked(_connectorType, this.getTaskPrefix(), this.getDatastreamTaskName());
   }
 
   @Override
@@ -354,7 +352,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   /**
    * set connector type
-   * @param connectorType
+   * @param connectorType connector type
    */
   public void setConnectorType(String connectorType) {
     _connectorType = connectorType;
