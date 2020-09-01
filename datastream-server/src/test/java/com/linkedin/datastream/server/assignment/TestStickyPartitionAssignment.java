@@ -230,7 +230,7 @@ public class TestStickyPartitionAssignment {
         DatastreamTaskImpl task = new DatastreamTaskImpl(datastreams.get(0).getDatastreams());
         ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
         task.setZkAdapter(mockZkAdapter);
-        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
+        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(isTaskLocked);
         set.add(task);
       }
       assignment.put("instance" + i, set);
