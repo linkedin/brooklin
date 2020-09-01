@@ -234,7 +234,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), _config.getDebounceTimerMs(), this);
   }
 
   /**
@@ -946,10 +946,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /*
-   * If cleanUpOrphanConnectorTasks is set to true, it cleans up the orphan connector tasks not assigned to
+   * If cleanUpOrphanNodes is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
    */
-  private void handleLeaderDoAssignment(boolean cleanUpOrphanConnectorTasks) {
+  private void handleLeaderDoAssignment(boolean cleanUpOrphanNodes) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -990,8 +990,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance, instances);
-      if (cleanUpOrphanConnectorTasks) {
-        performCleanupOrphanConnectorTasks();
+      if (cleanUpOrphanNodes) {
+        performCleanupOrphanNodes();
       }
       _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
     }
@@ -1002,7 +1002,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
       leaderDoAssignmentScheduled.set(true);
       _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanConnectorTasks));
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
         leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
@@ -1248,10 +1248,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return newAssignmentsByInstance;
   }
 
-  void performCleanupOrphanConnectorTasks() {
-    _log.info("performCleanupOrphanConnectorTasks called");
+  void performCleanupOrphanNodes() {
+    _log.info("performCleanupOrphanNodes called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
     _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
+    int orphanLockCount = _adapter.cleanUpOrphanConnectorTaskLocks(_config.getZkCleanUpOrphanConnectorTaskLock());
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASK_LOCKS, orphanLockCount);
   }
 
   /**
@@ -1825,7 +1827,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
-      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks");
+      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
 
       private final String _name;
 
