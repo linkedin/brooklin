@@ -79,20 +79,21 @@ public class KafkaConnectorDiagUtils {
       }
 
       responseList.forEach(response -> {
-        if (response.getConsumerOffsets() == null || StringUtils.isBlank(response.getConsumerGroupId())) {
+        if (response.getConsumerOffsets() == null || response.getConsumerOffsets().isEmpty()) {
           logger.warn("Empty consumer offset map from instance {}. Ignoring the result", instance);
-          return;
+        } else if (StringUtils.isBlank(response.getConsumerGroupId())) {
+          logger.warn("Invalid consumer group id from instance {}, Ignoring the result", instance);
+        } else {
+          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
+              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId()));
+
+          Map<String, Map<Integer, Long>> consumerOffsets = response.getConsumerOffsets();
+          consumerOffsets.forEach((topic, partitionOffsets) -> {
+            Map<String, Map<Integer, Long>> reducedConsumerOffsets = reducedResponse.getConsumerOffsets();
+            Map<Integer, Long> reducedPartitionOffsets = reducedConsumerOffsets.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionOffsets.putAll(partitionOffsets);
+          });
         }
-
-        KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-            k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId()));
-
-        Map<String, Map<Integer, Long>> consumerOffsets = response.getConsumerOffsets();
-        consumerOffsets.forEach((topic, partitionOffsets) -> {
-          Map<String, Map<Integer, Long>> reducedConsumerOffsets = reducedResponse.getConsumerOffsets();
-          Map<Integer, Long> reducedPartitionOffsets = reducedConsumerOffsets.computeIfAbsent(topic, k -> new HashMap<>());
-          reducedPartitionOffsets.putAll(partitionOffsets);
-        });
       });
     });
 
