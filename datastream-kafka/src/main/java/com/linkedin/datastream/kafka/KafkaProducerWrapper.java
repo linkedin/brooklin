@@ -39,7 +39,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.ThreadUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
 import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
@@ -317,7 +316,6 @@ class KafkaProducerWrapper<K, V> {
         shutdownProducer();
       }
     }
-    ThreadUtils.shutdownExecutor(_producerCloseExecutorService, PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT, _log);
   }
 
   static List<BrooklinMetricInfo> getMetricDetails(String metricsNamesPrefix) {
