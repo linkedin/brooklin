@@ -9,10 +9,13 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,6 +33,8 @@ public class KafkaTopicPartitionTracker {
 
   private final Map<String, Set<Integer>> _topicPartitions = new ConcurrentHashMap<>();
 
+  private final Map<String, Map<Integer, Long>> _consumerOffsets = new ConcurrentHashMap<>();
+
   /**
    *  Constructor for KafkaTopicPartitionTracker
    *
@@ -46,6 +51,7 @@ public class KafkaTopicPartitionTracker {
    * @param topicPartitions the topic partitions which have been assigned
    */
   public void onPartitionsAssigned(@NotNull Collection<TopicPartition> topicPartitions) {
+    // updating topic partitions
     topicPartitions.forEach(partition -> {
       Set<Integer> partitions = _topicPartitions.computeIfAbsent(partition.topic(), k -> new HashSet<>());
       partitions.add(partition.partition());
@@ -68,10 +74,48 @@ public class KafkaTopicPartitionTracker {
         }
       }
     });
+
+    // Remove consumer offsets for partitions that have been revoked. The reason to remove the consumer offsets
+    // here is that another host may handle these partitions due to rebalance, and we don't want to have duplicate
+    // consumer offsets for affected partitions (even though the ones with larger offsets wins).
+    topicPartitions.forEach(topicPartition -> {
+      Map<Integer, Long> partitions = _consumerOffsets.get(topicPartition.topic());
+      if (partitions != null) {
+        partitions.remove(topicPartition.partition());
+        if (partitions.isEmpty()) {
+          _consumerOffsets.remove(topicPartition.topic());
+        }
+      }
+    });
+  }
+
+  /**
+   * Updates consumer offsets for partitions that have been polled
+   * @param consumerRecords consumer records that have been the result of the poll
+   */
+  public void onPartitionsPolled(@NotNull ConsumerRecords<?, ?> consumerRecords) {
+    Collection<TopicPartition> topicPartitions = consumerRecords.partitions();
+
+    topicPartitions.forEach(topicPartition -> {
+      List<? extends ConsumerRecord<?, ?>> partitionRecords = consumerRecords.records(topicPartition);
+      ConsumerRecord<?, ?> lastRecord = partitionRecords.get(partitionRecords.size() - 1);
+
+      Map<Integer, Long> partitionOffsetMap = _consumerOffsets.computeIfAbsent(topicPartition.topic(),
+          k -> new ConcurrentHashMap<>());
+      partitionOffsetMap.put(topicPartition.partition(), lastRecord.offset());
+    });
   }
 
   public  Map<String, Set<Integer>> getTopicPartitions() {
     return Collections.unmodifiableMap(_topicPartitions);
+  }
+
+  /**
+   * Returns a map of consumer offsets for all topic partitions
+   * @return A map of consumer offsets for all topic partitions.
+   */
+  public Map<String, Map<Integer, Long>> getConsumerOffsets() {
+    return Collections.unmodifiableMap(_consumerOffsets);
   }
 
   public final String getConsumerGroupId() {
