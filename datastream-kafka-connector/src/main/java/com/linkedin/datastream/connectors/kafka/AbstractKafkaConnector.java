@@ -110,6 +110,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
     PARTITIONS,
+    CONSUMER_OFFSETS
   }
 
   /**
@@ -415,6 +416,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         String response = processTopicPartitionStatsRequest();
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
+      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.CONSUMER_OFFSETS.toString())) {
+        String response = processConsumerOffsetsRequest();
+        _logger.trace("Query: {} returns response: {}", query, response);
+        return response;
       } else {
         _logger.warn("Could not process query {} with path {}", query, path);
       }
@@ -480,6 +485,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return JsonUtils.toJson(serializedResponses);
   }
 
+  private String processConsumerOffsetsRequest() {
+    _logger.info("process consumer stats request");
+    List<KafkaConsumerOffsetsResponse> serializedResponses = new ArrayList<>();
+
+    synchronized (_runningTasks) {
+      _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
+        KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+        KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumerOffsets(),
+            tracker.getConsumerGroupId());
+        serializedResponses.add(response);
+      });
+    }
+    return JsonUtils.toJson(serializedResponses);
+  }
+
   /**
    * Aggregates the responses from all the instances into a single JSON response.
    * Sample query: /datastream_state?datastream=PizzaDatastream
@@ -505,10 +525,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       if (path != null
           && (path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString()))) {
         return JsonUtils.toJson(responses);
-      }
-      if (path != null
+      } else if (path != null
           && (path.equalsIgnoreCase(DiagnosticsRequestType.PARTITIONS.toString()))) {
         return KafkaConnectorDiagUtils.reduceTopicPartitionStatsResponses(responses, _logger);
+      } else if (path != null
+          && (path.equalsIgnoreCase(DiagnosticsRequestType.CONSUMER_OFFSETS.toString()))) {
+        return KafkaConnectorDiagUtils.reduceConsumerOffsetsResponses(responses, _logger);
       }
     } catch (Exception e) {
       _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
