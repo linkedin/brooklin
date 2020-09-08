@@ -489,6 +489,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // This will ensure that even if any task thread does not respond to thread interruption, it will
     // still not be able to produce any records to destination.
     for (DatastreamTask task : _assignedDatastreamTasks.values()) {
+      // skipping the checkpoint update as zookeeper session has expired and the current thread will
+      // get stuck waiting for zookeeper session to be connected. So, skipping the checkpoint update.
       ((EventProducer) task.getEventProducer()).shutdown(true);
     }
 

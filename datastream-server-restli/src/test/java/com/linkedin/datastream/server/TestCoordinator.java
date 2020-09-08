@@ -1937,7 +1937,7 @@ public class TestCoordinator {
     instance2.getDatastreamCache().getZkclient().close();
   }
 
-  @Test //(enabled = false)
+  @Test
   public void testCoordinatorErrorHandling() throws Exception {
     String testCluster = "testCoordinatorErrorHandling";
     String connectorType1 = "ConnectorType1";
