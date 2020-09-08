@@ -1448,6 +1448,11 @@ public class ZkAdapter {
      * @param notifyTimestamp the timestamp that partitionMovement is triggered
      */
     void onPartitionMovement(Long notifyTimestamp);
+
+    /**
+     * onSessionExpired is called when the zookeeper session expires.
+     */
+    void onSessionExpired();
   }
 
   /**
@@ -1765,6 +1770,10 @@ public class ZkAdapter {
     // cancel the lock clean up
     _orphanLockCleanupFuture.cancel(true);
     onBecomeFollower();
+    if (_listener != null) {
+      _listener.onSessionExpired();
+    }
+    // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
     // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
     // is not re-initialized till reconnect path is fixed.
     connect();

@@ -80,6 +80,14 @@ public class CoordinatorEventBlockingQueue {
   }
 
   /**
+   *
+   */
+  public synchronized void clear() {
+    _eventQueue.clear();
+    _eventSet.clear();
+  }
+
+  /**
    * Retrieve, but do not remove, the event at the head of this queue,
    * or return {@code null} if this queue is empty.
    *
