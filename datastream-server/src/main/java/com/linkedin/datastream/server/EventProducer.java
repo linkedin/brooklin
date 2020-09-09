@@ -422,8 +422,10 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Shuts down the event producer by flushing the checkpoints and closing the transport provider
    */
-  public void shutdown() {
-    _checkpointProvider.flush();
+  public void shutdown(boolean skipCheckpoint) {
+    if (!skipCheckpoint) {
+      _checkpointProvider.flush();
+    }
     _transportProvider.close();
   }
 

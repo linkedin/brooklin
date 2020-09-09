@@ -1,0 +1,47 @@
+namespace com.linkedin.datastream.diagnostics
+
+/**
+ * Datastream task health
+ */
+record TaskHealth {
+
+  /**
+   * name of the task.
+   */
+  name: string
+
+  /**
+   * Name of the datastreams associated with the task.
+   */
+  datastreams: string
+
+  /**
+   * Partitions associated with the task.
+   */
+  partitions: string
+
+  /**
+   * Source of the datastream.
+   */
+  source: string
+
+  /**
+   * Destination of the datastream.
+   */
+  destination: string
+
+  /**
+   * Status code of the datastream task.
+   */
+  statusCode: string
+
+  /**
+   * Status message of the datastream task.
+   */
+  statusMessage: string
+
+  /**
+   * Source checkpoint.
+   */
+  sourceCheckpoint: string
+}

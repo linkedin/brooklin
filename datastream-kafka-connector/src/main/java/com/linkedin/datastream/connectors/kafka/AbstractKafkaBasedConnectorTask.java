@@ -368,6 +368,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         int recordsPolled = 0;
         if (records != null && !records.isEmpty()) {
+          // update consumer offsets
+          _kafkaTopicPartitionTracker.onPartitionsPolled(records);
+
           Instant readTime = Instant.now();
           processRecords(records, readTime);
           recordsPolled = records.count();

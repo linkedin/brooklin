@@ -227,6 +227,7 @@ project(':datastream-kafka-connector') {
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
+    compile "org.apache.commons:commons-lang3:$commonslang3Version"
 
     testCompile project(':datastream-kafka')
     testCompile project(':datastream-testcommon')
@@ -351,6 +352,7 @@ project(':datastream-server-restli') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
     compile "com.linkedin.pegasus:r2-jetty:$pegasusVersion"
+    compile "com.linkedin.parseq:parseq:$parseqVersion"
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
