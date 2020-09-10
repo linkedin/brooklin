@@ -283,13 +283,15 @@ public class TestStickyMulticastStrategy {
   }
 
   @Test
-  public void testSameTaskIsNotAssignedToAnyTwoInstances() {
+  public void testSameTaskIsNotAssignedToMoreThanOneInstance() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     int numDatastreams = 5;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
     StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
         strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    // Copying the assignment to simulate the scenario where two instances have the same task,
+    // which is possible when the previous leader gets interrupted while updating the assignment.
     assignment.get("instance1").addAll(assignment.get("instance2"));
 
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
