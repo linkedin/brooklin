@@ -822,6 +822,9 @@ public class TestZkAdapter {
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
     adapter.connect();
 
+    adapter._zkClient.ensurePath(KeyBuilder.connector(testCluster, connectorType));
+    Assert.assertEquals(adapter.cleanUpOrphanConnectorTaskLocks(false), 0);
+
     // lock node
     DatastreamTaskImpl lockTask = new DatastreamTaskImpl();
     lockTask.setId("task" + "lock");
