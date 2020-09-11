@@ -1103,6 +1103,10 @@ public class ZkAdapter {
 
     int orphanCount = 0;
     for (String connector : allConnectors) {
+      if (!_zkclient.exists(KeyBuilder.datastreamTaskLockRoot(_cluster, connector))) {
+        LOG.info("Skipping connector {} as no lock present", connector);
+        continue;
+      }
       Map<String, Set<String>> locksByTaskPrefix = getAllConnectorTaskLocks(connector);
       Set<String> validTaskNamesSet = validTaskNamesConnectorMap.getOrDefault(connector, Collections.emptySet());
       List<String> orphanLockList = new ArrayList<>();
@@ -1196,7 +1200,7 @@ public class ZkAdapter {
     CountDownLatch busyLatch = new CountDownLatch(1);
 
     String lockNode = lockPath.substring(lockPath.lastIndexOf('/') + 1);
-    String lockRootPath = KeyBuilder.datastreamTaskLockRoot(_cluster, task.getConnectorType());
+    String lockPrefixPath = KeyBuilder.datastreamTaskLockPrefix(_cluster, task.getConnectorType(), task.getTaskPrefix());
 
     if (_zkclient.exists(lockPath)) {
       IZkChildListener listener = (parentPath, currentChildren) -> {
@@ -1206,13 +1210,13 @@ public class ZkAdapter {
       };
 
       try {
-        _zkclient.subscribeChildChanges(lockRootPath, listener);
+        _zkclient.subscribeChildChanges(lockPrefixPath, listener);
         busyLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         String errorMsg = "Unexpectedly interrupted during task acquire.";
         ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMsg, e);
       } finally {
-        _zkclient.unsubscribeChildChanges(lockRootPath, listener);
+        _zkclient.unsubscribeChildChanges(lockPrefixPath, listener);
       }
     }
   }
