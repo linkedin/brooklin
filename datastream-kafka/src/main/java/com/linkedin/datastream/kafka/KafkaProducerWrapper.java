@@ -166,6 +166,11 @@ class KafkaProducerWrapper<K, V> {
 
   private Optional<Producer<K, V>> maybeGetKafkaProducer(DatastreamTask task) {
     Producer<K, V> producer = _kafkaProducer;
+    if (!_tasks.contains(task)) {
+      _log.warn("Task {} has been unassigned for producer, abort the send", task);
+      return Optional.empty();
+    }
+
     if (producer == null) {
       producer = initializeProducer(task);
     }
@@ -177,7 +182,12 @@ class KafkaProducerWrapper<K, V> {
   }
 
   void unassignTask(DatastreamTask task) {
-    _tasks.remove(task);
+    boolean taskPresent = _tasks.remove(task);
+    // whenever a task is unassigned the kafka producer should be shutdown to ensure that
+    // there are no in-flight sends. Any further send will not work.
+    if (taskPresent) {
+      shutdownProducer();
+    }
   }
 
   int getTasksSize() {
@@ -219,13 +229,18 @@ class KafkaProducerWrapper<K, V> {
     while (retry) {
       try {
         ++numberOfAttempt;
-        maybeGetKafkaProducer(task).ifPresent(p -> p.send(producerRecord, (metadata, exception) -> {
-          if (exception == null) {
-            onComplete.onCompletion(metadata, null);
-          } else {
-            onComplete.onCompletion(metadata, generateSendFailure(exception));
-          }
-        }));
+        Optional<Producer<K, V>> producer = maybeGetKafkaProducer(task);
+        if (producer.isPresent()) {
+          producer.get().send(producerRecord, (metadata, exception) -> {
+            if (exception == null) {
+              onComplete.onCompletion(metadata, null);
+            } else {
+              onComplete.onCompletion(metadata, generateSendFailure(exception));
+            }
+          });
+        } else {
+          throw new DatastreamRuntimeException("kafka producer not available for the task");
+        }
 
         retry = false;
       } catch (IllegalStateException e) {

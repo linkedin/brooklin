@@ -89,6 +89,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
+  private int _hashCode;
 
   /**
    * Constructor for DatastreamTaskImpl.
@@ -100,6 +101,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _partitions = new ArrayList<>();
     _partitionsV2 = new ArrayList<>();
     _dependencies = new ArrayList<>();
+    computeHashCode();
   }
 
   /**
@@ -148,6 +150,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
     LOG.info("Created new DatastreamTask " + this);
     _dependencies = new ArrayList<>();
+    computeHashCode();
   }
 
 
@@ -179,6 +182,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
     _dependencies = new ArrayList<>();
     _dependencies.add(predecessor.getDatastreamTaskName());
+    computeHashCode();
   }
 
     /**
@@ -245,6 +249,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void setPartitions(List<Integer> partitions) {
     Validate.notNull(partitions);
     _partitions = partitions;
+    computeHashCode();
   }
 
   /**
@@ -254,6 +259,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   public void setPartitionsV2(List<String> partitionsV2) {
     Validate.notNull(partitionsV2);
     _partitionsV2 = partitionsV2;
+    computeHashCode();
   }
 
   @JsonIgnore
@@ -290,6 +296,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
     // destination and connector type should be immutable
     _transportProviderName = _datastreams.get(0).getTransportProviderName();
     _connectorType = _datastreams.get(0).getConnectorName();
+    computeHashCode();
   }
 
   @Override
@@ -356,6 +363,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
    */
   public void setConnectorType(String connectorType) {
     _connectorType = connectorType;
+    computeHashCode();
   }
 
   @Override
@@ -377,6 +385,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
    */
   public void setId(String id) {
     _id = id;
+    computeHashCode();
   }
 
   public String getTaskPrefix() {
@@ -389,6 +398,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
    */
   public void setTaskPrefix(String taskPrefix) {
     _taskPrefix = taskPrefix;
+    computeHashCode();
   }
 
   @JsonIgnore
@@ -443,7 +453,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _taskPrefix, new HashSet<>(_partitions), new HashSet<>(_partitionsV2));
+    return _hashCode;
+  }
+
+  private void computeHashCode() {
+    _hashCode = Objects.hash(_connectorType, _id, _taskPrefix, new HashSet<>(_partitions), new HashSet<>(_partitionsV2));
   }
 
   @Override
