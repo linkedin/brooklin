@@ -25,8 +25,8 @@ import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
 
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
