@@ -33,6 +33,7 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
 import com.linkedin.datastream.cloud.storage.CommitCallback;
@@ -149,6 +150,8 @@ public class GCSObjectCommitter implements ObjectCommitter {
                        final CommitCallback callback) {
         final Runnable committerTask = () -> {
             Exception exception = null;
+            boolean writerChannelUsed = false;
+            int chunkCount = 0;
             final File file = new File(filePath);
             final String[] topicPartitionSuffix = file.getName().split("\\+");
             final String objectName = getObjectName(destination,
@@ -163,38 +166,55 @@ public class GCSObjectCommitter implements ObjectCommitter {
                         .newBuilder(BlobId.of(getBucketName(destination), objectName))
                         .setContentType(Files.probeContentType(file.toPath()))
                         .build();
-
                 LOG.info("Committing Object {}", objectName);
-
                 if (file.getTotalSpace() <= _writeAtOnceMaxFileSize) {
                     Blob blob = _storage.create(sourceBlob, Files.readAllBytes(file.toPath()));
                 } else {
-                    LOG.info("Using writer channel.");
+                    LOG.info("Using writer channel to write {}", objectName);
+                    writerChannelUsed = true;
                     try (WriteChannel writer = _storage.writer(sourceBlob)) {
                         byte[] buffer = new byte[256 * 1024];
                         try (InputStream input = Files.newInputStream(Paths.get(file.getAbsolutePath()))) {
                             int readSize;
                             while ((readSize = input.read(buffer)) >= 0) {
                                 writer.write(ByteBuffer.wrap(buffer, 0, readSize));
+                                chunkCount++;
                             }
                         }
                     }
                 }
                 _uploadRateMeter.mark(ackCallbacks.size());
-            } catch (IOException e) {
-                LOG.error("Failed to commit file {} - {}", filePath, e);
-                exception = new DatastreamTransientException(e);
+                LOG.info("Successfully created object {}", objectName);
             } catch (Exception e) {
-                LOG.error("Failed to commit file {} - {}", filePath, e);
+                LOG.error("Failed to commit file {} for offsets {} to {} : {}", filePath, minOffset, maxOffset, e);
                 exception = new DatastreamTransientException(e);
             }
 
-            deleteFile(file);
-
-            LOG.info("Successfully created object {}", objectName);
             for (int i = 0; i < ackCallbacks.size(); i++) {
                 ackCallbacks.get(i).onCompletion(recordMetadata.get(i), exception);
             }
+
+            // Delete the partially written object through WriteChannel
+            if (exception != null && writerChannelUsed) {
+                try {
+                    LOG.info("Delete partially written object {} in the bucket {} with chunks count {}",
+                            objectName, getBucketName(destination), chunkCount);
+                    if (_storage.delete(BlobId.of(getBucketName(destination), objectName))) {
+                        LOG.info("Successfully deleted partially written object {} in the bucket {}",
+                                objectName, getBucketName(destination));
+                    } else {
+                        LOG.warn("Failed to delete partially written object {} in the bucket {} with chunks count {} - Object was not found",
+                                objectName, getBucketName(destination), chunkCount);
+                    }
+                } catch (StorageException e) {
+                    LOG.warn("Failed to delete partially written object {} in the bucket {} with chunks count {} - {}",
+                            objectName, getBucketName(destination), chunkCount, e);
+                }
+            }
+
+            LOG.info("Deleting local file {}", file.getAbsolutePath());
+            deleteFile(file);
+
             callback.commited();
         };
         _executor.execute(committerTask);
