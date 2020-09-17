@@ -300,9 +300,9 @@ class KafkaProducerWrapper<K, V> {
         if (_kafkaProducer != null) {
           _kafkaProducer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
         }
-      } catch (InterruptException e) {
+      } catch (InterruptException | TimeoutException e) {
         // The KafkaProducer object should not be reused on an interrupted flush
-        _log.warn("Kafka producer flush interrupted, closing producer {}.", _kafkaProducer);
+        _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", _kafkaProducer);
         shutdownProducer();
         throw e;
       }
