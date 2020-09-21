@@ -5,21 +5,6 @@
  */
 package com.linkedin.datastream.kafka;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DatastreamTransientException;
-import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
-import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
-import com.linkedin.datastream.metrics.BrooklinMeterInfo;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.server.DatastreamTask;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,6 +19,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
@@ -47,8 +33,25 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.linkedin.datastream.connectors.CommonConnectorMetrics.*;
-import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.*;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamTransientException;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
+import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
+import com.linkedin.datastream.server.DatastreamTask;
+
+import static com.linkedin.datastream.connectors.CommonConnectorMetrics.AGGREGATE;
+import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_PRODUCER;
 
 
 class KafkaProducerWrapper<K, V> {
