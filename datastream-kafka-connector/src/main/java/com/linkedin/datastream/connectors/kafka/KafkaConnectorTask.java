@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.StringJoiner;
 
@@ -25,7 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
-import com.linkedin.datastream.connectors.CommonConnectorMetrics;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
@@ -45,7 +44,7 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
       KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
 
-  GroupIdConstructor _groupIdConstructor;
+
 
   /**
    * Concstructor for KafkaConnectorTask.
@@ -57,9 +56,8 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
    */
   public KafkaConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, String connectorName,
       GroupIdConstructor groupIdConstructor) {
-    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME));
+    super(config, task, LOG, generateMetricsPrefix(connectorName, CLASS_NAME), groupIdConstructor);
     _consumerFactory = config.getConsumerFactory();
-    _groupIdConstructor = groupIdConstructor;
   }
 
   @VisibleForTesting
@@ -144,7 +142,8 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
       eventsSourceTimestamp = fromKafka.timestamp();
     }
 
-    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
+    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null,
+        fromKafka.headers(), metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
@@ -152,23 +151,5 @@ public class KafkaConnectorTask extends AbstractKafkaBasedConnectorTask {
     builder.setSourceCheckpoint(partitionStr + "-" + offsetStr);
 
     return builder.build();
-  }
-
-  /**
-   * Get Kafka group ID of given task
-   * @param task Task for which group ID is generated.
-   * @param groupIdConstructor GroupIdConstructor to use for generating group ID.
-   * @param consumerMetrics CommonConnectorMetrics to use for reporting errors.
-   * @param logger Logger for logging information.
-   */
-  @VisibleForTesting
-  public static String getKafkaGroupId(DatastreamTask task, GroupIdConstructor groupIdConstructor,
-      CommonConnectorMetrics consumerMetrics, Logger logger) {
-    try {
-      return groupIdConstructor.getTaskGroupId(task, Optional.of(logger));
-    } catch (Exception e) {
-      consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
-      throw e;
-    }
   }
 }

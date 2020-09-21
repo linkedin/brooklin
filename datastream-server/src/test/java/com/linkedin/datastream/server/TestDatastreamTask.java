@@ -7,6 +7,7 @@ package com.linkedin.datastream.server;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 
@@ -60,7 +61,7 @@ public class TestDatastreamTask {
     task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
-    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(false);
+    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(false);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
   }
 
@@ -73,7 +74,7 @@ public class TestDatastreamTask {
     task.addDependency("task0");
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
-    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(true);
+    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
     Assert.assertEquals(new HashSet<>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
   }
@@ -108,5 +109,32 @@ public class TestDatastreamTask {
     String json = task.toJson();
     DatastreamTaskImpl task2 = DatastreamTaskImpl.fromJson(json);
     task2.getDatastreams();
+  }
+
+  @Test
+  public void testDatastreamTaskComparison() {
+    Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
+    stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream), "dummyId", new ArrayList<>());
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl(Collections.singletonList(stream), "dummyId", new ArrayList<>());
+    Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
+
+    task.setPartitions(Arrays.asList(1, 2));
+    task2.setPartitions(Arrays.asList(2, 1, 3));
+    Assert.assertNotEquals(task, task2);
+    Assert.assertNotEquals(task.hashCode(), task2.hashCode());
+    task2.setPartitions(Arrays.asList(2, 1));
+    Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
+
+    task.setPartitionsV2(Arrays.asList("1", "2"));
+    task2.setPartitionsV2(Arrays.asList("2", "1", "3"));
+    Assert.assertNotEquals(task, task2);
+    Assert.assertNotEquals(task.hashCode(), task2.hashCode());
+    task2.setPartitionsV2(Arrays.asList("2", "1"));
+    Assert.assertEquals(task, task2);
+    Assert.assertEquals(task.hashCode(), task2.hashCode());
   }
 }

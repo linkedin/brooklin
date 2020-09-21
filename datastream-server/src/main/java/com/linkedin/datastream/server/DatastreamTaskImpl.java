@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -76,6 +77,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   // List of partitions the task covers.
   private List<Integer> _partitions;
+  // This list is used to save topic-partition list when partition assignment is enabled.
+  // TODO: Investigate the requirement to populate both _partition and _partitionV2 and cleanup if required.
   private List<String> _partitionsV2;
 
   private List<String> _dependencies;
@@ -298,13 +301,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
     try {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
-           if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), predecessor)) {
-             String msg = String.format("previous task %s failed to release lock in %dms", predecessor,
-                 timeout.toMillis());
-             throw new DatastreamRuntimeException(msg);
-           }
+        if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), this.getTaskPrefix(), predecessor)) {
+          String msg = String.format("previous task %s failed to release lock in %dms", predecessor, timeout.toMillis());
+          throw new DatastreamRuntimeException(msg);
         }
-      );
+      });
 
       _zkAdapter.acquireTask(this, timeout);
     } catch (Exception e) {
@@ -320,7 +321,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   @JsonIgnore
   public boolean isLocked() {
     Validate.notNull(_zkAdapter, "Task is not properly initialized for processing.");
-    return _zkAdapter.checkIsTaskLocked(_connectorType, getDatastreamTaskName());
+    return _zkAdapter.checkIsTaskLocked(_connectorType, this.getTaskPrefix(), this.getDatastreamTaskName());
   }
 
   @Override
@@ -349,6 +350,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _connectorType;
   }
 
+  /**
+   * set connector type
+   * @param connectorType connector type
+   */
   public void setConnectorType(String connectorType) {
     _connectorType = connectorType;
   }
@@ -366,6 +371,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _id;
   }
 
+  /**
+   * set id
+   * @param id id for the task
+   */
   public void setId(String id) {
     _id = id;
   }
@@ -374,6 +383,10 @@ public class DatastreamTaskImpl implements DatastreamTask {
     return _taskPrefix;
   }
 
+  /**
+   * set taskPrefix
+   * @param taskPrefix Prefix for the task
+   */
   public void setTaskPrefix(String taskPrefix) {
     _taskPrefix = taskPrefix;
   }
@@ -424,20 +437,33 @@ public class DatastreamTaskImpl implements DatastreamTask {
     }
     DatastreamTaskImpl task = (DatastreamTaskImpl) o;
     return Objects.equals(_connectorType, task._connectorType) && Objects.equals(_id, task._id) && Objects.equals(
-        _taskPrefix, task._taskPrefix) && Objects.equals(_partitions, task._partitions)
-        && Objects.equals(_partitionsV2, task._partitionsV2);
+        _taskPrefix, task._taskPrefix) && Objects.equals(new HashSet<>(_partitions), new HashSet<>(task._partitions))
+        && Objects.equals(new HashSet<>(_partitionsV2), new HashSet<>(task._partitionsV2));
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_connectorType, _id, _taskPrefix, _partitions, _partitionsV2);
+    return Objects.hash(_connectorType, _id, _taskPrefix, new HashSet<>(_partitions), new HashSet<>(_partitionsV2));
   }
 
   @Override
   public String toString() {
     // toString() is mainly for logging purpose, feel free to modify the content/format
-    return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(), _connectorType,
-        String.join(",", _partitionsV2), LogUtils.logNumberArrayInRange(_partitions), _dependencies);
+    // When DatastreamTaskImpl is created using constructor that passes _partitionsV2, _partitions is not populated.
+    // When DatastreamTaskImpl is created using constructor that passes _partitions, _partitionsV2 is also populated.
+    // So, if _partitions is not populated, we can assume that only _partitionsV2 is populated.
+    String partitionsV2FormatLog = String.join(",", _partitionsV2);
+    if (_partitions.size() > 0) {
+      try {
+        List<Integer> partitionList = _partitionsV2.stream().map(Integer::parseInt).collect(Collectors.toList());
+        partitionsV2FormatLog = LogUtils.logNumberArrayInRange(partitionList);
+      } catch (NumberFormatException e) {
+        LOG.error(e.getMessage());
+      }
+    }
+    return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
+        _connectorType, partitionsV2FormatLog, LogUtils.logNumberArrayInRange(_partitions),
+        _dependencies);
   }
 
   public void setZkAdapter(ZkAdapter adapter) {
