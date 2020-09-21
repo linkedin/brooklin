@@ -126,57 +126,7 @@ public class TestKafkaProducerWrapper {
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
-<<<<<<< HEAD
-  @Test
-  public void testFlushTimeout() throws Exception {
-    DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
-    Properties transportProviderProperties = new Properties();
-    transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
-    transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
-    transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
-    transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_FLUSH_TIMEOUT_MS, "1");
 
-    String topicName = "topic-42";
-
-    MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
-        new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics",
-            TimeoutException.class);
-
-    String destinationUri = "localhost:1234/" + topicName;
-    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
-
-    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
-    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, null, null);
-    producerWrapper.assignTask(task);
-
-    // Sending first event, send should pass, none of the other methods on the producer should have been called
-    producerWrapper.send(task, producerRecord, null);
-    producerWrapper.verifySend(1);
-    producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 0);
-    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
-
-    // Producer was mocked to throw a TimeoutException
-    Assert.assertThrows(TimeoutException.class, producerWrapper::flush);
-
-    producerWrapper.verifySend(1);
-    producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(0, 0);
-
-    // Second send should reuse the same producer since the producer is not closed on TimeoutException
-    producerWrapper.send(task, producerRecord, null);
-    producerWrapper.verifySend(2);
-    producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(0, 0);
-    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
-
-    // Closing the producer's task. Since this is the only task, the producer should be closed
-    producerWrapper.close(task);
-    producerWrapper.verifySend(2);
-    producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(1, 1);
-    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
-  }
 
   @Test
   public void testAssignAndUnassignTask() throws Exception {
@@ -232,6 +182,17 @@ public class TestKafkaProducerWrapper {
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(0, 2);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
+
+    producerWrapper.unassignTask(Collections.singletonList(task));
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(0);
+    producerWrapper.verifyClose(1, 3);
+
+    // Second send should fail as the task is unassigned
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task, producerRecord, null));
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(0);
+    producerWrapper.verifyClose(1, 4);
   }
 
   private static class MockKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {

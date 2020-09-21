@@ -12,9 +12,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -117,6 +119,9 @@ class KafkaProducerWrapper<K, V> {
   private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
       new ThreadFactoryBuilder().setNameFormat("KafkaProducerWrapperClose-%d").build());
 
+  private boolean isCloseInProgress = false;
+  private Future<?> inProgressCloseFuture = CompletableFuture.completedFuture(true);
+
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
   }
@@ -181,11 +186,22 @@ class KafkaProducerWrapper<K, V> {
     _tasks.add(task);
   }
 
+  void unassignTask(List<DatastreamTask> taskList) {
+    synchronized (_producerLock) {
+      boolean taskPresent = taskList.stream().map(_tasks::remove).reduce(false, (a, b) -> a || b);
+      // whenever a task is unassigned the kafka producer should be shutdown to ensure that
+      // there are no in-flight sends. Any further send will not work.
+      if (taskPresent && _kafkaProducer != null) {
+        shutdownProducer();
+      }
+    }
+  }
+
   void unassignTask(DatastreamTask task) {
     boolean taskPresent = _tasks.remove(task);
     // whenever a task is unassigned the kafka producer should be shutdown to ensure that
     // there are no in-flight sends. Any further send will not work.
-    if (taskPresent) {
+    if (taskPresent && _kafkaProducer != null) {
       shutdownProducer();
     }
   }
@@ -195,19 +211,18 @@ class KafkaProducerWrapper<K, V> {
   }
 
   private Producer<K, V> initializeProducer(DatastreamTask task) {
+    if (!_tasks.contains(task)) {
+      _log.warn("Task {} has been unassigned for producer, abort the send", task);
+      return null;
+    }
     // Must be protected by a lock to avoid creating duplicate producers when multiple concurrent
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
     synchronized (_producerLock) {
-      if (!_tasks.contains(task)) {
-        _log.warn("Task {} has been unassigned for producer, abort the send", task);
-        return null;
-      } else {
-        if (_kafkaProducer == null) {
-          _rateLimiter.acquire();
-          _kafkaProducer = createKafkaProducer();
-          NUM_PRODUCERS.incrementAndGet();
-        }
+      if (_kafkaProducer == null) {
+        _rateLimiter.acquire();
+        _kafkaProducer = createKafkaProducer();
+        NUM_PRODUCERS.incrementAndGet();
       }
       return _kafkaProducer;
     }
@@ -276,24 +291,33 @@ class KafkaProducerWrapper<K, V> {
 
   @VisibleForTesting
   void shutdownProducer() {
+    if (_kafkaProducer == null) {
+      return;
+    }
+
     Producer<K, V> producer;
     synchronized (_producerLock) {
       producer = _kafkaProducer;
       // Nullify first to prevent subsequent send() to use
       // the current producer which is being shutdown.
       _kafkaProducer = null;
-    }
 
-    // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
-    // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
-    // thread
-    if (producer != null) {
-      _producerCloseExecutorService.submit(() -> {
-        _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
-        producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        NUM_PRODUCERS.decrementAndGet();
-        _log.info("KafkaProducerWrapper: Kafka Producer is closed");
-      });
+      // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
+      // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
+      // thread
+      if (producer != null) {
+        Future<?> future = _producerCloseExecutorService.submit(() -> {
+          _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
+          producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+          NUM_PRODUCERS.decrementAndGet();
+          _log.info("KafkaProducerWrapper: Kafka Producer is closed");
+        });
+        try {
+          future.get(5000, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+          future.cancel(true);
+        }
+      }
     }
   }
 
@@ -310,17 +334,23 @@ class KafkaProducerWrapper<K, V> {
   }
 
   void flush() {
+    Producer<K, V> producer;
     synchronized (_producerLock) {
-      try {
-        if (_kafkaProducer != null) {
-          _kafkaProducer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
-        }
-      } catch (InterruptException | TimeoutException e) {
-        // The KafkaProducer object should not be reused on an interrupted flush
-        _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", _kafkaProducer);
-        shutdownProducer();
-        throw e;
+      producer = _kafkaProducer;
+    }
+    try {
+      if (producer != null) {
+          producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
       }
+    } catch (InterruptException | TimeoutException e) {
+      // The KafkaProducer object should not be reused on an interrupted flush
+      if (producer == _kafkaProducer) {
+        _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
+        shutdownProducer();
+      } else {
+        _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+      }
+      throw e;
     }
   }
 
