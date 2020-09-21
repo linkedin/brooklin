@@ -5,6 +5,21 @@
  */
 package com.linkedin.datastream.kafka;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.DatastreamTransientException;
+import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
+import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
+import com.linkedin.datastream.server.DatastreamTask;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,7 +34,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
@@ -34,25 +47,8 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.linkedin.datastream.common.DatastreamRuntimeException;
-import com.linkedin.datastream.common.DatastreamTransientException;
-import com.linkedin.datastream.common.ReflectionUtils;
-import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.kafka.factory.KafkaProducerFactory;
-import com.linkedin.datastream.kafka.factory.SimpleKafkaProducerFactory;
-import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
-import com.linkedin.datastream.metrics.BrooklinMeterInfo;
-import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
-import com.linkedin.datastream.metrics.MetricsAware;
-import com.linkedin.datastream.server.DatastreamTask;
-
-import static com.linkedin.datastream.connectors.CommonConnectorMetrics.AGGREGATE;
-import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.DOMAIN_PRODUCER;
+import static com.linkedin.datastream.connectors.CommonConnectorMetrics.*;
+import static com.linkedin.datastream.kafka.factory.KafkaProducerFactory.*;
 
 
 class KafkaProducerWrapper<K, V> {
@@ -76,6 +72,7 @@ class KafkaProducerWrapper<K, V> {
   private static final Supplier<Integer> PRODUCER_GAUGE = NUM_PRODUCERS::get;
 
   private static final int CLOSE_TIMEOUT_MS = 2000;
+  private static final int CLOSE_CANCEL_TIMEOUT_MS = 5000;
   private static final int MAX_SEND_ATTEMPTS = 10;
   private static final Duration PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
 
@@ -118,9 +115,6 @@ class KafkaProducerWrapper<K, V> {
   // An executor to spawn threads to close the producer.
   private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
       new ThreadFactoryBuilder().setNameFormat("KafkaProducerWrapperClose-%d").build());
-
-  private boolean isCloseInProgress = false;
-  private Future<?> inProgressCloseFuture = CompletableFuture.completedFuture(true);
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
@@ -313,7 +307,7 @@ class KafkaProducerWrapper<K, V> {
           _log.info("KafkaProducerWrapper: Kafka Producer is closed");
         });
         try {
-          future.get(5000, TimeUnit.MILLISECONDS);
+          future.get(CLOSE_CANCEL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
           future.cancel(true);
         }
