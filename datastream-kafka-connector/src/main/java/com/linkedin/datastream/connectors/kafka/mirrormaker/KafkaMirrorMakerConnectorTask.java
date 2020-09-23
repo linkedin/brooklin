@@ -53,7 +53,6 @@ import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
@@ -104,7 +103,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
-  protected final DynamicMetricsManager _dynamicMetricsManager;
   protected final String _connectorName;
 
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
@@ -147,7 +145,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");

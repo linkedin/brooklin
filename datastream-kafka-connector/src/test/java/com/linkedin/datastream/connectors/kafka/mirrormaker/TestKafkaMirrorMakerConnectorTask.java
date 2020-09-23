@@ -135,6 +135,15 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     validateTaskConsumerAssignment(connectorTask,
         Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
 
+    // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
+    // connector name of interest.
+    MetricsTestUtils.verifyMetrics(new MetricsAware() {
+      @Override
+      public List<BrooklinMetricInfo> getMetricInfos() {
+        return KafkaMirrorMakerConnectorTask.getMetricInfos("");
+      }
+    }, DynamicMetricsManager.getInstance());
+
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
