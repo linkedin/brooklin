@@ -126,8 +126,6 @@ public class TestKafkaProducerWrapper {
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
-
-
   @Test
   public void testAssignAndUnassignTask() throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
@@ -166,13 +164,13 @@ public class TestKafkaProducerWrapper {
     Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task, producerRecord, null));
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 2);
+    producerWrapper.verifyClose(1, 1);
 
     // Closing the producer's task. Since this is the only task, the producer should be closed
     producerWrapper.close(task);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 2);
+    producerWrapper.verifyClose(1, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
     producerWrapper.assignTask(task);
@@ -180,19 +178,19 @@ public class TestKafkaProducerWrapper {
     producerWrapper.send(task, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 2);
+    producerWrapper.verifyClose(0, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     producerWrapper.unassignTask(Collections.singletonList(task));
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 3);
+    producerWrapper.verifyClose(1, 2);
 
     // Second send should fail as the task is unassigned
     Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task, producerRecord, null));
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 4);
+    producerWrapper.verifyClose(1, 2);
   }
 
   private static class MockKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {
