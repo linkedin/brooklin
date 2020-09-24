@@ -115,12 +115,14 @@ class KafkaProducerWrapper<K, V> {
 
   // A lock used to synchronize access to operations performed on the _kafkaProducer object
   private final Lock _producerLock = new ReentrantLock();
+  // A condition to wait on before creating a new producer
   private final Condition _waitOnNoProducerClose = _producerLock.newCondition();
 
   // An executor to spawn threads to close the producer.
   private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
       new ThreadFactoryBuilder().setNameFormat("KafkaProducerWrapperClose-%d").build());
-  private boolean closeInProgress = false;
+
+  private boolean _closeInProgress = false;
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
@@ -180,7 +182,7 @@ class KafkaProducerWrapper<K, V> {
       try {
         producer = initializeProducer(task);
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        _log.warn("Got interrupted while trying to initialize the producer for task {}", task);
       }
     }
     return Optional.ofNullable(producer);
@@ -201,7 +203,7 @@ class KafkaProducerWrapper<K, V> {
 
       // whenever a task is unassigned the kafka producer should be shutdown to ensure that
       // there are no in-flight sends. Any further send will not work.
-      if (taskPresent && _kafkaProducer != null && !closeInProgress) {
+      if (taskPresent && _kafkaProducer != null && !_closeInProgress) {
         shutdownProducer();
       }
     } finally {
@@ -224,7 +226,8 @@ class KafkaProducerWrapper<K, V> {
     try {
       _producerLock.lock();
 
-      while (closeInProgress) {
+      // make sure there is no close in progress.
+      while (_closeInProgress) {
         boolean closeCompleted = _waitOnNoProducerClose.await(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         if (!closeCompleted) {
           _log.debug("Close not completed. Retry");
@@ -308,11 +311,12 @@ class KafkaProducerWrapper<K, V> {
     Producer<K, V> producer;
     try {
       _producerLock.lock();
-      if (_kafkaProducer == null || closeInProgress) {
+      // if there is no producer or the producer close is in progress, return.
+      if (_kafkaProducer == null || _closeInProgress) {
         return;
       }
       producer = _kafkaProducer;
-      closeInProgress = true;
+      _closeInProgress = true;
       // Nullify first to prevent subsequent send() to use
       // the current producer which is being shutdown.
       _kafkaProducer = null;
@@ -320,7 +324,6 @@ class KafkaProducerWrapper<K, V> {
       // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
       // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
       // thread
-
       _producerCloseExecutorService.submit(() -> {
         _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
         try {
@@ -330,7 +333,7 @@ class KafkaProducerWrapper<K, V> {
         } finally {
           try {
             _producerLock.lock();
-            closeInProgress = false;
+            _closeInProgress = false;
             _waitOnNoProducerClose.signalAll();
           } finally {
             _producerLock.unlock();
