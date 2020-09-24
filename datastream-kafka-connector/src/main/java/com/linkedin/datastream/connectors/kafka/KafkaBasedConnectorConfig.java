@@ -31,7 +31,7 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_RETRY_SLEEP_DURATION_MILLIS = "retrySleepDurationMs";
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS = "pauseErrorPartitionDurationMs";
-  public static final String CONFIG_ENABLE_POLL_DURATION_MS_METRIC = "enablePollDurationMsMetric";
+  public static final String CONFIG_ENABLE_POLL_DURATION_MILLIS_METRIC = "enablePollDurationMsMetric";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
@@ -47,7 +47,7 @@ public class KafkaBasedConnectorConfig {
   private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
   private static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
-  private static final boolean DEFAULT_ENABLE_POLL_DURATION_MS_METRIC = Boolean.TRUE;
+  private static final boolean DEFAULT_ENABLE_POLL_DURATION_MILLIS_METRIC = Boolean.TRUE;
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -63,7 +63,7 @@ public class KafkaBasedConnectorConfig {
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
   private final long _processingDelayLogThresholdMillis;
-  private final boolean _enablePollDurationMsMetric;
+  private final boolean _enablePollDurationMillisMetric;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -101,8 +101,8 @@ public class KafkaBasedConnectorConfig {
     _processingDelayLogThresholdMillis =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
-    _enablePollDurationMsMetric = verifiableProperties.getBoolean(CONFIG_ENABLE_POLL_DURATION_MS_METRIC,
-        DEFAULT_ENABLE_POLL_DURATION_MS_METRIC);
+    _enablePollDurationMillisMetric = verifiableProperties.getBoolean(CONFIG_ENABLE_POLL_DURATION_MILLIS_METRIC,
+        DEFAULT_ENABLE_POLL_DURATION_MILLIS_METRIC);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =
@@ -152,8 +152,8 @@ public class KafkaBasedConnectorConfig {
     return _pauseErrorPartitionDuration;
   }
 
-  public boolean getEnablePollDurationMsMetric() {
-    return _enablePollDurationMsMetric;
+  public boolean getEnablePollDurationMillisMetric() {
+    return _enablePollDurationMillisMetric;
   }
 
   /**
