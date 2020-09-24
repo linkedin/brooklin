@@ -56,8 +56,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
   private final AtomicLong _numTopics = new AtomicLong(0);
 
-  private final boolean _enablePollDurationMillisMetric;
-  private final Histogram _pollDurationMs;
+  private final Histogram _pollDurationMsMetric;
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger,
       boolean enablePollDurationMillisMetric) {
@@ -72,8 +71,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         _numAutoPausedPartitionsAwaitingDestTopic::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, _numTopics::get);
 
-    _enablePollDurationMillisMetric = enablePollDurationMillisMetric;
-    _pollDurationMs = _enablePollDurationMillisMetric ?
+    _pollDurationMsMetric = enablePollDurationMillisMetric ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =
@@ -112,7 +110,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
 
-    if (_enablePollDurationMillisMetric) {
+    if (_pollDurationMsMetric != null) {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, POLL_DURATION_MS);
     }
   }
@@ -182,8 +180,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to update
    */
   public void updatePollDurationMs(long val) {
-    if (_pollDurationMs != null) {
-      _pollDurationMs.update(val);
+    if (_pollDurationMsMetric != null) {
+      _pollDurationMsMetric.update(val);
     }
   }
 
