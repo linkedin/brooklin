@@ -105,7 +105,7 @@ public class JDBCConnectorTask {
 
             HashMap<String, String> meta = new HashMap<>();
             meta.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
-            BrooklinEnvelope envelope = new BrooklinEnvelope(null, record, null, meta);
+            BrooklinEnvelope envelope = new BrooklinEnvelope(checkpoint, record, null, meta);
             DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
             builder.addEvent(envelope);
             builder.setEventsSourceTimestamp(System.currentTimeMillis());

@@ -104,7 +104,7 @@ public class KafkaTransportProvider<K, V> implements TransportProvider {
     V payloadValue = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
-      if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
+      if (envelope.key().isPresent()) {
         keyValue = (K) envelope.key().get();
       }
 

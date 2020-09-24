@@ -770,7 +770,9 @@ public class JdbcCommon {
                         LOG.warn("Column type name not found for value {}", meta.getColumnType(i));
                     }
                     final Schema timestampMilliType = LogicalTypes.timestampMillis().addToSchema(SchemaBuilder.builder().longType());
-                    timestampMilliType.addProp(SOURCE_SQL_DATA_TYPE, sqlType);
+                    if (sqlType != null) {
+                        timestampMilliType.addProp(SOURCE_SQL_DATA_TYPE, sqlType);
+                    }
                     builder.name(columnName).type().unionOf().nullBuilder().endNull().and().type(timestampMilliType).endUnion().nullDefault();
                     break;
 

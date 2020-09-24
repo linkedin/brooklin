@@ -20,6 +20,6 @@ public class KafkaAvroTransportProviderAdminFactory implements TransportProvider
     @Override
     public TransportProviderAdmin createTransportProviderAdmin(String transportProviderName,
                                                                Properties transportProviderProperties) {
-        return new KafkaTransportProviderAdmin<byte[], GenericRecord>(transportProviderName, transportProviderProperties);
+        return new KafkaTransportProviderAdmin<GenericRecord, GenericRecord>(transportProviderName, transportProviderProperties);
     }
 }
