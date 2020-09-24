@@ -52,9 +52,7 @@ import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
-import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
-import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -76,8 +74,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
   public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
-
-  private static final String POLL_DURATION_MS = "pollDurationMs";
 
   protected long _lastCommittedTime = System.currentTimeMillis();
   protected int _eventsProcessedCount = 0;
@@ -113,9 +109,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
-
-  protected final String _metricsPrefix;
-  protected final DynamicMetricsManager _dynamicMetricsManager;
 
   // TopicPartitions which have seen exceptions on send. Access to this map must be synchronized.
   // A ConcurrentHashMap is not used here due to the need for having more than one operation performed together as an
@@ -178,9 +171,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _pollTimeoutMillis = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
-    _metricsPrefix = metricsPrefix;
-    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(_metricsPrefix, _datastreamName, _logger);
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
+        _enablePollDurationMillisMetric);
 
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
@@ -194,8 +186,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
       Logger errorLogger) {
+    return createKafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, false);
+  }
+
+  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
+      Logger errorLogger, boolean enablePollDurationMillisMetric) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enablePollDurationMillisMetric);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -490,8 +487,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _consumerMetrics.updateNumPolls(1);
       _consumerMetrics.updateEventCountsPerPoll(records.count());
       if (_enablePollDurationMillisMetric) {
-        _dynamicMetricsManager.createOrUpdateHistogram(_metricsPrefix, _datastreamName, POLL_DURATION_MS,
-            pollDurationMillis);
+        _consumerMetrics.updatePollDurationMs(pollDurationMillis);
       }
       if (!records.isEmpty()) {
         _consumerMetrics.updateEventsProcessedRate(records.count());
@@ -942,7 +938,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     metrics.addAll(KafkaBasedConnectorTaskMetrics.getEventPollMetrics(prefix));
     metrics.addAll(KafkaBasedConnectorTaskMetrics.getPartitionSpecificMetrics(prefix));
     metrics.addAll(KafkaBasedConnectorTaskMetrics.getKafkaBasedConnectorTaskSpecificMetrics(prefix));
-    metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
     return metrics;
   }
 
