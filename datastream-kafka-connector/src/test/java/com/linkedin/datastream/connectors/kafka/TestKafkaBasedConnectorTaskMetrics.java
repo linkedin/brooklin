@@ -45,9 +45,9 @@ public class TestKafkaBasedConnectorTaskMetrics {
   @Test
   public void testConnectorPollMetrics() {
     KafkaBasedConnectorTaskMetrics connectorConsumer1 =
-        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG, true);
     KafkaBasedConnectorTaskMetrics connectorConsumer2 =
-        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG, true);
 
     connectorConsumer1.createPollMetrics();
     connectorConsumer2.createPollMetrics();
@@ -55,6 +55,7 @@ public class TestKafkaBasedConnectorTaskMetrics {
     connectorConsumer1.updateNumPolls(5);
     connectorConsumer1.updateEventCountsPerPoll(10);
     connectorConsumer1.updateEventCountsPerPoll(40);
+    connectorConsumer1.updatePollDurationMs(50000);
     connectorConsumer2.updateNumConfigPausedPartitions(15);
     connectorConsumer2.updateNumAutoPausedPartitionsOnInFlightMessages(25);
     connectorConsumer2.updateNumAutoPausedPartitionsOnError(35);
@@ -65,6 +66,8 @@ public class TestKafkaBasedConnectorTaskMetrics {
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 0);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 0);
+    Assert.assertEquals(((Histogram) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.POLL_DURATION_MS)).getCount(), 1);
 
     Assert.assertEquals(
         ((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME + "numPolls")).getCount(), 5);
@@ -84,9 +87,9 @@ public class TestKafkaBasedConnectorTaskMetrics {
   @Test
   public void testConnectorPartitionMetrics() {
     KafkaBasedConnectorTaskMetrics connectorConsumer1 =
-        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG, false);
     KafkaBasedConnectorTaskMetrics connectorConsumer2 =
-        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG, false);
 
     connectorConsumer1.createPartitionMetrics();
     connectorConsumer2.createPartitionMetrics();
