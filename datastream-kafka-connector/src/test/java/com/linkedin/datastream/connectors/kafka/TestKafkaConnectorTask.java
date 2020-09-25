@@ -117,7 +117,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(datastream1, datastream2));
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(TestKafkaConnectorTask.class.getName(), "testConsumer", LOG);
+        new KafkaBasedConnectorTaskMetrics(TestKafkaConnectorTask.class.getName(), "testConsumer", LOG, true);
     consumerMetrics.createEventProcessingMetrics();
 
     String defaultGrpId =
