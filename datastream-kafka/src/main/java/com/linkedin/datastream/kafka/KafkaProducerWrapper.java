@@ -375,13 +375,18 @@ class KafkaProducerWrapper<K, V> {
       }
     } catch (InterruptException | TimeoutException e) {
       // The KafkaProducer object should not be reused on an interrupted flush
-      if (producer == _kafkaProducer) {
-        _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
-        shutdownProducer();
-      } else {
-        _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+      try {
+        _producerLock.lock();
+        if (producer == _kafkaProducer) {
+          _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
+          shutdownProducer();
+        } else {
+          _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+        }
+        throw e;
+      } finally {
+        _producerLock.unlock();
       }
-      throw e;
     }
   }
 
