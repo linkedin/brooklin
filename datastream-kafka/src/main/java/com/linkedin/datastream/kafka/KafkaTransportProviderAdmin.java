@@ -175,20 +175,18 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
 
   @Override
   public void unassignTransportProvider(List<DatastreamTask> taskList) {
-    Validate.notNull(taskList, "null task");
+    Validate.notNull(taskList, "null task list");
     Set<KafkaProducerWrapper<byte[], byte[]>> producers = new HashSet<>();
     for (DatastreamTask task : taskList) {
       if (_transportProviders.containsKey(task)) {
         KafkaTransportProvider transportProvider = _transportProviders.remove(task);
         producers.addAll(transportProvider.getProducers());
-        //transportProvider.getProducers().forEach(p -> p.unassignTask(task));
       } else {
         LOG.warn("Trying to unassign already unassigned transport provider for task {}.", task);
       }
     }
 
-    producers.forEach(p -> p.unassignTask(taskList));
-
+    producers.forEach(p -> p.unassignTasks(taskList));
   }
 
   @Override

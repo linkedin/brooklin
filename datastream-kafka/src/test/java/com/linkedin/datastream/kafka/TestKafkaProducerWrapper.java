@@ -142,55 +142,49 @@ public class TestKafkaProducerWrapper {
             TimeoutException.class);
 
     String destinationUri = "localhost:1234/" + topicName;
-    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
+    Datastream ds1 = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
+    DatastreamTask task1 = new DatastreamTaskImpl(Collections.singletonList(ds1));
 
-    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
+    Datastream ds2 = DatastreamTestUtils.createDatastream("test", "ds2", "source", destinationUri, 1);
+    DatastreamTask task2 = new DatastreamTaskImpl(Collections.singletonList(ds2));
     ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, null, null);
-    producerWrapper.assignTask(task);
+    producerWrapper.assignTask(task1);
 
+    // send the task which is not assigned
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task2, producerRecord, null));
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 0);
+
+    producerWrapper.assignTask(task2);
     // Sending first event, send should pass, none of the other methods on the producer should have been called
-    producerWrapper.send(task, producerRecord, null);
+    producerWrapper.send(task1, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(0, 0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
-    producerWrapper.unassignTask(task);
+    producerWrapper.unassignTask(task1);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(1, 1);
 
     // Second send should fail as the task is unassigned
-    Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task, producerRecord, null));
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task1, producerRecord, null));
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(1, 1);
 
-    // Closing the producer's task. Since this is the only task, the producer should be closed
-    producerWrapper.close(task);
-    producerWrapper.verifySend(1);
-    producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 1);
-    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
-
-    producerWrapper.assignTask(task);
-    // Sending first event, send should pass, none of the other methods on the producer should have been called
-    producerWrapper.send(task, producerRecord, null);
+    producerWrapper.send(task2, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(0, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
-    producerWrapper.unassignTask(Collections.singletonList(task));
+    // Closing the producer's task. Since this is the only task, the producer should be closed
+    producerWrapper.close(task2);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
     producerWrapper.verifyClose(1, 2);
-
-    // Second send should fail as the task is unassigned
-    Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task, producerRecord, null));
-    producerWrapper.verifySend(1);
-    producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 2);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
   private static class MockKafkaProducerWrapper<K, V> extends KafkaProducerWrapper<K, V> {

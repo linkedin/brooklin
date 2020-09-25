@@ -116,13 +116,13 @@ class KafkaProducerWrapper<K, V> {
   // A lock used to synchronize access to operations performed on the _kafkaProducer object
   private final Lock _producerLock = new ReentrantLock();
   // A condition to wait on before creating a new producer
-  private final Condition _waitOnNoProducerClose = _producerLock.newCondition();
+  private final Condition _waitOnProducerClose = _producerLock.newCondition();
+  // This should be accessed using _producerLock.
+  private boolean _closeInProgress = false;
 
   // An executor to spawn threads to close the producer.
   private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
       new ThreadFactoryBuilder().setNameFormat("KafkaProducerWrapperClose-%d").build());
-
-  private boolean _closeInProgress = false;
 
   KafkaProducerWrapper(String logSuffix, Properties props) {
     this(logSuffix, props, null);
@@ -193,16 +193,16 @@ class KafkaProducerWrapper<K, V> {
   }
 
   void unassignTask(DatastreamTask task) {
-    unassignTask(Collections.singletonList(task));
+    unassignTasks(Collections.singletonList(task));
   }
 
-  void unassignTask(List<DatastreamTask> taskList) {
+  void unassignTasks(List<DatastreamTask> taskList) {
     boolean taskPresent = _tasks.removeAll(taskList);
     try {
       _producerLock.lock();
 
-      // whenever a task is unassigned the kafka producer should be shutdown to ensure that
-      // there are no in-flight sends. Any further send will not work.
+      // whenever a task is unassigned the kafka producer should be shutdown to ensure that there are no
+      // pending sends. Further sends will fail until the producer is re-initialized by a valid task.
       if (taskPresent && _kafkaProducer != null && !_closeInProgress) {
         shutdownProducer();
       }
@@ -216,10 +216,6 @@ class KafkaProducerWrapper<K, V> {
   }
 
   private Producer<K, V> initializeProducer(DatastreamTask task) throws InterruptedException {
-    if (!_tasks.contains(task)) {
-      _log.warn("Task {} has been unassigned for producer, abort the send", task);
-      return null;
-    }
     // Must be protected by a lock to avoid creating duplicate producers when multiple concurrent
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
@@ -227,10 +223,11 @@ class KafkaProducerWrapper<K, V> {
       _producerLock.lock();
 
       // make sure there is no close in progress.
+      int attemptCount = 1;
       while (_closeInProgress) {
-        boolean closeCompleted = _waitOnNoProducerClose.await(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        boolean closeCompleted = _waitOnProducerClose.await(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         if (!closeCompleted) {
-          _log.debug("Close not completed. Retry");
+          _log.warn("Cannot initialize new producer because close is in progress. Retry again. Attempt: {}", attemptCount++);
         }
       }
 
@@ -331,15 +328,19 @@ class KafkaProducerWrapper<K, V> {
           NUM_PRODUCERS.decrementAndGet();
           _log.info("KafkaProducerWrapper: Kafka Producer is closed");
         } finally {
-          try {
-            _producerLock.lock();
-            _closeInProgress = false;
-            _waitOnNoProducerClose.signalAll();
-          } finally {
-            _producerLock.unlock();
-          }
+          markProducerCloseComplete();
         }
       });
+    } finally {
+      _producerLock.unlock();
+    }
+  }
+
+  private void markProducerCloseComplete() {
+    try {
+      _producerLock.lock();
+      _closeInProgress = false;
+      _waitOnProducerClose.signalAll();
     } finally {
       _producerLock.unlock();
     }
@@ -384,6 +385,8 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
+  // This function is called during shutdown or on session expiry (which calls unassignTasks as well).
+  // So, it is okay to shutdown the producer once when all the tasks are closed.
   void close(DatastreamTask task) {
     if (_tasks.remove(task) && _tasks.isEmpty()) {
       shutdownProducer();
