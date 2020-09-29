@@ -6,11 +6,10 @@
 
 package com.linkedin.datastream.connectors.kafka;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.type.TypeReference;
@@ -27,8 +26,9 @@ public class KafkaConnectorDiagUtils {
    * Reduce/Merge the KafkaTopicPartitionStatsResponse responses of a collection of host/instance into one response
    */
   public static String reduceTopicPartitionStatsResponses(Map<String, String> responses, Logger logger) {
-    Map<String, KafkaTopicPartitionStatsResponse> result = new HashMap<>();
+    List<KafkaTopicPartitionStatsResponse> result = new ArrayList<>();
 
+    // flatten responses from all hosts
     responses.forEach((instance, json) -> {
       List<KafkaTopicPartitionStatsResponse> responseList;
       try {
@@ -38,28 +38,10 @@ public class KafkaConnectorDiagUtils {
         logger.error("Invalid response {} from instance {}", json, instance);
         return;
       }
-
-      responseList.forEach(response -> {
-        if (response.getTopicPartitions() == null || StringUtils.isBlank(response.getConsumerGroupId())
-            || response.getDatastreams() == null) {
-          logger.warn("Empty topic partition stats map from instance {}. Ignoring the result", instance);
-          return;
-        }
-
-        KafkaTopicPartitionStatsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-            k -> new KafkaTopicPartitionStatsResponse(response.getConsumerGroupId()));
-        reducedResponse.getDatastreams().addAll(response.getDatastreams());
-
-        Map<String, Set<Integer>> topicPartitions = response.getTopicPartitions();
-        topicPartitions.forEach((topic, partitions) -> {
-          Map<String, Set<Integer>> reducedTopicPartitions = reducedResponse.getTopicPartitions();
-          Set<Integer> reducedPartitions = reducedTopicPartitions.computeIfAbsent(topic, k -> new HashSet<>());
-          reducedPartitions.addAll(partitions);
-        });
-      });
+      result.addAll(responseList);
     });
 
-    return JsonUtils.toJson(result.values());
+    return JsonUtils.toJson(result);
   }
 
   /**
