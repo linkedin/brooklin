@@ -5,7 +5,9 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -477,8 +479,16 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         datastreams.forEach(datastream -> datastreamNames.add(datastream.getName()));
 
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+
+        String hostname = null;
+        try {
+          hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException ex) {
+          _logger.warn("Hostname not found");
+        }
+
         KafkaTopicPartitionStatsResponse response = new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(),
-          tracker.getTopicPartitions(), datastreamNames);
+                hostname, tracker.getTopicPartitions(), datastreamNames);
         serializedResponses.add(response);
       });
     }
