@@ -691,7 +691,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // Any modification to assignment object directly will cause discrepancy in the current assignment list
         connector.onAssignmentChange(new ArrayList<>(assignment));
         // Unassign tasks with producers
-        removedTasks.forEach(this::uninitializeTask);
+        uninitializeTasks(removedTasks);
       } catch (Exception ex) {
         String err = String.format("connector.onAssignmentChange for connector %s threw an exception", connectorType);
         if (retryAndSaveError) {
@@ -710,10 +710,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     });
   }
 
-  private void uninitializeTask(DatastreamTask t) {
-    TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
-    tpAdmin.unassignTransportProvider(t);
-    _cpProvider.unassignDatastreamTask(t);
+  private void uninitializeTasks(List<DatastreamTask> tasks) {
+
+    Map<String, List<DatastreamTask>> datastreamTasksPerTransportProvider =
+        tasks.stream().collect(Collectors.groupingBy(DatastreamTask::getTransportProviderName, Collectors.toList()));
+
+    datastreamTasksPerTransportProvider.forEach((transportProviderName, datastreamTaskList) -> {
+      TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(transportProviderName);
+      tpAdmin.unassignTransportProvider(datastreamTaskList);
+    });
+
+    tasks.forEach(_cpProvider::unassignDatastreamTask);
   }
 
   private void initializeTask(DatastreamTask task) {

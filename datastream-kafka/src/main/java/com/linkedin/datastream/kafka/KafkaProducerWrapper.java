@@ -17,6 +17,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang3.StringUtils;
@@ -111,7 +114,11 @@ class KafkaProducerWrapper<K, V> {
   private final String _metricsNamesPrefix;
 
   // A lock used to synchronize access to operations performed on the _kafkaProducer object
-  private final Object _producerLock = new Object();
+  private final Lock _producerLock = new ReentrantLock();
+  // A condition to wait on before creating a new producer
+  private final Condition _waitOnProducerClose = _producerLock.newCondition();
+  // This should be accessed using _producerLock.
+  private boolean _closeInProgress = false;
 
   // An executor to spawn threads to close the producer.
   private final ExecutorService _producerCloseExecutorService = Executors.newSingleThreadExecutor(
@@ -165,9 +172,18 @@ class KafkaProducerWrapper<K, V> {
   }
 
   private Optional<Producer<K, V>> maybeGetKafkaProducer(DatastreamTask task) {
+    if (!_tasks.contains(task)) {
+      _log.warn("Task {} has been unassigned for producer, abort the send", task);
+      return Optional.empty();
+    }
+
     Producer<K, V> producer = _kafkaProducer;
     if (producer == null) {
-      producer = initializeProducer(task);
+      try {
+        producer = initializeProducer(task);
+      } catch (InterruptedException e) {
+        _log.warn("Got interrupted while trying to initialize the producer for task {}", task);
+      }
     }
     return Optional.ofNullable(producer);
   }
@@ -177,29 +193,52 @@ class KafkaProducerWrapper<K, V> {
   }
 
   void unassignTask(DatastreamTask task) {
-    _tasks.remove(task);
+    unassignTasks(Collections.singletonList(task));
+  }
+
+  void unassignTasks(List<DatastreamTask> taskList) {
+    boolean taskPresent = _tasks.removeAll(taskList);
+    try {
+      _producerLock.lock();
+
+      // whenever a task is unassigned the kafka producer should be shutdown to ensure that there are no
+      // pending sends. Further sends will fail until the producer is re-initialized by a valid task.
+      if (taskPresent && _kafkaProducer != null && !_closeInProgress) {
+        shutdownProducer();
+      }
+    } finally {
+      _producerLock.unlock();
+    }
   }
 
   int getTasksSize() {
     return _tasks.size();
   }
 
-  private Producer<K, V> initializeProducer(DatastreamTask task) {
+  private Producer<K, V> initializeProducer(DatastreamTask task) throws InterruptedException {
     // Must be protected by a lock to avoid creating duplicate producers when multiple concurrent
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
-    synchronized (_producerLock) {
-      if (!_tasks.contains(task)) {
-        _log.warn("Task {} has been unassigned for producer, abort the send", task);
-        return null;
-      } else {
-        if (_kafkaProducer == null) {
-          _rateLimiter.acquire();
-          _kafkaProducer = createKafkaProducer();
-          NUM_PRODUCERS.incrementAndGet();
+    try {
+      _producerLock.lock();
+
+      // make sure there is no close in progress.
+      int attemptCount = 1;
+      while (_closeInProgress) {
+        boolean closeCompleted = _waitOnProducerClose.await(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        if (!closeCompleted) {
+          _log.warn("Cannot initialize new producer because close is in progress. Retry again. Attempt: {}", attemptCount++);
         }
       }
+
+      if (_kafkaProducer == null) {
+        _rateLimiter.acquire();
+        _kafkaProducer = createKafkaProducer();
+        NUM_PRODUCERS.incrementAndGet();
+      }
       return _kafkaProducer;
+    } finally {
+      _producerLock.unlock();
     }
   }
 
@@ -219,13 +258,18 @@ class KafkaProducerWrapper<K, V> {
     while (retry) {
       try {
         ++numberOfAttempt;
-        maybeGetKafkaProducer(task).ifPresent(p -> p.send(producerRecord, (metadata, exception) -> {
-          if (exception == null) {
-            onComplete.onCompletion(metadata, null);
-          } else {
-            onComplete.onCompletion(metadata, generateSendFailure(exception));
-          }
-        }));
+        Optional<Producer<K, V>> producer = maybeGetKafkaProducer(task);
+        if (producer.isPresent()) {
+          producer.get().send(producerRecord, (metadata, exception) -> {
+            if (exception == null) {
+              onComplete.onCompletion(metadata, null);
+            } else {
+              onComplete.onCompletion(metadata, generateSendFailure(exception, task));
+            }
+          });
+        } else {
+          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task));
+        }
 
         retry = false;
       } catch (IllegalStateException e) {
@@ -245,7 +289,7 @@ class KafkaProducerWrapper<K, V> {
         if (numberOfAttempt > MAX_SEND_ATTEMPTS || ((cause instanceof Error || cause instanceof RuntimeException))) {
           _log.error(String.format("Send failed for partition %d with a non-retriable exception",
               producerRecord.partition()), e);
-          throw generateSendFailure(e);
+          throw generateSendFailure(e, task);
         } else {
           _log.warn(String.format(
               "Send failed for partition %d with a retriable exception, retry %d out of %d in %d ms.",
@@ -254,7 +298,7 @@ class KafkaProducerWrapper<K, V> {
         }
       } catch (Exception e) {
         _log.error(String.format("Send failed for partition %d with an exception", producerRecord.partition()), e);
-        throw generateSendFailure(e);
+        throw generateSendFailure(e, task);
       }
     }
   }
@@ -262,59 +306,95 @@ class KafkaProducerWrapper<K, V> {
   @VisibleForTesting
   void shutdownProducer() {
     Producer<K, V> producer;
-    synchronized (_producerLock) {
+    try {
+      _producerLock.lock();
+      // if there is no producer or the producer close is in progress, return.
+      if (_kafkaProducer == null || _closeInProgress) {
+        return;
+      }
       producer = _kafkaProducer;
+      _closeInProgress = true;
       // Nullify first to prevent subsequent send() to use
       // the current producer which is being shutdown.
       _kafkaProducer = null;
-    }
 
-    // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
-    // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
-    // thread
-    if (producer != null) {
+      // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
+      // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
+      // thread
       _producerCloseExecutorService.submit(() -> {
         _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
-        producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        NUM_PRODUCERS.decrementAndGet();
-        _log.info("KafkaProducerWrapper: Kafka Producer is closed");
+        try {
+          producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+          NUM_PRODUCERS.decrementAndGet();
+          _log.info("KafkaProducerWrapper: Kafka Producer is closed");
+        } finally {
+          markProducerCloseComplete();
+        }
       });
+    } finally {
+      _producerLock.unlock();
     }
   }
 
-  private DatastreamRuntimeException generateSendFailure(Exception exception) {
+  private void markProducerCloseComplete() {
+    try {
+      _producerLock.lock();
+      _closeInProgress = false;
+      _waitOnProducerClose.signalAll();
+    } finally {
+      _producerLock.unlock();
+    }
+  }
+
+  private DatastreamRuntimeException generateSendFailure(Exception exception, DatastreamTask task) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
       _log.warn("Send failed transiently with exception: ", exception);
       return new DatastreamTransientException(exception);
     } else {
       _log.warn("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
-      shutdownProducer();
+      if (_tasks.contains(task)) {
+        shutdownProducer();
+      }
       return new DatastreamRuntimeException(exception);
     }
   }
 
   void flush() {
-    synchronized (_producerLock) {
+    Producer<K, V> producer;
+    try {
+      _producerLock.lock();
+      producer = _kafkaProducer;
+    } finally {
+      _producerLock.unlock();
+    }
+
+    if (producer != null) {
       try {
-        if (_kafkaProducer != null) {
-          _kafkaProducer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
-        }
+        producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptException | TimeoutException e) {
         // The KafkaProducer object should not be reused on an interrupted flush
-        _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", _kafkaProducer);
-        shutdownProducer();
-        throw e;
+        try {
+          _producerLock.lock();
+          if (producer == _kafkaProducer) {
+            _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
+            shutdownProducer();
+          } else {
+            _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+          }
+          throw e;
+        } finally {
+          _producerLock.unlock();
+        }
       }
     }
   }
 
+  // This function is called during shutdown or on session expiry (which calls unassignTasks as well).
+  // So, it is okay to shutdown the producer once when all the tasks are closed.
   void close(DatastreamTask task) {
-    synchronized (_producerLock) {
-      _tasks.remove(task);
-      if (_kafkaProducer != null && _tasks.isEmpty()) {
-        shutdownProducer();
-      }
+    if (_tasks.remove(task) && _tasks.isEmpty()) {
+      shutdownProducer();
     }
   }
 

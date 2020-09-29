@@ -74,7 +74,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
