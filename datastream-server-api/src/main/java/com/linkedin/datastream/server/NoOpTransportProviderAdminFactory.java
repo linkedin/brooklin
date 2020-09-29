@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.commons.lang.NotImplementedException;
@@ -61,6 +62,10 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
 
     @Override
     public void unassignTransportProvider(DatastreamTask task) {
+    }
+
+    @Override
+    public void unassignTransportProvider(List<DatastreamTask> taskList) {
     }
 
     @Override
