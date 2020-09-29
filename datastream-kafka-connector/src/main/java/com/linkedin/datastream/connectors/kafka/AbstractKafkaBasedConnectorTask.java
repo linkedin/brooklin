@@ -185,11 +185,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
-      Logger errorLogger) {
-    return createKafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, false);
-  }
-
-  protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
       Logger errorLogger, boolean enablePollDurationMillisMetric) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
         new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enablePollDurationMillisMetric);
