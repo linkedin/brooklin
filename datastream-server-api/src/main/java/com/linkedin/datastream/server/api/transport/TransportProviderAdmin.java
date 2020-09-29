@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.api.transport;
 
 import java.time.Duration;
+import java.util.List;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -34,6 +35,14 @@ public interface TransportProviderAdmin extends MetricsAware {
    * @param task DatastreamTask that is not using the transport provider.
    */
   void unassignTransportProvider(DatastreamTask task);
+
+  /**
+   * Method notifies the TransportProviderAdmin that the list of datastream Tasks are no longer using the
+   * Transport provider. Admin can decide to close the TransportProvider if none of the DatastreamTasks are
+   * using the Transport provider.
+   * @param taskList DatastreamTask that is not using the transport provider.
+   */
+  void unassignTransportProvider(List<DatastreamTask> taskList);
 
   /**
    * Initializes the destination for the datastream.
