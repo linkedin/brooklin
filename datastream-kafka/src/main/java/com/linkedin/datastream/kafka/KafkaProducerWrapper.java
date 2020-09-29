@@ -172,12 +172,12 @@ class KafkaProducerWrapper<K, V> {
   }
 
   private Optional<Producer<K, V>> maybeGetKafkaProducer(DatastreamTask task) {
-    Producer<K, V> producer = _kafkaProducer;
     if (!_tasks.contains(task)) {
       _log.warn("Task {} has been unassigned for producer, abort the send", task);
       return Optional.empty();
     }
 
+    Producer<K, V> producer = _kafkaProducer;
     if (producer == null) {
       try {
         producer = initializeProducer(task);
@@ -268,7 +268,7 @@ class KafkaProducerWrapper<K, V> {
             }
           });
         } else {
-          throw new DatastreamRuntimeException("kafka producer not available for the task");
+          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task));
         }
 
         retry = false;
@@ -369,23 +369,23 @@ class KafkaProducerWrapper<K, V> {
       _producerLock.unlock();
     }
 
-    try {
-      if (producer != null) {
-          producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
-      }
-    } catch (InterruptException | TimeoutException e) {
-      // The KafkaProducer object should not be reused on an interrupted flush
+    if (producer != null) {
       try {
-        _producerLock.lock();
-        if (producer == _kafkaProducer) {
-          _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
-          shutdownProducer();
-        } else {
-          _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+        producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
+      } catch (InterruptException | TimeoutException e) {
+        // The KafkaProducer object should not be reused on an interrupted flush
+        try {
+          _producerLock.lock();
+          if (producer == _kafkaProducer) {
+            _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
+            shutdownProducer();
+          } else {
+            _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+          }
+          throw e;
+        } finally {
+          _producerLock.unlock();
         }
-        throw e;
-      } finally {
-        _producerLock.unlock();
       }
     }
   }

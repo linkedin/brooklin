@@ -89,6 +89,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
   private DatastreamEventProducer _eventProducer;
   private String _transportProviderName;
   private SerDeSet _destinationSerDes = new SerDeSet(null, null, null);
+  // pre-calculate the hash to avoid frequent recalculation.
   private int _hashCode;
 
   /**
