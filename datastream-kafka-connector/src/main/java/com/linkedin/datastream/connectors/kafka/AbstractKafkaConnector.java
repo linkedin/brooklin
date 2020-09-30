@@ -5,7 +5,9 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -72,7 +74,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
@@ -477,8 +479,16 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         datastreams.forEach(datastream -> datastreamNames.add(datastream.getName()));
 
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+
+        String hostname = null;
+        try {
+          hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException ex) {
+          _logger.warn("Hostname not found");
+        }
+
         KafkaTopicPartitionStatsResponse response = new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(),
-          tracker.getTopicPartitions(), datastreamNames);
+                hostname, tracker.getTopicPartitions(), datastreamNames);
         serializedResponses.add(response);
       });
     }

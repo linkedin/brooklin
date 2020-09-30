@@ -14,10 +14,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 
+import com.codahale.metrics.Histogram;
 import com.google.common.base.Strings;
 
 import com.linkedin.datastream.connectors.CommonConnectorMetrics;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 
 /**
@@ -36,6 +38,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
       "numAutoPausedPartitionsAwaitingDestTopic";
   // keeps track of number of topics that are assigned to the task
   public static final String NUM_TOPICS = "numTopics";
+  // keeps track of how long it takes to return from poll()
+  public static final String POLL_DURATION_MS = "pollDurationMs";
 
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
@@ -52,7 +56,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
   private final AtomicLong _numTopics = new AtomicLong(0);
 
-  KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger) {
+  private final Histogram _pollDurationMsMetric;
+
+  KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger,
+      boolean enablePollDurationMillisMetric) {
     super(className, metricsKey, errorLogger);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS,
         _numConfigPausedPartitions::get);
@@ -63,6 +70,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
         _numAutoPausedPartitionsAwaitingDestTopic::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, _numTopics::get);
+
+    _pollDurationMsMetric = enablePollDurationMillisMetric ?
+        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =
         AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
@@ -99,6 +109,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
+
+    if (_pollDurationMsMetric != null) {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, POLL_DURATION_MS);
+    }
   }
 
   /**
@@ -162,6 +176,16 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   }
 
   /**
+   * Update the poll duration in millis
+   * @param val Value to update
+   */
+  public void updatePollDurationMs(long val) {
+    if (_pollDurationMsMetric != null) {
+      _pollDurationMsMetric.update(val);
+    }
+  }
+
+  /**
    * Utility method for creating task-specific metrics of a Kafka-based connector
    * @param prefix string to prepend to every metric
    */
@@ -174,6 +198,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
+    metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
     return Collections.unmodifiableList(metrics);
   }
 }
