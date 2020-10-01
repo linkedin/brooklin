@@ -2699,7 +2699,9 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
 
     instance1.onSessionExpired();
-    Assert.assertEquals(connector1._tasks.size(), 0);
+    PollUtils.poll(() -> {
+      return connector1._tasks.size() == 0;
+    }, 1000, WAIT_TIMEOUT_MS);
     Assert.assertEquals(instance1.getDatastreamTasks().size(), 0);
     Thread t = instance1.getEventThread();
     Assert.assertFalse(t != null && t.isAlive());

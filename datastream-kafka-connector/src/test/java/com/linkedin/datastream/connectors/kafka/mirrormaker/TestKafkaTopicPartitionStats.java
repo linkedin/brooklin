@@ -116,26 +116,26 @@ public class TestKafkaTopicPartitionStats extends BaseKafkaZkTest {
     // build instance 1 results
     List<KafkaTopicPartitionStatsResponse> responseList1 = new ArrayList<>();
     responseList1.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup1, Collections.singletonMap(topic3, Collections.singleton(0)),
-            Collections.singleton("test1Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup1, instance1, Collections.singletonMap(topic3,
+                Collections.singleton(0)), Collections.singleton("test1Stream")));
     responseList1.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup1, Collections.singletonMap(topic3, Collections.singleton(2)),
-            Collections.singleton("test1Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup1, instance1, Collections.singletonMap(topic3,
+                Collections.singleton(2)), Collections.singleton("test1Stream")));
     responseList1.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup2, Collections.singletonMap(topic4, Collections.singleton(1)),
-            Collections.singleton("test2Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup2, instance1, Collections.singletonMap(topic4,
+                Collections.singleton(1)), Collections.singleton("test2Stream")));
 
     // build instance 2 results
     List<KafkaTopicPartitionStatsResponse> responseList2 = new ArrayList<>();
     responseList2.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup2, Collections.singletonMap(topic4, Collections.singleton(0)),
-            Collections.singleton("test2Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup2, instance2, Collections.singletonMap(topic4,
+                Collections.singleton(0)), Collections.singleton("test2Stream")));
     responseList2.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup2, Collections.singletonMap(topic4, Collections.singleton(2)),
-            Collections.singleton("test2Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup2, instance2, Collections.singletonMap(topic4,
+                Collections.singleton(2)), Collections.singleton("test2Stream")));
     responseList2.add(
-        new KafkaTopicPartitionStatsResponse(consumerGroup1, Collections.singletonMap(topic3, Collections.singleton(1)),
-            Collections.singleton("test1Stream")));
+        new KafkaTopicPartitionStatsResponse(consumerGroup1, instance2, Collections.singletonMap(topic3,
+                Collections.singleton(1)), Collections.singleton("test1Stream")));
 
     Map<String, String> responseMap = new HashMap<>();
     responseMap.put(instance1, JsonUtils.toJson(responseList1));
@@ -145,10 +145,11 @@ public class TestKafkaTopicPartitionStats extends BaseKafkaZkTest {
     List<KafkaTopicPartitionStatsResponse> responseList =
         JsonUtils.fromJson(json, new TypeReference<List<KafkaTopicPartitionStatsResponse>>() {
         });
-    Assert.assertEquals(responseList.size(), 2, "Should have received info from 2 instances");
+    Assert.assertEquals(responseList.size(), 6, "Should have received flattened list with 6 responses");
 
     responseList.forEach(response -> {
       Assert.assertNotNull(response.getTopicPartitions());
+      Assert.assertNotNull(response.getSourceInstance());
       if (response.getTopicPartitions().containsKey(topic3)) {
         response.getTopicPartitions().get(topic3).removeAll(ImmutableSet.of(0, 1, 2));
         Assert.assertTrue(response.getTopicPartitions().get(topic3).isEmpty());

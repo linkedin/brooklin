@@ -102,6 +102,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final boolean _pausePartitionOnError;
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMillis;
+  protected final boolean _enablePollDurationMillisMetric;
   protected final Optional<Map<Integer, Long>> _startOffsets;
 
   protected volatile String _taskName;
@@ -162,6 +163,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
+    _enablePollDurationMillisMetric = config.getEnablePollDurationMillisMetric();
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -169,7 +171,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _pollTimeoutMillis = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
-    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
+    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
+        _enablePollDurationMillisMetric);
 
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
@@ -182,9 +185,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
-      Logger errorLogger) {
+      Logger errorLogger, boolean enablePollDurationMillisMetric) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enablePollDurationMillisMetric);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -478,6 +481,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
       _consumerMetrics.updateNumPolls(1);
       _consumerMetrics.updateEventCountsPerPoll(records.count());
+      if (_enablePollDurationMillisMetric) {
+        _consumerMetrics.updatePollDurationMs(pollDurationMillis);
+      }
       if (!records.isEmpty()) {
         _consumerMetrics.updateEventsProcessedRate(records.count());
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
