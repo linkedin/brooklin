@@ -1780,7 +1780,7 @@ public class ZkAdapter {
     // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
     // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
     // is not re-initialized till reconnect path is fixed.
-    connect();
+    disconnect();
   }
 
   @VisibleForTesting
