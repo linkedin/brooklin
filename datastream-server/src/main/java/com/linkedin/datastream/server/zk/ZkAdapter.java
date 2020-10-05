@@ -139,7 +139,7 @@ public class ZkAdapter {
   private String _currentSubscription = null;
 
   private ZkLeaderElectionListener _leaderElectionListener = null;
-  private ZkBackedTaskListProvider _assignmentList = null;
+  private ZkBackedTaskListProvider _assignmentListProvider = null;
   private ZkStateChangeListener _stateChangeListener = null;
   private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
@@ -245,11 +245,21 @@ public class ZkAdapter {
    * the actions that need to be taken with them, which are implemented in the Coordinator class
    */
   public void connect() {
-    disconnect(); // Guard against leaking an existing zookeeper session
-    _zkclient = createZkClient();
-    _stateChangeListener = new ZkStateChangeListener();
-    _leaderElectionListener = new ZkLeaderElectionListener();
-    _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
+    if (_zkclient == null) {
+      _zkclient = createZkClient();
+    }
+
+    if (_stateChangeListener == null) {
+      _stateChangeListener = new ZkStateChangeListener();
+    }
+
+    if (_leaderElectionListener == null) {
+      _leaderElectionListener = new ZkLeaderElectionListener();
+    }
+
+    if (_liveInstancesProvider == null) {
+      _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
+    }
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -258,7 +268,9 @@ public class ZkAdapter {
 
     // both leader and follower needs to listen to its own instance change
     // under /{cluster}/instances/{instance}
-    _assignmentList = new ZkBackedTaskListProvider(_cluster, _instanceName);
+    if (_assignmentListProvider == null) {
+      _assignmentListProvider = new ZkBackedTaskListProvider(_cluster, _instanceName);
+    }
 
     // start with follower state, then join leader election
     onBecomeFollower();
@@ -305,10 +317,7 @@ public class ZkAdapter {
         _stateChangeListener = null;
       }
 
-      if (_assignmentList != null) {
-        _assignmentList.close();
-        _assignmentList = null;
-      }
+      closeAssignmentListProvider();
 
       if (_currentSubscription != null) {
         _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
@@ -332,6 +341,13 @@ public class ZkAdapter {
     if (_targetAssignmentProvider != null) {
       _targetAssignmentProvider.close();
       _targetAssignmentProvider = null;
+    }
+  }
+
+  private void closeAssignmentListProvider() {
+    if (_assignmentListProvider != null) {
+      _assignmentListProvider.close();
+      _assignmentListProvider = null;
     }
   }
 
@@ -374,8 +390,7 @@ public class ZkAdapter {
     if (index < 0) {
       // only when the ZooKeeper session already expired by the time this adapter joins for leader election.
       // mostly because the zkclient session expiration timeout.
-      LOG.error("Failed to join leader election. Try reconnect the zookeeper");
-      connect();
+      LOG.error("Failed to join leader election. wait for the new session to be established");
       return;
     }
 
@@ -1375,13 +1390,17 @@ public class ZkAdapter {
       return;
     }
 
-    String owner = _zkclient.ensureReadData(lockPath);
-    if (!owner.equals(_instanceName)) {
-      LOG.warn("{} does not have the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
-          task.getDatastreamTaskName());
+    try {
+      String owner = _zkclient.ensureReadData(lockPath);
+      if (!owner.equals(_instanceName)) {
+        LOG.warn("{} does not have the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
+            task.getDatastreamTaskName());
+        return;
+      }
+    } catch (ZkNoNodeException e) {
+      LOG.info("Task lock node may be got deleted. exists: {}", _zkclient.exists(lockPath));
       return;
     }
-
     _zkclient.delete(lockPath);
     LOG.info("{} successfully released the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
         task.getDatastreamTaskName());
@@ -1457,6 +1476,11 @@ public class ZkAdapter {
      * onSessionExpired is called when the zookeeper session expires.
      */
     void onSessionExpired();
+
+    /**
+     * onNewSession is called when the zookeeper session is established after expiry.
+     */
+    void onNewSession();
   }
 
   /**
@@ -1551,12 +1575,16 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
-        if (hostname == null) {
-          // hostname can be null if a node dies immediately after reading all live instances
-          LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
-        } else {
-          liveInstances.add(formatZkInstance(hostname, n));
+        try {
+          String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+          if (hostname == null) {
+            // hostname can be null if a node dies immediately after reading all live instances
+            LOG.error("Node {} is dead. It died after the list of nodes were read.", n);
+          } else {
+            liveInstances.add(formatZkInstance(hostname, n));
+          }
+        } catch (ZkNoNodeException e) {
+          LOG.info("Node {} is dead. It died after the list of nodes were read.", n);
         }
       }
       return liveInstances;
@@ -1749,7 +1777,7 @@ public class ZkAdapter {
 
     @Override
     public void handleNewSession() {
-      LOG.info("ZkStateChangeListener::A new session has been established.");
+      onNewSession();
     }
 
     @Override
@@ -1769,18 +1797,24 @@ public class ZkAdapter {
   }
 
   @VisibleForTesting
+  void onNewSession() {
+    LOG.info("ZkStateChangeListener::A new session has been established.");
+    if (_listener != null) {
+      _listener.onNewSession();
+    }
+  }
+
+  @VisibleForTesting
   void onSessionExpired() {
     LOG.error("Zookeeper session expired.");
     // cancel the lock clean up
     _orphanLockCleanupFuture.cancel(true);
+    _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
+    closeAssignmentListProvider();
     onBecomeFollower();
     if (_listener != null) {
       _listener.onSessionExpired();
     }
-    // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
-    // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
-    // is not re-initialized till reconnect path is fixed.
-    connect();
   }
 
   @VisibleForTesting

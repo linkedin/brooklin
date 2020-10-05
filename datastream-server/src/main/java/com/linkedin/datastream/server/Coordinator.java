@@ -118,9 +118,10 @@ import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
  *                                         Coordinator                       Connector
  *
  * ┌──────────────┐       ┌─────────────────────────────────────────┐    ┌─────────────────┐
- * │              │       │                                         │    │                 │
- * │              │       │                                         │    │                 │
  * │              │       │ ┌──────────┐  ┌────────────────┐        │    │                 │
+ * │              │       │ |          |──▶ onNewSession   │        │    |                 │
+ * │              │       │ │          │  └────────────────┘        │    │                 │
+ * │              │       │ |          |  ┌────────────────┐        │    │                 │
  * │              │       │ │ZkAdapter ├──▶ onBecomeLeader │        │    │                 │
  * │              │       │ │          │  └────────────────┘        │    │                 │
  * │              ├───────┼─▶          │  ┌──────────────────┐      │    │                 │
@@ -514,6 +515,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   boolean isZkSessionExpired() {
     return _zkSessionExpired;
+  }
+
+  @Override
+  public void onNewSession() {
+    createEventThread();
+    startEventThread();
+    _adapter.connect();
+    // now that instance is started, make sure it doesn't miss any assignment created during
+    // the slow startup
+    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+
+    // Queue up one heartbeat per period with a initial delay of 3 periods
+    _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
+        _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
+
+    _zkSessionExpired = false;
   }
 
   private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)

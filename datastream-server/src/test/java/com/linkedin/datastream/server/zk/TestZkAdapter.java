@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -41,7 +40,11 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 /**
@@ -51,7 +54,6 @@ public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(com.linkedin.datastream.server.zk.TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
   private static final long ZK_DEBOUNCE_TIMER_MS = 1000;
-
 
   private final String defaultTransportProviderName = "test";
   private EmbeddedZookeeper _embeddedZookeeper;
@@ -753,7 +755,8 @@ public class TestZkAdapter {
     simulateSessionExpiration(adapter);
 
     Thread.sleep(5000);
-    Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
+    verify(adapter, times(1)).onSessionExpired();
+    verify(adapter, times(1)).onNewSession();
   }
 
   @Test
@@ -847,7 +850,7 @@ public class TestZkAdapter {
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     adapter.acquireTask(lockTask, Duration.ofSeconds(2));
 
-    ZkClient zkClient = Mockito.spy(adapter.getZkClient());
+    ZkClient zkClient = spy(adapter.getZkClient());
 
     // Delete a few nodes
     for (int j = 0; j < 8; j++) {
@@ -858,8 +861,8 @@ public class TestZkAdapter {
     // Not the most ideal way to test the issue of not being able to delete when the top level zk node is full,
     // but creating EmbeddedZK with smaller jute.maxbuffer size to actually testing filling a directory to
     // max requires setting system property which will interfere with any other parallel test using EmbeddedZk.
-    Mockito.verify(zkClient, Mockito.never()).getChildren(any());
-    Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
+    verify(zkClient, never()).getChildren(any());
+    verify(zkClient, never()).getChildren(any(), anyBoolean());
 
     List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 3);
