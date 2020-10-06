@@ -398,7 +398,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
     } finally {
-      _stoppedLatch.countDown();
       if (null != _consumer) {
         try {
           _consumer.close();
@@ -407,6 +406,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       postShutdownHook();
+      _stoppedLatch.countDown();
       _logger.info("{} stopped", _taskName);
     }
   }
