@@ -18,6 +18,9 @@ import com.linkedin.datastream.server.DatastreamTask;
  * Interface that is used to create topic manager.
  */
 public interface TopicManagerFactory {
+
+  public static final String COUNTER = "Counter";
+  public static final String GAUGE = "Gauge";
   /**
    * Method to create topic manager instance.
    * @param datastreamTask Task that topic manager is going to be created for.

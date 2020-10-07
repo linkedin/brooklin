@@ -185,7 +185,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _topicManager =
         topicManagerFactory.createTopicManager(_datastreamTask, _datastream, _groupIdConstructor, _consumerFactory,
             _consumerProps, topicManagerProperties, _consumerMetrics,
-            generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX, _datastreamName);
+            generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + "." + "Counter", _datastreamName);
   }
 
   @Override
@@ -435,14 +435,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
     // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)
     // and return here different types of metrics with that prefix.
-    // For now, only adding BrooklinCounterInfo. In case more types (for example, BrooklinMeterInfo) is emitted by
-    // topic manager, add that type here.
-    metrics.add(new BrooklinCounterInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
-    metrics.add(new BrooklinGaugeInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
+    // for every metrics type emitted by Topic manager, it should be added here.
+    // Any metrics emitted should match exactly one metrics regex otherwise it results in Sensor errors.
+    metrics.add(new BrooklinCounterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.COUNTER + MetricsAware.KEY_REGEX + ".*"));
+    metrics.add(new BrooklinGaugeInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.GAUGE + MetricsAware.KEY_REGEX + ".*"));
     return metrics;
   }
 
