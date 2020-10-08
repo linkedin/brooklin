@@ -65,7 +65,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private final Histogram _eventProcessingTimeMsMetric;
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger,
-      boolean enableAdditionalHistogramMetrics) {
+      boolean enableAdditionalMetrics) {
     super(className, metricsKey, errorLogger);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS,
         _numConfigPausedPartitions::get);
@@ -77,11 +77,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         _numAutoPausedPartitionsAwaitingDestTopic::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, _numTopics::get);
 
-    _pollDurationMsMetric = enableAdditionalHistogramMetrics ?
+    _pollDurationMsMetric = enableAdditionalMetrics ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
-    _timeSpentBetweenPollsMsMetric = enableAdditionalHistogramMetrics ?
+    _timeSpentBetweenPollsMsMetric = enableAdditionalMetrics ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS, Histogram.class) : null;
-    _eventProcessingTimeMsMetric = enableAdditionalHistogramMetrics ?
+    _eventProcessingTimeMsMetric = enableAdditionalMetrics ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_PROCESSING_TIME_MS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =

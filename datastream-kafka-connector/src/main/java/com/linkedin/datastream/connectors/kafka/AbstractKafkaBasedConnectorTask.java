@@ -103,7 +103,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final boolean _pausePartitionOnError;
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMillis;
-  protected final boolean _enableAdditionalHistogramMetrics;
+  protected final boolean _enableAdditionalMetrics;
   protected final Optional<Map<Integer, Long>> _startOffsets;
 
   protected volatile String _taskName;
@@ -164,7 +164,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
-    _enableAdditionalHistogramMetrics = config.getEnableAdditionalHistogramMetrics();
+    _enableAdditionalMetrics = config.getEnableAdditionalMetrics();
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -173,7 +173,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
-        _enableAdditionalHistogramMetrics);
+        _enableAdditionalMetrics);
 
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
@@ -186,9 +186,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
-      Logger errorLogger, boolean enableAdditionalHistogramMetrics) {
+      Logger errorLogger, boolean enableAdditionalMetrics) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enableAdditionalHistogramMetrics);
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enableAdditionalMetrics);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -472,7 +472,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     try {
       long curPollTime = System.currentTimeMillis();
       _lastPolledTimeMillis = curPollTime;
-      if (_enableAdditionalHistogramMetrics && _lastPollCompletedTimeMillis != 0) {
+      if (_enableAdditionalMetrics && _lastPollCompletedTimeMillis != 0) {
         _consumerMetrics.updateTimeSpentBetweenPollsMs(curPollTime - _lastPollCompletedTimeMillis);
       }
       records = consumerPoll(pollInterval);
@@ -486,7 +486,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
       _consumerMetrics.updateNumPolls(1);
       _consumerMetrics.updateEventCountsPerPoll(records.count());
-      if (_enableAdditionalHistogramMetrics) {
+      if (_enableAdditionalMetrics) {
         _consumerMetrics.updatePollDurationMs(pollDurationMillis);
       }
       if (!records.isEmpty()) {
@@ -525,7 +525,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _consumerMetrics.updateProcessingAboveThreshold(1);
     }
 
-    if (_enableAdditionalHistogramMetrics) {
+    if (_enableAdditionalMetrics) {
       _consumerMetrics.updateEventProcessingTimeMs(processingTimeMillis);
     }
   }
