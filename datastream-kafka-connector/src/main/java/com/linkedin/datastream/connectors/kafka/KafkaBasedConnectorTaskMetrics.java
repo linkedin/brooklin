@@ -42,8 +42,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   public static final String POLL_DURATION_MS = "pollDurationMs";
   // keeps track of how long processing takes between polls
   public static final String TIME_SPENT_BETWEEN_POLLS_MS = "timeSpentBetweenPollsMs";
-  // keeps track of how long processing and sending all events received on poll takes
-  public static final String EVENT_PROCESSING_TIME_MS = "eventProcessingTimeMs";
+  // keeps track of process + send time per event returned from poll()
+  public static final String PER_EVENT_PROCESSING_TIME_MS = "perEventProcessingTimeMs";
 
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
@@ -62,7 +62,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
 
   private final Histogram _pollDurationMsMetric;
   private final Histogram _timeSpentBetweenPollsMsMetric;
-  private final Histogram _eventProcessingTimeMsMetric;
+  private final Histogram _perEventProcessingTimeMsMetric;
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger,
       boolean enableAdditionalMetrics) {
@@ -81,8 +81,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
     _timeSpentBetweenPollsMsMetric = enableAdditionalMetrics ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS, Histogram.class) : null;
-    _eventProcessingTimeMsMetric = enableAdditionalMetrics ?
-        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_PROCESSING_TIME_MS, Histogram.class) : null;
+    _perEventProcessingTimeMsMetric = enableAdditionalMetrics ?
+        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, PER_EVENT_PROCESSING_TIME_MS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =
         AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
@@ -123,7 +123,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     if (_pollDurationMsMetric != null) {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, POLL_DURATION_MS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS);
-      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, EVENT_PROCESSING_TIME_MS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, PER_EVENT_PROCESSING_TIME_MS);
     }
   }
 
@@ -211,9 +211,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * Update the event processing time in millis
    * @param val Value to update
    */
-  public void updateEventProcessingTimeMs(long val) {
-    if (_eventProcessingTimeMsMetric != null) {
-      _eventProcessingTimeMsMetric.update(val);
+  public void updatePerEventProcessingTimeMs(long val) {
+    if (_perEventProcessingTimeMsMetric != null) {
+      _perEventProcessingTimeMsMetric.update(val);
     }
   }
 
@@ -232,7 +232,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
     metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
     metrics.add(new BrooklinHistogramInfo(prefix + TIME_SPENT_BETWEEN_POLLS_MS));
-    metrics.add(new BrooklinHistogramInfo(prefix + EVENT_PROCESSING_TIME_MS));
+    metrics.add(new BrooklinHistogramInfo(prefix + PER_EVENT_PROCESSING_TIME_MS));
     return Collections.unmodifiableList(metrics);
   }
 }

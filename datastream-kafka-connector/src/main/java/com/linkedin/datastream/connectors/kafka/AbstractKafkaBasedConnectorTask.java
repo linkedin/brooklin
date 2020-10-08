@@ -526,7 +526,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
 
     if (_enableAdditionalMetrics) {
-      _consumerMetrics.updateEventProcessingTimeMs(processingTimeMillis);
+      _consumerMetrics.updatePerEventProcessingTimeMs(records.count() == 0 ? 0 : processingTimeMillis / records.count());
     }
   }
 
