@@ -15,6 +15,9 @@ import org.apache.kafka.common.TopicPartition;
  */
 public interface TopicManager {
 
+  String COUNTER = "Counter";
+  String GAUGE = "Gauge";
+
   /**
    * This gets called as part of Kafka's onPartitionsAssigned() callback, in case any topic management needs to be done.
    * @return List of topic partitions that need to be paused as result of topic management
