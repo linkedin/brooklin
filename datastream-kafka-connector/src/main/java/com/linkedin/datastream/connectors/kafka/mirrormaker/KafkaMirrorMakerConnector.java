@@ -313,12 +313,23 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       while (!isInterrupted() && !_shutdown) {
         try {
           List<String> newPartitionInfo = getPartitionsInfo(consumer);
-          LOG.debug("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
-              , datastream.getName(), _subscribedPartitions, newPartitionInfo);
+          LOG.debug("Fetch Partitions Info for {}, old Partitions Info: {}, new Partitions Info: {}",
+              datastream.getName(), _subscribedPartitions, newPartitionInfo);
 
           if (!ListUtils.isEqualList(newPartitionInfo, _subscribedPartitions)) {
-            LOG.info("Get updated partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
-                , datastream.getName(), _subscribedPartitions, newPartitionInfo);
+            LOG.info("Get updated Partitions Info for {}, old Partitions Info: {}, new Partitions Info: {}",
+                datastream.getName(), _subscribedPartitions, newPartitionInfo);
+
+            List<String> addedTopicPartitions = newPartitionInfo
+                .stream()
+                .filter(topicPartition -> !_subscribedPartitions.contains(topicPartition))
+                .collect(Collectors.toList());
+            List<String> removedTopicPartitions = _subscribedPartitions
+                .stream()
+                .filter(topicPartition -> !newPartitionInfo.contains(topicPartition))
+                .collect(Collectors.toList());
+            LOG.info("TopicPartitions for {} that are to be added: {} and that are to be removed: {}",
+                datastream.getName(), addedTopicPartitions, removedTopicPartitions);
 
             _subscribedPartitions = Collections.synchronizedList(newPartitionInfo);
             _initialized = true;
@@ -328,7 +339,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         } catch (Throwable t) {
           // If the Broker goes down, the consumer will receive an exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
-          LOG.warn("Detected error for thread " + _datastreamGroup.getName() + ", ex: ", t);
+          LOG.warn("Detected error for PartitionDiscoveryThread " + _datastreamGroup.getName() + ", ex: ", t);
           _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);
         }
       }
