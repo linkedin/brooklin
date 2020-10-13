@@ -61,7 +61,7 @@ public class KafkaConnectorDiagUtils {
       }
 
       responseList.forEach(response -> {
-        if (response.getConsumerOffsets() == null || response.getConsumerOffsets().isEmpty()) {
+        if (response.getConsumedOffsets() == null || response.getConsumedOffsets().isEmpty()) {
           logger.warn("Empty consumer offset map from instance {}. Ignoring the result", instance);
         } else if (StringUtils.isBlank(response.getConsumerGroupId())) {
           logger.warn("Invalid consumer group id from instance {}, Ignoring the result", instance);
@@ -69,10 +69,17 @@ public class KafkaConnectorDiagUtils {
           KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
               k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId()));
 
-          Map<String, Map<Integer, Long>> consumerOffsets = response.getConsumerOffsets();
-          consumerOffsets.forEach((topic, partitionOffsets) -> {
-            Map<String, Map<Integer, Long>> reducedConsumerOffsets = reducedResponse.getConsumerOffsets();
-            Map<Integer, Long> reducedPartitionOffsets = reducedConsumerOffsets.computeIfAbsent(topic, k -> new HashMap<>());
+          Map<String, Map<Integer, Long>> consumedOffsets = response.getConsumedOffsets();
+          consumedOffsets.forEach((topic, partitionOffsets) -> {
+            Map<String, Map<Integer, Long>> reducedConsumedOffsets = reducedResponse.getConsumedOffsets();
+            Map<Integer, Long> reducedPartitionOffsets = reducedConsumedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionOffsets.putAll(partitionOffsets);
+          });
+
+          Map<String, Map<Integer, Long>> committedOffsets = response.getCommittedOffsets();
+          committedOffsets.forEach((topic, partitionOffsets) -> {
+            Map<String, Map<Integer, Long>> reducedCommittedOffsets = reducedResponse.getCommittedOffsets();
+            Map<Integer, Long> reducedPartitionOffsets = reducedCommittedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
             reducedPartitionOffsets.putAll(partitionOffsets);
           });
         }
