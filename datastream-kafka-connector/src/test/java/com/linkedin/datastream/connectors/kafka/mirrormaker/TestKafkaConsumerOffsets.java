@@ -102,7 +102,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets2.put(1, 10L);
     topicPartitionOffsets1.put(topic2, partitionOffsets2);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, consumerGroup1));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, topicPartitionOffsets1, consumerGroup1));
 
     // instance 1 consumer group 2
     Map<String, Map<Integer, Long>> topicPartitionOffsets2 = new HashMap<>();
@@ -117,7 +117,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets4.put(1, 20L);
     topicPartitionOffsets2.put(topic2, partitionOffsets4);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, consumerGroup2));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, topicPartitionOffsets2, consumerGroup2));
 
     // constructing instance2 consumer offsets
     List<KafkaConsumerOffsetsResponse> responseList2 = new ArrayList<>();
@@ -130,7 +130,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets5.put(3, 10L);
     topicPartitionOffsets3.put(topic1, partitionOffsets5);
 
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, consumerGroup1));
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, topicPartitionOffsets3, consumerGroup1));
 
     // instance 2 consumer group 3
     Map<String, Map<Integer, Long>> topicPartitionOffsets4 = new HashMap<>();
@@ -138,7 +138,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     Map<Integer, Long> partitionOffsets6 = new HashMap<>();
     partitionOffsets6.put(0, 30L);
     topicPartitionOffsets4.put(topic2, partitionOffsets6);
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, consumerGroup3));
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, topicPartitionOffsets4, consumerGroup3));
 
     // reducing responses and asserting correctness
     Map<String, String> responseMap = new HashMap<>();
@@ -154,22 +154,30 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     KafkaConsumerOffsetsResponse cg1Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup1)).findAny().orElse(null);
     Assert.assertNotNull(cg1Response);
-    Assert.assertEquals(cg1Response.getConsumerOffsets().keySet().size(), 2); // cg1 consumes both topics
-    Assert.assertEquals(cg1Response.getConsumerOffsets().get(topic1).keySet().size(), 4); // cg1 consumes 4 partitions for topic 1
-    Assert.assertEquals(cg1Response.getConsumerOffsets().get(topic2).keySet().size(), 2); // cg1 consumes 2 partitions for topic 2
+    Assert.assertEquals(cg1Response.getConsumedOffsets().keySet().size(), 2); // cg1 consumes both topics
+    Assert.assertEquals(cg1Response.getCommittedOffsets().keySet().size(), 2);
+    Assert.assertEquals(cg1Response.getConsumedOffsets().get(topic1).keySet().size(), 4); // cg1 consumes 4 partitions for topic 1
+    Assert.assertEquals(cg1Response.getCommittedOffsets().get(topic1).keySet().size(), 4);
+    Assert.assertEquals(cg1Response.getConsumedOffsets().get(topic2).keySet().size(), 2); // cg1 consumes 2 partitions for topic 2
+    Assert.assertEquals(cg1Response.getCommittedOffsets().get(topic2).keySet().size(), 2);
 
     KafkaConsumerOffsetsResponse cg2Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup2)).findAny().orElse(null);
     Assert.assertNotNull(cg2Response);
-    Assert.assertEquals(cg2Response.getConsumerOffsets().keySet().size(), 2); // cg2 consumers both topics
-    Assert.assertEquals(cg2Response.getConsumerOffsets().get(topic1).keySet().size(), 2); // cg2 consumes 2 partitions for topic 1
-    Assert.assertEquals(cg2Response.getConsumerOffsets().get(topic2).keySet().size(), 2); // cg2 consumes 2 partitions for topic 2
+    Assert.assertEquals(cg2Response.getConsumedOffsets().keySet().size(), 2); // cg2 consumers both topics
+    Assert.assertEquals(cg2Response.getCommittedOffsets().keySet().size(), 2);
+    Assert.assertEquals(cg2Response.getConsumedOffsets().get(topic1).keySet().size(), 2); // cg2 consumes 2 partitions for topic 1
+    Assert.assertEquals(cg2Response.getCommittedOffsets().get(topic1).keySet().size(), 2);
+    Assert.assertEquals(cg2Response.getConsumedOffsets().get(topic2).keySet().size(), 2); // cg2 consumes 2 partitions for topic 2
+    Assert.assertEquals(cg2Response.getCommittedOffsets().get(topic2).keySet().size(), 2);
 
     KafkaConsumerOffsetsResponse cg3Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup3)).findAny().orElse(null);
     Assert.assertNotNull(cg3Response);
-    Assert.assertEquals(cg3Response.getConsumerOffsets().keySet().size(), 1); // cg3 consumes only topic 2
-    Assert.assertEquals(cg3Response.getConsumerOffsets().get(topic2).size(), 1); // cg3 consumes 1 partition for topic 2
+    Assert.assertEquals(cg3Response.getConsumedOffsets().keySet().size(), 1); // cg3 consumes only topic 2
+    Assert.assertEquals(cg3Response.getCommittedOffsets().keySet().size(), 1);
+    Assert.assertEquals(cg3Response.getConsumedOffsets().get(topic2).size(), 1); // cg3 consumes 1 partition for topic 2
+    Assert.assertEquals(cg3Response.getCommittedOffsets().get(topic2).size(), 1);
   }
 
   private boolean testConsumerOffsetsAreUpdated(KafkaMirrorMakerConnector connector) {
@@ -184,19 +192,30 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     KafkaConsumerOffsetsResponse offsetResponse = responseList.get(0);
 
     // check that all topic partitions were polled and offsets were updated
-    boolean allTopicsWerePolled = offsetResponse.getConsumerOffsets().size() == TOPIC_COUNT;
-    boolean allPartitionsWerePolled = offsetResponse.getConsumerOffsets().values().stream().
+    boolean allTopicsWerePolled = offsetResponse.getConsumedOffsets().size() == TOPIC_COUNT;
+    boolean allPartitionsWerePolled = offsetResponse.getConsumedOffsets().values().stream().
         allMatch(m -> m.keySet().size() == PARTITION_COUNT);
 
     if (!allTopicsWerePolled || !allPartitionsWerePolled) {
       return false;
     }
 
-    for (String topic : offsetResponse.getConsumerOffsets().keySet()) {
-      Map<Integer, Long> partitionOffsets = offsetResponse.getConsumerOffsets().get(topic);
+    for (String topic : offsetResponse.getConsumedOffsets().keySet()) {
+      Map<Integer, Long> partitionOffsets = offsetResponse.getConsumedOffsets().get(topic);
 
       for (Integer partition : partitionOffsets.keySet()) {
-        // check consumer offsets. Note that offsets are zero based
+        // check consumed offsets. Note that offsets are zero based
+        if (partitionOffsets.get(partition) != PARTITION_MESSAGE_COUNT - 1) {
+          return false;
+        }
+      }
+    }
+
+    for (String topic : offsetResponse.getCommittedOffsets().keySet()) {
+      Map<Integer, Long> partitionOffsets = offsetResponse.getCommittedOffsets().get(topic);
+
+      for (Integer partition : partitionOffsets.keySet()) {
+        // check committed offsets. Note that offsets are zero based
         if (partitionOffsets.get(partition) != PARTITION_MESSAGE_COUNT - 1) {
           return false;
         }

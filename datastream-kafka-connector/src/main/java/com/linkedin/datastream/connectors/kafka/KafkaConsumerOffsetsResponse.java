@@ -16,17 +16,21 @@ import org.codehaus.jackson.annotate.JsonProperty;
  */
 public class KafkaConsumerOffsetsResponse {
   private final String _consumerGroupId;
-  private final Map<String, Map<Integer, Long>> _consumerOffsets;
+  private final Map<String, Map<Integer, Long>> _consumedOffsets;
+  private final Map<String, Map<Integer, Long>> _committedOffsets;
 
   /**
    * Constructor for {@link KafkaConsumerOffsetsResponse}
-   * @param consumerOffsets Consumer offsets for all topic partitions
+   * @param consumedOffsets Consumed offsets for all topic partitions
+   * @param committedOffsets Committed offsets for all topic partitions
    * @param consumerGroupId Consumer group ID
    */
-  public KafkaConsumerOffsetsResponse(@JsonProperty("consumerOffsets") Map<String, Map<Integer, Long>> consumerOffsets,
+  public KafkaConsumerOffsetsResponse(@JsonProperty("consumedOffsets") Map<String, Map<Integer, Long>> consumedOffsets,
+      @JsonProperty("committedOffsets") Map<String, Map<Integer, Long>> committedOffsets,
       @JsonProperty("consumerGroupId") String consumerGroupId) {
     _consumerGroupId = consumerGroupId;
-    _consumerOffsets = consumerOffsets;
+    _consumedOffsets = consumedOffsets;
+    _committedOffsets = committedOffsets;
   }
 
   /**
@@ -34,15 +38,18 @@ public class KafkaConsumerOffsetsResponse {
    * @param consumerGroupId Consumer group ID
    */
   public KafkaConsumerOffsetsResponse(String consumerGroupId) {
-    this(new HashMap<>(), consumerGroupId);
+    this(new HashMap<>(), new HashMap<>(), consumerGroupId);
   }
 
-  public Map<String, Map<Integer, Long>> getConsumerOffsets() {
-    return _consumerOffsets;
+  public Map<String, Map<Integer, Long>> getConsumedOffsets() {
+    return _consumedOffsets;
+  }
+
+  public Map<String, Map<Integer, Long>> getCommittedOffsets() {
+    return _committedOffsets;
   }
 
   public String getConsumerGroupId() {
     return _consumerGroupId;
   }
-
 }
