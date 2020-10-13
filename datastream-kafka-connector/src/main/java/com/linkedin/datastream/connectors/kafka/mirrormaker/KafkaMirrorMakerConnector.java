@@ -9,10 +9,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -320,16 +322,15 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
             LOG.info("Get updated Partitions Info for {}, old Partitions Info: {}, new Partitions Info: {}",
                 datastream.getName(), _subscribedPartitions, newPartitionInfo);
 
-            List<String> addedTopicPartitions = newPartitionInfo
-                .stream()
-                .filter(topicPartition -> !_subscribedPartitions.contains(topicPartition))
-                .collect(Collectors.toList());
-            List<String> removedTopicPartitions = _subscribedPartitions
-                .stream()
-                .filter(topicPartition -> !newPartitionInfo.contains(topicPartition))
-                .collect(Collectors.toList());
-            LOG.info("TopicPartitions for {} that are to be added: {} and that are to be removed: {}",
-                datastream.getName(), addedTopicPartitions, removedTopicPartitions);
+            Set<String> addedTopicPartitions = new HashSet<>(newPartitionInfo);
+            Set<String> removedTopicPartitions = new HashSet<>(_subscribedPartitions);
+            Set<String> topicPartitionIntersection = new HashSet<>(newPartitionInfo);
+            topicPartitionIntersection.retainAll(removedTopicPartitions);
+            addedTopicPartitions.removeAll(topicPartitionIntersection);
+            removedTopicPartitions.removeAll(topicPartitionIntersection);
+
+            LOG.info("TopicPartitions for {} that are to be added: {}", datastream.getName(), addedTopicPartitions);
+            LOG.info("TopicPartitions for {} that are to be removed: {}", datastream.getName(), removedTopicPartitions);
 
             _subscribedPartitions = Collections.synchronizedList(newPartitionInfo);
             _initialized = true;
