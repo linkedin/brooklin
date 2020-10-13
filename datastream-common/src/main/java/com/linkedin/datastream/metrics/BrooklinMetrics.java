@@ -7,7 +7,7 @@ package com.linkedin.datastream.metrics;
 
 /**
  * Base class for metric categories with support for metric deregistration.
- * Underlying DynamicMetricManager will take care of ref-count.
+ * Underlying DynamicMetricsManager will take care of ref-count.
  */
 public abstract class BrooklinMetrics {
 
