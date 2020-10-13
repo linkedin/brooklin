@@ -608,6 +608,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       try {
         if (offsets.isPresent()) {
           consumer.commitSync(offsets.get(), _commitTimeout);
+          _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
         } else {
           consumer.commitSync(_commitTimeout);
         }
