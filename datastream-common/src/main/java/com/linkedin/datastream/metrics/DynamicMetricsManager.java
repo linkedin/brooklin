@@ -44,11 +44,13 @@ public class DynamicMetricsManager {
   // This is created solely for the createOrUpdate APIs, not by registerMetric because the former can be called
   // repeatedly to update the metric whereas the latter is typically only called once per metric during initialization.
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>>> _indexedMetrics;
+  private final ConcurrentHashMap<String, Integer> _registeredMetricRefCount;
   private MetricRegistry _metricRegistry;
 
   private DynamicMetricsManager(MetricRegistry metricRegistry) {
     _metricRegistry = metricRegistry;
     _indexedMetrics = new ConcurrentHashMap<>();
+    _registeredMetricRefCount = new ConcurrentHashMap<>();
   }
 
   /**
@@ -161,7 +163,7 @@ public class DynamicMetricsManager {
     String fullMetricName = MetricRegistry.name(simpleName, key, metricName);
 
     Metric metric = getMetric(fullMetricName, metricClass);
-
+    _registeredMetricRefCount.compute(fullMetricName, (localKey, val) -> (val == null) ? 1 : val + 1);
     if (metric instanceof ResettableGauge) {
       Validate.notNull(supplier, "null supplier to Gauge");
       ((ResettableGauge) metric).setSupplier(supplier);
@@ -241,11 +243,13 @@ public class DynamicMetricsManager {
   public void unregisterMetric(String simpleName, String key, String metricName) {
     validateArguments(simpleName, metricName);
     String fullMetricName = MetricRegistry.name(simpleName, key, metricName);
-
+    _registeredMetricRefCount.computeIfPresent(fullMetricName, (localKey, val) -> (val == 1) ? null : val - 1);
     try {
-      _metricRegistry.remove(fullMetricName);
+      if (!_registeredMetricRefCount.containsKey(fullMetricName)) {
+        _metricRegistry.remove(fullMetricName);
+      }
     } finally {
-      // Always update our the index
+      // Always update the index
       if (_indexedMetrics.containsKey(simpleName)) {
         String keyIndex = key == null ? NO_KEY_PLACEHOLDER : key;
         if (_indexedMetrics.get(simpleName).containsKey(keyIndex)) {
