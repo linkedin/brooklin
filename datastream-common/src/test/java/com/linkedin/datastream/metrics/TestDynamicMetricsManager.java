@@ -6,6 +6,8 @@
 package com.linkedin.datastream.metrics;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
@@ -14,6 +16,7 @@ import org.testng.annotations.Test;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 
 
@@ -224,5 +227,55 @@ public class TestDynamicMetricsManager {
     // others remain in cache
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, null, eventLatency).isPresent());
     Assert.assertTrue(_metricsManager.checkCache(CLASS_NAME, someKey, eventLatency).isPresent());
+  }
+
+  @Test
+  public void testMetricsRegisterDeregister() {
+    AtomicInteger numOutput = new AtomicInteger();
+    Supplier<Integer> numOutputGauge = numOutput::get;
+
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key1", Meter.class);
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key2", Counter.class);
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key3", Histogram.class);
+    _metricsManager.registerGauge(CLASS_NAME, "testMetric", "Key4", numOutputGauge);
+
+
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getMeters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getCounters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getHistograms(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getGauges(MetricFilter.contains("testMetric")).size(), 1);
+
+    // re-register metrics
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key1", Meter.class);
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key2", Counter.class);
+    _metricsManager.registerMetric(CLASS_NAME, "testMetric", "Key3", Histogram.class);
+    _metricsManager.registerGauge(CLASS_NAME, "testMetric", "Key4", numOutputGauge);
+
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getMeters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getCounters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getHistograms(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getGauges(MetricFilter.contains("testMetric")).size(), 1);
+
+    // un-register metrics
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key1");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key2");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key3");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key4");
+
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getMeters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getCounters(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getHistograms(MetricFilter.contains("testMetric")).size(), 1);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getGauges(MetricFilter.contains("testMetric")).size(), 1);
+
+    // un-register metrics
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key1");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key2");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key3");
+    _metricsManager.unregisterMetric(CLASS_NAME, "testMetric", "Key4");
+
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getMeters(MetricFilter.contains("testMetric")).size(), 0);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getCounters(MetricFilter.contains("testMetric")).size(), 0);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getHistograms(MetricFilter.contains("testMetric")).size(), 0);
+    Assert.assertEquals(_metricsManager.getMetricRegistry().getGauges(MetricFilter.contains("testMetric")).size(), 0);
   }
 }

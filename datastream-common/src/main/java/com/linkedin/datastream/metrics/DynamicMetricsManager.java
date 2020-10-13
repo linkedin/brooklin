@@ -45,7 +45,7 @@ public class DynamicMetricsManager {
   // repeatedly to update the metric whereas the latter is typically only called once per metric during initialization.
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Metric>>> _indexedMetrics;
 
-  // Map to maintain the ref count for the registered metric. When the ref count becomes zero or not the key is not present,
+  // Map to maintain the ref count for the registered metric. When the ref count becomes zero or if the key is not present,
   // the metric can be deregistered.
   private final ConcurrentHashMap<String, Integer> _registeredMetricRefCount;
   private MetricRegistry _metricRegistry;
