@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Meter;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -127,6 +128,11 @@ public class KafkaTransportProvider implements TransportProvider {
     }
   }
 
+  private int getSourcePartitionFromEvent(BrooklinEnvelope event) {
+    return Integer.parseInt(
+        event.getMetadata().getOrDefault(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, "-1"));
+  }
+
   @Override
   public void send(String destinationUri, DatastreamProducerRecord record, SendCallback onSendComplete) {
     String topicName = KafkaTransportProviderUtils.getTopicName(destinationUri);
@@ -151,13 +157,14 @@ public class KafkaTransportProvider implements TransportProvider {
             _producers.get(Math.abs(Objects.hash(outgoing.topic(), outgoing.partition())) % _producers.size());
 
         final int eventIndex = i;
+        final int sourcePartition = getSourcePartitionFromEvent(event);
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
             LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                     + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
           }
-          doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex);
+          doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex, sourcePartition);
         });
 
         _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_WRITE_RATE, 1);
@@ -189,11 +196,11 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
-      Exception exception, int eventIndex) {
+      Exception exception, int eventIndex, int sourcePartition) {
     if (onComplete != null) {
       onComplete.onCompletion(
           metadata != null ? new DatastreamRecordMetadata(record.getCheckpoint(), metadata.topic(),
-              metadata.partition(), eventIndex) : null, exception);
+              metadata.partition(), eventIndex, sourcePartition) : null, exception);
     }
   }
 
