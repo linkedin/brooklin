@@ -9,10 +9,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -313,12 +315,22 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
       while (!isInterrupted() && !_shutdown) {
         try {
           List<String> newPartitionInfo = getPartitionsInfo(consumer);
-          LOG.debug("Fetch partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
-              , datastream.getName(), _subscribedPartitions, newPartitionInfo);
+          LOG.debug("Fetch Partitions Info for {}, old Partitions Info: {}, new Partitions Info: {}",
+              datastream.getName(), _subscribedPartitions, newPartitionInfo);
 
           if (!ListUtils.isEqualList(newPartitionInfo, _subscribedPartitions)) {
-            LOG.info("Get updated partition info for {}, oldPartitionInfo: {}, new Partition info: {}"
-                , datastream.getName(), _subscribedPartitions, newPartitionInfo);
+            LOG.info("Get updated Partitions Info for {}, old Partitions Info: {}, new Partitions Info: {}",
+                datastream.getName(), _subscribedPartitions, newPartitionInfo);
+
+            Set<String> addedTopicPartitions = new HashSet<>(newPartitionInfo);
+            Set<String> removedTopicPartitions = new HashSet<>(_subscribedPartitions);
+            Set<String> topicPartitionIntersection = new HashSet<>(newPartitionInfo);
+            topicPartitionIntersection.retainAll(removedTopicPartitions);
+            addedTopicPartitions.removeAll(topicPartitionIntersection);
+            removedTopicPartitions.removeAll(topicPartitionIntersection);
+
+            LOG.info("TopicPartitions for {} that are to be added: {}", datastream.getName(), addedTopicPartitions);
+            LOG.info("TopicPartitions for {} that are to be removed: {}", datastream.getName(), removedTopicPartitions);
 
             _subscribedPartitions = Collections.synchronizedList(newPartitionInfo);
             _initialized = true;
@@ -328,7 +340,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
         } catch (Throwable t) {
           // If the Broker goes down, the consumer will receive an exception. However, there is no need to
           // re-initiate the consumer when the Broker comes back. Kafka consumer will automatic reconnect
-          LOG.warn("Detected error for thread " + _datastreamGroup.getName() + ", ex: ", t);
+          LOG.warn("Detected error for PartitionDiscoveryThread " + _datastreamGroup.getName() + ", ex: ", t);
           _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamGroup.getName(), NUM_PARTITION_FETCH_ERRORS, 1);
         }
       }
