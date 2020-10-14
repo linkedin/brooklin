@@ -502,8 +502,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     synchronized (_runningTasks) {
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
-        KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumerOffsets(),
-            tracker.getConsumerGroupId());
+        KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumedOffsets(),
+            tracker.getCommittedOffsets(), tracker.getConsumerGroupId());
         serializedResponses.add(response);
       });
     }

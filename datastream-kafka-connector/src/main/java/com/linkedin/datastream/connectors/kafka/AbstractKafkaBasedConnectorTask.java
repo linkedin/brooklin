@@ -89,6 +89,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   private volatile Thread _connectorTaskThread;
   protected volatile boolean _shutdown = false;
   protected volatile long _lastPolledTimeMillis = System.currentTimeMillis();
+  protected volatile long _lastPollCompletedTimeMillis = 0;
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
 
@@ -102,7 +103,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final boolean _pausePartitionOnError;
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMillis;
-  protected final boolean _enablePollDurationMillisMetric;
+  protected final boolean _enableAdditionalMetrics;
   protected final Optional<Map<Integer, Long>> _startOffsets;
 
   protected volatile String _taskName;
@@ -163,7 +164,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
-    _enablePollDurationMillisMetric = config.getEnablePollDurationMillisMetric();
+    _enableAdditionalMetrics = config.getEnableAdditionalMetrics();
     _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
         .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
         }));
@@ -172,7 +173,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
-        _enablePollDurationMillisMetric);
+        _enableAdditionalMetrics);
 
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
@@ -185,9 +186,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
-      Logger errorLogger, boolean enablePollDurationMillisMetric) {
+      Logger errorLogger, boolean enableAdditionalMetrics) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enablePollDurationMillisMetric);
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enableAdditionalMetrics);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -398,7 +399,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
     } finally {
-      _stoppedLatch.countDown();
       if (null != _consumer) {
         try {
           _consumer.close();
@@ -407,6 +407,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       postShutdownHook();
+      _stoppedLatch.countDown();
       _logger.info("{} stopped", _taskName);
     }
   }
@@ -471,8 +472,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     try {
       long curPollTime = System.currentTimeMillis();
       _lastPolledTimeMillis = curPollTime;
+      if (_enableAdditionalMetrics && _lastPollCompletedTimeMillis != 0) {
+        _consumerMetrics.updateTimeSpentBetweenPollsMs(curPollTime - _lastPollCompletedTimeMillis);
+      }
       records = consumerPoll(pollInterval);
-      long pollDurationMillis = System.currentTimeMillis() - curPollTime;
+      _lastPollCompletedTimeMillis = System.currentTimeMillis();
+      long pollDurationMillis = _lastPollCompletedTimeMillis - curPollTime;
       if (pollDurationMillis > pollInterval + POLL_BUFFER_TIME_MILLIS) {
         // record poll time exceeding client poll timeout
         _logger.warn("ConsumerId: {}, Kafka client poll took {} ms (> poll timeout {} + buffer time {} ms)", _taskName,
@@ -481,7 +486,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
       _consumerMetrics.updateNumPolls(1);
       _consumerMetrics.updateEventCountsPerPoll(records.count());
-      if (_enablePollDurationMillisMetric) {
+      if (_enableAdditionalMetrics) {
         _consumerMetrics.updatePollDurationMs(pollDurationMillis);
       }
       if (!records.isEmpty()) {
@@ -515,8 +520,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     // send the batch out the other end
     translateAndSendBatch(records, readTime);
 
-    if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMillis) {
+    long processingTimeMillis = System.currentTimeMillis() - readTime.toEpochMilli();
+    if (processingTimeMillis > _processingDelayLogThresholdMillis) {
       _consumerMetrics.updateProcessingAboveThreshold(1);
+    }
+
+    if (_enableAdditionalMetrics) {
+      _consumerMetrics.updatePerEventProcessingTimeMs(records.count() == 0 ? 0 : processingTimeMillis / records.count());
     }
   }
 
@@ -598,6 +608,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       try {
         if (offsets.isPresent()) {
           consumer.commitSync(offsets.get(), _commitTimeout);
+          _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
         } else {
           consumer.commitSync(_commitTimeout);
         }

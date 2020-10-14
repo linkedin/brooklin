@@ -156,6 +156,9 @@ public class ZkAdapter {
   private List<String> _finalOrphanLockList = new ArrayList<>();
   private Future<?> _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
 
+  // object to synchronize zk session handling states
+  private final Object _zkSessionLock = new Object();
+
   /**
    * Constructor
    * @param zkServers ZooKeeper server address to connect to
@@ -1777,7 +1780,10 @@ public class ZkAdapter {
 
     @Override
     public void handleNewSession() {
-      onNewSession();
+      synchronized (_zkSessionLock) {
+        LOG.info("ZkStateChangeListener::A new session has been established.");
+        onNewSession();
+      }
     }
 
     @Override
@@ -1806,14 +1812,20 @@ public class ZkAdapter {
 
   @VisibleForTesting
   void onSessionExpired() {
-    LOG.error("Zookeeper session expired.");
-    // cancel the lock clean up
-    _orphanLockCleanupFuture.cancel(true);
-    _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
-    closeAssignmentListProvider();
-    onBecomeFollower();
-    if (_listener != null) {
-      _listener.onSessionExpired();
+    synchronized (_zkSessionLock) {
+      LOG.error("Zookeeper session expired.");
+      // cancel the lock clean up
+      _orphanLockCleanupFuture.cancel(true);
+      _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
+      closeAssignmentListProvider();
+      onBecomeFollower();
+      if (_listener != null) {
+        _listener.onSessionExpired();
+      }
+      // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
+      // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
+      // is not re-initialized till reconnect path is fixed.
+      disconnect();
     }
   }
 

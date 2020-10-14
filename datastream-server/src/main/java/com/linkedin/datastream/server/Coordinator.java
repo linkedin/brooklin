@@ -453,6 +453,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onSessionExpired() {
     _log.info("Coordinator::onSessionExpired is called");
+
+    if (_zkSessionExpired) {
+      _log.info("session expiry is already handled. return");
+      return;
+    }
     _zkSessionExpired = true;
 
     if (_shutdown) {

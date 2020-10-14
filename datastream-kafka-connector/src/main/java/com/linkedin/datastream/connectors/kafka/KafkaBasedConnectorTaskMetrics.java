@@ -40,6 +40,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   public static final String NUM_TOPICS = "numTopics";
   // keeps track of how long it takes to return from poll()
   public static final String POLL_DURATION_MS = "pollDurationMs";
+  // keeps track of how long processing takes between polls
+  public static final String TIME_SPENT_BETWEEN_POLLS_MS = "timeSpentBetweenPollsMs";
+  // keeps track of process + send time per event returned from poll()
+  public static final String PER_EVENT_PROCESSING_TIME_MS = "perEventProcessingTimeMs";
 
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
@@ -57,9 +61,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private final AtomicLong _numTopics = new AtomicLong(0);
 
   private final Histogram _pollDurationMsMetric;
+  private final Histogram _timeSpentBetweenPollsMsMetric;
+  private final Histogram _perEventProcessingTimeMsMetric;
 
   KafkaBasedConnectorTaskMetrics(String className, String metricsKey, Logger errorLogger,
-      boolean enablePollDurationMillisMetric) {
+      boolean enableAdditionalMetrics) {
     super(className, metricsKey, errorLogger);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS,
         _numConfigPausedPartitions::get);
@@ -71,8 +77,12 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         _numAutoPausedPartitionsAwaitingDestTopic::get);
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, _numTopics::get);
 
-    _pollDurationMsMetric = enablePollDurationMillisMetric ?
+    _pollDurationMsMetric = enableAdditionalMetrics ?
         DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
+    _timeSpentBetweenPollsMsMetric = enableAdditionalMetrics ?
+        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS, Histogram.class) : null;
+    _perEventProcessingTimeMsMetric = enableAdditionalMetrics ?
+        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, PER_EVENT_PROCESSING_TIME_MS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =
         AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));
@@ -112,6 +122,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
 
     if (_pollDurationMsMetric != null) {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, POLL_DURATION_MS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, PER_EVENT_PROCESSING_TIME_MS);
     }
   }
 
@@ -186,6 +198,26 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   }
 
   /**
+   * Update the time spent between polls in millis
+   * @param val Value to update
+   */
+  public void updateTimeSpentBetweenPollsMs(long val) {
+    if (_timeSpentBetweenPollsMsMetric != null) {
+      _timeSpentBetweenPollsMsMetric.update(val);
+    }
+  }
+
+  /**
+   * Update the event processing time in millis
+   * @param val Value to update
+   */
+  public void updatePerEventProcessingTimeMs(long val) {
+    if (_perEventProcessingTimeMsMetric != null) {
+      _perEventProcessingTimeMsMetric.update(val);
+    }
+  }
+
+  /**
    * Utility method for creating task-specific metrics of a Kafka-based connector
    * @param prefix string to prepend to every metric
    */
@@ -199,6 +231,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
     metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
+    metrics.add(new BrooklinHistogramInfo(prefix + TIME_SPENT_BETWEEN_POLLS_MS));
+    metrics.add(new BrooklinHistogramInfo(prefix + PER_EVENT_PROCESSING_TIME_MS));
     return Collections.unmodifiableList(metrics);
   }
 }
