@@ -265,7 +265,7 @@ public class EventProducer implements DatastreamEventProducer {
 
     if (_numEventsOutsideAltSlaLogEnabled) {
       if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getPartition());
+        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
         int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
         _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
       }
@@ -273,8 +273,9 @@ public class EventProducer implements DatastreamEventProducer {
       long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
       if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
         _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) ->
-            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms",
-                topicPartition, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog));
+            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
+                    + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs,
+                timeSinceLastLog, getDatastreamName()));
         _trackEventsOutsideAltSlaMap.clear();
         _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
       }

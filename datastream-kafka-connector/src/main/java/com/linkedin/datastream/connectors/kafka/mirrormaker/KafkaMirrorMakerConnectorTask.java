@@ -241,6 +241,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
+    metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, partitionStr);
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null,
         fromKafka.headers(), metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
