@@ -106,13 +106,14 @@ public class CloudStorageTransportProviderAdmin implements TransportProviderAdmi
         if (datastream.getMetadata().containsKey("application")) {
             destination = datastream.getMetadata().get("bucket")
                     + "/"
-                    + datastream.getMetadata().get("application")
-                    + "/"
-                    + datastream.getName();
+                    + datastream.getMetadata().get("application");
         } else {
-            destination = datastream.getMetadata().get("bucket")
-                    + "/"
-                    + datastream.getName();
+            destination = datastream.getMetadata().get("bucket");
+        }
+
+        if (!datastream.getMetadata().containsKey("excludeDatastreamName") ||
+                datastream.getMetadata().get("excludeDatastreamName").equals("false")) {
+            destination += "/" + datastream.getName();
         }
 
         datastream.getDestination().setConnectionString(destination);

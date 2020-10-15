@@ -124,6 +124,8 @@ public class GCSObjectCommitter implements ObjectCommitter {
                 .append("/")
                 .append(java.time.LocalDate.now())
                 .append("/")
+                .append(java.time.LocalTime.now().getHour())
+                .append("/")
                 .append(topic)
                 .append("+")
                 .append(partition)
