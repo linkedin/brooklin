@@ -13,6 +13,7 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +27,7 @@ import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 
+import com.google.api.client.util.DateTime;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.cloud.bigquery.InsertAllRequest;
 
@@ -439,6 +441,10 @@ public class RecordTranslator {
         return fields;
     }
 
+    private static TableRow getMetadata() {
+        return new TableRow().set("ingest_timestamp", new DateTime(new Date(System.currentTimeMillis())));
+    }
+
     /**
      * translate given avro record into BQ row object.
      * @param avroRecord avro record
@@ -449,7 +455,11 @@ public class RecordTranslator {
         if (avroSchema.getType() != org.apache.avro.Schema.Type.RECORD) {
             throw new IllegalArgumentException("The root of the record's schema should be a RECORD type.");
         }
-        return InsertAllRequest.RowToInsert.of(translateRecord((GenericData.Record) avroRecord));
+
+        TableRow row = translateRecord((GenericData.Record) avroRecord);
+        row.set("__metadata", getMetadata());
+
+        return InsertAllRequest.RowToInsert.of(row);
     }
 
 }

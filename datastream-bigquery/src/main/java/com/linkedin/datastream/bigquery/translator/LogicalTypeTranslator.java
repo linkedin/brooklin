@@ -32,7 +32,7 @@ class LogicalTypeTranslator {
      * @return BQ date
      */
     static String translateDateType(long daysSinceEpoch) {
-        return new SimpleDateFormat(DATE_FORMAT).format(new Date(daysSinceEpoch * 86400));
+        return new SimpleDateFormat(DATE_FORMAT).format(new Date(daysSinceEpoch * 86400000L));
     }
 
     /**

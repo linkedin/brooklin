@@ -86,6 +86,8 @@ public class BigqueryTransportProviderAdmin implements TransportProviderAdmin {
 
         String destination = datastream.getMetadata().get("dataset")
                 + "/"
+                + (datastream.getMetadata().containsKey("partitionExpirationDays") ? datastream.getMetadata().get("partitionExpirationDays") : "-1")
+                + "/"
                 + (datastream.getMetadata().containsKey("tableSuffix") ? datastream.getMetadata().get("tableSuffix") : "");
 
         datastream.getDestination().setConnectionString(destination);

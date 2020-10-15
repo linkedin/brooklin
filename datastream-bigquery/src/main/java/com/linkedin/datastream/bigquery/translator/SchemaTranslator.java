@@ -328,6 +328,16 @@ public class SchemaTranslator {
         return new FieldTypePair(fieldBuilder.setMode(mode).build(), type);
     }
 
+    private static Field getMetadata() {
+        List<Field> metadataFieldList = new ArrayList<>();
+        metadataFieldList.add(Field.newBuilder("ingest_timestamp", StandardSQLTypeName.TIMESTAMP).setMode(Field.Mode.REQUIRED).build());
+
+        return Field.newBuilder(
+                "__metadata",
+                StandardSQLTypeName.STRUCT,
+                FieldList.of(metadataFieldList)).setMode(Field.Mode.REQUIRED).build();
+    }
+
     /**
      * Translate given avro schema into BQ schema
      * @param avroSchema avro schema
@@ -337,6 +347,13 @@ public class SchemaTranslator {
         if (avroSchema.getType() != org.apache.avro.Schema.Type.RECORD) {
             throw new IllegalArgumentException("The root of the record's schema should be a RECORD type.");
         }
-        return Schema.of(translateRecordSchema(avroSchema));
+
+        FieldList fields = translateRecordSchema(avroSchema);
+
+        List<Field> fieldList = new ArrayList<>();
+        fields.forEach(fieldList::add);
+        fieldList.add(getMetadata());
+
+        return Schema.of(fieldList);
     }
 }

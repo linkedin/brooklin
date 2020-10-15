@@ -95,11 +95,15 @@ public class Batch extends AbstractBatch {
             }
 
             if (_destination == null) {
-                String[] datasetTableSuffix = aPackage.getDestination().split("/");
-                if (datasetTableSuffix.length == 2) {
-                    _destination = datasetTableSuffix[0] + "/" + aPackage.getTopic() + datasetTableSuffix[1];
+                String[] datasetRetentionTableSuffix = aPackage.getDestination().split("/");
+                if (datasetRetentionTableSuffix.length == 3) {
+                    _destination = datasetRetentionTableSuffix[0] +
+                            "/" + aPackage.getTopic() + datasetRetentionTableSuffix[2] +
+                            "/" + datasetRetentionTableSuffix[1];
                 } else {
-                    _destination = datasetTableSuffix[0] + "/" + aPackage.getTopic();
+                    _destination = datasetRetentionTableSuffix[0] +
+                            "/" + aPackage.getTopic() +
+                            "/" + datasetRetentionTableSuffix[1];
                 }
             }
 

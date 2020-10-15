@@ -98,14 +98,24 @@ public class BigqueryBatchCommitter implements BatchCommitter<List<InsertAllRequ
         if (_destTableCreated.containsKey(destination)) {
             return;
         }
-        String[] datasetTable = destination.split("/");
+        String[] datasetTableNameRetention = destination.split("/");
 
         try {
-            TableId tableId = TableId.of(datasetTable[0], sanitizeTableName(datasetTable[1]));
-            TableDefinition tableDefinition = StandardTableDefinition.newBuilder()
-                    .setSchema(_destTableSchemas.get(destination))
-                    .setTimePartitioning(TimePartitioning.of(TimePartitioning.Type.DAY))
-                    .build();
+            TableId tableId = TableId.of(datasetTableNameRetention[0], sanitizeTableName(datasetTableNameRetention[1]));
+            TableDefinition tableDefinition;
+            long partitionRetentionDays = Long.parseLong(datasetTableNameRetention[2]);
+            if (partitionRetentionDays > 0) {
+                tableDefinition = StandardTableDefinition.newBuilder()
+                        .setSchema(_destTableSchemas.get(destination))
+                        .setTimePartitioning(
+                                TimePartitioning.of(TimePartitioning.Type.DAY, partitionRetentionDays * 86400000L))
+                        .build();
+            } else {
+                tableDefinition = StandardTableDefinition.newBuilder()
+                        .setSchema(_destTableSchemas.get(destination))
+                        .setTimePartitioning(TimePartitioning.of(TimePartitioning.Type.DAY))
+                        .build();
+            }
             TableInfo tableInfo = TableInfo.newBuilder(tableId, tableDefinition).build();
             if (_bigquery.getTable(tableId) != null) {
                 LOG.debug("Table {} already exist", destination);
