@@ -376,7 +376,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _kafkaTopicPartitionTracker.onPartitionsPolled(records);
 
           Instant readTime = Instant.now();
-          processRecords(records, readTime);
+          long readTimeInNanos = System.nanoTime();
+          processRecords(records, readTime, readTimeInNanos);
           recordsPolled = records.count();
         }
         maybeCommitOffsets(_consumer, false);
@@ -515,20 +516,21 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * Processes the Kafka consumer records by translating them and sending them to the event producer.
    * @param records the Kafka consumer records
    * @param readTime the time at which the records were successfully polled from Kafka
+   * @param readTimeInNanos the time at which the records were successfully polled from Kafka in nanoseconds. This can
+   *                        only be used for elapsed time calculations and has no meaning by itself
    */
-  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime) {
+  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime, long readTimeInNanos) {
     // send the batch out the other end
     translateAndSendBatch(records, readTime);
 
-    long processingTimeMillis = System.currentTimeMillis() - readTime.toEpochMilli();
-    if (processingTimeMillis > _processingDelayLogThresholdMillis) {
+    if ((System.currentTimeMillis() - readTime.toEpochMilli()) > _processingDelayLogThresholdMillis) {
       _consumerMetrics.updateProcessingAboveThreshold(1);
     }
 
     if (_enableAdditionalMetrics) {
-      // Convert processingTimeMillis to microsecond precision as otherwise the per event time can be so small that
-      // it gets counted as 0 milliseconds. Note that we are still getting at most millisecond precision here.
-      _consumerMetrics.updatePerEventProcessingTimeMicros(records.count() == 0 ? 0 : (processingTimeMillis * 1000) / records.count());
+      // Using millisecond precision is not good enough here. Per event processing time can be less than a millisecond
+      long processingTimeNanos = System.nanoTime() - readTimeInNanos;
+      _consumerMetrics.updatePerEventProcessingTimeNanos(records.count() == 0 ? 0 : processingTimeNanos / records.count());
     }
   }
 
