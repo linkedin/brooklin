@@ -376,8 +376,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           _kafkaTopicPartitionTracker.onPartitionsPolled(records);
 
           Instant readTime = Instant.now();
-          long readTimeInNanos = System.nanoTime();
-          processRecords(records, readTime, readTimeInNanos);
+          processRecords(records, readTime, System.nanoTime());
           recordsPolled = records.count();
         }
         maybeCommitOffsets(_consumer, false);
