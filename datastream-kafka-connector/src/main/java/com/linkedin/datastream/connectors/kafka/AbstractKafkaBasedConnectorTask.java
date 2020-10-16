@@ -526,7 +526,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
 
     if (_enableAdditionalMetrics) {
-      _consumerMetrics.updatePerEventProcessingTimeMs(records.count() == 0 ? 0 : processingTimeMillis / records.count());
+      // Convert processingTimeMillis to microsecond precision as otherwise the per event time can be so small that
+      // it gets counted as 0 milliseconds. Note that we are still getting at most millisecond precision here.
+      _consumerMetrics.updatePerEventProcessingTimeMicros(records.count() == 0 ? 0 : (processingTimeMillis * 1000) / records.count());
     }
   }
 
