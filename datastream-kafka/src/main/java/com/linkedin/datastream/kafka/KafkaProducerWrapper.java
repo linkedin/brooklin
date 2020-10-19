@@ -372,15 +372,16 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
-      } catch (InterruptException | TimeoutException e) {
-        // The KafkaProducer object should not be reused on an interrupted flush
+      } catch (InterruptException | TimeoutException | IllegalStateException e) {
+        // The KafkaProducer object should not be reused on an interrupted/timed out flush. With the bounded flush
+        // method, the actual exception is wrapped into a generic IllegalStateException.
         try {
           _producerLock.lock();
           if (producer == _kafkaProducer) {
-            _log.warn("Kafka producer flush interrupted/timed out, closing producer {}.", producer);
+            _log.warn("Kafka producer flush may be interrupted/timed out, closing producer {}.", producer);
             shutdownProducer();
           } else {
-            _log.warn("Kafka producer flush interrupted/timed out, producer {} already closed.", producer);
+            _log.warn("Kafka producer flush may be interrupted/timed out, producer {} already closed.", producer);
           }
           throw e;
         } finally {

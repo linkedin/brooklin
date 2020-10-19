@@ -59,6 +59,11 @@ public class TestKafkaProducerWrapper {
     testFlushBehaviorOnException(TimeoutException.class, "random-topic-42");
   }
 
+  @Test
+  public void testFlushIllegalStateException() throws Exception {
+    testFlushBehaviorOnException(IllegalStateException.class, "new-topic-42");
+  }
+
   private void testFlushBehaviorOnException(Class<? extends Throwable> exceptionClass, String topicName)
       throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
