@@ -728,11 +728,6 @@ public class TestZkAdapter {
       return _zkClient;
     }
 
-    @Override
-    void onSessionExpired() {
-      super.onSessionExpired();
-    }
-
     public ZkClient getZkClient() {
       return _zkClient;
     }
