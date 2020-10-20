@@ -62,7 +62,6 @@ import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
-
 /**
  * KafkaMirrorMakerConnectorTask consumes from Kafka using regular expression pattern subscription. This means that the
  * task is consuming from multiple topics at once. When a new topic falls into the subscription, the task should
@@ -87,6 +86,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
   private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
+
+  private static final String DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT = "%s-%s";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -119,6 +120,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
   private final boolean _enablePartitionAssignment;
+  // If enabled, this appends the datastream name to the consumer client.id. This can be useful to differentiate
+  // among Kafka consumer client metrics for different datastreams.
+  private final boolean _includeDatastreamNameInConsumerClientId;
   private final String _destinationTopicPrefix;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
@@ -145,6 +149,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _connectorName = connectorName;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
+    _includeDatastreamNameInConsumerClientId = config.getIncludeDatastreamNameInConsumerClientId();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -200,7 +205,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
     properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG,
         getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG));
-    LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
+    if (_includeDatastreamNameInConsumerClientId) {
+      String clientId = properties.getProperty(ConsumerConfig.CLIENT_ID_CONFIG, "");
+      properties.put(ConsumerConfig.CLIENT_ID_CONFIG,
+          String.format(DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT, clientId, _datastreamName));
+    }
+    LOG.info("Creating Kafka consumer for task {} with properties {}, include datastream name in client.id: {}",
+        _datastreamTask, properties, _includeDatastreamNameInConsumerClientId);
     return _consumerFactory.createConsumer(properties);
   }
 
@@ -241,6 +252,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
+    metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, partitionStr);
     BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null,
         fromKafka.headers(), metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
@@ -435,14 +447,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
     // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)
     // and return here different types of metrics with that prefix.
-    // For now, only adding BrooklinCounterInfo. In case more types (for example, BrooklinMeterInfo) is emitted by
-    // topic manager, add that type here.
-    metrics.add(new BrooklinCounterInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
-    metrics.add(new BrooklinGaugeInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
+    // for every metrics type emitted by Topic manager, it should be added here.
+    // Any metrics emitted should match exactly one metrics regex otherwise it results in Sensor errors.
+    metrics.add(new BrooklinCounterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.COUNTER + MetricsAware.KEY_REGEX + ".*"));
+    metrics.add(new BrooklinGaugeInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.GAUGE + MetricsAware.KEY_REGEX + ".*"));
     return metrics;
   }
 

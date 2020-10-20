@@ -36,4 +36,7 @@ public class BrooklinEnvelopeMetadataConstants {
 
   // Timestamp of the event when it was written in the last leg (i.e. the Source of the connector)
   public static final String SOURCE_TIMESTAMP = "SourceTimestamp";
+
+  // Source partition number from where the event was generated
+  public static final String SOURCE_PARTITION = "SourcePartition";
 }

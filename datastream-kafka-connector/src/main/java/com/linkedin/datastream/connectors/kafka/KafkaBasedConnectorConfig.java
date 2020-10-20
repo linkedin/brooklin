@@ -31,7 +31,8 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_RETRY_SLEEP_DURATION_MILLIS = "retrySleepDurationMs";
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS = "pauseErrorPartitionDurationMs";
-  public static final String CONFIG_ENABLE_POLL_DURATION_MILLIS_METRIC = "enablePollDurationMsMetric";
+  public static final String ENABLE_ADDITIONAL_METRICS = "enableAdditionalMetrics";
+  public static final String INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = "includeDatastreamNameInConsumerClientId";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
@@ -47,7 +48,8 @@ public class KafkaBasedConnectorConfig {
   private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
   private static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
-  private static final boolean DEFAULT_ENABLE_POLL_DURATION_MILLIS_METRIC = Boolean.TRUE;
+  private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
+  private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -63,7 +65,8 @@ public class KafkaBasedConnectorConfig {
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
   private final long _processingDelayLogThresholdMillis;
-  private final boolean _enablePollDurationMillisMetric;
+  private final boolean _enableAdditionalMetrics;
+  private final boolean _includeDatastreamNameInConsumerClientId;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -101,8 +104,10 @@ public class KafkaBasedConnectorConfig {
     _processingDelayLogThresholdMillis =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
-    _enablePollDurationMillisMetric = verifiableProperties.getBoolean(CONFIG_ENABLE_POLL_DURATION_MILLIS_METRIC,
-        DEFAULT_ENABLE_POLL_DURATION_MILLIS_METRIC);
+    _enableAdditionalMetrics = verifiableProperties.getBoolean(ENABLE_ADDITIONAL_METRICS,
+        DEFAULT_ENABLE_ADDITIONAL_METRICS);
+    _includeDatastreamNameInConsumerClientId = verifiableProperties.getBoolean(
+        INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =
@@ -152,8 +157,12 @@ public class KafkaBasedConnectorConfig {
     return _pauseErrorPartitionDuration;
   }
 
-  public boolean getEnablePollDurationMillisMetric() {
-    return _enablePollDurationMillisMetric;
+  public boolean getEnableAdditionalMetrics() {
+    return _enableAdditionalMetrics;
+  }
+
+  public boolean getIncludeDatastreamNameInConsumerClientId() {
+    return _includeDatastreamNameInConsumerClientId;
   }
 
   /**

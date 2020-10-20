@@ -218,7 +218,6 @@ public class CommonConnectorMetrics {
       long numStuckPartitions = _numStuckPartitions.get();
       long numPartitions = _numPartitions.get();
 
-      super.deregister();
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PARTITIONS);
@@ -234,6 +233,7 @@ public class CommonConnectorMetrics {
       if (aggregatedNumPartitions != null) {
         aggregatedNumPartitions.getAndAdd(-numPartitions);
       }
+      super.deregister();
     }
 
     @Override
