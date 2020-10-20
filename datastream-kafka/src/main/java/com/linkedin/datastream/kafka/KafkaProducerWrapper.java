@@ -30,7 +30,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -372,9 +371,9 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
-      } catch (InterruptException | TimeoutException | IllegalStateException e) {
-        // The KafkaProducer object should not be reused on an interrupted/timed out flush. With the bounded flush
-        // method, the actual exception is wrapped into a generic IllegalStateException.
+      } catch (Exception e) {
+        // The KafkaProducer object should not be reused on an interrupted/timed out flush. To be safe, we try to
+        // close the producer on any exception.
         try {
           _producerLock.lock();
           if (producer == _kafkaProducer) {
