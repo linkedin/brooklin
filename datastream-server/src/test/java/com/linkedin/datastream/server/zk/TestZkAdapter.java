@@ -42,7 +42,6 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -714,17 +713,24 @@ public class TestZkAdapter {
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
     private ZkClient _zkClient;
+    private long _sleepMs;
 
     public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
         int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
       super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeoutMs,
           defaultConnectionTimeoutMs, debounceTimerMs, listener);
+      _sleepMs = defaultSessionTimeoutMs;
     }
 
     @Override
     ZkClient createZkClient() {
       _zkClient = super.createZkClient();
       return _zkClient;
+    }
+
+    @Override
+    void onSessionExpired() {
+      super.onSessionExpired();
     }
 
     public ZkClient getZkClient() {
@@ -741,6 +747,9 @@ public class TestZkAdapter {
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
     adapter.connect();
 
+    ZkClientInterceptingAdapter adapter2 = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
+    adapter2.connect();
+
     DatastreamTaskImpl task = new DatastreamTaskImpl();
     task.setId("3");
     task.setConnectorType(connectorType);
@@ -752,11 +761,72 @@ public class TestZkAdapter {
     LOG.info("Acquire from instance1 should succeed");
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
+    Assert.assertTrue(adapter.isLeader());
+    Assert.assertFalse(adapter2.isLeader());
+    verifyZkListenersOfLeader(adapter);
+    verifyZkListenersOfFollower(adapter2);
+
     simulateSessionExpiration(adapter);
 
     Thread.sleep(5000);
     verify(adapter, times(1)).onSessionExpired();
+    verifyZkListenersAfterExpiredSession(adapter);
+    Assert.assertFalse(adapter.isLeader());
+    Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
+    verifyZkListenersOfLeader(adapter2);
+
+    Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
     verify(adapter, times(1)).onNewSession();
+    Assert.assertFalse(adapter.isLeader());
+    Assert.assertTrue(adapter2.isLeader());
+
+    //This connect is called from the coordinator code, calling it explicitly here for testing.
+    adapter.connect();
+    verifyZkListenersOfFollower(adapter);
+
+    adapter2.disconnect();
+    verifyZkListenersAfterDisconnect(adapter2);
+    Assert.assertTrue(PollUtils.poll(adapter::isLeader, 100, ZK_WAIT_IN_MS));
+    verifyZkListenersOfLeader(adapter);
+
+    adapter.disconnect();
+    verifyZkListenersAfterDisconnect(adapter);
+  }
+
+  private void verifyZkListenersAfterDisconnect(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNull(adapter.getLeaderElectionListener());
+    Assert.assertNull(adapter.getAssignmentListProvider());
+    Assert.assertNull(adapter.getStateChangeListener());
+    Assert.assertNull(adapter.getLiveInstancesProvider());
+    Assert.assertNull(adapter.getDatastreamList());
+    Assert.assertNull(adapter.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersAfterExpiredSession(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNotNull(adapter.getLeaderElectionListener());
+    Assert.assertNull(adapter.getAssignmentListProvider());
+    Assert.assertNotNull(adapter.getStateChangeListener());
+    Assert.assertNull(adapter.getLiveInstancesProvider());
+    Assert.assertNull(adapter.getDatastreamList());
+    Assert.assertNull(adapter.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersOfFollower(ZkClientInterceptingAdapter adapter2) {
+    Assert.assertNotNull(adapter2.getLeaderElectionListener());
+    Assert.assertNotNull(adapter2.getAssignmentListProvider());
+    Assert.assertNotNull(adapter2.getStateChangeListener());
+    Assert.assertNotNull(adapter2.getLiveInstancesProvider());
+    Assert.assertNull(adapter2.getDatastreamList());
+    Assert.assertNull(adapter2.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersOfLeader(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNotNull(adapter.getLeaderElectionListener());
+    Assert.assertNotNull(adapter.getAssignmentListProvider());
+    Assert.assertNotNull(adapter.getStateChangeListener());
+    Assert.assertNotNull(adapter.getLiveInstancesProvider());
+    Assert.assertNotNull(adapter.getDatastreamList());
+    Assert.assertNotNull(adapter.getTargetAssignmentProvider());
   }
 
   @Test

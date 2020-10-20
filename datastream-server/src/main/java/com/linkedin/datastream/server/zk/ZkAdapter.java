@@ -229,7 +229,7 @@ public class ZkAdapter {
       } catch (ZkException zke) {
         // do nothing, best effort clean up
       } finally {
-        closeZkListener(true);
+        closeZkListeners(true);
         _zkclient.close();
         _zkclient = null;
         _leaderElectionListener = null;
@@ -307,11 +307,15 @@ public class ZkAdapter {
 
     LOG.info("Instance " + _instanceName + " becomes follower");
 
-    closeZkListener(false);
+    closeZkListeners(false);
     _isLeader = false;
   }
 
-  private void closeZkListener(boolean isDisconnect) {
+  private void closeZkListeners(boolean isDisconnect) {
+    closeZkListeners(isDisconnect, false);
+  }
+
+  private void closeZkListeners(boolean isDisconnect, boolean isSessionExpired) {
 
     // Clean the following listeners only during zookeeper disconnect
     if (isDisconnect) {
@@ -320,7 +324,15 @@ public class ZkAdapter {
         _stateChangeListener = null;
       }
 
-      closeAssignmentListProvider();
+      // unsubscribe any other left subscription.
+      _zkclient.unsubscribeAll();
+    }
+
+    if (isDisconnect || isSessionExpired) {
+      if (_assignmentListProvider != null) {
+        _assignmentListProvider.close();
+        _assignmentListProvider = null;
+      }
 
       if (_currentSubscription != null) {
         _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
@@ -331,9 +343,6 @@ public class ZkAdapter {
         _liveInstancesProvider.close();
         _liveInstancesProvider = null;
       }
-
-      // unsubscribe any other left subscription.
-      _zkclient.unsubscribeAll();
     }
 
     if (_datastreamList != null) {
@@ -344,13 +353,6 @@ public class ZkAdapter {
     if (_targetAssignmentProvider != null) {
       _targetAssignmentProvider.close();
       _targetAssignmentProvider = null;
-    }
-  }
-
-  private void closeAssignmentListProvider() {
-    if (_assignmentListProvider != null) {
-      _assignmentListProvider.close();
-      _assignmentListProvider = null;
     }
   }
 
@@ -1804,7 +1806,6 @@ public class ZkAdapter {
 
   @VisibleForTesting
   void onNewSession() {
-    LOG.info("ZkStateChangeListener::A new session has been established.");
     if (_listener != null) {
       _listener.onNewSession();
     }
@@ -1817,20 +1818,46 @@ public class ZkAdapter {
       // cancel the lock clean up
       _orphanLockCleanupFuture.cancel(true);
       _orphanLockCleanupFuture = CompletableFuture.completedFuture("completed");
-      closeAssignmentListProvider();
+      closeZkListeners(false, true);
       onBecomeFollower();
       if (_listener != null) {
         _listener.onSessionExpired();
       }
-      // currently it will try to disconnect and fail. TODO: fix the connect and listen to handleNewSession.
-      // Temporary hack to kill the zkEventThread at this point, to ensure that the connection to zookeeper
-      // is not re-initialized till reconnect path is fixed.
-      disconnect();
     }
   }
 
   @VisibleForTesting
   long getSessionId() {
     return _zkclient.getSessionId();
+  }
+
+  @VisibleForTesting
+  ZkLeaderElectionListener getLeaderElectionListener() {
+    return _leaderElectionListener;
+  }
+
+  @VisibleForTesting
+  ZkBackedTaskListProvider getAssignmentListProvider() {
+    return _assignmentListProvider;
+  }
+
+  @VisibleForTesting
+  ZkStateChangeListener getStateChangeListener() {
+    return _stateChangeListener;
+  }
+
+  @VisibleForTesting
+  ZkBackedLiveInstanceListProvider getLiveInstancesProvider() {
+    return _liveInstancesProvider;
+  }
+
+  @VisibleForTesting
+  ZkBackedDMSDatastreamList getDatastreamList() {
+    return _datastreamList;
+  }
+
+  @VisibleForTesting
+  ZkTargetAssignmentProvider getTargetAssignmentProvider() {
+    return _targetAssignmentProvider;
   }
 }
