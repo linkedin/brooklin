@@ -310,6 +310,8 @@ public class EventProducer implements DatastreamEventProducer {
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
           EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
 
+      // Only update the per topic latency metric here if 'enablePerTopicMetrics' is false, otherwise this will
+      // update the metric twice.
       if (_enablePerTopicEventLatencyMetrics && !_enablePerTopicMetrics) {
         _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(),
             EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
