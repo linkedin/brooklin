@@ -63,11 +63,11 @@ public class KafkaConnectorDiagUtils {
       responseList.forEach(response -> {
         if (response.getConsumedOffsets() == null || response.getConsumedOffsets().isEmpty()) {
           logger.warn("Empty consumer offset map from instance {}. Ignoring the result", instance);
-        } else if (StringUtils.isBlank(response.getConsumerGroupId())) {
-          logger.warn("Invalid consumer group id from instance {}, Ignoring the result", instance);
+        } else if (StringUtils.isBlank(response.getDatastreamName())) {
+          logger.warn("Invalid datastream name from instance {}, Ignoring the result", instance);
         } else {
-          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId()));
+          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getDatastreamName(),
+              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId(), response.getDatastreamName()));
 
           Map<String, Map<Integer, Long>> consumedOffsets = response.getConsumedOffsets();
           consumedOffsets.forEach((topic, partitionOffsets) -> {

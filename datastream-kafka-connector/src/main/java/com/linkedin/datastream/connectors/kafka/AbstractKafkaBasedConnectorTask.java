@@ -178,7 +178,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
     _kafkaTopicPartitionTracker = new KafkaTopicPartitionTracker(
-        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, logger));
+        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, logger), _datastreamName);
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
