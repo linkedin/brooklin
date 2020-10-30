@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.kafka;
 
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 
+import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang3.Validate;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -25,7 +27,10 @@ import com.codahale.metrics.Meter;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.DatastreamRecordMetadata;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.SendCallback;
+import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.translator.RecordTranslator;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -55,6 +60,9 @@ public class KafkaTransportProvider<K, V> implements TransportProvider {
 
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final String _metricsNamesPrefix;
+  private final String _keyTranslatorClass;
+  private final String _valueTranslatorClass;
+  private final boolean _translatorIncludeSchema;
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
@@ -76,12 +84,18 @@ public class KafkaTransportProvider<K, V> implements TransportProvider {
     org.apache.commons.lang.Validate.notNull(producers, "null producer wrappers");
     _producers = producers;
     _datastreamTask = datastreamTask;
+    VerifiableProperties kafkaTransportProviderProperties = new VerifiableProperties(props);
     LOG.info("Creating kafka transport provider with properties: {}", props);
-    if (!props.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
+    if (!kafkaTransportProviderProperties.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
-
+    _keyTranslatorClass = kafkaTransportProviderProperties.getString(KafkaTransportProviderAdmin.CONFIG_KEY_TRANSLATOR,
+            KafkaTransportProviderAdmin.DEFAULT_TRANSLATOR);
+    _valueTranslatorClass = kafkaTransportProviderProperties.getString(KafkaTransportProviderAdmin.CONFIG_VALUE_TRANSLATOR,
+            KafkaTransportProviderAdmin.DEFAULT_TRANSLATOR);
+    _translatorIncludeSchema = kafkaTransportProviderProperties.getBoolean(KafkaTransportProviderAdmin.CONFIG_TRANSLATOR_INCLUDE_SCHEMA,
+            false);
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     _metricsNamesPrefix = metricsNamesPrefix == null ? CLASS_NAME : metricsNamesPrefix + CLASS_NAME;
@@ -96,20 +110,29 @@ public class KafkaTransportProvider<K, V> implements TransportProvider {
 
   @SuppressWarnings("unchecked")
   private ProducerRecord<K, V> convertToProducerRecord(String topicName,
-      DatastreamProducerRecord record, Object event) {
+      DatastreamProducerRecord record, Object event) throws Exception {
 
     Optional<Integer> partition = record.getPartition();
-
+    RecordTranslator<?, GenericRecord> keyTranslator = ReflectionUtils.createInstance(_keyTranslatorClass);
+    RecordTranslator<?, GenericRecord> valueTranslator = ReflectionUtils.createInstance(_valueTranslatorClass);
     K keyValue = null;
     V payloadValue = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
       if (envelope.key().isPresent()) {
-        keyValue = (K) envelope.key().get();
+        if (envelope.key().get() instanceof byte[]) {
+          keyValue = (K) envelope.key().get();
+        } else {
+          keyValue = (K) keyTranslator.translateFromInternalFormat((GenericRecord) envelope.key().get(), false);
+        }
       }
 
       if (envelope.value().isPresent()) {
-        payloadValue = (V) envelope.value().get();
+        if (envelope.value().get() instanceof byte[]) {
+          payloadValue = (V) envelope.value().get();
+        } else {
+          payloadValue = (V) valueTranslator.translateFromInternalFormat((GenericRecord) envelope.value().get(), _translatorIncludeSchema);
+        }
       }
     }
 

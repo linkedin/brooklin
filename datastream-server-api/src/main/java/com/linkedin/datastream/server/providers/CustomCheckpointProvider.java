@@ -43,11 +43,11 @@ public interface CustomCheckpointProvider<T> {
      * get safe checkpoint
      * @return last known safe checkpoint
      */
-    T getSafeCheckpoint();
+    T getSafeCheckpoint() throws Exception;
 
     /**
      * get last committed checkpoint
      * @return last committed checkpoint
      */
-    T getCommitted();
+    T getCommitted() throws Exception;
 }

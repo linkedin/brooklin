@@ -15,6 +15,7 @@ ext {
     hadoopCommonVersion= "0.22.0"
     intellijAnnotationsVersion = "12.0"
     jacksonVersion = "1.8.5"
+    json2avroVersion = "0.2.9"
     kafkaClientsVersion = "2.2.1"
     kafkaSchemaRegistryVersion = "5.2.1"
     kafkaSchemaRegistryClientVersion = "5.3.0"

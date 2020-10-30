@@ -26,8 +26,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TopicExistsException;
-import org.apache.kafka.common.serialization.LongDeserializer;
-import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
@@ -44,8 +42,8 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
 
     private final String _taskId;
     private final String _topic;
-    private final Consumer<String, Long> _consumer;
-    private final Producer<String, Long> _producer;
+    private final Consumer<String, String> _consumer;
+    private final Producer<String, String> _producer;
     private final TopicPartition _topicPartition;
 
     private Long _checkpoint;
@@ -67,7 +65,7 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
         consumerProperties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         consumerProperties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 1);
         consumerProperties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, LongDeserializer.class.getName());
+        consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         this._consumer = new KafkaConsumer<>(consumerProperties);
 
         Properties producerProperties = new Properties();
@@ -76,7 +74,7 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
         producerProperties.put(ProducerConfig.RETRIES_CONFIG, 5);
         producerProperties.put(ProducerConfig.BATCH_SIZE_CONFIG, 0);
         producerProperties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        producerProperties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
+        producerProperties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         this._producer = new KafkaProducer<>(producerProperties);
 
 
@@ -126,7 +124,7 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
         if (!_previousCommittedCheckpoint.equals(checkpoint)) {
             LOG.info("Commit call for task {} with checkpoint {}", _taskId, checkpoint);
             try {
-                _producer.send(new ProducerRecord<>(_topic, _taskId, checkpoint)).get();
+                _producer.send(new ProducerRecord<>(_topic, _taskId, checkpoint.toString())).get();
                 _producer.flush();
                 _previousCommittedCheckpoint = checkpoint;
             } catch (ExecutionException e) {
@@ -144,13 +142,13 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
     }
 
     @Override
-    public Long getSafeCheckpoint() {
+    public Long getSafeCheckpoint() throws Exception {
         _checkpoint = (_checkpoint == null) ? getCommitted() : _checkpoint;
         return _checkpoint;
     }
 
     @Override
-    public Long getCommitted() {
+    public Long getCommitted() throws Exception {
         Long checkpoint = null;
         long endOffset = -1;
 
@@ -160,13 +158,18 @@ public class KafkaCustomCheckpointProvider implements CustomCheckpointProvider<L
         }
 
         _consumer.seekToBeginning(Collections.singletonList(new TopicPartition(_topic, 0)));
-        ConsumerRecords<String, Long> records = _consumer.poll(Duration.ofMillis(30));
+        ConsumerRecords<String, String> records = _consumer.poll(Duration.ofMillis(30));
 
         long currentOffset = -1;
         while (currentOffset < endOffset - 1) {
-            for (ConsumerRecord<String, Long> record : records) {
+            for (ConsumerRecord<String, String> record : records) {
                 if (record.key().equals(_taskId)) {
-                    checkpoint = record.value();
+                    try {
+                        checkpoint = Long.parseLong(record.value());
+                    } catch (NumberFormatException n) {
+                        LOG.error("corrupted checkpoint data was encountered in topic {}. {}", _topic, n);
+                        throw n;
+                    }
                 }
                 currentOffset = record.offset();
             }

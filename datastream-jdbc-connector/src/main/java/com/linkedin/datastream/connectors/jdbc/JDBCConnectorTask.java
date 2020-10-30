@@ -5,25 +5,21 @@
  */
 package com.linkedin.datastream.connectors.jdbc;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+
 import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javax.sql.DataSource;
 
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +27,8 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRecordMetadata;
-import com.linkedin.datastream.connectors.jdbc.translator.JdbcCommon;
+import com.linkedin.datastream.common.translator.LongTranslator;
+import com.linkedin.datastream.common.translator.ResultSetTranslator;
 import com.linkedin.datastream.server.DatastreamEventProducer;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
@@ -90,22 +87,22 @@ public class JDBCConnectorTask {
     }
 
     private void processResults(ResultSet resultSet) throws SQLException, IOException {
+        ResultSetTranslator resultSetTranslator = new ResultSetTranslator();
+        LongTranslator longTranslator = new LongTranslator();
+        ArrayList<GenericRecord> arrayRecords = resultSetTranslator.translateToInternalFormat(resultSet);
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(5 * 1024 * 1024);
-        JdbcCommon.convertToAvroStream(resultSet, outputStream, true);
-        GenericDatumReader<GenericRecord> reader = new GenericDatumReader<>(JdbcCommon.createSchema(resultSet));
-        InputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        DataFileStream<GenericRecord> avroStream = new DataFileStream<>(inputStream, reader);
-
-        while (avroStream.hasNext()) {
-            GenericRecord record = avroStream.next();
+        for (GenericRecord record : arrayRecords) {
             Long checkpoint = (record.get(_incrementingColumnName) instanceof Integer) ?
                     Long.valueOf((Integer) record.get(_incrementingColumnName)) :
                     (Long) record.get(_incrementingColumnName);
-
+            if (checkpoint == null) {
+                LOG.error("failed to send row because checkpoint is null in datastream: {}", _datastreamName);
+                return;
+            }
+            GenericRecord checkpointRecord = longTranslator.translateToInternalFormat(checkpoint);
             HashMap<String, String> meta = new HashMap<>();
             meta.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
-            BrooklinEnvelope envelope = new BrooklinEnvelope(checkpoint, record, null, meta);
+            BrooklinEnvelope envelope = new BrooklinEnvelope(checkpointRecord, record, null, meta);
             DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
             builder.addEvent(envelope);
             builder.setEventsSourceTimestamp(System.currentTimeMillis());
@@ -146,13 +143,19 @@ public class JDBCConnectorTask {
     }
 
     private void poll() {
+        Long checkpoint = null;
         LOG.info("poll initiated for {}", _datastreamName);
 
         mayCommitCheckpoint();
-        Long checkpoint = _checkpointProvider.getSafeCheckpoint();
+        try {
+            checkpoint = _checkpointProvider.getSafeCheckpoint();
+        } catch (Exception e) {
+            LOG.error("Ignoring this poll because of exception caught {}", e);
+            return;
+        }
         checkpoint = (checkpoint == null) ? getInitialCheckpoint() : checkpoint;
 
-        LOG.info("start checkpoint is {}", checkpoint);
+        LOG.info("start checkpoint for datastream:{} is {} with destination {}", _datastreamName, checkpoint, _destinationTopic);
 
         try (Connection conn = _dataSource.getConnection()) {
             try (PreparedStatement preparedStatement = conn.prepareStatement(generateStatement())) {
@@ -165,7 +168,7 @@ public class JDBCConnectorTask {
                 }
             }
         } catch (SQLException | IOException e) {
-            LOG.warn("Failed to poll {}", e);
+            LOG.warn("Failed to poll for datastream {} {}", _datastreamName, e);
         }
     }
 

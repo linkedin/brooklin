@@ -148,9 +148,12 @@ subprojects {
 project(':datastream-common') {
   dependencies {
     compile "org.apache.avro:avro:$avroVersion"
+    compile "org.apache.nifi:nifi-standard-processors:$nifiVersion"
+    compile "com.microsoft.sqlserver:mssql-jdbc:$mssqlJDBCVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
+    compile "tech.allegro.schema.json2avro:converter:$json2avroVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }

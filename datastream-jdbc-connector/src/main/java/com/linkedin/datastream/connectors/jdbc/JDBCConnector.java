@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentMap;
 import javax.sql.DataSource;
 
 import org.apache.commons.dbcp.BasicDataSource;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +49,7 @@ public class JDBCConnector implements Connector {
 
     private static final String DS_CONFIG_MAX_TASKS = "maxTasks";
     private static final String DS_CONFIG_TABLE = "table";
-    private static final String DS_CONFIG_INCREMENTING_COLUMN_NAME = "incrementingColumName";
+    private static final String DS_CONFIG_INCREMENTING_COLUMN_NAME = "incrementingColumnName";
     private static final String DS_CONFIG_INCREMENTING_INITIAL = "incrementingInitial";
     private static final String DS_CONFIG_QUERY = "query";
     private static final String DS_CONFIG_POLL_FREQUENCY_MS = "pollFrequencyMS";
@@ -91,7 +90,6 @@ public class JDBCConnector implements Connector {
         _checkpointStoreTopic = config.getProperty(CONFIG_CHECKPOINT_STORE_TOPIC);
 
         _jdbcUser = config.getString(CONFIG_JDBC_USER);
-
         try {
             _jdbcUserPassword = Passwords.get(config.getString(CONFIG_JDBC_CREDENTIAL_NAME));
         } catch (IOException e) {
