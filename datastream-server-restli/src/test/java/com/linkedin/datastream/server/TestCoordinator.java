@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.Validate;
 import org.mockito.Mockito;
 import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
@@ -644,6 +645,86 @@ public class TestCoordinator {
     // verify connector4 get at least 5 task assignment
     waitTillAssignmentIsComplete(5, WAIT_TIMEOUT_MS, connector4);
 
+    instance2.stop();
+    instance3.stop();
+    instance4.stop();
+
+    instance1.getDatastreamCache().getZkclient().close();
+    instance2.getDatastreamCache().getZkclient().close();
+    instance3.getDatastreamCache().getZkclient().close();
+    instance4.getDatastreamCache().getZkclient().close();
+
+    zkClient.close();
+  }
+
+  /**
+   * testCoordinationWithStickyMulticastStrategyAndMaxTaskLimit is a test to verify that assignment cannot complete
+   * when the tasks per instance is exceeded by the configured threshold
+   * <ul>
+   *     <li>Create a coordinator with CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE set to 5</li>
+   *     <li>create 3 instances and 4 datastreams, verify assignment cannot complete</li>
+   *     <li>create another instance, verify assignment completes now</li>
+   * </ul>
+   */
+  @Test
+  public void testCoordinationWithStickyMulticastStrategyAndMaxTaskLimit() throws Exception {
+    String testCluster = "testCoordinationMaxTasksPerInstance";
+    String testConnectorType = "testConnectorType";
+    Properties properties = new Properties();
+    // Set max tasks per instance to 5, since some instances will get 6 tasks if 4 datastreams with 4 tasks each are
+    // created across 3 instances. With 4 instances, the tasks per instance will be less than 5.
+    properties.put(CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, "5");
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, properties);
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
+    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
+    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance2.start();
+
+    Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
+    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance3.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    List<TestHookConnector> connectors = new ArrayList<>();
+    connectors.add(connector1);
+    connectors.add(connector2);
+    connectors.add(connector3);
+    List<String> datastreamNames = ImmutableList.of("datastream1", "datastream2", "datastream3", "datastream4");
+
+    for (String name : datastreamNames) {
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, name);
+    }
+    boolean assignmentComplete = waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS,
+        connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    // Validate that the assignment could not complete since there are too many tasks for some instances
+    Validate.isTrue(!assignmentComplete);
+
+    // now add another instance, make sure it's getting rebalanced
+    Coordinator instance4 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector4 = new TestHookConnector("connector4", testConnectorType);
+    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+        new SourceBasedDeduper(), null);
+    instance4.start();
+
+    connectors.add(connector4);
+    assignmentComplete = waitTillAssignmentIsComplete(16, WAIT_TIMEOUT_MS,
+        connectors.toArray(new TestHookConnector[connectors.size()]));
+
+    // Validate that the assignment could complete
+    Validate.isTrue(assignmentComplete);
+
+    instance1.stop();
     instance2.stop();
     instance3.stop();
     instance4.stop();
@@ -2727,9 +2808,9 @@ public class TestCoordinator {
     Assert.assertTrue(result);
   }
 
-  private void waitTillAssignmentIsComplete(int totalTasks, long timeoutMs, TestHookConnector... connectors) {
+  private boolean waitTillAssignmentIsComplete(int totalTasks, long timeoutMs, TestHookConnector... connectors) {
     final long interval = timeoutMs < 100 ? timeoutMs : 100;
-    PollUtils.poll(() -> {
+    return PollUtils.poll(() -> {
       HashSet<DatastreamTask> tasks = new HashSet<>();
       for (TestHookConnector connector : connectors) {
         tasks.addAll(connector.getTasks());
