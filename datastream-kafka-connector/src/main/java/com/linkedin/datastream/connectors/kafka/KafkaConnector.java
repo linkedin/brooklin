@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -135,7 +136,11 @@ public class KafkaConnector extends AbstractKafkaConnector {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return Collections.unmodifiableList(KafkaConnectorTask.getMetricInfos(_connectorName));
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+
+    metrics.addAll(super.getMetricInfos());
+    metrics.addAll(KafkaConnectorTask.getMetricInfos(_connectorName));
+    return Collections.unmodifiableList(metrics);
   }
 
   private Boolean isWhiteListedCluster(KafkaConnectionString connectionStr) {

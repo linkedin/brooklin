@@ -120,9 +120,10 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         if (numTasks <= 0) {
           break; // exit loop;
         }
-        List<DatastreamTask> foundDatastreamTasks = Optional.ofNullable(currentAssignmentCopy.get(instance))
-            .map(c -> c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix())).collect(Collectors.toList()))
-            .orElse(Collections.emptyList());
+        List<DatastreamTask> foundDatastreamTasks =
+            Optional.ofNullable(currentAssignmentCopy.get(instance)).map(c ->
+                c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
+                    .collect(Collectors.toList())).orElse(Collections.emptyList());
 
         allAliveTasks.addAll(foundDatastreamTasks);
 

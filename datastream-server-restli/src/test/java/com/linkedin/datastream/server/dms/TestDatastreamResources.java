@@ -133,13 +133,12 @@ public class TestDatastreamResources {
   }
 
   @Test
-  public void testReadDatastream() {
+  public void testReadDatastream() throws Exception {
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
 
     // read before creating
-    Datastream ds = resource1.get("name_0");
-    Assert.assertNull(ds);
+    checkBadRequest(() -> resource1.get("name_0"), HttpStatus.S_404_NOT_FOUND);
 
     Datastream datastreamToCreate = generateDatastream(0);
     datastreamToCreate.setDestination(new DatastreamDestination());
@@ -150,9 +149,7 @@ public class TestDatastreamResources {
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
 
-    ds = resource2.get("name_0");
-    Assert.assertNotNull(ds);
-
+    Datastream ds = resource2.get("name_0");
     Assert.assertEquals(ds, datastreamToCreate);
   }
 
@@ -559,10 +556,21 @@ public class TestDatastreamResources {
     Set<String> missingFields = new HashSet<>();
 
     // happy path
-    Datastream fullDatastream = generateDatastream(1);
+    Datastream fullDatastream = generateDatastream(0);
     CreateResponse response = resource.create(fullDatastream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // datastream names with leading and/or trailing whitespace are trimmed
+    Datastream whitespaceDatastream = generateDatastream(1);
+    String originalName = whitespaceDatastream.getName();
+    // make sure the generated datastream name has no leading or tailing whitespace to begin with
+    Assert.assertEquals(originalName, originalName.trim());
+    whitespaceDatastream.setName(String.format(" %s ", whitespaceDatastream.getName()));  // Add whitespace to name
+    response = resource.create(whitespaceDatastream);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(response.getId(), originalName);
 
     missingFields.add("target");
     Datastream allRequiredFields = generateDatastream(2, missingFields);

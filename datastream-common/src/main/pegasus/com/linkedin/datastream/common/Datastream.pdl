@@ -1,0 +1,97 @@
+namespace com.linkedin.datastream.common
+
+/**
+ * Data model of Datastream
+ */
+record Datastream {
+
+  /**
+   * Name of the Datastream.
+   */
+  name: string
+
+  /**
+   * Name of the connector to be used for reading the change capture events from the source, e.g. Oracle, Espresso, OracleBootstrap, EspressoBootstrap, Mysql etc..
+   */
+  connectorName: string
+
+  /**
+   * Name of the transport provider.
+   */
+  transportProviderName: string
+
+  /**
+   * Source that connector can use to connect to the data store and consume the data.
+   */
+  source:
+    /**
+     * Datastream source that connector will use to consume events
+     */
+    record DatastreamSource {
+
+      /**
+       * Source connection string to consume the data from.
+       */
+      connectionString: string
+
+      /**
+       * Number of partitions in the source.
+       */
+      partitions: int
+    }
+
+  /**
+   * Status of the datastream
+   */
+  @symbolDocs = {
+    "READY" : "Datastream destination is created, datastream is split into tasks and assigned and ready for producing and consumption.",
+    "INITIALIZING" : "Datastream is created, but not initialized yet."
+  }
+  Status: enum DatastreamStatus {
+    INITIALIZING
+    READY
+    PAUSED
+    DELETING
+    STOPPED
+  }
+
+  /**
+   * Datastream destination string that the transport provider will use to send the events
+   */
+  destination: optional
+    /**
+     * Datastream destination details that the transport provider will use to send events
+     */
+    record DatastreamDestination {
+
+      /**
+       * Destination connection string to write the data to.
+       */
+      connectionString: string
+
+      /**
+       * Number of partitions in the destination.
+       */
+      partitions: int
+
+      /**
+       * SerDe used to serialize/deserialize the key.
+       */
+      keySerDe: string
+
+      /**
+       * SerDe used to serialize/deserialize the payload.
+       */
+      payloadSerDe: string
+
+      /**
+       * SerDe used to serialize/deserialize the envelope.
+       */
+      envelopeSerDe: string
+    }
+
+  /**
+   * Generic metadata for Datastream (e.g. owner, expiration, etc). Metadata is stored as user defined name/value pair.
+   */
+  metadata: optional map[string, string]
+}

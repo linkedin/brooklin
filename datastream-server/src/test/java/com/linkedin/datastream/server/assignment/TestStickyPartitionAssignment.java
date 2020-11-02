@@ -119,6 +119,30 @@ public class TestStickyPartitionAssignment {
     assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
   }
 
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testAssignPartitionToInstanceWithoutTask() {
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+    // Generate partition assignment
+    strategy.assignPartitions(new HashMap<>(), partitionsMetadata);
+  }
+
+  @Test (expectedExceptions = IllegalArgumentException.class)
+  public void testAssignPartitionToInstanceWithoutTaskForDatastreamGroup() {
+    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty());
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(1), partitions);
+    // Generate partition assignment
+    strategy.assignPartitions(assignment, partitionsMetadata);
+  }
 
   @Test
   public void testMovePartition() {
@@ -206,7 +230,7 @@ public class TestStickyPartitionAssignment {
         DatastreamTaskImpl task = new DatastreamTaskImpl(datastreams.get(0).getDatastreams());
         ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
         task.setZkAdapter(mockZkAdapter);
-        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
+        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(isTaskLocked);
         set.add(task);
       }
       assignment.put("instance" + i, set);

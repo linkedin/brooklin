@@ -11,6 +11,8 @@ import java.util.Properties;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
+import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 
 
 /**
@@ -19,7 +21,6 @@ import com.linkedin.datastream.common.VerifiableProperties;
 public class KafkaBasedConnectorConfig {
 
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
-  public static final String DOMAIN_KAFKA_POSITION_TRACKER = "kafkaPositionTracker";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_COMMIT_TIMEOUT_MILLIS = "commitTimeoutMs";
   public static final String CONFIG_POLL_TIMEOUT_MILLIS = "pollTimeoutMs";
@@ -30,6 +31,8 @@ public class KafkaBasedConnectorConfig {
   public static final String CONFIG_RETRY_SLEEP_DURATION_MILLIS = "retrySleepDurationMs";
   public static final String CONFIG_PAUSE_PARTITION_ON_ERROR = "pausePartitionOnError";
   public static final String CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS = "pauseErrorPartitionDurationMs";
+  public static final String ENABLE_ADDITIONAL_METRICS = "enableAdditionalMetrics";
+  public static final String INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = "includeDatastreamNameInConsumerClientId";
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
@@ -45,11 +48,12 @@ public class KafkaBasedConnectorConfig {
   private static final int DEFAULT_DAEMON_THREAD_INTERVAL_SECONDS = 300;
   private static final long DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
+  private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
+  private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
-  private final KafkaPositionTrackerConfig _kafkaPositionTrackerConfig;
 
   private final String _defaultKeySerde;
   private final String _defaultValueSerde;
@@ -61,6 +65,8 @@ public class KafkaBasedConnectorConfig {
   private final boolean _pausePartitionOnError;
   private final Duration _pauseErrorPartitionDuration;
   private final long _processingDelayLogThresholdMillis;
+  private final boolean _enableAdditionalMetrics;
+  private final boolean _includeDatastreamNameInConsumerClientId;
 
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
@@ -98,6 +104,10 @@ public class KafkaBasedConnectorConfig {
     _processingDelayLogThresholdMillis =
         verifiableProperties.getLong(PROCESSING_DELAY_LOG_THRESHOLD_MILLIS,
             DEFAULT_PROCESSING_DELAY_LOG_THRESHOLD_MILLIS);
+    _enableAdditionalMetrics = verifiableProperties.getBoolean(ENABLE_ADDITIONAL_METRICS,
+        DEFAULT_ENABLE_ADDITIONAL_METRICS);
+    _includeDatastreamNameInConsumerClientId = verifiableProperties.getBoolean(
+        INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
     String factory =
@@ -109,9 +119,6 @@ public class KafkaBasedConnectorConfig {
 
     _consumerProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_CONSUMER);
     _connectorProps = verifiableProperties;
-
-    Properties kafkaPositionTrackerConfigProps = verifiableProperties.getDomainProperties(DOMAIN_KAFKA_POSITION_TRACKER);
-    _kafkaPositionTrackerConfig = new KafkaPositionTrackerConfig(kafkaPositionTrackerConfigProps);
   }
 
   public String getDefaultKeySerde() {
@@ -150,6 +157,14 @@ public class KafkaBasedConnectorConfig {
     return _pauseErrorPartitionDuration;
   }
 
+  public boolean getEnableAdditionalMetrics() {
+    return _enableAdditionalMetrics;
+  }
+
+  public boolean getIncludeDatastreamNameInConsumerClientId() {
+    return _includeDatastreamNameInConsumerClientId;
+  }
+
   /**
    * Get all Kafka consumer config properties
    */
@@ -181,9 +196,5 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
-  }
-
-  public KafkaPositionTrackerConfig getKafkaPositionTrackerConfig() {
-    return _kafkaPositionTrackerConfig;
   }
 }

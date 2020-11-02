@@ -1,0 +1,27 @@
+namespace com.linkedin.datastream.diagnostics
+
+/**
+ * Datastream server component health
+ */
+record ServerComponentHealth {
+
+  /**
+   * Whether the framework is succeeded to receive the responses from all instances
+   */
+  succeeded: boolean
+
+  /**
+   * Status of the datastream server component
+   */
+  status: string
+
+  /**
+   * Instance that handles the request
+   */
+  instanceName: string
+
+  /**
+   * Error messages that are returned by framework
+   */
+  errorMessages: string
+}

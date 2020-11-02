@@ -1,44 +1,6 @@
 {
   "models" : [ {
     "type" : "record",
-    "name" : "TaskHealth",
-    "namespace" : "com.linkedin.datastream.diagnostics",
-    "doc" : "Datastream task health",
-    "fields" : [ {
-      "name" : "name",
-      "type" : "string",
-      "doc" : "name of the task."
-    }, {
-      "name" : "datastreams",
-      "type" : "string",
-      "doc" : "Name of the datastreams associated with the task."
-    }, {
-      "name" : "partitions",
-      "type" : "string",
-      "doc" : "Partitions associated with the task."
-    }, {
-      "name" : "source",
-      "type" : "string",
-      "doc" : "Source of the datastream."
-    }, {
-      "name" : "destination",
-      "type" : "string",
-      "doc" : "Destination of the datastream."
-    }, {
-      "name" : "statusCode",
-      "type" : "string",
-      "doc" : "Status code of the datastream task."
-    }, {
-      "name" : "statusMessage",
-      "type" : "string",
-      "doc" : "Status message of the datastream task."
-    }, {
-      "name" : "sourceCheckpoint",
-      "type" : "string",
-      "doc" : "Source checkpoint."
-    } ]
-  }, {
-    "type" : "record",
     "name" : "ConnectorHealth",
     "namespace" : "com.linkedin.datastream.diagnostics",
     "doc" : "Datastream connector health",
@@ -54,7 +16,44 @@
       "name" : "tasks",
       "type" : {
         "type" : "array",
-        "items" : "TaskHealth"
+        "items" : {
+          "type" : "record",
+          "name" : "TaskHealth",
+          "doc" : "Datastream task health",
+          "fields" : [ {
+            "name" : "name",
+            "type" : "string",
+            "doc" : "name of the task."
+          }, {
+            "name" : "datastreams",
+            "type" : "string",
+            "doc" : "Name of the datastreams associated with the task."
+          }, {
+            "name" : "partitions",
+            "type" : "string",
+            "doc" : "Partitions associated with the task."
+          }, {
+            "name" : "source",
+            "type" : "string",
+            "doc" : "Source of the datastream."
+          }, {
+            "name" : "destination",
+            "type" : "string",
+            "doc" : "Destination of the datastream."
+          }, {
+            "name" : "statusCode",
+            "type" : "string",
+            "doc" : "Status code of the datastream task."
+          }, {
+            "name" : "statusMessage",
+            "type" : "string",
+            "doc" : "Status message of the datastream task."
+          }, {
+            "name" : "sourceCheckpoint",
+            "type" : "string",
+            "doc" : "Source checkpoint."
+          } ]
+        }
       },
       "doc" : "tasks assigned to the connector Instance."
     } ]
@@ -79,7 +78,7 @@
       },
       "doc" : "Connectors that are loaded in the instance."
     } ]
-  } ],
+  }, "com.linkedin.datastream.diagnostics.TaskHealth" ],
   "schema" : {
     "name" : "health",
     "namespace" : "com.linkedin.datastream.server.diagnostics",

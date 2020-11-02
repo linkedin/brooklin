@@ -22,6 +22,8 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 
 /**
  * ZKClient is a wrapper of {@link org.I0Itec.zkclient.ZkClient}. It provides the following
@@ -36,39 +38,52 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
   public static final String ZK_PATH_SEPARATOR = "/";
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
+  public static final int DEFAULT_OPERATION_RETRY_TIMEOUT = -1;
 
   private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
 
   private final ZkSerializer _zkSerializer = new ZKStringSerializer();
-  private int _zkSessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
-
-  /**
-   * Constructor for ZkClient
-   * @param zkServers the ZooKeeper connection String
-   * @param sessionTimeout the session timeout in milliseconds
-   * @param connectionTimeout the connection timeout in milliseconds
-   */
-  public ZkClient(String zkServers, int sessionTimeout, int connectionTimeout) {
-    super(zkServers, sessionTimeout, connectionTimeout, new ZKStringSerializer());
-
-    _zkSessionTimeoutMs = sessionTimeout;
-  }
-
-  /**
-   * Constructor for ZkClient
-   * @param zkServers the ZooKeeper connection String
-   * @param connectionTimeout the connection timeout in milliseconds
-   */
-  public ZkClient(String zkServers, int connectionTimeout) {
-    super(zkServers, DEFAULT_SESSION_TIMEOUT, connectionTimeout, new ZKStringSerializer());
-  }
+  private int _zkSessionTimeoutMs;
 
   /**
    * Constructor for ZkClient
    * @param zkServers the ZooKeeper connection String
    */
   public ZkClient(String zkServers) {
-    super(zkServers, DEFAULT_SESSION_TIMEOUT, DEFAULT_CONNECTION_TIMEOUT, new ZKStringSerializer());
+    this(zkServers, DEFAULT_SESSION_TIMEOUT);
+  }
+
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   * @param sessionTimeoutMs the session timeout in milliseconds
+   */
+  public ZkClient(String zkServers, int sessionTimeoutMs) {
+    this(zkServers, sessionTimeoutMs, DEFAULT_CONNECTION_TIMEOUT);
+  }
+
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   * @param sessionTimeoutMs the session timeout in milliseconds
+   * @param connectionTimeoutMs the connection timeout in milliseconds
+   */
+  public ZkClient(String zkServers, int sessionTimeoutMs, int connectionTimeoutMs) {
+    this(zkServers, sessionTimeoutMs, connectionTimeoutMs, DEFAULT_OPERATION_RETRY_TIMEOUT);
+  }
+
+  /**
+   * Constructor for ZkClient
+   * @param zkServers the ZooKeeper connection String
+   * @param sessionTimeoutMs the session timeout in milliseconds
+   * @param connectionTimeoutMs the connection timeout in milliseconds
+   * @param operationRetryTimeoutMs The maximum amount of time, in milli seconds, each failed
+   *                                operation is retried. A value lesser than 0 is considered as
+   *                                retry forever until a connection has been reestablished.
+   */
+  public ZkClient(String zkServers, int sessionTimeoutMs, int connectionTimeoutMs, int operationRetryTimeoutMs) {
+    super(zkServers, sessionTimeoutMs, connectionTimeoutMs, new ZKStringSerializer(), operationRetryTimeoutMs);
+    _zkSessionTimeoutMs = sessionTimeoutMs;
   }
 
   @Override
@@ -330,6 +345,11 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
       return null;
     }
     return (T) _zkSerializer.deserialize(data);
+  }
+
+  @VisibleForTesting
+  public long getSessionId() {
+    return ((ZkConnection) _connection).getZookeeper().getSessionId();
   }
 
   private static class ZKStringSerializer implements ZkSerializer {
