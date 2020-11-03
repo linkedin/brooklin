@@ -6,14 +6,17 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
@@ -266,6 +269,46 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     partitionSanityChecks(newAssignment, partitionsMetadata);
 
     return newAssignment;
+  }
+
+  /**
+   * This method checks the current assignment and returns the list of the task which are in the
+   * dependency list as well as in current assignment. The logic is the task in the dependency list
+   * cannot be present in the current assignment list. It is possible if the previous leader was
+   * not able to complete the update on the zookeeper and the new leader gets the intermediate state
+   * from the zookeeper.
+   *
+   * @param datastreamGroups datastream groups to associate the tasks with
+   * @param currentAssignment existing assignment
+   * @return List of datastreamTask per instance that needs to be cleaned up.
+   */
+  public Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreamGroups,
+      Map<String, Set<DatastreamTask>> currentAssignment) {
+
+    Set<String> datastreamGroupsSet = datastreamGroups.stream().map(DatastreamGroup::getTaskPrefix).collect(Collectors.toSet());
+    Map<String, List<DatastreamTask>> tasksToCleanUp = new HashMap<>();
+    // map of task name to DatastreamTask for future reference
+    Map<String, DatastreamTask> assignmentsMap = currentAssignment.values()
+        .stream()
+        .flatMap(Collection::stream)
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
+
+    for (String instance : currentAssignment.keySet()) {
+      // find the dependency task which exists in the assignmentsMap as well.
+      List<DatastreamTask> tasksPerInstance = currentAssignment.get(instance)
+          .stream()
+          .filter(t -> datastreamGroupsSet.contains(t.getTaskPrefix()))
+          .map(task -> ((DatastreamTaskImpl) task).getDependencies())
+          .flatMap(Collection::stream)
+          .map(assignmentsMap::get)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+
+      if (!tasksPerInstance.isEmpty()) {
+        tasksToCleanUp.put(instance, tasksPerInstance);
+      }
+    }
+    return tasksToCleanUp;
   }
 
   /**

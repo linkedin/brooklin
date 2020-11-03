@@ -1085,6 +1085,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       onDatastreamChange(datastreamGroups);
 
+      if (cleanUpOrphanNodes && _config.getPerformPreAssignmentCleanup()) {
+        performPreAssignmentCleanup(datastreamGroups);
+      }
+
       _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
 
       // get all current live instances
@@ -1131,6 +1135,28 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
+  }
+
+  private void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+
+    // Map between instance to tasks assigned to the instance.
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+
+    _log.info("performPreAssignmentCleanup: start");
+    _log.debug("performPreAssignmentCleanup: assignment before cleanup: " + previousAssignmentByInstance);
+
+    for (String connectorType : _connectors.keySet()) {
+      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
+          .filter(x -> x.getConnectorName().equals(connectorType))
+          .collect(Collectors.toList());
+
+      Map<String, List<DatastreamTask>> tasksToCleanupMap = strategy.getTasksToCleanUp(datastreamsPerConnectorType,
+          previousAssignmentByInstance);
+        _adapter.removeTaskNodes(tasksToCleanupMap);
+    }
+
+    _log.info("performPreAssignmentCleanup: completed");
   }
 
   /**
@@ -1216,7 +1242,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
 
   private void onDatastreamChange(List<DatastreamGroup> datastreamGroups) {
-    //We need to perform handleDatastream only active datastream for partition listening
+    //We need to perform handleDatastream only on active datastreams for partition listening
     List<DatastreamGroup> activeDataStreams = datastreamGroups.stream().filter(dg -> !dg.isPaused()).collect(Collectors.toList());
 
     for (String connectorType : _connectors.keySet()) {

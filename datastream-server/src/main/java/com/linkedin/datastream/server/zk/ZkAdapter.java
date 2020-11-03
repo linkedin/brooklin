@@ -677,7 +677,7 @@ public class ZkAdapter {
    * {@code /<cluster>/connectors/<connectorType>/<task>} gets cleaned up
    * in {@link #cleanUpDeadInstanceDataAndOtherUnusedTasks} after {@link #updateAllAssignments} is successful.
    */
-  private void removeTaskNodes(String instance, String name) {
+  private void removeTaskNode(String instance, String name) {
     LOG.info("Removing Task Node: " + instance + ", task: " + name);
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
 
@@ -734,7 +734,7 @@ public class ZkAdapter {
       if (removed.size() > 0) {
         LOG.info("Instance: {}, removing assignments: {}", instance, removed);
         for (String name : removed) {
-          removeTaskNodes(instance, name);
+          removeTaskNode(instance, name);
         }
       }
     }
@@ -743,6 +743,18 @@ public class ZkAdapter {
     _liveTaskMap = new HashMap<>();
     for (String instance : nodesToAdd.keySet()) {
       _liveTaskMap.put(instance, new HashSet<>(assignmentsByInstance.get(instance)));
+    }
+  }
+
+  /**
+   * Remove all the tasks nodes
+   * @param tasksByInstance list of tasks per instance
+   */
+  public void removeTaskNodes(Map<String, List<DatastreamTask>> tasksByInstance) {
+    for (String instance : tasksByInstance.keySet()) {
+      tasksByInstance.get(instance).forEach(task -> {
+        removeTaskNode(instance, task.getDatastreamTaskName());
+      });
     }
   }
 
@@ -953,7 +965,7 @@ public class ZkAdapter {
           // and the next leader will take care of deleting it in cleanUpOrphanConnectorTask().
 
           // Delete (1)
-          removeTaskNodes(instance, oldAssignment.getDatastreamTaskName());
+          removeTaskNode(instance, oldAssignment.getDatastreamTaskName());
 
           boolean found = unusedTasks.remove(oldAssignment);
           if (found) {
