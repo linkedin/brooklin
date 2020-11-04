@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 public class TestDatastreamTask {
 
   @Test
-  public void testAcquireWithDependencies() throws Exception {
+  public void testAcquireWithDependencies() {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
@@ -46,37 +46,74 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    task.addDependency("task0");
+    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
+    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
+    task0.setZkAdapter(mockZkAdapter2);
+    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
+
+    task.addDependency(task0);
     task.acquire(Duration.ofMillis(60));
     verify(mockZkAdapter, atLeastOnce()).waitForDependencies(any(DatastreamTaskImpl.class), any(Duration.class));
   }
 
   @Test(expectedExceptions = DatastreamTransientException.class)
-  public void testCreateNewTaskFromUnlockedTask() throws Exception {
+  public void testCreateNewTaskFromUnlockedTask() {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
     task.setPartitionsV2(ImmutableList.of("partition1"));
-    task.addDependency("task0");
+
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
+
+    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
+    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
+    task0.setZkAdapter(mockZkAdapter2);
+    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
+
+    task.addDependency(task0);
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(false);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
   }
 
   @Test
-  public void testCreateNewTaskFromLockedTask() throws Exception {
+  public void testCreateNewTaskFromLockedTask() {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
-    task.addDependency("task0");
+
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
+
+    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
+    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
+    task0.setZkAdapter(mockZkAdapter2);
+    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
+
+    task.addDependency(task0);
+
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
     Assert.assertEquals(new HashSet<>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
+  }
+
+  @Test(expectedExceptions = DatastreamTransientException.class)
+  public void testTaskAddUnlockedDependency() {
+    Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
+    stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
+
+    ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
+    task.setZkAdapter(mockZkAdapter);
+
+    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
+    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
+    task0.setZkAdapter(mockZkAdapter2);
+
+    task.addDependency(task0);
   }
 
   @Test
