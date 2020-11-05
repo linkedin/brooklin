@@ -48,6 +48,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.JsonUtils;
@@ -657,9 +658,50 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  @Test
+  public void testValidateNewAssignment() throws Exception {
+    String testCluster = "testCoordinationMaxTasksPerInstance";
+    Properties properties = new Properties();
+    int maxTasksPerInstance = 2;
+    properties.put(CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, String.valueOf(maxTasksPerInstance));
+    Coordinator instance = createCoordinator(_zkConnectionString, testCluster, properties);
+
+    int numInstances = 2;
+    // Create the input map for validateNewAssignment()
+    Map<String, List<DatastreamTask>> newAssignmentByInstance = new HashMap<>();
+    for (int i = 0; i < numInstances; ++i) {
+      String instanceKey = "instance" + i;
+      newAssignmentByInstance.put(instanceKey, new ArrayList<>());
+
+      for (int j = 0; j < maxTasksPerInstance; ++j) {
+        DatastreamTask task = new DatastreamTaskImpl();
+        newAssignmentByInstance.get(instanceKey).add(task);
+      }
+    }
+
+    // Validation should pass since every instance has the allowed number of tasks per instance
+    instance.validateNewAssignment(newAssignmentByInstance);
+
+    // Now increase the number of tasks for one of the instances and validation should fail
+    DatastreamTask task = new DatastreamTaskImpl();
+    newAssignmentByInstance.get("instance0").add(task);
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> instance.validateNewAssignment(newAssignmentByInstance));
+
+    // Decrease the number of tasks on the other instance, the validation should still fail
+    newAssignmentByInstance.get("instance1").remove(1);
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> instance.validateNewAssignment(newAssignmentByInstance));
+
+    // Remove the extra task previously added to the first instance, now validation should pass
+    newAssignmentByInstance.get("instance0").remove(2);
+    instance.validateNewAssignment(newAssignmentByInstance);
+
+    instance.stop();
+    instance.getDatastreamCache().getZkclient().close();
+  }
+
   /**
    * testCoordinationWithStickyMulticastStrategyAndMaxTaskLimit is a test to verify that assignment cannot complete
-   * when the tasks per instance is exceeded by the configured threshold
+   * when the tasks per instance exceeds the configured threshold
    * <ul>
    *     <li>Create a coordinator with CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE set to 5</li>
    *     <li>create 3 instances and 4 datastreams, verify assignment cannot complete</li>
@@ -671,8 +713,6 @@ public class TestCoordinator {
     String testCluster = "testCoordinationMaxTasksPerInstance";
     String testConnectorType = "testConnectorType";
     Properties properties = new Properties();
-    // Set max tasks per instance to 5, since some instances will get 6 tasks if 4 datastreams with 4 tasks each are
-    // created across 3 instances. With 4 instances, the tasks per instance will be less than 5.
     properties.put(CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, "5");
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, properties);
 
