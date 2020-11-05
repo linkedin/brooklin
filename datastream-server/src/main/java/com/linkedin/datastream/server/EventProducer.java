@@ -49,6 +49,7 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
   public static final String CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS = "enablePerTopicEventLatencyMetrics";
+  public static final String CONFIG_IS_FLUSHLESS_MODE_ENABLED = "isFlushlessModeEnabled";
 
   // Default flush interval, It is intentionally kept at low frequency. If a particular connectors wants
   // a more frequent flush (high traffic connectors), it can perform that on it's own.
@@ -81,6 +82,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "1500000000"; // 25000 minutes, ~17 days
   private static final String DEFAULT_NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_ENABLED = "false";
   private static final String DEFAULT_NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_FREQUENCY_MS = "300000"; // 5 minutes
+  private static final String DEFAULT_IS_FLUSHLESS_MODE_ENABLED = Boolean.FALSE.toString();
   private static final long LATENCY_SLIDING_WINDOW_LENGTH_MS = Duration.ofMinutes(3).toMillis();
   private static final long LONG_FLUSH_WARN_THRESHOLD_MS = Duration.ofMinutes(5).toMillis();
 
@@ -104,6 +106,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
   private final boolean _enablePerTopicEventLatencyMetrics;
+  private final boolean _isFlushlessModeEnabled;
   private final Duration _flushInterval;
 
   private Instant _lastFlushTime = Instant.now();
@@ -165,7 +168,11 @@ public class EventProducer implements DatastreamEventProducer {
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS,
             Boolean.FALSE.toString()));
 
-    _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
+    _isFlushlessModeEnabled =
+        Boolean.parseBoolean(config.getProperty(CONFIG_IS_FLUSHLESS_MODE_ENABLED, DEFAULT_IS_FLUSHLESS_MODE_ENABLED));
+
+    _logger.info("Created event producer with customCheckpointing={}, isFlushlessModeEnabled={}", customCheckpointing,
+        _isFlushlessModeEnabled);
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
     // provision some metrics to force them to create
@@ -239,8 +246,9 @@ public class EventProducer implements DatastreamEventProducer {
       throw new DatastreamRuntimeException(errorMessage, e);
     }
 
-    // Force a periodic flush, in case connector is not calling flush at regular intervals
-    if (Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
+    // Force a periodic flush if flushless mode isn't enabled, in case the connector is not calling flush at
+    // regular intervals
+    if (!_isFlushlessModeEnabled && Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
       flush();
     }
   }
