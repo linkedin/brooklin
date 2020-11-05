@@ -379,7 +379,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         try {
           _datastreamTask.getEventProducer().flush();
         } finally {
-          //committing the safe offsets will reduce the send duplication.
+          // Flushless mode tracks the successfully received acks, so it is safe to commit offsets even if flush throws
+          // an exception. Commit the safe offsets to reduce send duplication.
           commitSafeOffsets(consumer);
         }
         // clear the flushless producer state after flushing all messages and checkpointing
@@ -497,6 +498,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
       Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
     if (_isFlushlessModeEnabled) {
+      // Flushless mode tracks the successfully received acks, so it is safe to rewind to that offsets rather than
+      // last committed offset
       _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
           .ifPresent(o -> lastCheckpoint.put(tp, new OffsetAndMetadata(o + 1)));
       if (!lastCheckpoint.containsKey(tp)) {
