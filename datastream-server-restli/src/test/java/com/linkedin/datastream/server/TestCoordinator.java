@@ -713,11 +713,12 @@ public class TestCoordinator {
     String testCluster = "testCoordinationMaxTasksPerInstance";
     String testConnectorType = "testConnectorType";
     Properties properties = new Properties();
+    // Set max tasks per instance to 5, since some instances will get 6 tasks if 4 datastreams with 4 tasks each are
+    // created across 3 instances. With 4 instances, the tasks per instance will be less than 5.
     properties.put(CoordinatorConfig.CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, "5");
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, properties);
 
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
-    //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
     instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
         new SourceBasedDeduper(), null);
     instance1.start();
