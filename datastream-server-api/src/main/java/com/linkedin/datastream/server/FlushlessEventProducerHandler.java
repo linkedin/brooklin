@@ -44,6 +44,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    */
   public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
     _eventProducer = eventProducer;
+    _eventProducer.flushOnSend(false);
   }
 
   /**

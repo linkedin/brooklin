@@ -39,4 +39,12 @@ public interface DatastreamEventProducer {
    * As such, it is not efficient to be invoked very frequently.
    */
   void flush();
+
+  /**
+   * Enable periodic flush on send
+   *
+   * @param enableFlushOnSend Whether to enable flushing on send or not
+   */
+  default void flushOnSend(boolean enableFlushOnSend) {
+  }
 }
