@@ -270,8 +270,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     // Seek to previous checkpoints for this topic partition
     try {
       seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
-    } catch (WakeupException e) {
-      throw e;
     } catch (Exception e) {
       // Seek to last checkpoint failed. Throw an exception to avoid any data loss scenarios where the consumed
       // offset can be committed even though the send for that offset has failed.

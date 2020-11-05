@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -350,7 +351,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   private static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
     private boolean _postShutdownHookExceptionCaught;
     private boolean _failOnSeekToLastCheckpoint;
-    private boolean _throwWakeupExceptionAndCheckCommitOnStop = false;
+    private boolean _failOnGetLastCheckpointToSeekTo = false;
     private CountDownLatch _commitCall = new CountDownLatch(1);
 
     public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
@@ -369,30 +370,34 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     @Override
     protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+      _commitCall = new CountDownLatch(1);
       if (_failOnSeekToLastCheckpoint) {
-        if (_throwWakeupExceptionAndCheckCommitOnStop) {
-          super._shutdown = true;
-          throw new WakeupException();
-        }
         throw new KafkaException("KafkaException: failed to seek");
       }
       super.seekToLastCheckpoint(topicPartitions);
     }
 
     @Override
-    protected void maybeCommitOffsets(Consumer<?, ?> consumer, boolean hardCommit) {
-      if (hardCommit) {
-        _commitCall.countDown();
+    protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+        Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+      if (_failOnGetLastCheckpointToSeekTo) {
+        super._shutdown = true;
+        throw new WakeupException();
       }
-      super.maybeCommitOffsets(consumer, hardCommit);
+    }
+
+    @Override
+    protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets) {
+      _commitCall.countDown();
+      super.commitWithRetries(consumer, offsets);
     }
 
     void setFailOnSeekToLastCheckpoint(boolean failOnSeekToLastCheckpoint) {
       _failOnSeekToLastCheckpoint = failOnSeekToLastCheckpoint;
     }
 
-    void setThrowWakeupExceptionAndCheckCommitOnStop() {
-      _throwWakeupExceptionAndCheckCommitOnStop = true;
+    void setFailOnGetLastCheckpointToSeekTo() {
+      _failOnGetLastCheckpointToSeekTo = true;
     }
 
     boolean checkCommitCalledAfterException() {
@@ -913,16 +918,25 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testValidateTaskDiesOnRewindFailure1() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(true, false);
+  }
+  @Test
   public void testValidateTaskDiesOnRewindFailure() throws InterruptedException {
-    testValidateTaskDiesOnRewindFailure(false);
+    testValidateTaskDiesOnRewindFailure(false, false);
   }
 
   @Test
-  public void testValidateTaskDiesOnRewindFailureWakeupException() throws InterruptedException {
-    testValidateTaskDiesOnRewindFailure(true);
+  public void testValidateFlushlessModeTaskDiesOnRewindFailure() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(false, true);
   }
 
-  private void testValidateTaskDiesOnRewindFailure(boolean wakeupException) throws InterruptedException {
+  @Test
+  public void testValidateFlushlessModeTaskDiesOnRewindFailureWakeupException() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(true, true);
+  }
+
+  private void testValidateTaskDiesOnRewindFailure(boolean failOnGetLastCheckpointToSeekTo, boolean flushlessMode) throws InterruptedException {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
 
@@ -945,10 +959,11 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
-        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
-    connectorTask.setFailOnSeekToLastCheckpoint(true);
-    if (wakeupException) {
-      connectorTask.setThrowWakeupExceptionAndCheckCommitOnStop();
+        flushlessMode, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    if (failOnGetLastCheckpointToSeekTo) {
+      connectorTask.setFailOnGetLastCheckpointToSeekTo();
+    } else {
+      connectorTask.setFailOnSeekToLastCheckpoint(true);
     }
 
     CountDownLatch exceptionCaught = new CountDownLatch(1);
@@ -964,17 +979,13 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     Assert.assertTrue(exceptionCaught.await(30, TimeUnit.SECONDS),
         "Exception was not thrown by the KafkaMirrorMakerConnectorTask");
-    if (wakeupException) {
-      Assert.assertEquals(WakeupException.class, throwable.get().getClass());
-    } else {
-      Assert.assertEquals(DatastreamRuntimeException.class, throwable.get().getClass());
-    }
+    Assert.assertEquals(DatastreamRuntimeException.class, throwable.get().getClass());
 
     // Assert that the first two events made it
     Assert.assertEquals(datastreamProducer.getEvents().size(), 2,
         "The events before the failure should have been sent");
 
-    Assert.assertEquals(connectorTask.checkCommitCalledAfterException(), wakeupException);
+    Assert.assertEquals(connectorTask.checkCommitCalledAfterException(), failOnGetLastCheckpointToSeekTo & flushlessMode);
 
     connectorThread.join();
   }

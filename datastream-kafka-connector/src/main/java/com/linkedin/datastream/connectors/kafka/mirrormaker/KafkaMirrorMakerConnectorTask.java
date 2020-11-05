@@ -376,14 +376,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_isFlushlessModeEnabled) {
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
-        _datastreamTask.getEventProducer().flush();
-        // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
-        // outstanding send() calls have completed, without providing any guarantees about their successful completion.
-        // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
-        // to their last committed offset to avoid data loss.
-        rewindAndPausePartitionsOnSendException();
-        commitSafeOffsets(consumer);
-
+        try {
+          _datastreamTask.getEventProducer().flush();
+        } finally {
+          //committing the safe offsets will reduce the send duplication.
+          commitSafeOffsets(consumer);
+        }
         // clear the flushless producer state after flushing all messages and checkpointing
         _flushlessProducer.clear();
       } else if (isTimeToCommit) { // soft commit (no flush, just commit checkpoints)
@@ -483,6 +481,16 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
         _consumerAssignment,
         _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
+  }
+
+  @VisibleForTesting
+  protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+    try {
+      super.seekToLastCheckpoint(topicPartitions);
+    } catch (Exception e) {
+      commitSafeOffsets(_consumer);
+      throw e;
+    }
   }
 
   @Override
