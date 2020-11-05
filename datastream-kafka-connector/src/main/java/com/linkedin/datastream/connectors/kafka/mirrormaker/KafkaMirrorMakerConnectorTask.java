@@ -485,6 +485,20 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
   }
 
+  @Override
+  protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+      Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+    if (_isFlushlessModeEnabled) {
+      _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
+          .ifPresent(o -> lastCheckpoint.put(tp, new OffsetAndMetadata(o + 1)));
+      if (!lastCheckpoint.containsKey(tp)) {
+        super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+      }
+    } else {
+      super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    }
+  }
+
   @VisibleForTesting
   long getInFlightMessagesCount(String source, int partition) {
     return _isFlushlessModeEnabled ? _flushlessProducer.getInFlightCount(source, partition) : 0;
