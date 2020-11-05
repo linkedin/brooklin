@@ -1326,7 +1326,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void validateNewAssignment(Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
     if (_config.getMaxDatastreamTasksPerInstance() > 0) {
-      // If the cluster was configured to limit the max tasks per instance, check if any instances have a higher
+      // If the cluster is configured to limit the max tasks per instance, check if any instances have a higher
       // number of tasks than expected, and fail the leader assignment on violation of this limit. This can be useful
       // to prevent other issues such as OOMs due to high memory usage which may be seen if we exceed the supportable
       // number of tasks per instance.
