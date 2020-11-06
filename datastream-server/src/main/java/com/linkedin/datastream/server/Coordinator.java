@@ -1085,7 +1085,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       onDatastreamChange(datastreamGroups);
 
-      if (cleanUpOrphanNodes && _config.getPerformPreAssignmentCleanup()) {
+      if (cleanUpOrphanNodes) {
         performPreAssignmentCleanup(datastreamGroups);
       }
 
@@ -1153,7 +1153,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       Map<String, List<DatastreamTask>> tasksToCleanupMap = strategy.getTasksToCleanUp(datastreamsPerConnectorType,
           previousAssignmentByInstance);
-        _adapter.removeTaskNodes(tasksToCleanupMap);
+
+      if (tasksToCleanupMap.size() > 0) {
+        for (String instance : tasksToCleanupMap.keySet()) {
+          List<String> tasksToCleanupList = tasksToCleanupMap.get(instance)
+              .stream().map(DatastreamTask::getDatastreamTaskName).collect(Collectors.toList());
+          _log.warn("Tasks to cleanup for connector {} on instance {} : {}", connectorType, instance, tasksToCleanupList);
+        }
+        if (_config.getPerformPreAssignmentCleanup()) {
+          _adapter.removeTaskNodes(tasksToCleanupMap);
+        }
+      }
+
     }
 
     _log.info("performPreAssignmentCleanup: completed");

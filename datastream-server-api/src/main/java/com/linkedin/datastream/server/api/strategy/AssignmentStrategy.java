@@ -94,7 +94,7 @@ public interface AssignmentStrategy {
   /**
    * Validate the current assignment and return the list of DatastreamTask per instance to be cleaned up.
    *
-   * @param datastreams all the datastreams for which the associated tasks to be validated
+   * @param datastreams all the datastreams for which the associated tasks need to be validated
    * @param currentAssignment existing assignment
    * @return tasks per instance to be cleaned up
    */

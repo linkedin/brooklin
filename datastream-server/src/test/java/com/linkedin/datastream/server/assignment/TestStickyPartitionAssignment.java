@@ -104,6 +104,7 @@ public class TestStickyPartitionAssignment {
     taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
     Assert.assertEquals(taskToCleanup.size(), 1);
     taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
+    Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
   }
 
 

@@ -272,15 +272,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   /**
-   * This method checks the current assignment and returns the list of the task which are in the
+   * This method checks the current assignment and returns the list of tasks which are in the
    * dependency list as well as in current assignment. The logic is the task in the dependency list
-   * cannot be present in the current assignment list. It is possible if the previous leader was
+   * must not be present in the current assignment list. It's possible when the previous leader was
    * not able to complete the update on the zookeeper and the new leader gets the intermediate state
    * from the zookeeper.
    *
    * @param datastreamGroups datastream groups to associate the tasks with
    * @param currentAssignment existing assignment
-   * @return List of datastreamTask per instance that needs to be cleaned up.
+   * @return  list of datastream tasks mapped by instance that need to be cleaned up.
    */
   public Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreamGroups,
       Map<String, Set<DatastreamTask>> currentAssignment) {
@@ -294,8 +294,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
 
     for (String instance : currentAssignment.keySet()) {
-      // find the dependency task which exists in the assignmentsMap as well.
-      List<DatastreamTask> tasksPerInstance = currentAssignment.get(instance)
+      // find the dependency tasks which also exist in the assignmentsMap.
+      List<DatastreamTask> dependencyTasksPerInstance = currentAssignment.get(instance)
           .stream()
           .filter(t -> datastreamGroupsSet.contains(t.getTaskPrefix()))
           .map(task -> ((DatastreamTaskImpl) task).getDependencies())
@@ -304,8 +304,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
 
-      if (!tasksPerInstance.isEmpty()) {
-        tasksToCleanUp.put(instance, tasksPerInstance);
+      if (!dependencyTasksPerInstance.isEmpty()) {
+        tasksToCleanUp.put(instance, dependencyTasksPerInstance);
       }
     }
     return tasksToCleanUp;
