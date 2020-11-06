@@ -254,28 +254,26 @@ public class CommonConnectorMetrics {
 
     public void updateStuckPartitions(long val) {
       long delta = val - _numStuckPartitions;
-      AtomicLong metric = NUM_STUCK_PARTITIONS_PER_METRIC_KEY.get(_fullMetricsKey);
-      if (metric != null) {
-        metric.getAndAdd(delta);
-      }
-      AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
-      if (aggregatedMetric != null) {
-        aggregatedMetric.getAndAdd(delta);
-      }
+      updateMetrics(delta, NUM_STUCK_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_STUCK_PARTITIONS);
       _numStuckPartitions = val;
     }
 
     public void updateNumPartitions(long val) {
       long delta = val - _numPartitions;
-      AtomicLong metric = NUM_PARTITIONS_PER_METRIC_KEY.get(_fullMetricsKey);
-      if (metric != null) {
-        metric.getAndAdd(delta);
-      }
-      AtomicLong aggregatedMetric = AGGREGATED_NUM_PARTITIONS.get(_className);
-      if (aggregatedMetric != null) {
-        aggregatedMetric.getAndAdd(delta);
-      }
+      updateMetrics(delta, NUM_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_PARTITIONS);
       _numPartitions = val;
+    }
+
+    private void updateMetrics(long val, Map<String, AtomicLong> metricsMap,
+        Map<String, AtomicLong> aggMetricsMap) {
+      AtomicLong metric = metricsMap.get(_fullMetricsKey);
+      if (metric != null) {
+        metric.getAndAdd(val);
+      }
+      AtomicLong aggregatedMetric = aggMetricsMap.get(_className);
+      if (aggregatedMetric != null) {
+        aggregatedMetric.getAndAdd(val);
+      }
     }
 
     // Must be static as MetricInfos are requested from static context

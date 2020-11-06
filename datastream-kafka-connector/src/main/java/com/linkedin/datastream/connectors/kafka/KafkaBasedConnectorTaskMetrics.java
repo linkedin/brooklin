@@ -153,7 +153,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumConfigPausedPartitions(long val) {
-    updateMetrics(val, _numConfigPausedPartitions, NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS);
+    long delta = val - _numConfigPausedPartitions;
+    updateMetrics(delta, NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS);
     _numConfigPausedPartitions = val;
   }
 
@@ -162,7 +163,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnError(long val) {
-    updateMetrics(val, _numAutoPausedPartitionsOnError, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR_PER_METRIC_KEY,
+    long delta = val - _numAutoPausedPartitionsOnError;
+    updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
     _numAutoPausedPartitionsOnError = val;
   }
@@ -172,7 +174,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnInFlightMessages(long val) {
-    updateMetrics(val, _numAutoPausedPartitionsOnInFlightMessages, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES_PER_METRIC_KEY,
+    long delta = val - _numAutoPausedPartitionsOnInFlightMessages;
+    updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
     _numAutoPausedPartitionsOnInFlightMessages = val;
   }
@@ -182,7 +185,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsAwaitingDestTopic(long val) {
-    updateMetrics(val, _numAutoPausedPartitionsAwaitingDestTopic, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY,
+    long delta = val - _numAutoPausedPartitionsAwaitingDestTopic;
+    updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     _numAutoPausedPartitionsAwaitingDestTopic = val;
   }
@@ -192,20 +196,21 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumTopics(long val) {
-    updateMetrics(val, _numTopics, NUM_TOPICS_PER_METRIC_KEY, AGGREGATED_NUM_TOPICS);
+    long delta = val - _numTopics;
+    updateMetrics(delta, NUM_TOPICS_PER_METRIC_KEY, AGGREGATED_NUM_TOPICS);
     _numTopics = val;
   }
 
-  private void updateMetrics(long val, long oldVal, Map<String, AtomicLong> metricsMap,
+  private void updateMetrics(long val, Map<String, AtomicLong> metricsMap,
       Map<String, AtomicLong> aggregatedMetricsMap) {
-    long delta = val - oldVal;
+
     AtomicLong metric = metricsMap.get(_fullMetricsKey);
     if (metric != null) {
-      metric.getAndAdd(delta);
+      metric.getAndAdd(val);
     }
     AtomicLong aggregatedMetric = aggregatedMetricsMap.get(_className);
     if (aggregatedMetric != null) {
-      aggregatedMetric.getAndAdd(delta);
+      aggregatedMetric.getAndAdd(val);
     }
   }
 
