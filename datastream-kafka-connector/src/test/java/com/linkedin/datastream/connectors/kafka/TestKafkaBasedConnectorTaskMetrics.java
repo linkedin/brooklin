@@ -43,11 +43,13 @@ public class TestKafkaBasedConnectorTaskMetrics {
   }
 
   @Test
-  public void testConnectorPollMetrics() {
+  public void testConnectorMetrics() {
     KafkaBasedConnectorTaskMetrics connectorConsumer1 =
         new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG, true);
     KafkaBasedConnectorTaskMetrics connectorConsumer2 =
         new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER2_NAME, LOG, true);
+    KafkaBasedConnectorTaskMetrics connectorConsumer3 =
+        new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG, true);
 
     connectorConsumer1.createPollMetrics();
     connectorConsumer2.createPollMetrics();
@@ -56,16 +58,19 @@ public class TestKafkaBasedConnectorTaskMetrics {
     connectorConsumer1.updateEventCountsPerPoll(10);
     connectorConsumer1.updateEventCountsPerPoll(40);
     connectorConsumer1.updatePollDurationMs(50000);
+    connectorConsumer1.updateNumConfigPausedPartitions(5);
+    connectorConsumer1.updateNumAutoPausedPartitionsOnInFlightMessages(15);
+    connectorConsumer1.updateNumAutoPausedPartitionsOnError(25);
     connectorConsumer2.updateNumConfigPausedPartitions(15);
     connectorConsumer2.updateNumAutoPausedPartitionsOnInFlightMessages(25);
     connectorConsumer2.updateNumAutoPausedPartitionsOnError(35);
 
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-        + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 0);
+        + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 5);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 0);
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 25);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 0);
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 15);
     Assert.assertEquals(((Histogram) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + KafkaBasedConnectorTaskMetrics.POLL_DURATION_MS)).getCount(), 1);
 
@@ -76,12 +81,41 @@ public class TestKafkaBasedConnectorTaskMetrics {
     Assert.assertEquals(((Histogram) _metricsManager.getMetric(
         CLASS_NAME + DELIMITED_CONSUMER1_NAME + "eventCountsPerPoll")).getSnapshot().getMax(), 40);
 
+    connectorConsumer3.updateNumConfigPausedPartitions(20);
+    connectorConsumer3.updateNumAutoPausedPartitionsOnInFlightMessages(30);
+    connectorConsumer3.updateNumAutoPausedPartitionsOnError(40);
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 25);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 45);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 65);
+
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 15);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 25);
     Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 35);
+
+    connectorConsumer3.deregisterMetrics();
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)).getValue(), 5);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)).getValue(), 15);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+        + KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)).getValue(), 25);
+
+    connectorConsumer1.deregisterMetrics();
+    Assert.assertNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, DELIMITED_CONSUMER1_NAME,
+        KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS)));
+    Assert.assertNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, DELIMITED_CONSUMER1_NAME,
+        KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES)));
+    Assert.assertNull(_metricsManager.getMetric(String.join(".", CLASS_NAME, DELIMITED_CONSUMER1_NAME,
+        KafkaBasedConnectorTaskMetrics.NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR)));
+
+
   }
 
   @Test

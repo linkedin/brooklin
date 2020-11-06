@@ -160,6 +160,14 @@ public class TestCommonConnectorMetrics {
       connectorConsumer1.updateRebalanceRate(1);
       connectorConsumer2.updateRebalanceRate(2);
     }
+
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
+            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
+        0);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
+            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
+        0);
+
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + CommonConnectorMetrics.PartitionMetrics.REBALANCE_RATE)).getCount(), 5);
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
