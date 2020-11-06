@@ -27,6 +27,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_HEARTBEAT_PERIOD_MS = PREFIX + "heartbeatPeriodMs";
   public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK = PREFIX + "zkCleanUpOrphanConnectorTask";
   public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK = PREFIX + "zkCleanUpOrphanConnectorTaskLock";
+  public static final String CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE = PREFIX + "maxDatastreamTasksPerInstance";
   public static final String CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP = PREFIX + "performPreAssignmentCleanup";
 
   private final String _cluster;
@@ -41,6 +42,7 @@ public final class CoordinatorConfig {
   private final String _defaultTransportProviderName;
   private final boolean _zkCleanUpOrphanConnectorTask;
   private final boolean _zkCleanUpOrphanConnectorTaskLock;
+  private final int _maxDatastreamTasksPerInstance;
   private final boolean _performPreAssignmentCleanup;
 
   /**
@@ -61,6 +63,7 @@ public final class CoordinatorConfig {
     _defaultTransportProviderName = _properties.getString(CONFIG_DEFAULT_TRANSPORT_PROVIDER, "");
     _zkCleanUpOrphanConnectorTask = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK, false);
     _zkCleanUpOrphanConnectorTaskLock = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK, false);
+    _maxDatastreamTasksPerInstance = _properties.getInt(CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, 0);
     _performPreAssignmentCleanup = _properties.getBoolean(CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP, false);
   }
 
@@ -102,6 +105,10 @@ public final class CoordinatorConfig {
 
   public boolean getZkCleanUpOrphanConnectorTaskLock() {
     return _zkCleanUpOrphanConnectorTaskLock;
+  }
+
+  public int getMaxDatastreamTasksPerInstance() {
+    return _maxDatastreamTasksPerInstance;
   }
 
   public boolean getPerformPreAssignmentCleanup() {
