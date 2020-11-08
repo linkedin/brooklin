@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
@@ -37,6 +38,10 @@ public class DirectoryTransportProviderAdmin implements TransportProviderAdmin {
 
   @Override
   public void unassignTransportProvider(DatastreamTask task) {
+  }
+
+  @Override
+  public void unassignTransportProvider(List<DatastreamTask> taskList) {
   }
 
   @Override

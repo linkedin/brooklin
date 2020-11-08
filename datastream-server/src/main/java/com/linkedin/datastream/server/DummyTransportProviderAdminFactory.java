@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.Datastream;
@@ -72,6 +73,11 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
 
   @Override
   public void unassignTransportProvider(DatastreamTask task) {
+
+  }
+
+  @Override
+  public void unassignTransportProvider(List<DatastreamTask> taskList) {
 
   }
 

@@ -48,6 +48,7 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS = "false";
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
+  public static final String CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS = "enablePerTopicEventLatencyMetrics";
 
   // Default flush interval, It is intentionally kept at low frequency. If a particular connectors wants
   // a more frequent flush (high traffic connectors), it can perform that on it's own.
@@ -102,6 +103,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final long _numEventsOutsideAltSlaFrequencyMs;
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
+  private final boolean _enablePerTopicEventLatencyMetrics;
   private final Duration _flushInterval;
 
   private Instant _lastFlushTime = Instant.now();
@@ -158,6 +160,10 @@ public class EventProducer implements DatastreamEventProducer {
 
     _enablePerTopicMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_METRICS, Boolean.TRUE.toString()));
+
+    _enablePerTopicEventLatencyMetrics =
+        Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS,
+            Boolean.FALSE.toString()));
 
     _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
 
@@ -258,13 +264,14 @@ public class EventProducer implements DatastreamEventProducer {
   private void performSlaRelatedLogging(DatastreamRecordMetadata metadata, long eventsSourceTimestamp,
       long sourceToDestinationLatencyMs) {
     if (_warnLogLatencyEnabled && (sourceToDestinationLatencyMs > _warnLogLatencyThresholdMs)) {
-      _logger.warn("Source to destination latency {} ms is higher than {} ms, Source Timestamp: {}, Metadata: {}",
-          sourceToDestinationLatencyMs, _warnLogLatencyThresholdMs, eventsSourceTimestamp, metadata);
+      _logger.warn("Source to destination latency {} ms is higher than {} ms, Datastream: {}, Source Timestamp: {}, "
+              + "Metadata: {}", sourceToDestinationLatencyMs, _warnLogLatencyThresholdMs, getDatastreamName(),
+          eventsSourceTimestamp, metadata);
     }
 
     if (_numEventsOutsideAltSlaLogEnabled) {
       if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getPartition());
+        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
         int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
         _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
       }
@@ -272,8 +279,9 @@ public class EventProducer implements DatastreamEventProducer {
       long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
       if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
         _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) ->
-            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms",
-                topicPartition, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog));
+            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
+                    + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs,
+                timeSinceLastLog, getDatastreamName()));
         _trackEventsOutsideAltSlaMap.clear();
         _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
       }
@@ -301,6 +309,13 @@ public class EventProducer implements DatastreamEventProducer {
           LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
       _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
           EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+
+      // Only update the per topic latency metric here if 'enablePerTopicMetrics' is false, otherwise this will
+      // update the metric twice.
+      if (_enablePerTopicEventLatencyMetrics && !_enablePerTopicMetrics) {
+        _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(),
+            EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+      }
 
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
           EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -422,8 +437,10 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Shuts down the event producer by flushing the checkpoints and closing the transport provider
    */
-  public void shutdown() {
-    _checkpointProvider.flush();
+  public void shutdown(boolean skipCheckpoint) {
+    if (!skipCheckpoint) {
+      _checkpointProvider.flush();
+    }
     _transportProvider.close();
   }
 

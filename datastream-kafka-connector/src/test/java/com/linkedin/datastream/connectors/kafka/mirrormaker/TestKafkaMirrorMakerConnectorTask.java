@@ -92,6 +92,7 @@ import static org.mockito.Mockito.verify;
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
+  private static final long DEBOUNCE_TIMER_MS = 1000;
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnectorTask.class);
   private static final String MESSAGE_TIMESTAMP_TYPE_CREATE_TIME = "CreateTime";
   private static final String MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME = "LogAppendTime";
@@ -138,6 +139,15 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // verify the states response returned by diagnostics endpoint contains correct counts
     validateTaskConsumerAssignment(connectorTask,
         Sets.newHashSet(new TopicPartition(yummyTopic, 0), new TopicPartition(saltyTopic, 0)));
+
+    // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
+    // connector name of interest.
+    MetricsTestUtils.verifyMetrics(new MetricsAware() {
+      @Override
+      public List<BrooklinMetricInfo> getMetricInfos() {
+        return KafkaMirrorMakerConnectorTask.getMetricInfos("");
+      }
+    }, DynamicMetricsManager.getInstance());
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
@@ -420,10 +430,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdapter);
-    zkAdapter.connect();
+    createAndConnectZkAdapter(task);
 
     String connectorName = "KafkaMirrorMaker";
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, connectorName,
@@ -468,10 +475,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdapter);
-    zkAdapter.connect();
+    createAndConnectZkAdapter(task);
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -495,10 +499,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .setEnablePartitionManaged(true)
         .build();
 
-    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdapter);
-    zkAdapter.connect();
+    createAndConnectZkAdapter(task);
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
         false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
@@ -936,10 +937,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
     task.setEventProducer(datastreamProducer);
 
-    ZkAdapter zkAdapter = new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, null);
-    task.setZkAdapter(zkAdapter);
-    zkAdapter.connect();
+    createAndConnectZkAdapter(task);
 
     Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -972,6 +970,14 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         "The events before the failure should have been sent");
 
     connectorThread.join();
+  }
+
+  private void createAndConnectZkAdapter(DatastreamTaskImpl task) {
+    ZkAdapter zkAdapter =
+        new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null, ZkClient.DEFAULT_SESSION_TIMEOUT,
+            ZkClient.DEFAULT_CONNECTION_TIMEOUT, DEBOUNCE_TIMER_MS, null);
+    task.setZkAdapter(zkAdapter);
+    zkAdapter.connect();
   }
 
   @Test

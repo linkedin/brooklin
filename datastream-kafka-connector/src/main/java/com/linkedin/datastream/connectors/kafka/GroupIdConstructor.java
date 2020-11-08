@@ -44,7 +44,7 @@ public interface GroupIdConstructor {
 
   /**
    * The method, given task prefix and cluster name, returns group ID with format
-   * clusterName + Hash(taskPrefix). This will be used as default later once grandfathering of existing datastreams
+   * clusterName + Hash(taskPrefix). This will be used as default later once integrating of existing datastreams
    * is done.
    */
   default String constructGroupId(String taskPrefix, String clusterName) {

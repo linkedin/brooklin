@@ -193,4 +193,9 @@ public class CachedDatastreamReader {
       return Collections.emptyList();
     }
   }
+
+  @VisibleForTesting
+  ZkClient getZkclient() {
+    return _zkclient;
+  }
 }
