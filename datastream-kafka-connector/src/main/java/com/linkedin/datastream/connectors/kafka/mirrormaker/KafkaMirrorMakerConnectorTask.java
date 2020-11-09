@@ -376,14 +376,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_isFlushlessModeEnabled) {
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
-        _datastreamTask.getEventProducer().flush();
-        // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
-        // outstanding send() calls have completed, without providing any guarantees about their successful completion.
-        // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
-        // to their last committed offset to avoid data loss.
-        rewindAndPausePartitionsOnSendException();
-        commitSafeOffsets(consumer);
-
+        try {
+          _datastreamTask.getEventProducer().flush();
+        } finally {
+          // Flushless mode tracks the successfully received acks, so it is safe to commit offsets even if flush throws
+          // an exception. Commit the safe offsets to reduce send duplication.
+          commitSafeOffsets(consumer);
+        }
         // clear the flushless producer state after flushing all messages and checkpointing
         _flushlessProducer.clear();
       } else if (isTimeToCommit) { // soft commit (no flush, just commit checkpoints)
@@ -483,6 +482,32 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
         _consumerAssignment,
         _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
+  }
+
+  @VisibleForTesting
+  protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+    try {
+      super.seekToLastCheckpoint(topicPartitions);
+    } catch (Exception e) {
+      commitSafeOffsets(_consumer);
+      throw e;
+    }
+  }
+
+  @Override
+  protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+      Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+    if (_isFlushlessModeEnabled) {
+      // Flushless mode tracks the successfully received acks, so it is safe to rewind to that offsets rather than
+      // last committed offset
+      _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
+          .ifPresent(o -> lastCheckpoint.put(tp, new OffsetAndMetadata(o + 1)));
+      if (!lastCheckpoint.containsKey(tp)) {
+        super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+      }
+    } else {
+      super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    }
   }
 
   @VisibleForTesting
