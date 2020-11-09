@@ -31,6 +31,7 @@ import org.jetbrains.annotations.NotNull;
 public class KafkaTopicPartitionTracker {
 
   private final String _consumerGroupId;
+  private final String _datastreamName;
 
   private final Map<String, Set<Integer>> _topicPartitions = new ConcurrentHashMap<>();
   private final Map<String, Map<Integer, Long>> _consumedOffsets = new ConcurrentHashMap<>();
@@ -40,9 +41,11 @@ public class KafkaTopicPartitionTracker {
    *  Constructor for KafkaTopicPartitionTracker
    *
    * @param consumerGroupId Identifier of the consumer group
+   * @param datastreamName Name of the datastream
    */
-  public KafkaTopicPartitionTracker(String consumerGroupId) {
+  public KafkaTopicPartitionTracker(String consumerGroupId, String datastreamName) {
     _consumerGroupId = consumerGroupId;
+    _datastreamName = datastreamName;
   }
 
   /**
@@ -147,7 +150,17 @@ public class KafkaTopicPartitionTracker {
     return Collections.unmodifiableMap(_committedOffsets);
   }
 
+  /**
+   * Gets the identifier for consumer group
+   */
   public final String getConsumerGroupId() {
     return _consumerGroupId;
+  }
+
+  /**
+   * Gets the datastream name
+   */
+  public final String getDatastreamName() {
+    return _datastreamName;
   }
 }

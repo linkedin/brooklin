@@ -86,10 +86,14 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     String instance1 = "i1";
     String instance2 = "i2";
 
+    String datastream1 = "ds1";
+    String datastream2 = "ds2";
+    String datastream3 = "ds3";
+
     // constructing instance1 consumer offsets
     List<KafkaConsumerOffsetsResponse> responseList1 = new ArrayList<>();
 
-    // instance 1 consumer group 1
+    // instance 1; datastream 1
     Map<String, Map<Integer, Long>> topicPartitionOffsets1 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets1 = new HashMap<>();
@@ -102,9 +106,10 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets2.put(1, 10L);
     topicPartitionOffsets1.put(topic2, partitionOffsets2);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, topicPartitionOffsets1, consumerGroup1));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, topicPartitionOffsets1,
+            consumerGroup1, datastream1));
 
-    // instance 1 consumer group 2
+    // instance 1; datastream 2
     Map<String, Map<Integer, Long>> topicPartitionOffsets2 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets3 = new HashMap<>();
@@ -117,12 +122,13 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets4.put(1, 20L);
     topicPartitionOffsets2.put(topic2, partitionOffsets4);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, topicPartitionOffsets2, consumerGroup2));
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, topicPartitionOffsets2,
+            consumerGroup2, datastream2));
 
     // constructing instance2 consumer offsets
     List<KafkaConsumerOffsetsResponse> responseList2 = new ArrayList<>();
 
-    // instance 2 consumer group 1
+    // instance 2; datastream 1
     Map<String, Map<Integer, Long>> topicPartitionOffsets3 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets5 = new HashMap<>();
@@ -130,15 +136,17 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets5.put(3, 10L);
     topicPartitionOffsets3.put(topic1, partitionOffsets5);
 
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, topicPartitionOffsets3, consumerGroup1));
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, topicPartitionOffsets3,
+            consumerGroup1, datastream1));
 
-    // instance 2 consumer group 3
+    // instance 2; datastream 3
     Map<String, Map<Integer, Long>> topicPartitionOffsets4 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets6 = new HashMap<>();
     partitionOffsets6.put(0, 30L);
     topicPartitionOffsets4.put(topic2, partitionOffsets6);
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, topicPartitionOffsets4, consumerGroup3));
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, topicPartitionOffsets4,
+            consumerGroup3, datastream3));
 
     // reducing responses and asserting correctness
     Map<String, String> responseMap = new HashMap<>();
@@ -149,7 +157,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     List<KafkaConsumerOffsetsResponse> responseList =
         JsonUtils.fromJson(reducedMapJson, new TypeReference<List<KafkaConsumerOffsetsResponse>>() { });
 
-    Assert.assertEquals(responseList.size(), 3); // 3 consumer groups
+    Assert.assertEquals(responseList.size(), 3); // 3 datastreams expected
 
     KafkaConsumerOffsetsResponse cg1Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup1)).findAny().orElse(null);

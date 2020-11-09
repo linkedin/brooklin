@@ -16,6 +16,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  */
 public class KafkaConsumerOffsetsResponse {
   private final String _consumerGroupId;
+  private final String _datastreamName;
   private final Map<String, Map<Integer, Long>> _consumedOffsets;
   private final Map<String, Map<Integer, Long>> _committedOffsets;
 
@@ -24,32 +25,50 @@ public class KafkaConsumerOffsetsResponse {
    * @param consumedOffsets Consumed offsets for all topic partitions
    * @param committedOffsets Committed offsets for all topic partitions
    * @param consumerGroupId Consumer group ID
+   * @param datastreamName Datastream name
    */
   public KafkaConsumerOffsetsResponse(@JsonProperty("consumedOffsets") Map<String, Map<Integer, Long>> consumedOffsets,
       @JsonProperty("committedOffsets") Map<String, Map<Integer, Long>> committedOffsets,
-      @JsonProperty("consumerGroupId") String consumerGroupId) {
+      @JsonProperty("consumerGroupId") String consumerGroupId, @JsonProperty("datastreamName") String datastreamName) {
     _consumerGroupId = consumerGroupId;
     _consumedOffsets = consumedOffsets;
     _committedOffsets = committedOffsets;
+    _datastreamName = datastreamName;
   }
 
   /**
    * Constructor for {@link KafkaConsumerOffsetsResponse}
    * @param consumerGroupId Consumer group ID
    */
-  public KafkaConsumerOffsetsResponse(String consumerGroupId) {
-    this(new HashMap<>(), new HashMap<>(), consumerGroupId);
+  public KafkaConsumerOffsetsResponse(String consumerGroupId, String datastreamName) {
+    this(new HashMap<>(), new HashMap<>(), consumerGroupId, datastreamName);
   }
 
+  /**
+   * Gets the consumed offsets
+   */
   public Map<String, Map<Integer, Long>> getConsumedOffsets() {
     return _consumedOffsets;
   }
 
+  /**
+   * Gets the committed offsets
+   */
   public Map<String, Map<Integer, Long>> getCommittedOffsets() {
     return _committedOffsets;
   }
 
+  /**
+   * Gets consumer group identifier
+   */
   public String getConsumerGroupId() {
     return _consumerGroupId;
+  }
+
+  /**
+   * Gets the datastream name
+   */
+  public String getDatastreamName() {
+    return _datastreamName;
   }
 }
