@@ -274,7 +274,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       // Seek to last checkpoint failed. Throw an exception to avoid any data loss scenarios where the consumed
       // offset can be committed even though the send for that offset has failed.
       String errorMessage = String.format("Partition rewind for %s failed due to ", srcTopicPartition);
-      _logger.error(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
     }
     if (_pausePartitionOnError && !containsTransientException(ex)) {
@@ -645,15 +644,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
     Set<TopicPartition> tpWithNoCommits = new HashSet<>();
     // construct last checkpoint
-    topicPartitions.forEach(tp -> {
-      OffsetAndMetadata offset = _consumer.committed(tp);
-      // offset can be null if there was no prior commit
-      if (offset == null) {
-        tpWithNoCommits.add(tp);
-      } else {
-        lastCheckpoint.put(tp, offset);
-      }
-    });
+    topicPartitions.forEach(tp -> getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp));
     _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
     // reset consumer to last checkpoint, by default we will rewind the checkpoint
     lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
@@ -661,6 +652,17 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.info("Seeking to start position for partitions: {}", tpWithNoCommits);
       seekToStartPosition(_consumer, tpWithNoCommits,
           _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST));
+    }
+  }
+
+  protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+      Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+    OffsetAndMetadata offset = _consumer.committed(tp);
+    // offset can be null if there was no prior commit
+    if (offset == null) {
+      tpWithNoCommits.add(tp);
+    } else {
+      lastCheckpoint.put(tp, offset);
     }
   }
 
