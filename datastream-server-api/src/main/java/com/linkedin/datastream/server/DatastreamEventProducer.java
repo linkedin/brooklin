@@ -45,6 +45,6 @@ public interface DatastreamEventProducer {
    *
    * @param enableFlushOnSend Whether to enable flushing on send or not
    */
-  default void flushOnSend(boolean enableFlushOnSend) {
+  default void enablePeriodicFlushOnSend(boolean enableFlushOnSend) {
   }
 }

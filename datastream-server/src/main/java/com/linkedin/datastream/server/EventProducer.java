@@ -423,7 +423,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   @Override
-  public void flushOnSend(boolean enableFlushOnSend) {
+  public void enablePeriodicFlushOnSend(boolean enableFlushOnSend) {
     _enableFlushOnSend = enableFlushOnSend;
   }
 
