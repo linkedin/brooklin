@@ -200,13 +200,16 @@ public class CommonConnectorMetrics {
     static final Map<String, AtomicLong> NUM_PARTITIONS_PER_METRIC_KEY = new ConcurrentHashMap<>();
     static final Map<String, AtomicLong> AGGREGATED_NUM_STUCK_PARTITIONS = new ConcurrentHashMap<>();
     static final Map<String, AtomicLong> AGGREGATED_NUM_PARTITIONS = new ConcurrentHashMap<>();
-    private long _numStuckPartitions = 0;
-    private long _numPartitions = 0;
+    private final AtomicLong _numPartitions;
+    private final AtomicLong _numStuckPartitions;
 
     public PartitionMetrics(String className, String key) {
       super(className, key);
       _fullMetricsKey = MetricRegistry.name(_className, _key);
       _rebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, REBALANCE_RATE, Meter.class);
+      _numPartitions = new AtomicLong(0);
+      _numStuckPartitions = new AtomicLong(0);
+
       AtomicLong stuckPartitions = NUM_STUCK_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
       DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, STUCK_PARTITIONS, stuckPartitions::get);
       AtomicLong numPartitions = NUM_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
@@ -253,15 +256,13 @@ public class CommonConnectorMetrics {
     }
 
     public void updateStuckPartitions(long val) {
-      long delta = val - _numStuckPartitions;
+      long delta = val - _numStuckPartitions.getAndSet(val);
       updateMetrics(delta, NUM_STUCK_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_STUCK_PARTITIONS);
-      _numStuckPartitions = val;
     }
 
     public void updateNumPartitions(long val) {
-      long delta = val - _numPartitions;
+      long delta = val - _numPartitions.getAndSet(val);
       updateMetrics(delta, NUM_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_PARTITIONS);
-      _numPartitions = val;
     }
 
     private void updateMetrics(long val, Map<String, AtomicLong> metricsMap,

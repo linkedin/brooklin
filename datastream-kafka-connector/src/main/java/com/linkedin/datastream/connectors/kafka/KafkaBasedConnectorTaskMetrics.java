@@ -64,11 +64,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   private static final Map<String, AtomicLong> NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY =
       new ConcurrentHashMap<>();
 
-  private long _numConfigPausedPartitions = 0;
-  private long _numAutoPausedPartitionsOnError = 0;
-  private long _numAutoPausedPartitionsOnInFlightMessages = 0;
-  private long _numAutoPausedPartitionsAwaitingDestTopic = 0;
-  private long _numTopics = 0;
+  private final AtomicLong _numConfigPausedPartitions;
+  private final AtomicLong _numAutoPausedPartitionsOnError;
+  private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages;
+  private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic;
+  private final AtomicLong _numTopics;
 
   private final Histogram _pollDurationMsMetric;
   private final Histogram _timeSpentBetweenPollsMsMetric;
@@ -79,6 +79,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
       boolean enableAdditionalMetrics) {
     super(className, metricsKey, errorLogger);
     _fullMetricsKey = MetricRegistry.name(_className, _key);
+    _numConfigPausedPartitions = new AtomicLong(0);
+    _numAutoPausedPartitionsOnError = new AtomicLong(0);
+    _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
+    _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
+    _numTopics = new AtomicLong(0);
     AtomicLong numConfigPausedPartitions =
         NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_CONFIG_PAUSED_PARTITIONS,
@@ -153,9 +158,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumConfigPausedPartitions(long val) {
-    long delta = val - _numConfigPausedPartitions;
+    long delta = val - _numConfigPausedPartitions.getAndSet(val);
     updateMetrics(delta, NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS);
-    _numConfigPausedPartitions = val;
   }
 
   /**
@@ -163,10 +167,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnError(long val) {
-    long delta = val - _numAutoPausedPartitionsOnError;
+    long delta = val - _numAutoPausedPartitionsOnError.getAndSet(val);
     updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
-    _numAutoPausedPartitionsOnError = val;
   }
 
   /**
@@ -174,10 +177,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsOnInFlightMessages(long val) {
-    long delta = val - _numAutoPausedPartitionsOnInFlightMessages;
+    long delta = val - _numAutoPausedPartitionsOnInFlightMessages.getAndSet(val);
     updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
-    _numAutoPausedPartitionsOnInFlightMessages = val;
   }
 
   /**
@@ -185,10 +187,9 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumAutoPausedPartitionsAwaitingDestTopic(long val) {
-    long delta = val - _numAutoPausedPartitionsAwaitingDestTopic;
+    long delta = val - _numAutoPausedPartitionsAwaitingDestTopic.getAndSet(val);
     updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
-    _numAutoPausedPartitionsAwaitingDestTopic = val;
   }
 
   /**
@@ -196,9 +197,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    * @param val Value to set to
    */
   public void updateNumTopics(long val) {
-    long delta = val - _numTopics;
+    long delta = val - _numTopics.getAndSet(val);
     updateMetrics(delta, NUM_TOPICS_PER_METRIC_KEY, AGGREGATED_NUM_TOPICS);
-    _numTopics = val;
   }
 
   private void updateMetrics(long val, Map<String, AtomicLong> metricsMap,
