@@ -66,7 +66,6 @@ public class TestStickyPartitionAssignment {
     }
   }
 
-
   @Test
   public void testAddPartitions() {
     StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
@@ -87,11 +86,25 @@ public class TestStickyPartitionAssignment {
     DatastreamGroupPartitionsMetadata newPartitionsMetadata =
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
 
-    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
 
-    for (DatastreamTask task : assignment.get("instance1")) {
+    for (DatastreamTask task : newAssignment.get("instance0")) {
       Assert.assertEquals(task.getPartitionsV2().size(), 2);
     }
+
+    Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+    Assert.assertEquals(taskToCleanup.size(), 0);
+
+    // Adding the dependency task as well in the assignment list to simulate the scenario where
+    // the dependency task nodes are not deleted and the leader gets interrupted, OOM or hit session expiry.
+    // The next leader should be able to identify and cleanup.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    newAssignment.forEach((instance, taskSet1) -> taskSet1.addAll(finalAssignment.get(instance)));
+
+    taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+    Assert.assertEquals(taskToCleanup.size(), 1);
+    taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
+    Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
   }
 
 
@@ -182,7 +195,7 @@ public class TestStickyPartitionAssignment {
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
-    assignment.put("empty", new HashSet<DatastreamTask>());
+    assignment.put("empty", Collections.emptySet());
 
     Map<String, Set<String>> targetAssignment = new HashMap<>();
     targetAssignment.put("empty", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
