@@ -730,7 +730,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     this.onPartitionsAssignedInternal(partitions);
-    _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
+      _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
     _consumerMetrics.updateRebalanceRate(1);
     updateConsumerAssignment(partitions);
   }
