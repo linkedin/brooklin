@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Strings;
 
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -186,23 +187,33 @@ public class CommonConnectorMetrics {
     static final String NUM_PARTITIONS = "numPartitions";
 
     // Per consumer metrics
-    final AtomicLong _numStuckPartitions = new AtomicLong(0);
-    final AtomicLong _numPartitions = new AtomicLong(0);
     final Meter _rebalanceRate;
 
     // Aggregated metrics
     final Meter _aggregatedRebalanceRate;
 
+    final String _fullMetricsKey;
+
     // Map from connector class name to its stuck and total partition counter
     // This is needed for Gauge metrics which need long-typed suppliers.
+    static final Map<String, AtomicLong> NUM_STUCK_PARTITIONS_PER_METRIC_KEY = new ConcurrentHashMap<>();
+    static final Map<String, AtomicLong> NUM_PARTITIONS_PER_METRIC_KEY = new ConcurrentHashMap<>();
     static final Map<String, AtomicLong> AGGREGATED_NUM_STUCK_PARTITIONS = new ConcurrentHashMap<>();
     static final Map<String, AtomicLong> AGGREGATED_NUM_PARTITIONS = new ConcurrentHashMap<>();
+    private final AtomicLong _numPartitions;
+    private final AtomicLong _numStuckPartitions;
 
     public PartitionMetrics(String className, String key) {
       super(className, key);
+      _fullMetricsKey = MetricRegistry.name(_className, _key);
       _rebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, REBALANCE_RATE, Meter.class);
-      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, STUCK_PARTITIONS, _numStuckPartitions::get);
-      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_PARTITIONS, _numPartitions::get);
+      _numPartitions = new AtomicLong(0);
+      _numStuckPartitions = new AtomicLong(0);
+
+      AtomicLong stuckPartitions = NUM_STUCK_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, STUCK_PARTITIONS, stuckPartitions::get);
+      AtomicLong numPartitions = NUM_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
+      DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_PARTITIONS, numPartitions::get);
 
       _aggregatedRebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, AGGREGATE, REBALANCE_RATE, Meter.class);
 
@@ -215,24 +226,12 @@ public class CommonConnectorMetrics {
 
     @Override
     public void deregister() {
-      long numStuckPartitions = _numStuckPartitions.get();
-      long numPartitions = _numPartitions.get();
-
+      updateStuckPartitions(0);
+      updateNumPartitions(0);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, REBALANCE_RATE);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, STUCK_PARTITIONS);
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_PARTITIONS);
 
-      // Aggregate gauge metrics should only reflect values for valid registered local metrics. When deregistering
-      // metrics, subtract their values from aggregate metrics.
-      AtomicLong aggregatedNumStuckPartitions = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
-      if (aggregatedNumStuckPartitions != null) {
-        aggregatedNumStuckPartitions.getAndAdd(-numStuckPartitions);
-      }
-
-      AtomicLong aggregatedNumPartitions = AGGREGATED_NUM_PARTITIONS.get(_className);
-      if (aggregatedNumPartitions != null) {
-        aggregatedNumPartitions.getAndAdd(-numPartitions);
-      }
       super.deregister();
     }
 
@@ -246,26 +245,35 @@ public class CommonConnectorMetrics {
     }
 
     public void resetStuckPartitions() {
-      long numStuckPartitions = _numStuckPartitions.getAndSet(0);
-      AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
-      if (aggregatedMetric != null) {
-        aggregatedMetric.getAndAdd(-numStuckPartitions);
+      AtomicLong metric = NUM_STUCK_PARTITIONS_PER_METRIC_KEY.get(_fullMetricsKey);
+      if (metric != null) {
+        long numStuckPartitions = metric.getAndSet(0);
+        AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
+        if (aggregatedMetric != null) {
+          aggregatedMetric.getAndAdd(-numStuckPartitions);
+        }
       }
     }
 
     public void updateStuckPartitions(long val) {
       long delta = val - _numStuckPartitions.getAndSet(val);
-      AtomicLong aggregatedMetric = AGGREGATED_NUM_STUCK_PARTITIONS.get(_className);
-      if (aggregatedMetric != null) {
-        aggregatedMetric.getAndAdd(delta);
-      }
+      updateMetrics(delta, NUM_STUCK_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_STUCK_PARTITIONS);
     }
 
     public void updateNumPartitions(long val) {
       long delta = val - _numPartitions.getAndSet(val);
-      AtomicLong aggregatedMetric = AGGREGATED_NUM_PARTITIONS.get(_className);
+      updateMetrics(delta, NUM_PARTITIONS_PER_METRIC_KEY, AGGREGATED_NUM_PARTITIONS);
+    }
+
+    private void updateMetrics(long val, Map<String, AtomicLong> metricsMap,
+        Map<String, AtomicLong> aggMetricsMap) {
+      AtomicLong metric = metricsMap.get(_fullMetricsKey);
+      if (metric != null) {
+        metric.getAndAdd(val);
+      }
+      AtomicLong aggregatedMetric = aggMetricsMap.get(_className);
       if (aggregatedMetric != null) {
-        aggregatedMetric.getAndAdd(delta);
+        aggregatedMetric.getAndAdd(val);
       }
     }
 

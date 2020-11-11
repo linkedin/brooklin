@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -25,6 +26,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
+import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -349,6 +351,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   private static class KafkaMirrorMakerConnectorTaskTest extends KafkaMirrorMakerConnectorTask {
     private boolean _postShutdownHookExceptionCaught;
     private boolean _failOnSeekToLastCheckpoint;
+    private boolean _failOnGetLastCheckpointToSeekTo = false;
+    private CountDownLatch _commitCall = new CountDownLatch(1);
 
     public KafkaMirrorMakerConnectorTaskTest(KafkaBasedConnectorConfig config, DatastreamTask task,
         String connectorName, boolean isFlushlessModeEnabled, GroupIdConstructor groupIdConstructor) {
@@ -366,14 +370,38 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     @Override
     protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+      _commitCall = new CountDownLatch(1);
       if (_failOnSeekToLastCheckpoint) {
         throw new KafkaException("KafkaException: failed to seek");
       }
       super.seekToLastCheckpoint(topicPartitions);
     }
 
+    @Override
+    protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+        Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+      if (_failOnGetLastCheckpointToSeekTo) {
+        super._shutdown = true;
+        throw new WakeupException();
+      }
+    }
+
+    @Override
+    protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets) {
+      _commitCall.countDown();
+      super.commitWithRetries(consumer, offsets);
+    }
+
     void setFailOnSeekToLastCheckpoint(boolean failOnSeekToLastCheckpoint) {
       _failOnSeekToLastCheckpoint = failOnSeekToLastCheckpoint;
+    }
+
+    void setFailOnGetLastCheckpointToSeekTo() {
+      _failOnGetLastCheckpointToSeekTo = true;
+    }
+
+    boolean checkCommitCalledAfterException() {
+      return _commitCall.getCount() == 0;
     }
 
     boolean isPostShutdownHookExceptionCaught() {
@@ -890,7 +918,25 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testValidateTaskDiesOnRewindFailure1() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(true, false);
+  }
+  @Test
   public void testValidateTaskDiesOnRewindFailure() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(false, false);
+  }
+
+  @Test
+  public void testValidateFlushlessModeTaskDiesOnRewindFailure() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(false, true);
+  }
+
+  @Test
+  public void testValidateFlushlessModeTaskDiesOnRewindFailureWakeupException() throws InterruptedException {
+    testValidateTaskDiesOnRewindFailure(true, true);
+  }
+
+  private void testValidateTaskDiesOnRewindFailure(boolean failOnGetLastCheckpointToSeekTo, boolean flushlessMode) throws InterruptedException {
     String yummyTopic = "YummyPizza";
     createTopic(_zkUtils, yummyTopic);
 
@@ -913,8 +959,12 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         .build();
 
     KafkaMirrorMakerConnectorTaskTest connectorTask = new KafkaMirrorMakerConnectorTaskTest(connectorConfig, task, "",
-        false, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
-    connectorTask.setFailOnSeekToLastCheckpoint(true);
+        flushlessMode, new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    if (failOnGetLastCheckpointToSeekTo) {
+      connectorTask.setFailOnGetLastCheckpointToSeekTo();
+    } else {
+      connectorTask.setFailOnSeekToLastCheckpoint(true);
+    }
 
     CountDownLatch exceptionCaught = new CountDownLatch(1);
     AtomicReference<Throwable> throwable = new AtomicReference<>();
@@ -934,6 +984,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Assert that the first two events made it
     Assert.assertEquals(datastreamProducer.getEvents().size(), 2,
         "The events before the failure should have been sent");
+
+    Assert.assertEquals(connectorTask.checkCommitCalledAfterException(), failOnGetLastCheckpointToSeekTo & flushlessMode);
 
     connectorThread.join();
   }
@@ -1262,6 +1314,29 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     if (!PollUtils.poll(() -> datastreamProducer2.getEvents().size() == 4, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
     }
+
+    Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
+    Set<TopicPartition> tpWithNoCommits = new HashSet<>();
+
+    TopicPartition tp = new TopicPartition("SaltyPizza", 0);
+    connectorTask2.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    Assert.assertEquals(lastCheckpoint.size(), 1);
+    Assert.assertEquals(lastCheckpoint.get(tp), new OffsetAndMetadata(2));
+
+    tp = new TopicPartition("YummyPizza", 0);
+    lastCheckpoint = new HashMap<>();
+    tpWithNoCommits = new HashSet<>();
+
+    connectorTask2.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    Assert.assertEquals(lastCheckpoint.size(), 1);
+    Assert.assertEquals(lastCheckpoint.get(tp), new OffsetAndMetadata(1));
+
+    tp = new TopicPartition("SpicyPizza", 0);
+    lastCheckpoint = new HashMap<>();
+    tpWithNoCommits = new HashSet<>();
+    connectorTask2.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    Assert.assertEquals(lastCheckpoint.size(), 1);
+    Assert.assertEquals(lastCheckpoint.get(tp), new OffsetAndMetadata(1));
 
     connectorTask2.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

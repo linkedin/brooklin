@@ -48,6 +48,7 @@ import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -1085,6 +1086,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       onDatastreamChange(datastreamGroups);
 
+      if (cleanUpOrphanNodes) {
+        performPreAssignmentCleanup(datastreamGroups);
+      }
+
       _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
 
       // get all current live instances
@@ -1131,6 +1136,39 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
+  }
+
+  private void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+
+    // Map between instance to tasks assigned to the instance.
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+
+    _log.info("performPreAssignmentCleanup: start");
+    _log.debug("performPreAssignmentCleanup: assignment before cleanup: " + previousAssignmentByInstance);
+
+    for (String connectorType : _connectors.keySet()) {
+      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
+          .filter(x -> x.getConnectorName().equals(connectorType))
+          .collect(Collectors.toList());
+
+      Map<String, List<DatastreamTask>> tasksToCleanupMap = strategy.getTasksToCleanUp(datastreamsPerConnectorType,
+          previousAssignmentByInstance);
+
+      if (tasksToCleanupMap.size() > 0) {
+        for (String instance : tasksToCleanupMap.keySet()) {
+          List<String> tasksToCleanupList = tasksToCleanupMap.get(instance)
+              .stream().map(DatastreamTask::getDatastreamTaskName).collect(Collectors.toList());
+          _log.warn("Tasks to cleanup for connector {} on instance {} : {}", connectorType, instance, tasksToCleanupList);
+        }
+        if (_config.getPerformPreAssignmentCleanup()) {
+          _adapter.removeTaskNodes(tasksToCleanupMap);
+        }
+      }
+
+    }
+
+    _log.info("performPreAssignmentCleanup: completed");
   }
 
   /**
@@ -1216,7 +1254,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
 
   private void onDatastreamChange(List<DatastreamGroup> datastreamGroups) {
-    //We need to perform handleDatastream only active datastream for partition listening
+    //We need to perform handleDatastream only on active datastreams for partition listening
     List<DatastreamGroup> activeDataStreams = datastreamGroups.stream().filter(dg -> !dg.isPaused()).collect(Collectors.toList());
 
     for (String connectorType : _connectors.keySet()) {
@@ -1322,6 +1360,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
+  @VisibleForTesting
+  void validateNewAssignment(Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
+    if (_config.getMaxDatastreamTasksPerInstance() > 0) {
+      // If the cluster is configured to limit the max tasks per instance, check if any instances have a higher
+      // number of tasks than expected, and fail the leader assignment on violation of this limit. This can be useful
+      // to prevent other issues such as OOMs due to high memory usage which may be seen if we exceed the supportable
+      // number of tasks per instance.
+      Map<String, Integer> instancesWithTaskCountAboveThreshold = newAssignmentsByInstance.entrySet().stream()
+          .filter(e -> !e.getKey().equals(PAUSED_INSTANCE) && (e.getValue().size() > _config.getMaxDatastreamTasksPerInstance()))
+          .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+      if (instancesWithTaskCountAboveThreshold.size() > 0) {
+        throw new DatastreamRuntimeException(String.format("Too many tasks assigned to some instances, max tasks per "
+                + "instance: %d, instances above the threshold: %s", _config.getMaxDatastreamTasksPerInstance(),
+            instancesWithTaskCountAboveThreshold));
+      }
+    }
+  }
+
   private Map<String, List<DatastreamTask>> performAssignment(List<String> liveInstances,
       Map<String, Set<DatastreamTask>> previousAssignmentByInstance, List<DatastreamGroup> datastreamGroups) {
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1369,6 +1425,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         });
       }
     }
+
+    validateNewAssignment(newAssignmentsByInstance);
 
     return newAssignmentsByInstance;
   }

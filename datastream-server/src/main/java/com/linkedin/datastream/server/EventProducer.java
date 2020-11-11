@@ -109,6 +109,7 @@ public class EventProducer implements DatastreamEventProducer {
   private Instant _lastFlushTime = Instant.now();
   private long _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
   private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new HashMap<>();
+  private boolean _enableFlushOnSend = true;
 
   /**
    * Construct an EventProducer instance.
@@ -239,8 +240,9 @@ public class EventProducer implements DatastreamEventProducer {
       throw new DatastreamRuntimeException(errorMessage, e);
     }
 
-    // Force a periodic flush, in case connector is not calling flush at regular intervals
-    if (Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
+    // Force a periodic flush if flushless mode isn't enabled, in case the connector is not calling flush at
+    // regular intervals
+    if (_enableFlushOnSend && Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
       flush();
     }
   }
@@ -418,6 +420,11 @@ public class EventProducer implements DatastreamEventProducer {
         _logger.warn("Flush took {} ms", flushLatencyMs);
       }
     }
+  }
+
+  @Override
+  public void enablePeriodicFlushOnSend(boolean enableFlushOnSend) {
+    _enableFlushOnSend = enableFlushOnSend;
   }
 
   /**

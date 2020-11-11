@@ -136,20 +136,17 @@ public class TestCommonConnectorMetrics {
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
         + CommonConnectorMetrics.PollMetrics.NUM_POLLS)).getCount(), 50);
     Assert.assertEquals(((Histogram) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-        + CommonConnectorMetrics.PollMetrics.EVENT_COUNTS_PER_POLL)).getSnapshot()
-        .get99thPercentile(), 9.0);
+        + CommonConnectorMetrics.PollMetrics.EVENT_COUNTS_PER_POLL)).getSnapshot().get99thPercentile(), 9.0);
     Assert.assertEquals(((Histogram) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-        + CommonConnectorMetrics.PollMetrics.EVENT_COUNTS_PER_POLL)).getSnapshot()
-        .get99thPercentile(), 45.0);
+        + CommonConnectorMetrics.PollMetrics.EVENT_COUNTS_PER_POLL)).getSnapshot().get99thPercentile(), 45.0);
     Assert.assertEquals(((Counter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
-            + CommonConnectorMetrics.PollMetrics.CLIENT_POLL_OVER_TIMEOUT)).getCount(),
-        30);
+        + CommonConnectorMetrics.PollMetrics.CLIENT_POLL_OVER_TIMEOUT)).getCount(), 30);
     Assert.assertEquals(((Counter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
         + CommonConnectorMetrics.PollMetrics.CLIENT_POLL_INTERVAL_OVER_SESSION_TIMEOUT)).getCount(), 70);
   }
 
   @Test
-  public void testPConnectorPartitionMetrics() {
+  public void testPConnectorPartitionMetricsRebalanceRate() {
     CommonConnectorMetrics connectorConsumer1 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
     CommonConnectorMetrics connectorConsumer2 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
 
@@ -160,55 +157,123 @@ public class TestCommonConnectorMetrics {
       connectorConsumer1.updateRebalanceRate(1);
       connectorConsumer2.updateRebalanceRate(2);
     }
+
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
         + CommonConnectorMetrics.PartitionMetrics.REBALANCE_RATE)).getCount(), 5);
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PartitionMetrics.REBALANCE_RATE)).getCount(),
-        10);
+        + CommonConnectorMetrics.PartitionMetrics.REBALANCE_RATE)).getCount(), 10);
     Assert.assertEquals(((Meter) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
         + CommonConnectorMetrics.PartitionMetrics.REBALANCE_RATE)).getCount(), 15);
+  }
 
-    connectorConsumer1.updateStuckPartitions(10);
-    connectorConsumer2.updateStuckPartitions(20);
+  @Test
+  public void testPConnectorPartitionMetricsStuckPartitions() {
+    CommonConnectorMetrics connectorConsumer1 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+    CommonConnectorMetrics connectorConsumer2 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
+    CommonConnectorMetrics connectorConsumer3 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
 
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        10);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        20);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
-        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 30);
-    connectorConsumer1.updateStuckPartitions(5);
-    connectorConsumer2.updateStuckPartitions(12);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        5);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        12);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
-        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 17);
+    connectorConsumer1.createPartitionMetrics();
+    connectorConsumer2.createPartitionMetrics();
 
-    connectorConsumer1.updateStuckPartitions(0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        12);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
-        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 12);
+    long consumer1StuckPartitions = 0;
+    long consumer2StuckPartitions = 0;
+    long consumer3StuckPartitions = 0;
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+
+    consumer1StuckPartitions = 10;
+    consumer2StuckPartitions = 20;
+    consumer3StuckPartitions = 0;
+    connectorConsumer1.updateStuckPartitions(consumer1StuckPartitions);
+    connectorConsumer2.updateStuckPartitions(consumer2StuckPartitions);
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+
+    connectorConsumer3.createPartitionMetrics();
+    consumer3StuckPartitions = 10;
+    connectorConsumer3.updateStuckPartitions(consumer3StuckPartitions);
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+
+    consumer1StuckPartitions = 5;
+    consumer2StuckPartitions = 12;
+    connectorConsumer1.updateStuckPartitions(consumer1StuckPartitions);
+    connectorConsumer2.updateStuckPartitions(consumer2StuckPartitions);
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+
+    consumer1StuckPartitions = 0;
+    connectorConsumer1.updateStuckPartitions(consumer1StuckPartitions);
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
 
     connectorConsumer2.resetStuckPartitions();
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER1_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_CONSUMER2_NAME
-            + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
-        0);
-    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(CLASS_NAME + DELIMITED_AGGREGATE
-        + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(), 0);
+    consumer2StuckPartitions = 0;
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+
+    connectorConsumer3.deregisterMetrics();
+    consumer3StuckPartitions = 0;
+    validateStuckPartitionsMetrics(consumer1StuckPartitions + consumer3StuckPartitions, consumer2StuckPartitions);
+  }
+
+  private void validateStuckPartitionsMetrics(long consumer1StuckPartitions, long consumer2StuckPartitions) {
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER1_NAME + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
+        consumer1StuckPartitions);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER2_NAME + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
+        consumer2StuckPartitions);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_AGGREGATE + CommonConnectorMetrics.PartitionMetrics.STUCK_PARTITIONS)).getValue(),
+        consumer1StuckPartitions + consumer2StuckPartitions);
+  }
+
+  @Test
+  public void testPConnectorPartitionMetricsNumPartitions() {
+    CommonConnectorMetrics connectorConsumer1 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+    CommonConnectorMetrics connectorConsumer2 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER2_NAME, LOG);
+    CommonConnectorMetrics connectorConsumer3 = new CommonConnectorMetrics(CLASS_NAME, CONSUMER1_NAME, LOG);
+
+    connectorConsumer1.createPartitionMetrics();
+    connectorConsumer2.createPartitionMetrics();
+
+    long consumer1NumPartitions = 0;
+    long consumer2NumPartitions = 0;
+    long consumer3NumPartitions = 0;
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+
+    consumer1NumPartitions = 10;
+    consumer2NumPartitions = 20;
+    consumer3NumPartitions = 0;
+    connectorConsumer1.updateNumPartitions(consumer1NumPartitions);
+    connectorConsumer2.updateNumPartitions(consumer2NumPartitions);
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+
+    connectorConsumer3.createPartitionMetrics();
+    consumer3NumPartitions = 10;
+    connectorConsumer3.updateNumPartitions(consumer3NumPartitions);
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+
+    consumer1NumPartitions = 5;
+    consumer2NumPartitions = 12;
+    connectorConsumer1.updateNumPartitions(consumer1NumPartitions);
+    connectorConsumer2.updateNumPartitions(consumer2NumPartitions);
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+
+    consumer1NumPartitions = 0;
+    connectorConsumer1.updateNumPartitions(consumer1NumPartitions);
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+
+    connectorConsumer3.deregisterMetrics();
+    consumer3NumPartitions = 0;
+    validateNumPartitionsMetrics(consumer1NumPartitions + consumer3NumPartitions, consumer2NumPartitions);
+  }
+
+  private void validateNumPartitionsMetrics(long consumer1NumPartitions, long consumer2NumPartitions) {
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER1_NAME + CommonConnectorMetrics.PartitionMetrics.NUM_PARTITIONS)).getValue(),
+        consumer1NumPartitions);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_CONSUMER2_NAME + CommonConnectorMetrics.PartitionMetrics.NUM_PARTITIONS)).getValue(),
+        consumer2NumPartitions);
+    Assert.assertEquals((long) ((Gauge) _metricsManager.getMetric(
+        CLASS_NAME + DELIMITED_AGGREGATE + CommonConnectorMetrics.PartitionMetrics.NUM_PARTITIONS)).getValue(),
+        consumer1NumPartitions + consumer2NumPartitions);
   }
 
   @Test
