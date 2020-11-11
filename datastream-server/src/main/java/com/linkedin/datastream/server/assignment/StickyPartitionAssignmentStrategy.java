@@ -190,8 +190,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     // Store the processed target assignment in a new map since targetAssignment is immutable.
     Map<String, Set<String>> processedTargetAssignment = new HashMap<>();
 
-    // We first confirm that the partitions in the target assignment which can be removed, and we find out its source task
-    // If the partitions cannot be found from any task, we ignore these partitions
+    // Steps 1 and 2: We first confirm that the partitions in the target assignment which can be removed, and we find
+    // out its source task. If the partitions cannot be found from any task, we ignore these partitions
     currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
       Set<String> partitionsAcrossAllDatastreamTasks = tasks.stream().filter(dg::belongsTo)
@@ -202,14 +202,18 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
         // they are already on to avoid unnecessary partition movements. That is, if partition1 is currently on
         // instance1 and is supposed to move to instance1, remove it from the targetAssignment as this should be a
         // no-op. Accordingly the allToReassignPartitions should also be updated to remove such partitions.
+        Set<String> partitionsRemovedFromTargetAssignment = new HashSet<>(targetAssignment.get(instance));
+        partitionsRemovedFromTargetAssignment.retainAll(partitionsAcrossAllDatastreamTasks);
+
         Set<String> updatedTargetPartitionList = new HashSet<>(targetAssignment.get(instance));
-        updatedTargetPartitionList.removeAll(partitionsAcrossAllDatastreamTasks);
+        updatedTargetPartitionList.removeAll(partitionsRemovedFromTargetAssignment);
+        // allToReassignPartitions contains only valid partitions, so this step helps remove any invalid partitions on
+        // the targetAssignment list.
+        updatedTargetPartitionList.retainAll(allToReassignPartitions);
 
         processedTargetAssignment.computeIfAbsent(instance,
             val -> updatedTargetPartitionList.isEmpty() ? null : updatedTargetPartitionList);
 
-        Set<String> partitionsRemovedFromTargetAssignment = new HashSet<>(targetAssignment.get(instance));
-        partitionsRemovedFromTargetAssignment.retainAll(partitionsAcrossAllDatastreamTasks);
         allToReassignPartitions.removeAll(partitionsRemovedFromTargetAssignment);
       }
 
@@ -254,12 +258,12 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
         throw new DatastreamRuntimeException(errorMsg);
       }
 
-      // find the task with minimum number of partitions on that instance to store the moved partitions
+      // Step 3: find the task with minimum number of partitions on that instance to store the moved partitions
       final DatastreamTask targetTask = toAddedPartitions.size() > 0 ? dgTasks.stream()
           .reduce((task1, task2) -> task1.getPartitionsV2().size() < task2.getPartitionsV2().size() ? task1 : task2)
           .get() : null;
 
-      // compute new assignment for that instance
+      // Step 4: compute new assignment for that instance
       Set<DatastreamTask> newAssignedTask = tasks.stream().map(task -> {
         if (!dg.belongsTo(task)) {
           return task;
