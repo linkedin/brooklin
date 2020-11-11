@@ -503,8 +503,11 @@ public class DatastreamTaskImpl implements DatastreamTask {
   /**
    * Add a precedent task to this task
    */
-  public void addDependency(String taskName) {
-    _dependencies.add(taskName);
+  public void addDependency(DatastreamTaskImpl task) {
+    if (!task.isLocked()) {
+      throw new DatastreamTransientException("task " + task.getDatastreamTaskName() + " is not locked, "
+          + "the previous movement/assignment has not been picked up");
+    }
+    _dependencies.add(task.getDatastreamTaskName());
   }
-
 }
