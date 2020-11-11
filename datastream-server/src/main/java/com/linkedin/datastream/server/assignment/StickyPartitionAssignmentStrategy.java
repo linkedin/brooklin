@@ -152,12 +152,12 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   /**
    * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
    * task once. It follow the steps
-   * Step 1) Preprocess the targetAssignment to remove any partitions with no-op moves (partition currently assigned
+   * Step 1) Pre-process the targetAssignment to remove any partitions with no-op moves (partition currently assigned
    *         to the same instance where the partition is to be moved)
-   * Step 2) Get the partitions that are to be moved, and find their source task
+   * Step 2) Get the partitions that are to be moved, and find their source tasks
    * Step 3) If the instance is the one we want to move, we choose a task to which we should assign the partition
    *         from that instance
-   * Step 4) Scan the current assignment, compute the new task if the old task belongs to this source tasks or if it
+   * Step 4) Scan the current assignment, compute the new task if the old task belongs to this source task or if it
    *         is the target task we want to move the partition to
    *
    * @param currentAssignment the old assignment
@@ -176,23 +176,22 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     // Pre-process the targetAssignment to filter out partitions that are supposed to move to the target instance that
     // they are already on to avoid unnecessary partition movements. That is, if partition1 is currently on instance1
     // and is supposed to move to instance1, remove it from the targetAssignment as this should be a no-op.
-    Map<String, Set<String>> preprocessedTargetAssignment = new HashMap<>();
+    Map<String, Set<String>> preProcessedTargetAssignment = new HashMap<>();
     targetAssignment.forEach((instance, partitions) -> {
-      Set<DatastreamTask> tasks = currentAssignment.get(instance);
-      Set<String> partitionsAcrossAllDatastreamTasks = tasks.stream().filter(dg::belongsTo)
+      Set<String> partitionsAcrossAllDatastreamTasks = currentAssignment.get(instance).stream().filter(dg::belongsTo)
           .map(DatastreamTask::getPartitionsV2).flatMap(Collection::stream).collect(Collectors.toSet());
 
       Set<String> updatedTargetPartitionList = new HashSet<>(partitions);
       updatedTargetPartitionList.removeAll(partitionsAcrossAllDatastreamTasks);
 
-      preprocessedTargetAssignment.computeIfAbsent(instance,
+      preProcessedTargetAssignment.computeIfAbsent(instance,
           val -> updatedTargetPartitionList.isEmpty() ? null : updatedTargetPartitionList);
     });
 
-    LOG.info("The preprocessed targetAssignment: {}", preprocessedTargetAssignment);
+    LOG.info("The pre-processed targetAssignment: {}", preProcessedTargetAssignment);
 
     Set<String> allToReassignPartitions = new HashSet<>();
-    preprocessedTargetAssignment.values().forEach(allToReassignPartitions::addAll);
+    preProcessedTargetAssignment.values().forEach(allToReassignPartitions::addAll);
     allToReassignPartitions.retainAll(partitionsMetadata.getPartitions());
 
     // construct a map to store the tasks and if it contain the partitions that can be released
@@ -232,9 +231,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
       // check if this instance has any partition to be added
       final Set<String> toAddedPartitions = new HashSet<>();
-      if (preprocessedTargetAssignment.containsKey(instance)) {
+      if (preProcessedTargetAssignment.containsKey(instance)) {
         // filter the target assignment by the partitions which have a confirmed source
-        Set<String> p = preprocessedTargetAssignment.get(instance).stream()
+        Set<String> p = preProcessedTargetAssignment.get(instance).stream()
             .filter(toReleasePartitions::contains).collect(Collectors.toSet());
         toAddedPartitions.addAll(p);
       }

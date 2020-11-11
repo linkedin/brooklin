@@ -46,17 +46,12 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
-    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
-    task0.setZkAdapter(mockZkAdapter2);
-    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
-
-    task.addDependency(task0);
+    task.addDependency(createDependencyTask(stream, true));
     task.acquire(Duration.ofMillis(60));
     verify(mockZkAdapter, atLeastOnce()).waitForDependencies(any(DatastreamTaskImpl.class), any(Duration.class));
   }
 
-  @Test(expectedExceptions = DatastreamTransientException.class)
+  @Test
   public void testCreateNewTaskFromUnlockedTask() {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
@@ -67,14 +62,9 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
-    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
-    task0.setZkAdapter(mockZkAdapter2);
-    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
-
-    task.addDependency(task0);
+    task.addDependency(createDependencyTask(stream, true));
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(false);
-    DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
+    Assert.assertThrows(DatastreamTransientException.class, () -> new DatastreamTaskImpl(task, new ArrayList<>()));
   }
 
   @Test
@@ -87,19 +77,14 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
-    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
-    task0.setZkAdapter(mockZkAdapter2);
-    when(mockZkAdapter2.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
-
-    task.addDependency(task0);
+    task.addDependency(createDependencyTask(stream, true));
 
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
     DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
     Assert.assertEquals(new HashSet<>(task2.getDependencies()), ImmutableSet.of(task.getDatastreamTaskName()));
   }
 
-  @Test(expectedExceptions = DatastreamTransientException.class)
+  @Test
   public void testTaskAddUnlockedDependency() {
     Datastream stream = DatastreamTestUtils.createDatastream("dummy", "dummy", "dummy");
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
@@ -109,11 +94,8 @@ public class TestDatastreamTask {
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
 
-    DatastreamTaskImpl task0 = new DatastreamTaskImpl(Collections.singletonList(stream));
-    ZkAdapter mockZkAdapter2 = mock(ZkAdapter.class);
-    task0.setZkAdapter(mockZkAdapter2);
-
-    task.addDependency(task0);
+    Assert.assertThrows(DatastreamTransientException.class,
+        () -> task.addDependency(createDependencyTask(stream, false)));
   }
 
   @Test
@@ -173,5 +155,13 @@ public class TestDatastreamTask {
     task2.setPartitionsV2(Arrays.asList("2", "1"));
     Assert.assertEquals(task, task2);
     Assert.assertEquals(task.hashCode(), task2.hashCode());
+  }
+
+  private DatastreamTaskImpl createDependencyTask(Datastream stream, boolean checkIsTaskLockedReturn) {
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
+    ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
+    task.setZkAdapter(mockZkAdapter);
+    when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(checkIsTaskLockedReturn);
+    return task;
   }
 }
