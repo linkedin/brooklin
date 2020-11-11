@@ -154,11 +154,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   /**
    * Move a partition for a datastream group according to the targetAssignment. As we are only allowed to mutate the
    * task once. It follow the steps
-   * Step 1) get the partitions that to be moved, and find out their source task
-   * Step 2) If the instance is the one we want to move, we find out the task which we should assign the partition
+   * Step 1) Process the targetAssignment to remove any partitions with no-op moves (partition currently assigned
+   *         to the same instance where the partition is to be moved)
+   * Step 2) Get the partitions that are to be moved, and find their source tasks
+   * Step 3) If the instance is the one we want to move, we choose a task to which we should assign the partition
    *         from that instance
-   * Step 3) Scan the current assignment, compute new task if the old task belongs to these source tasks or if it
-   *         is the target task we want to move to
+   * Step 4) Scan the current assignment, compute the new task if the old task belongs to this source task or if it
+   *         is the target task we want to move the partition to
    *
    * @param currentAssignment the old assignment
    * @param targetAssignment the target assignment retrieved from Zookeeper
@@ -182,26 +184,57 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     Map<String, Set<String>> confirmedPartitionsTaskMap = new HashMap<>();
 
     // construct a map to store the partition and its source task
-    // map: <partitions that need to be released, source taskName>
-    Map<String, String> partitionToSourceTaskMap = new HashMap<>();
+    // map: <partitions that need to be released, source task>
+    Map<String, DatastreamTaskImpl> partitionToSourceTaskMap = new HashMap<>();
 
-    // We first confirm that the partitions in the target assignment which can be removed, and we find out its source task
-    // If the partitions cannot be found from any task, we ignore these partitions
+    // Store the processed target assignment in a new map since targetAssignment is immutable.
+    Map<String, Set<String>> processedTargetAssignment = new HashMap<>();
+
+    // Steps 1 and 2: We first confirm that the partitions in the target assignment which can be removed, and we find
+    // out its source task. If the partitions cannot be found from any task, we ignore these partitions
     currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
+      Set<String> partitionsAcrossAllDatastreamTasks = tasks.stream().filter(dg::belongsTo)
+          .map(DatastreamTask::getPartitionsV2).flatMap(Collection::stream).collect(Collectors.toSet());
+
+      if (targetAssignment.containsKey(instance)) {
+        // Process the targetAssignment to filter out partitions that are supposed to move to the target instance that
+        // they are already on to avoid unnecessary partition movements. That is, if partition1 is currently on
+        // instance1 and is supposed to move to instance1, remove it from the targetAssignment as this should be a
+        // no-op. Accordingly the allToReassignPartitions should also be updated to remove such partitions.
+        Set<String> partitionsRemovedFromTargetAssignment = new HashSet<>(targetAssignment.get(instance));
+        partitionsRemovedFromTargetAssignment.retainAll(partitionsAcrossAllDatastreamTasks);
+
+        Set<String> updatedTargetPartitionList = new HashSet<>(targetAssignment.get(instance));
+        updatedTargetPartitionList.removeAll(partitionsRemovedFromTargetAssignment);
+        // allToReassignPartitions contains only valid partitions, so this step helps remove any invalid partitions on
+        // the targetAssignment list.
+        updatedTargetPartitionList.retainAll(allToReassignPartitions);
+
+        processedTargetAssignment.computeIfAbsent(instance,
+            val -> updatedTargetPartitionList.isEmpty() ? null : updatedTargetPartitionList);
+
+        allToReassignPartitions.removeAll(partitionsRemovedFromTargetAssignment);
+      }
+
       tasks.forEach(task -> {
         if (dg.belongsTo(task)) {
           Set<String> toMovePartitions = new HashSet<>(task.getPartitionsV2());
           toMovePartitions.retainAll(allToReassignPartitions);
-          confirmedPartitionsTaskMap.put(task.getDatastreamTaskName(), toMovePartitions);
-          toMovePartitions.forEach(p -> partitionToSourceTaskMap.put(p, task.getDatastreamTaskName()));
+          if (!toMovePartitions.isEmpty()) {
+            // Only update the confirmedPartitionsTaskMap if a partition is indeed being deleted from it
+            confirmedPartitionsTaskMap.put(task.getDatastreamTaskName(), toMovePartitions);
+            toMovePartitions.forEach(p -> partitionToSourceTaskMap.put(p, (DatastreamTaskImpl) task));
+          }
         }
       });
     });
 
+    LOG.info("The processed targetAssignment: {}", processedTargetAssignment);
+
     Set<String> tasksToMutate = confirmedPartitionsTaskMap.keySet();
     Set<String> toReleasePartitions = new HashSet<>();
-    confirmedPartitionsTaskMap.values().forEach(v -> toReleasePartitions.addAll(v));
+    confirmedPartitionsTaskMap.values().forEach(toReleasePartitions::addAll);
 
     // Compute new assignment from the current assignment
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
@@ -211,57 +244,58 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
       // check if this instance has any partition to be added
       final Set<String> toAddedPartitions = new HashSet<>();
-      if (targetAssignment.containsKey(instance)) {
+      if (processedTargetAssignment.containsKey(instance)) {
         // filter the target assignment by the partitions which have a confirmed source
-        Set<String> p = targetAssignment.get(instance).stream()
+        Set<String> p = processedTargetAssignment.get(instance).stream()
             .filter(toReleasePartitions::contains).collect(Collectors.toSet());
         toAddedPartitions.addAll(p);
       }
 
-      Set<DatastreamTask> dgTasks = tasks.stream().filter(dg::belongsTo)
-          .collect(Collectors.toSet());
+      Set<DatastreamTask> dgTasks = tasks.stream().filter(dg::belongsTo).collect(Collectors.toSet());
       if (toAddedPartitions.size() > 0 && dgTasks.isEmpty()) {
         String errorMsg = String.format("No task is available in the target instance %s", instance);
         LOG.error(errorMsg);
         throw new DatastreamRuntimeException(errorMsg);
       }
 
-      // find the task with minimum number of partitions on that instance to store the moved partitions
+      // Step 3: find the task with minimum number of partitions on that instance to store the moved partitions
       final DatastreamTask targetTask = toAddedPartitions.size() > 0 ? dgTasks.stream()
           .reduce((task1, task2) -> task1.getPartitionsV2().size() < task2.getPartitionsV2().size() ? task1 : task2)
           .get() : null;
 
-        // compute new assignment for that instance
-        Set<DatastreamTask> newAssignedTask = tasks.stream().map(task -> {
-          if (!dg.belongsTo(task)) {
-            return task;
-          }
-          boolean partitionChanged = false;
-          List<String> newPartitions = new ArrayList<>(task.getPartitionsV2());
-          Set<String> extraDependencies = new HashSet<>();
+      // Step 4: compute new assignment for that instance
+      Set<DatastreamTask> newAssignedTask = tasks.stream().map(task -> {
+        if (!dg.belongsTo(task)) {
+          return task;
+        }
 
-          // release the partitions
-          if (tasksToMutate.contains(task.getDatastreamTaskName())) {
-            newPartitions.removeAll(toReleasePartitions);
-            partitionChanged = true;
-          }
+        boolean partitionChanged = false;
+        List<String> newPartitions = new ArrayList<>(task.getPartitionsV2());
+        Set<DatastreamTaskImpl> extraDependencies = new HashSet<>();
 
-          // add new partitions
-          if (targetTask != null && task.getDatastreamTaskName().equals(targetTask.getDatastreamTaskName())) {
-            newPartitions.addAll(toAddedPartitions);
-            partitionChanged = true;
-            // add source task for these partitions into extra dependency
-            toReleasePartitions.forEach(p -> extraDependencies.add(partitionToSourceTaskMap.get(p)));
-          }
+        // release the partitions
+        if (tasksToMutate.contains(task.getDatastreamTaskName())) {
+          newPartitions.removeAll(toReleasePartitions);
+          partitionChanged = true;
+        }
 
-          if (partitionChanged) {
-            DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
-            extraDependencies.forEach(t -> newTask.addDependency(t));
-            return newTask;
-          } else {
-            return task;
-          }
-        }).collect(Collectors.toSet());
+        // add new partitions
+        if (targetTask != null && task.getDatastreamTaskName().equals(targetTask.getDatastreamTaskName())) {
+          newPartitions.addAll(toAddedPartitions);
+          partitionChanged = true;
+          // add the source task for these partitions into the extra dependency list
+          toAddedPartitions.forEach(p -> extraDependencies.add(partitionToSourceTaskMap.get(p)));
+        }
+
+        if (partitionChanged) {
+          DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+          extraDependencies.forEach(newTask::addDependency);
+          return newTask;
+        } else {
+          return task;
+        }
+      }).collect(Collectors.toSet());
+
       newAssignment.put(instance, newAssignedTask);
     });
 
