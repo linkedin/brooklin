@@ -19,6 +19,7 @@ public class KafkaConsumerOffsetsResponse {
   private final String _datastreamName;
   private final Map<String, Map<Integer, Long>> _consumedOffsets;
   private final Map<String, Map<Integer, Long>> _committedOffsets;
+  private final Map<String, Map<Integer, Long>> _consumptionLagMap;
 
   /**
    * Constructor for {@link KafkaConsumerOffsetsResponse}
@@ -27,12 +28,16 @@ public class KafkaConsumerOffsetsResponse {
    * @param consumerGroupId Consumer group ID
    * @param datastreamName Datastream name
    */
-  public KafkaConsumerOffsetsResponse(@JsonProperty("consumedOffsets") Map<String, Map<Integer, Long>> consumedOffsets,
+  public KafkaConsumerOffsetsResponse(
+      @JsonProperty("consumedOffsets") Map<String, Map<Integer, Long>> consumedOffsets,
       @JsonProperty("committedOffsets") Map<String, Map<Integer, Long>> committedOffsets,
-      @JsonProperty("consumerGroupId") String consumerGroupId, @JsonProperty("datastreamName") String datastreamName) {
+      @JsonProperty("consumptionLagMap") Map<String, Map<Integer, Long>> consumptionLagMap,
+      @JsonProperty("consumerGroupId") String consumerGroupId,
+      @JsonProperty("datastreamName") String datastreamName) {
     _consumerGroupId = consumerGroupId;
     _consumedOffsets = consumedOffsets;
     _committedOffsets = committedOffsets;
+    _consumptionLagMap = consumptionLagMap;
     _datastreamName = datastreamName;
   }
 
@@ -41,7 +46,7 @@ public class KafkaConsumerOffsetsResponse {
    * @param consumerGroupId Consumer group ID
    */
   public KafkaConsumerOffsetsResponse(String consumerGroupId, String datastreamName) {
-    this(new HashMap<>(), new HashMap<>(), consumerGroupId, datastreamName);
+    this(new HashMap<>(), new HashMap<>(), new HashMap<>(), consumerGroupId, datastreamName);
   }
 
   /**
@@ -56,6 +61,13 @@ public class KafkaConsumerOffsetsResponse {
    */
   public Map<String, Map<Integer, Long>> getCommittedOffsets() {
     return _committedOffsets;
+  }
+
+  /**
+   * Gets the consumption lag map
+   */
+  public Map<String, Map<Integer, Long>> getConsumptionLagMap() {
+    return _consumptionLagMap;
   }
 
   /**
