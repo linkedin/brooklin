@@ -353,6 +353,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     try {
       _consumer = createKafkaConsumer(_consumerProps);
+      _consumerMetrics.registerKafkaConsumerMetrics(_consumer,
+          _consumerProps.getProperty(ConsumerConfig.CLIENT_ID_CONFIG));
       consumerSubscribe();
 
       ConsumerRecords<?, ?> records;
