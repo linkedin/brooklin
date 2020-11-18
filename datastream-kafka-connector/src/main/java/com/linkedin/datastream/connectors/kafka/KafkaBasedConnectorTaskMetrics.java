@@ -7,11 +7,17 @@ package com.linkedin.datastream.connectors.kafka;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.common.Metric;
+import org.apache.kafka.common.MetricName;
 import org.slf4j.Logger;
 
 import com.codahale.metrics.Histogram;
@@ -45,6 +51,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   public static final String TIME_SPENT_BETWEEN_POLLS_MS = "timeSpentBetweenPollsMs";
   // keeps track of process + send time per event returned from poll() in nanoseconds
   public static final String PER_EVENT_PROCESSING_TIME_NANOS = "perEventProcessingTimeNs";
+  // keeps track of the sum of how far the safe offset is behind the watermark for all TopicPartitions
+  public static final String CONSUMER_OFFSET_WATERMARK_SPAN = "consumerOffsetWatermarkSpan";
+  // keeps track of how many times the consumer had OffsetOutOfRangeException or NoOffsetForPartitionException
+  public static final String CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION = "consumerLiclosestDataLossEstimation";
 
   private static final Map<String, AtomicLong> AGGREGATED_NUM_TOPICS = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS = new ConcurrentHashMap<>();
@@ -130,6 +140,41 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_TOPICS, aggNumTopics::get);
   }
 
+  /**
+   * Register some of the Kafka consumer metrics of interest. This cannot be done as part of the constructor
+   * as the Kafka consumer may be created at a later time than this object.
+   * @param consumer the Kafka consumer for which to register the metrics
+   * @param clientId the Kafka consumer's client.id
+   */
+  public void registerKafkaConsumerMetrics(Consumer<?, ?> consumer, String clientId) {
+    if (StringUtils.isBlank(clientId)) {
+      _errorLogger.warn("Cannot register the Kafka consumer metrics, the client.id is blank");
+      return;
+    }
+
+    Supplier<Double> watermarkSpanSupplier = () -> getConsumerOffsetWatermarkSpanMetric(consumer, clientId);
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, CONSUMER_OFFSET_WATERMARK_SPAN, watermarkSpanSupplier);
+
+    Supplier<Double> offsetResetSupplier = () -> getConsumerLiclosestDataLossEstimationMetric(consumer, clientId);
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION, offsetResetSupplier);
+  }
+
+  private double getConsumerOffsetWatermarkSpanMetric(Consumer<?, ?> consumer, String clientId) {
+    return getConsumerMetricValue(consumer, clientId, "consumer-offset-watermark-span");
+  }
+
+  private double getConsumerLiclosestDataLossEstimationMetric(Consumer<?, ?> consumer, String clientId) {
+    return getConsumerMetricValue(consumer, clientId, "consumer-liclosest-data-loss-estimation");
+  }
+
+  private double getConsumerMetricValue(Consumer<?, ?> consumer, String clientId, String metricName) {
+    Map<String, String> tags = new HashMap<>(2);
+    tags.put("client-id", clientId);
+    MetricName name = new MetricName(metricName, "lnkd", "", tags);
+    Metric metric = consumer.metrics().get(name);
+    return (metric != null && metric.metricValue() instanceof Double) ? (Double) metric.metricValue() : 0.0;
+  }
+
   @Override
   public void deregisterMetrics() {
     // this is called when a datastream task is closed/shutdown
@@ -145,6 +190,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, CONSUMER_OFFSET_WATERMARK_SPAN);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION);
 
     if (_pollDurationMsMetric != null) {
       DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, POLL_DURATION_MS);
@@ -257,6 +304,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
+    metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_OFFSET_WATERMARK_SPAN));
+    metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION));
     metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
     metrics.add(new BrooklinHistogramInfo(prefix + TIME_SPENT_BETWEEN_POLLS_MS));
     metrics.add(new BrooklinHistogramInfo(prefix + PER_EVENT_PROCESSING_TIME_NANOS));
