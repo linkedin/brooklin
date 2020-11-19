@@ -82,6 +82,13 @@ public class KafkaConnectorDiagUtils {
             Map<Integer, Long> reducedPartitionOffsets = reducedCommittedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
             reducedPartitionOffsets.putAll(partitionOffsets);
           });
+
+          Map<String, Map<Integer, Long>> consumptionLagMap = response.getConsumptionLagMap();
+          consumptionLagMap.forEach((topic, partitionLag) -> {
+            Map<String, Map<Integer, Long>> reducedConsumptionLagMap = reducedResponse.getConsumptionLagMap();
+            Map<Integer, Long> reducedPartitionLags = reducedConsumptionLagMap.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionLags.putAll(partitionLag);
+          });
         }
       });
     });

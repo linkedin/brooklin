@@ -62,7 +62,6 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
-import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.getDefaultConfig;
 
 
 /**
@@ -91,6 +90,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     config.put(KafkaBasedConnectorConfig.CONFIG_RETRY_SLEEP_DURATION_MILLIS, "1000");
     config.put(KafkaBasedConnectorConfig.CONFIG_PAUSE_ERROR_PARTITION_DURATION_MILLIS,
         String.valueOf(Duration.ofSeconds(5).toMillis()));
+    config.put(KafkaBasedConnectorConfig.DOMAIN_KAFKA_CONSUMER + "." + ConsumerConfig.CLIENT_ID_CONFIG, "client-id-42");
     override.ifPresent(config::putAll);
     return config;
   }

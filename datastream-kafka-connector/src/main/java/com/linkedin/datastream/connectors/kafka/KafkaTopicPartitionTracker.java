@@ -6,6 +6,7 @@
 
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -18,6 +19,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.record.TimestampType;
 import org.jetbrains.annotations.NotNull;
 
 
@@ -36,6 +38,7 @@ public class KafkaTopicPartitionTracker {
   private final Map<String, Set<Integer>> _topicPartitions = new ConcurrentHashMap<>();
   private final Map<String, Map<Integer, Long>> _consumedOffsets = new ConcurrentHashMap<>();
   private final Map<String, Map<Integer, Long>> _committedOffsets = new ConcurrentHashMap<>();
+  private final Map<String, Map<Integer, Long>> _consumptionLag = new ConcurrentHashMap<>();
 
   /**
    *  Constructor for KafkaTopicPartitionTracker
@@ -82,20 +85,23 @@ public class KafkaTopicPartitionTracker {
     // Remove consumed offsets for partitions that have been revoked. The reason to remove the consumed offsets
     // here is that another host may handle these partitions due to rebalance, and we don't want to have duplicate
     // consumer offsets for affected partitions (even though the ones with larger offsets wins).
-    removeOffsetsForTopicPartition(topicPartitions, _consumedOffsets);
+    cleanupTopicPartitionsFromMap(topicPartitions, _consumedOffsets);
 
     // Remove committed offsets for partitions that have been revoked.
-    removeOffsetsForTopicPartition(topicPartitions, _committedOffsets);
+    cleanupTopicPartitionsFromMap(topicPartitions, _committedOffsets);
+
+    // Remove consumption lag data for partitions that have been revoked.
+    cleanupTopicPartitionsFromMap(topicPartitions, _consumptionLag);
   }
 
-  private void removeOffsetsForTopicPartition(@NotNull Collection<TopicPartition> topicPartitions,
-      Map<String, Map<Integer, Long>> committedOffsets) {
+  private void cleanupTopicPartitionsFromMap(@NotNull Collection<TopicPartition> topicPartitions,
+      Map<String, Map<Integer, Long>> map) {
     topicPartitions.forEach(topicPartition -> {
-      Map<Integer, Long> partitions = committedOffsets.get(topicPartition.topic());
+      Map<Integer, Long> partitions = map.get(topicPartition.topic());
       if (partitions != null) {
         partitions.remove(topicPartition.partition());
         if (partitions.isEmpty()) {
-          committedOffsets.remove(topicPartition.topic());
+          map.remove(topicPartition.topic());
         }
       }
     });
@@ -115,7 +121,19 @@ public class KafkaTopicPartitionTracker {
       Map<Integer, Long> partitionOffsetMap = _consumedOffsets.computeIfAbsent(topicPartition.topic(),
           k -> new ConcurrentHashMap<>());
       partitionOffsetMap.put(topicPartition.partition(), lastRecord.offset());
+
+      Map<Integer, Long> partitionConsumptionLagMap = _consumptionLag.computeIfAbsent(topicPartition.topic(),
+          k -> new ConcurrentHashMap<>());
+      partitionConsumptionLagMap.put(topicPartition.partition(), calculateLag(lastRecord));
     });
+  }
+
+  private Long calculateLag(ConsumerRecord<?, ?> record) {
+    if (record.timestampType().equals(TimestampType.LOG_APPEND_TIME)) {
+      return Instant.now().toEpochMilli() - record.timestamp();
+    }
+    // No meaningful lag can be calculated if the timestamp is not log append time
+    return -1L;
   }
 
   /**
@@ -148,6 +166,13 @@ public class KafkaTopicPartitionTracker {
    */
   public Map<String, Map<Integer, Long>> getCommittedOffsets() {
     return Collections.unmodifiableMap(_committedOffsets);
+  }
+
+  /**
+   * Returns a map of consumption lag (in milliseconds) for all topic partitions
+   */
+  public Map<String, Map<Integer, Long>> getConsumptionLag() {
+    return Collections.unmodifiableMap(_consumptionLag);
   }
 
   /**
