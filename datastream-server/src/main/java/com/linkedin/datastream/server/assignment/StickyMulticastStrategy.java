@@ -129,6 +129,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
         if (!foundDatastreamTasks.isEmpty()) {
           if (foundDatastreamTasks.size() > numTasks) {
+            LOG.info("Skipping {} tasks from the previous assignment of instance {}.",
+                foundDatastreamTasks.size() - numTasks, instance);
             foundDatastreamTasks = foundDatastreamTasks.stream().limit(numTasks).collect(Collectors.toList());
           }
           newAssignment.get(instance).addAll(foundDatastreamTasks);

@@ -43,7 +43,7 @@ public class TestStickyMulticastStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(TestBroadcastStrategy.class.getName());
 
   @Test
-  public void testCreateAssignmentAcrossAllInstances() {
+  public void testCreateAssignmentAcrossAllInstances()  {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
