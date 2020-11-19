@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.api.strategy;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -88,5 +89,17 @@ public interface AssignmentStrategy {
   default Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
     throw new NotImplementedException("movePartitions are not implemented");
+  }
+
+  /**
+   * Validate the current assignment and return the list of DatastreamTask per instance to be cleaned up.
+   *
+   * @param datastreams all the datastreams for which the associated tasks need to be validated
+   * @param currentAssignment existing assignment
+   * @return tasks per instance to be cleaned up
+   */
+  default Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreams,
+      Map<String, Set<DatastreamTask>> currentAssignment) {
+    return Collections.emptyMap();
   }
 }
