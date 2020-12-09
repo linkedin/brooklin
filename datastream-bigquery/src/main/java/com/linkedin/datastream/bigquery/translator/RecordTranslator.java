@@ -7,9 +7,8 @@ package com.linkedin.datastream.bigquery.translator;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
-
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -35,6 +34,11 @@ import com.google.cloud.bigquery.InsertAllRequest;
  * This class translates given avro record into BQ row object.
  */
 public class RecordTranslator {
+
+    /**
+     * BiqQuery restricts to 9 decimal digits of scale
+     */
+    private static final int BQ_MAX_DECIMAL_SCALE = 9;
 
     private static boolean isPrimitiveType(Schema.Type type) {
         return (type == Schema.Type.BOOLEAN ||
@@ -160,6 +164,7 @@ public class RecordTranslator {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimeType((Integer) record, avroSchema));
                     break;
                 }
+                //We intentionally dont want to break in this case
             case LONG:
                 if (LogicalTypeIdentifier.isTimeType(avroSchema)) {
                     result = new AbstractMap.SimpleEntry<>(name, LogicalTypeTranslator.translateTimeType((Long) record, avroSchema));
@@ -177,8 +182,12 @@ public class RecordTranslator {
             case BYTES:
                 if (LogicalTypeIdentifier.isDecimalType(avroSchema)) {
                     final LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) avroSchema.getLogicalType();
-                    result = new AbstractMap.SimpleEntry<>(name,
-                            new BigDecimal(new BigInteger(((ByteBuffer) record).array()), decimalType.getScale()));
+                    BigDecimal scaledBigDecimal = new BigDecimal(new BigInteger(((ByteBuffer) record).array()), decimalType.getScale());
+                    // BiqQuery restricts to 9 decimal digits of scale
+                    if (decimalType.getScale() > BQ_MAX_DECIMAL_SCALE) {
+                        scaledBigDecimal = scaledBigDecimal.setScale(BQ_MAX_DECIMAL_SCALE, RoundingMode.HALF_UP);
+                    }
+                    result = new AbstractMap.SimpleEntry<>(name, scaledBigDecimal);
                 } else {
                     result = new AbstractMap.SimpleEntry<>(name,
                             Base64.getEncoder().encodeToString(((ByteBuffer) record).array()));
@@ -197,7 +206,12 @@ public class RecordTranslator {
     private static Map.Entry<String, Object> translateFixedTypeObject(Object record, Schema avroSchema, String name) {
         if (LogicalTypeIdentifier.isDecimalType(avroSchema)) {
             LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) avroSchema.getLogicalType();
-            return new AbstractMap.SimpleEntry<>(name, new BigDecimal(new BigInteger(((GenericFixed) record).bytes()), decimalType.getScale()));
+            BigDecimal scaledBigDecimal = new BigDecimal(new BigInteger(((GenericFixed) record).bytes()), decimalType.getScale());
+            // BiqQuery restricts to 9 decimal digits of scale
+            if (decimalType.getScale() > BQ_MAX_DECIMAL_SCALE) {
+                scaledBigDecimal = scaledBigDecimal.setScale(BQ_MAX_DECIMAL_SCALE, RoundingMode.HALF_UP);
+            }
+            return new AbstractMap.SimpleEntry<>(name, scaledBigDecimal);
         } else {
             return new AbstractMap.SimpleEntry<>(name, Base64.getEncoder().encodeToString(((GenericFixed) record).bytes()));
         }

@@ -26,7 +26,7 @@ public interface RecordTranslator<T, I> {
     /**
      * Translates values from internal format into T format
      *
-     * @param record - The record to be translated into the internal format
+     * @param record - The record to be translated into the T format
      * @param includeSchema - Flag to include schema
      * @return The translated record in T format
      * @throws Exception if any error occurs during creation

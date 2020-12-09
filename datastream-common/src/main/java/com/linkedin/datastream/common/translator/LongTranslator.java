@@ -14,8 +14,6 @@ import org.apache.avro.generic.GenericRecordBuilder;
  * Connector that implements LongTranslator and SchemaTranslator to support Json.
  */
 public class LongTranslator implements RecordTranslator<Long, GenericRecord>, SchemaTranslator<Long, Schema> {
-    private static final String AVRO_SCHEMA_RECORD_NAME = "sqlRecord";
-    private static final String AVRO_SCHEMA_KEY = "key";
     /**
      * Translates values of record into the internal format
      *
@@ -26,7 +24,7 @@ public class LongTranslator implements RecordTranslator<Long, GenericRecord>, Sc
     @Override
     public GenericRecord translateToInternalFormat(Long record) {
         GenericRecord longGenericRecord = new GenericRecordBuilder(this.translateSchemaToInternalFormat(record)).build();
-        longGenericRecord.put(AVRO_SCHEMA_KEY, record);
+        longGenericRecord.put(TranslatorConstants.AVRO_SCHEMA_KEY, record);
         return longGenericRecord;
     }
 
@@ -38,9 +36,9 @@ public class LongTranslator implements RecordTranslator<Long, GenericRecord>, Sc
      */
     @Override
     public Schema translateSchemaToInternalFormat(Long sourceRecord) {
-        return SchemaBuilder.record(AVRO_SCHEMA_RECORD_NAME)
+        return SchemaBuilder.record(TranslatorConstants.AVRO_SCHEMA_RECORD_NAME)
                 .fields()
-                .optionalLong(AVRO_SCHEMA_KEY)
+                .optionalLong(TranslatorConstants.AVRO_SCHEMA_KEY)
                 .endRecord();
     }
 }
