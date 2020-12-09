@@ -1390,7 +1390,15 @@ public class ZkAdapter {
       return;
     }
 
-    String owner = _zkclient.ensureReadData(lockPath);
+    String owner;
+    try {
+      owner = _zkclient.ensureReadData(lockPath);
+    } catch (ZkNoNodeException e) {
+      LOG.info("{} Lock does not exists on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
+          task.getDatastreamTaskName());
+      return;
+    }
+
     if (!owner.equals(_instanceName)) {
       LOG.warn("{} does not have the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
           task.getDatastreamTaskName());
@@ -1566,7 +1574,12 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        String hostname;
+        try {
+          hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        } catch (ZkNoNodeException e) {
+          hostname = null;
+        }
         if (hostname == null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
