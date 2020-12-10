@@ -10,11 +10,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.Validate;
@@ -108,7 +109,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   private Instant _lastFlushTime = Instant.now();
   private long _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
-  private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new HashMap<>();
+  private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new ConcurrentHashMap<>();
   private boolean _enableFlushOnSend = true;
 
   /**
@@ -272,20 +273,28 @@ public class EventProducer implements DatastreamEventProducer {
     }
 
     if (_numEventsOutsideAltSlaLogEnabled) {
-      if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
-        int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
-        _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
-      }
+      try {
+        if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
+          TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
+          int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
+          _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
+        }
 
-      long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
-      if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
-        _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) ->
-            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
-                    + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs,
-                timeSinceLastLog, getDatastreamName()));
-        _trackEventsOutsideAltSlaMap.clear();
-        _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
+        long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
+        if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
+          _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) -> _logger.warn(
+              "{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
+                  + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog,
+              getDatastreamName()));
+          _trackEventsOutsideAltSlaMap.clear();
+          _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
+        }
+      } catch (ConcurrentModificationException | NullPointerException | IllegalArgumentException | ClassCastException
+          | UnsupportedOperationException e) {
+        // Catch any exceptions that can be thrown for HashMap operations to avoid being in a situation where the
+        // send callback is unable to complete. Don't catch all exceptions as certain exceptions should be propagated
+        // up such as out of memory errors.
+        _logger.warn("Could not perform warn logging due to exception: ", e);
       }
     }
   }
