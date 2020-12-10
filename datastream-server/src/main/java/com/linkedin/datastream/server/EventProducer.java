@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -289,8 +288,7 @@ public class EventProducer implements DatastreamEventProducer {
           _trackEventsOutsideAltSlaMap.clear();
           _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
         }
-      } catch (ConcurrentModificationException | NullPointerException | IllegalArgumentException | ClassCastException
-          | UnsupportedOperationException e) {
+      } catch (NullPointerException | IllegalArgumentException | ClassCastException | UnsupportedOperationException e) {
         // Catch any exceptions that can be thrown for HashMap operations to avoid being in a situation where the
         // send callback is unable to complete. Don't catch all exceptions as certain exceptions should be propagated
         // up such as out of memory errors.
@@ -376,21 +374,31 @@ public class EventProducer implements DatastreamEventProducer {
 
     SendFailedException sendFailedException = null;
 
-    if (exception != null) {
-      // If it is custom checkpointing it is up to the connector to keep track of the safe checkpoints.
-      Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
-      sendFailedException = new SendFailedException(_datastreamTask, safeCheckpoints, exception);
-    } else {
-      // Report metrics
-      checkpoint(metadata.getPartition(), metadata.getCheckpoint());
-      reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+    try {
+      if (exception != null) {
+        sendFailedException = createSendFailedException(exception);
+      } else {
+        // Report metrics
+        checkpoint(metadata.getPartition(), metadata.getCheckpoint());
+        reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+      }
+    } catch (Exception e) {
+      // Propagate the exception caught to the caller as a send callback exception to take any action such as retries.
+      sendFailedException = sendFailedException == null ? createSendFailedException(e) : sendFailedException;
+      throw e;
+    } finally {
+      // Inform the connector about the success or failure, In the case of failure,
+      // the connector is expected retry and go back to the last checkpoint.
+      if (sendCallback != null) {
+        sendCallback.onCompletion(metadata, sendFailedException);
+      }
     }
+  }
 
-    // Inform the connector about the success or failure, In the case of failure,
-    // the connector is expected retry and go back to the last checkpoint.
-    if (sendCallback != null) {
-      sendCallback.onCompletion(metadata, sendFailedException);
-    }
+  private SendFailedException createSendFailedException(Exception exception) {
+    // If it is custom checkpointing it is up to the connector to keep track of the safe checkpoints.
+    Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
+    return new SendFailedException(_datastreamTask, safeCheckpoints, exception);
   }
 
   /**
