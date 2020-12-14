@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -609,6 +610,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
       throws DatastreamRuntimeException {
     preCommitHook();
+    AtomicReference<KafkaException> lastKafkaExceptionRef = new AtomicReference<>(null);
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
@@ -619,6 +621,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
         _logger.info("Commit succeeded.");
       } catch (KafkaException e) {
+        lastKafkaExceptionRef.set(e);
         if (_shutdown) {
           _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
           return true;
@@ -630,7 +633,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
       return true;
     }, COMMIT_RETRY_INTERVAL_MILLIS, COMMIT_RETRY_TIMEOUT_MILLIS);
-    postCommitHook(result);
+
+    postCommitHook(result, lastKafkaExceptionRef.get());
+
+    if (!result) {
+      String msg = "Commit failed after several retries, Giving up.";
+      _logger.error(msg);
+      throw new DatastreamRuntimeException(msg);
+    }
   }
 
   /**
@@ -777,15 +787,14 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   /**
    * Post commit hook for all operations that need to be performed after committing offsets.
+   * <p>
+   *     Note: A commit attempt can be declared successful even when there's an exception. This can happen when a commit
+   *     exception is thrown during task shutdown.
+   * </p>
    * @param success Indicates whether the commit attempt was successful or not.
+   * @param exception Exception caught during a commit attempt.
    */
-  protected void postCommitHook(boolean success) {
-    if (!success) {
-      String msg = "Commit failed after several retries, Giving up.";
-      _logger.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
-  }
+  protected void postCommitHook(boolean success, KafkaException exception) { }
 
   /**
    * The method, given a datastream task - checks if there is any update in the existing task.
