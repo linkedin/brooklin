@@ -608,6 +608,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
       throws DatastreamRuntimeException {
+    preCommitHook();
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
@@ -629,12 +630,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
       return true;
     }, COMMIT_RETRY_INTERVAL_MILLIS, COMMIT_RETRY_TIMEOUT_MILLIS);
-
-    if (!result) {
-      String msg = "Commit failed after several retries, Giving up.";
-      _logger.error(msg);
-      throw new DatastreamRuntimeException(msg);
-    }
+    postCommitHook(result);
   }
 
   /**
@@ -771,6 +767,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       } else {
         throw new IllegalStateException("Found null update type in task updates set.");
       }
+    }
+  }
+
+  /**
+   * Pre commit hook for all operations that need to be performed before committing offsets.
+   */
+  protected void preCommitHook() { }
+
+  /**
+   * Post commit hook for all operations that need to be performed after committing offsets.
+   * @param success Indicates whether the commit attempt was successful or not.
+   */
+  protected void postCommitHook(boolean success) {
+    if (!success) {
+      String msg = "Commit failed after several retries, Giving up.";
+      _logger.error(msg);
+      throw new DatastreamRuntimeException(msg);
     }
   }
 
