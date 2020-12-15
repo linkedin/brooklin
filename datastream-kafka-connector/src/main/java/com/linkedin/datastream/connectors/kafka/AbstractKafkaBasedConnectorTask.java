@@ -233,7 +233,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param records the Kafka consumer records
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
-  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) {
+  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) throws Exception {
     // iterate through each topic partition one at a time, for better isolation
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
@@ -256,6 +256,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           }
         } catch (Exception e) {
           _logger.warn(String.format("Got exception while sending record %s, exception: ", record), e);
+          if (_shutdown && !(e instanceof WakeupException)) {
+            throw e;
+          }
           rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
@@ -519,7 +522,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param readTimeInNanos the time at which the records were successfully polled from Kafka in nanoseconds. This can
    *                        only be used for elapsed time calculations and has no meaning by itself
    */
-  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime, long readTimeInNanos) {
+  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime, long readTimeInNanos)
+      throws Exception {
     // send the batch out the other end
     translateAndSendBatch(records, readTime);
 
