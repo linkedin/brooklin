@@ -235,7 +235,7 @@ public class EventProducer implements DatastreamEventProducer {
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
               recordEventsSendTimestamp));
     } catch (Exception e) {
-      String errorMessage = String.format("Failed send the event %s exception %s", record, e);
+      String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
     }
