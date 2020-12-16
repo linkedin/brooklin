@@ -310,14 +310,16 @@ public class DatastreamTaskImpl implements DatastreamTask {
       // Need to confirm the dependencies for task are not locked
       _dependencies.forEach(predecessor -> {
         if (_zkAdapter.checkIsTaskLocked(this.getConnectorType(), this.getTaskPrefix(), predecessor)) {
-          String msg = String.format("previous task %s failed to release lock in %dms", predecessor, timeout.toMillis());
+          String msg = String.format("previous task %s failed to release lock in %dms for task %s", predecessor,
+              timeout.toMillis(), this.getDatastreamTaskName());
           throw new DatastreamRuntimeException(msg);
         }
       });
 
       _zkAdapter.acquireTask(this, timeout);
     } catch (Exception e) {
-      LOG.error("Failed to acquire task: " + this, e);
+      LOG.error(String.format("Failed to acquire task: %s with dependencies: %s", this.getDatastreamTaskName(),
+          String.join(",", this.getDependencies())), e);
       setStatus(DatastreamTaskStatus.error("Acquire failed, exception: " + e));
       throw e;
     }

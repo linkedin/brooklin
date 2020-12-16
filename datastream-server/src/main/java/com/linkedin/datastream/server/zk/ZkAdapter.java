@@ -1252,7 +1252,8 @@ public class ZkAdapter {
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.readData(lockPath, true);
       if (owner != null && owner.equals(_instanceName)) {
-        LOG.info("{} already owns the lock on {}", _instanceName, task);
+        LOG.info("{} already owns the lock on {}, with dependencies {}", _instanceName, task.getDatastreamTaskName(),
+            task.getDependencies());
         return;
       }
 
@@ -1261,12 +1262,14 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
-      LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
+      LOG.info("{} successfully acquired the lock on {} with dependencies: {}", _instanceName,
+          task.getDatastreamTaskName(), task.getDependencies());
       return;
     }
 
-    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
-        timeout.toMillis(), owner);
+    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s, dependencies: %s",
+        _instanceName, task.getDatastreamTaskName(), timeout.toMillis(), owner,
+        String.join(",", task.getDependencies()));
     ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
   }
 
