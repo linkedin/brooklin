@@ -14,6 +14,8 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT;
 
 
 /**
@@ -21,6 +23,8 @@ import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyF
  */
 public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
+  public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
+  public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
 
 
   @Override
@@ -35,6 +39,15 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
         : Optional.empty();
     Optional<Integer> maxPartitions = cfgMaxParitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) :
         Optional.empty();
-    return new StickyPartitionAssignmentStrategy(maxTasks, imbalanceThreshold, maxPartitions);
+    boolean enableElasticTaskAssignment = props.getBoolean(CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT,
+        DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT);
+    int cfgPartitionsPerTask = props.getInt(CFG_PARTITIONS_PER_TASK, 0);
+    int cfgPartitionFullnessThresholdPct = props.getIntInRange(CFG_PARTITION_FULLNESS_THRESHOLD_PCT, 0, 0, 100);
+    Optional<Integer> partitionsPerTask = cfgPartitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) :
+        Optional.empty();
+    Optional<Integer> partitionFullnessThresholdPct = cfgPartitionFullnessThresholdPct > 0 ?
+        Optional.of(cfgPartitionFullnessThresholdPct) : Optional.empty();
+    return new StickyPartitionAssignmentStrategy(maxTasks, imbalanceThreshold, maxPartitions,
+        enableElasticTaskAssignment, partitionsPerTask, partitionFullnessThresholdPct);
   }
 }

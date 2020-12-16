@@ -31,14 +31,27 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 
 /**
  *
- * The StickyPartitionAssignmentStrategy extends the StickyMulticastStrategy but allows to perform the partition
+ * The StickyPartitionAssignmentStrategy extends the StickyMulticastStrategy to allow performing the partition
  * assignment. This StickyPartitionAssignmentStrategy creates new tasks and remove old tasks to accommodate the
  * change in partition assignment. The strategy is also "Sticky", i.e., it minimizes the potential task mutations.
  * The total number of tasks is also unchanged during this process.
+ *
+ * If elastic task assignment is enabled then the initial number of tasks to create, when no tasks exist for a given
+ * DatastreamGroup, is determined by a "minTasks" datastream metadata property. When the first partition assignment
+ * takes place, based on the "partitionsPerTask" and "partitionFullnessFactorPct", the number of tasks needed to host
+ * the partitions is determined. An in-memory map tracking the number of tasks per DatastreamGroup is updated and a
+ * DatastreamRuntimeException is thrown to retry task assignment with the updated number of tasks. The next partition
+ * assignment should determine that the number of tasks are sufficient, and should go through successfully. After the
+ * initial determination, the number of tasks does not change, task and partition assignment proceed as usual.
  */
 public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
+  private static final Integer DEFAULT_PARTITIONS_PER_TASK = 50;
+  private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
+
   private final Integer _maxPartitionPerTask;
+  private final Integer _partitionsPerTask;
+  private final Integer _partitionFullnessFactorPct;
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -52,15 +65,29 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
    *                            If partitions count in task is larger than this number, Brooklin will throw an exception
+   * @param enableElasticTaskAssignment A boolean indicating whether elastic task assignment is enabled or not. If
+   *                                    enabled, the number of tasks to assign will be determined by a minTasks
+   *                                    datastream metadata property, and may be increased based on the number of tasks
+   *                                    determined by partition assignment, if enabled.
+   * @param partitionsPerTask If elastic task assignment is enabled, this is used to determine the number of partitions
+   *                          allowed in each task when determining the number of tasks for the first time. The default
+   *                          is {@value DEFAULT_PARTITIONS_PER_TASK}.
+   * @param partitionFullnessFactorPct If elastic task assignment is enabled, this is used to determine how full to
+   *                                   the tasks when fitting partitions into them for the first time. The default
+   *                                   is {@value DEFAULT_PARTITION_FULLNESS_FACTOR_PCT}.
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask) {
-    super(maxTasks, imbalanceThreshold);
+      Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
+      Optional<Integer> partitionFullnessFactorPct) {
+    super(maxTasks, imbalanceThreshold, enableElasticTaskAssignment);
     _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
+    _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
+    _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
   }
+
   /**
-   * assign partitions to a particular datastream group
+   * Assign partitions to a particular datastream group
    *
    * @param currentAssignment the old assignment
    * @param datastreamPartitions the subscribed partitions for the particular datastream group
@@ -86,6 +113,24 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     }
 
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
+
+    int minTasks = getMinTasks(datastreamPartitions.getDatastreamGroup());
+    if (getEnableElasticTaskAssignment(minTasks) && assignedPartitions.isEmpty()) {
+      // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
+      // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
+      // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
+      // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
+      int allowedPartitionsPerTask = (_partitionsPerTask * _partitionFullnessFactorPct) / 100;
+      int totalPartitions = datastreamPartitions.getPartitions().size();
+      int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
+          + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
+      if (numTasksNeeded > totalTaskCount) {
+        _taskCountPerDatastreamGroup.put(datastreamPartitions.getDatastreamGroup(), numTasksNeeded);
+        throw new DatastreamRuntimeException(
+            String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
+                totalTaskCount, numTasksNeeded, totalPartitions));
+      }
+    }
 
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);

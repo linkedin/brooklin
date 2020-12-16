@@ -20,6 +20,9 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  */
 public class StickyMulticastStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_IMBALANCE_THRESHOLD = "imbalanceThreshold";
+  public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
+
+  public static final boolean DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT = false;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
@@ -29,6 +32,8 @@ public class StickyMulticastStrategyFactory implements AssignmentStrategyFactory
     int cfgImbalanceThreshold = props.getInt(CFG_IMBALANCE_THRESHOLD, Integer.MIN_VALUE);
     Optional<Integer> imbalanceThreshold = cfgImbalanceThreshold > 0 ? Optional.of(cfgImbalanceThreshold)
         : Optional.empty();
-    return new StickyMulticastStrategy(maxTasks, imbalanceThreshold);
+    boolean enableElasticTaskAssignment = props.getBoolean(CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT,
+        DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT);
+    return new StickyMulticastStrategy(maxTasks, imbalanceThreshold, enableElasticTaskAssignment);
   }
 }
