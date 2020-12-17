@@ -1252,7 +1252,8 @@ public class ZkAdapter {
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.readData(lockPath, true);
       if (owner != null && owner.equals(_instanceName)) {
-        LOG.info("{} already owns the lock on {}", _instanceName, task);
+        LOG.info("{} already owns the lock on {}, with dependencies {}", _instanceName, task.getDatastreamTaskName(),
+            task.getDependencies());
         return;
       }
 
@@ -1261,12 +1262,14 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
-      LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
+      LOG.info("{} successfully acquired the lock on {} with dependencies: {}", _instanceName,
+          task.getDatastreamTaskName(), task.getDependencies());
       return;
     }
 
-    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
-        timeout.toMillis(), owner);
+    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s, dependencies: %s",
+        _instanceName, task.getDatastreamTaskName(), timeout.toMillis(), owner,
+        String.join(",", task.getDependencies()));
     ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
   }
 
@@ -1390,7 +1393,15 @@ public class ZkAdapter {
       return;
     }
 
-    String owner = _zkclient.ensureReadData(lockPath);
+    String owner;
+    try {
+      owner = _zkclient.ensureReadData(lockPath);
+    } catch (ZkNoNodeException e) {
+      LOG.info("{} Lock does not exists on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
+          task.getDatastreamTaskName());
+      return;
+    }
+
     if (!owner.equals(_instanceName)) {
       LOG.warn("{} does not have the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
           task.getDatastreamTaskName());
@@ -1566,7 +1577,12 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        String hostname;
+        try {
+          hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        } catch (ZkNoNodeException e) {
+          hostname = null;
+        }
         if (hostname == null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);
