@@ -168,8 +168,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       _minInFlightMessagesThreshold =
           config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
       LOG.info("Flushless mode is enabled for task: {}, with flowControlEnabled={}, minInFlightMessagesThreshold={}, "
-              + "maxInFlightMessagesThreshold={}", task, _flowControlEnabled, _minInFlightMessagesThreshold,
-          _maxInFlightMessagesThreshold);
+              + "maxInFlightMessagesThreshold={}", task.getDatastreamTaskName(), _flowControlEnabled,
+          _minInFlightMessagesThreshold, _maxInFlightMessagesThreshold);
     }
 
     // create topic manager
@@ -281,10 +281,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(),
           ((metadata, exception) -> {
             if (exception != null) {
-              _logger.warn(
-                  String.format("Detected exception being throw from flushless send callback for source "
-                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata),
-                  exception);
+              LOG.warn(String.format("Detected exception being throw from flushless send callback for source "
+                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata), exception);
               updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
