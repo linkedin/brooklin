@@ -634,8 +634,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       return true;
     }, COMMIT_RETRY_INTERVAL_MILLIS, COMMIT_RETRY_TIMEOUT_MILLIS);
 
-    postCommitHook(result, lastKafkaExceptionRef.get());
-
     if (!result) {
       String msg = "Commit failed after several retries, Giving up.";
       _logger.error(msg);
@@ -782,19 +780,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   /**
    * Pre commit hook for all operations that need to be performed before committing offsets.
+   * <p>
+   *   Note: An unhandled exception in pre-commit hook may result in an interrupted commit. Classes overriding the hook
+   *   are expected to handle exceptions.
+   * </p>
    */
   protected void preCommitHook() { }
-
-  /**
-   * Post commit hook for all operations that need to be performed after committing offsets.
-   * <p>
-   *     Note: A commit attempt can be declared successful even when there's an exception. This can happen when a commit
-   *     exception is thrown during task shutdown.
-   * </p>
-   * @param success Indicates whether the commit attempt was successful or not.
-   * @param exception Exception caught during a commit attempt.
-   */
-  protected void postCommitHook(boolean success, KafkaException exception) { }
 
   /**
    * The method, given a datastream task - checks if there is any update in the existing task.
