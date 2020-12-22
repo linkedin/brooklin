@@ -6,9 +6,15 @@
 package com.linkedin.datastream.cloud.storage.io;
 
 import java.io.IOException;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.linkedin.datastream.common.Package;
+import com.linkedin.datastream.common.VerifiableProperties;
+
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -16,23 +22,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.serializers.KafkaAvroDeserializer;
-
-import com.linkedin.datastream.common.Package;
-import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
  * Implementation of {@link File} to support Parquet file format
  */
-public class AvroParquetFile implements File {
-    private static final Logger LOG = LoggerFactory.getLogger(AvroParquetFile.class);
+public class ScribeAvroParquetEventFile implements File {
+    private static final Logger LOG = LoggerFactory.getLogger(ScribeAvroParquetEventFile.class);
 
     private final static Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
 
@@ -53,6 +50,8 @@ public class AvroParquetFile implements File {
     private String _schemaNameSuffix;
     private SchemaRegistryClient _schemaRegistryClient;
     private int _pageSize;
+    private Schema scribeParquetSchema;
+    private String eventName;
 
     /**
      * Constructor for AvroParquetFile
@@ -61,7 +60,7 @@ public class AvroParquetFile implements File {
      * @param props io configuration options
      * @throws IOException
      */
-    public AvroParquetFile(String path, VerifiableProperties props) throws IOException {
+    public ScribeAvroParquetEventFile(String path, VerifiableProperties props) throws IOException {
         this._path = new Path(path);
         this._parquetWriter = null;
         this._schemaRegistryURL = props.getString(CONFIG_SCHEMA_REGISTRY_URL);
@@ -86,7 +85,17 @@ public class AvroParquetFile implements File {
         if (schema == null) {
             throw new IllegalStateException("Avro schema not found for topic " + topic);
         }
-        return schema;
+        // need to change according to scribe 2.0 kafka topic naming
+        eventName = topic.replace("scribe", "") + "Event";
+
+        try {
+          // call the function to generate parquet compatible avro schema
+          scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
+          return scribeParquetSchema;
+        } catch (Exception e) {
+          LOG.error("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
+          return null;
+        }
     }
 
     @Override
@@ -96,15 +105,24 @@ public class AvroParquetFile implements File {
 
     @Override
     public void write(Package aPackage) throws IOException {
+      try {
         if (_parquetWriter == null) {
-            _parquetWriter = AvroParquetWriter.<GenericRecord>builder(_path)
-                    .withSchema(getSchemaByTopic(aPackage.getTopic()))
-                    .withCompressionCodec(COMPRESSION_TYPE)
-                    .withPageSize(_pageSize)
-                    .build();
+          _parquetWriter = AvroParquetWriter.<GenericRecord>builder(_path)
+              .withSchema(getSchemaByTopic(aPackage.getTopic()))
+              .withCompressionCodec(COMPRESSION_TYPE)
+              .withPageSize(_pageSize)
+              .build();
         }
-        _parquetWriter.write((GenericRecord) _deserializer.deserialize(
-                aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue()));
+        GenericRecord deserializedAvroGenericRecord = (GenericRecord) _deserializer.deserialize(
+            aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
+        GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
+            scribeParquetSchema, eventName, deserializedAvroGenericRecord);
+        // _parquetWriter.write((GenericRecord) _deserializer.deserialize(
+        //      aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue()));
+        _parquetWriter.write(avroParquetRecord);
+      } catch (Exception e) {
+        LOG.error("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
+      }
     }
 
     @Override

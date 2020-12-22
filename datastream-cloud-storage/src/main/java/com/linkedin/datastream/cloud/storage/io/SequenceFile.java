@@ -19,10 +19,10 @@ import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
- * Implementation of {@link com.linkedin.datastream.cloud.storage.io.File} to support SequenceFile file format
+ * Implementation of {@link File} to support SequenceFile file format
  */
 public class SequenceFile implements File {
-    private final org.apache.hadoop.io.SequenceFile.Writer _writer;
+    private final Writer _writer;
     private final Path _path;
     private final LongWritable _keyLong = new LongWritable();
     private final BytesWritable _valueBytes = new BytesWritable();
