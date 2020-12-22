@@ -24,9 +24,9 @@ import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
- * Implementation of {@link File} to support parquet file format for scribe
+ * Implementation of {@link com.linkedin.datastream.cloud.storage.io.File} to support parquet file format for scribe
  */
-public class ScribeParquetFile implements File {
+public class ScribeParquetFile implements com.linkedin.datastream.cloud.storage.io.File {
     private static final Logger LOG = LoggerFactory.getLogger(AvroParquetFile.class);
     private static final String CONFIG_PAGE_SIZE = "pageSize";
     private static final int DEFAULT_PAGE_SIZE = 64 * 1024;

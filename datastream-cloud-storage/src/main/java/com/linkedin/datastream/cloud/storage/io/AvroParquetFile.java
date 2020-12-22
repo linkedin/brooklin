@@ -29,9 +29,9 @@ import com.linkedin.datastream.common.Package;
 import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
- * Implementation of {@link File} to support Parquet file format
+ * Implementation of {@link com.linkedin.datastream.cloud.storage.io.File} to support Parquet file format
  */
-public class AvroParquetFile implements File {
+public class AvroParquetFile implements com.linkedin.datastream.cloud.storage.io.File {
     private static final Logger LOG = LoggerFactory.getLogger(AvroParquetFile.class);
 
     private final static Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
