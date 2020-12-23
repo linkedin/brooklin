@@ -54,6 +54,7 @@ public class GCSObjectCommitter implements ObjectCommitter {
 
     private static final String CONFIG_THREADS = "threads";
     private static final String CONFIG_WRITEATONCE_MAX_FILE_SIZE = "writeAtOnceMaxFileSize";
+    private static final String SCRIBE_PARQUET_FILE_STRUCTURE = "scribeParquetFileStructure";
 
     private final Storage _storage;
     private final ExecutorService _executor;
@@ -61,6 +62,7 @@ public class GCSObjectCommitter implements ObjectCommitter {
     private final int _numOfCommitterThreads;
     private final Meter _uploadRateMeter;
     private final long _writeAtOnceMaxFileSize;
+    private final boolean _isScribeParquetFileStructure;
 
     /**
      * Constructor for GCSObjectCommitter
@@ -86,6 +88,7 @@ public class GCSObjectCommitter implements ObjectCommitter {
         this._executor = Executors.newFixedThreadPool(_numOfCommitterThreads);
         this._uploadRateMeter = DynamicMetricsManager.getInstance().registerMetric(this.getClass().getSimpleName(),
                 "uploadRate", Meter.class);
+        this._isScribeParquetFileStructure = properties.getBoolean(SCRIBE_PARQUET_FILE_STRUCTURE, false);
     }
 
     private static void deleteFile(File file) {
@@ -114,10 +117,32 @@ public class GCSObjectCommitter implements ObjectCommitter {
                                         final long startOffset,
                                         final long endOffset,
                                         final String suffix,
-                                        final String fileExt) {
+                                        final String fileExt,
+                                        boolean isScribeParquetFileStructure) {
         String prefix = destination.substring(destination.indexOf("/") + 1);
 
-        return new StringBuilder()
+        // scribe parquet file structure: events/scribeKafkatopic/eventdate=2020-12-21/scribeKafkatopic+partition+startOffset+endOffset+suffix.parquet
+        if (isScribeParquetFileStructure) {
+            return new StringBuilder()
+                .append(prefix)
+                .append("/")
+                .append(topic)
+                .append("/eventdate=")
+                .append(java.time.LocalDate.now())
+                .append("/")
+                .append(topic)
+                .append("+")
+                .append(partition)
+                .append("+")
+                .append(startOffset)
+                .append("+")
+                .append(endOffset)
+                .append("+")
+                .append(suffix)
+                .append(".")
+                .append(fileExt).toString();
+        } else {
+            return new StringBuilder()
                 .append(prefix)
                 .append("/")
                 .append(topic)
@@ -137,6 +162,7 @@ public class GCSObjectCommitter implements ObjectCommitter {
                 .append(suffix)
                 .append(".")
                 .append(fileExt).toString();
+        }
     }
 
     @Override
@@ -162,7 +188,8 @@ public class GCSObjectCommitter implements ObjectCommitter {
                     minOffset,
                     maxOffset,
                     topicPartitionSuffix[2],
-                    fileFormat);
+                    fileFormat,
+                    _isScribeParquetFileStructure);
             try {
                 final BlobInfo sourceBlob = BlobInfo
                         .newBuilder(BlobId.of(getBucketName(destination), objectName))
