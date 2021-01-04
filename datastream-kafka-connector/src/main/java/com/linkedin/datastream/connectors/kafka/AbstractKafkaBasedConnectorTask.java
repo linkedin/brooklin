@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
@@ -610,7 +609,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
       throws DatastreamRuntimeException {
     preCommitHook();
-    AtomicReference<KafkaException> lastKafkaExceptionRef = new AtomicReference<>(null);
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
@@ -621,7 +619,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
         _logger.info("Commit succeeded.");
       } catch (KafkaException e) {
-        lastKafkaExceptionRef.set(e);
         if (_shutdown) {
           _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
           return true;
