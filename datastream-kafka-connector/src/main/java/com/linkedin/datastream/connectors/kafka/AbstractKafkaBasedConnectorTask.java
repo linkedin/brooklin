@@ -637,6 +637,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
       throws DatastreamRuntimeException {
+    preCommitHook();
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
@@ -802,6 +803,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     }
   }
+
+  /**
+   * Pre commit hook for all operations that need to be performed before committing offsets.
+   * <p>
+   *   Note: An unhandled exception in pre-commit hook may result in an interrupted commit. Classes overriding the hook
+   *   are expected to handle exceptions.
+   * </p>
+   */
+  protected void preCommitHook() { }
 
   /**
    * The method, given a datastream task - checks if there is any update in the existing task.
