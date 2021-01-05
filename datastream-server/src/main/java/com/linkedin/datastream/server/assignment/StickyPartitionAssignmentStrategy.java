@@ -29,6 +29,11 @@ import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITIONS_PER_TASK;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
+
+
 /**
  *
  * The StickyPartitionAssignmentStrategy extends the StickyMulticastStrategy to allow performing the partition
@@ -87,6 +92,25 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   /**
+   * Constructor for StickyPartitionAssignmentStrategy which disables elastic task assignment
+   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
+   *                 of any {@link com.linkedin.datastream.common.Datastream}
+   *                 if no value is specified for the "maxTasks" config property
+   *                 at an individual datastream level.
+   * @param imbalanceThreshold The maximum allowable difference in the number of tasks assigned
+   *                           between any two {@link com.linkedin.datastream.server.Coordinator}
+   *                           instances, before triggering a rebalance. The default is
+   *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
+   * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
+   *                            If partitions count in task is larger than this number, Brooklin will throw an exception
+   *
+   */
+  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
+      Optional<Integer> maxPartitionPerTask) {
+    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty());
+  }
+
+  /**
    * Assign partitions to a particular datastream group
    *
    * @param currentAssignment the old assignment
@@ -120,10 +144,27 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
       // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
       // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
-      int allowedPartitionsPerTask = (_partitionsPerTask * _partitionFullnessFactorPct) / 100;
+      int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+          CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+      int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+          CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
+      LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
+              + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
+          partitionFullnessFactorPct, _partitionFullnessFactorPct);
+      int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) / 100;
       int totalPartitions = datastreamPartitions.getPartitions().size();
       int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
           + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
+      int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
+      if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
+        // Only have the maxTasks override kick in if it's present as part of the datastream metadata. If elastic task
+        // assignment is enabled, maxTasks takes a different meaning than if this is disabled. If disabled, maxTasks
+        // actually behaves as number of tasks and is based off of config, datastream metadata, and number of instances.
+        LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
+            + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
+            partitionFullnessFactorPct, maxTasks);
+        numTasksNeeded = maxTasks;
+      }
       if (numTasksNeeded > totalTaskCount) {
         _taskCountPerDatastreamGroup.put(datastreamPartitions.getDatastreamGroup(), numTasksNeeded);
         throw new DatastreamRuntimeException(
@@ -150,7 +191,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
-    //Step 2: generate new assignment. Assign unassigned partitions to tasks and create new task if there is
+    // Step 2: generate new assignment. Assign unassigned partitions to tasks and create new task if there is
     // a partition change
     currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
@@ -388,6 +429,19 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       }
     }
     return tasksToCleanUp;
+  }
+
+  private int resolveConfigWithMetadata(DatastreamGroup dg, String configName, int defaultValue) {
+    // Look for a 'configName' metadata override in any of the datastreams, and pick up the largest if present.
+    // Default to 'defaultValue' if none are found.
+    return dg.getDatastreams()
+        .stream()
+        .map(ds -> Objects.requireNonNull(ds.getMetadata()).get(configName))
+        .filter(Objects::nonNull)
+        .mapToInt(Integer::valueOf)
+        .filter(x -> x > 0)
+        .max()
+        .orElse(defaultValue);
   }
 
   /**

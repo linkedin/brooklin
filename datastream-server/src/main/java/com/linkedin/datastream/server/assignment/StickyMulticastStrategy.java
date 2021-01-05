@@ -97,6 +97,21 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     }
   }
 
+  /**
+   * Constructor for StickyMulticastStrategy which disables elastic task assignment
+   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
+   *                 of any {@link com.linkedin.datastream.common.Datastream}
+   *                 if no value is specified for the "maxTasks" config property
+   *                 at an individual datastream level.
+   * @param imbalanceThreshold The maximum allowable difference in the number of tasks assigned
+   *                           between any two {@link com.linkedin.datastream.server.Coordinator}
+   *                           instances, before triggering a rebalance. The default is
+   *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
+   */
+  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
+    this(maxTasks, imbalanceThreshold, false);
+  }
+
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
@@ -129,10 +144,9 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(minTasks);
       int numTasks = enableElasticTaskAssignment ? _taskCountPerDatastreamGroup.getOrDefault(dg, 0) :
           getNumTasks(dg, instances.size());
-      int originalNumTasks = numTasks;
+      final int originalNumTasks = numTasks;
       boolean behaveAsNormalAssignment = !enableElasticTaskAssignment || (originalNumTasks > 0);
       int numTasksFound = 0;
-      boolean existingTasksFound = false;
       Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
         if (behaveAsNormalAssignment && (numTasks <= 0)) {
@@ -146,7 +160,6 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         allAliveTasks.addAll(foundDatastreamTasks);
 
         if (!foundDatastreamTasks.isEmpty()) {
-          existingTasksFound = true;
           if (behaveAsNormalAssignment && (foundDatastreamTasks.size() > numTasks)) {
             LOG.info("Skipping {} tasks from the previous assignment of instance {}.",
                 foundDatastreamTasks.size() - numTasks, instance);
@@ -166,13 +179,23 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       unallocatedTasks.removeAll(allAliveTasks);
       tasksNeedToRelocate.put(dg, new ArrayList<>(unallocatedTasks));
       if (behaveAsNormalAssignment && (numTasks > 0)) {
+        // If either elastic task assignment is disabled, or a non-zero value for originalNumTasks was found, we
+        // calculate the number of unallocated tasks that need to be created to match the expected number of tasks.
         unallocated.put(dg, numTasks);
-      } else if (enableElasticTaskAssignment && !existingTasksFound) {
-        unallocated.put(dg, minTasks);
-        _taskCountPerDatastreamGroup.put(dg, minTasks);
-      }
-      if (enableElasticTaskAssignment && (originalNumTasks == 0) && existingTasksFound) {
-        _taskCountPerDatastreamGroup.put(dg, numTasksFound);
+      } else if (enableElasticTaskAssignment) {
+        int numTotalTasks = originalNumTasks;
+        if (numTasksFound < minTasks) {
+          // If the number of tasks found is less than minTasks, calculate the number of unallocated tasks that need to
+          // be created to ensure we have at least minTasks number of tasks.
+          unallocated.put(dg, minTasks - numTasksFound);
+          numTotalTasks = minTasks;
+        } else if ((originalNumTasks == 0) && (numTasksFound > 0)) {
+          // If tasks were found but the originalNumTasks calculated earlier was 0, this indicates that a leader change
+          // has occurred and we just set the number of tasks to the number of tasks we found as the new source of
+          // truth.
+          numTotalTasks = numTasksFound;
+        }
+        _taskCountPerDatastreamGroup.put(dg, numTotalTasks);
       }
     }
 

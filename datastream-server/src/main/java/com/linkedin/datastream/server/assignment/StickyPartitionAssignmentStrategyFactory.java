@@ -13,8 +13,8 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT;
 
 
