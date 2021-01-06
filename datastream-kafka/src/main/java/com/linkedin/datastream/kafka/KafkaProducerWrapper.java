@@ -296,7 +296,6 @@ class KafkaProducerWrapper<K, V> {
           Thread.sleep(_sendFailureRetryWaitTimeMs);
         }
       } catch (Exception e) {
-        _log.error(String.format("Send failed for partition %d with an exception", producerRecord.partition()), e);
         throw generateSendFailure(e, task);
       }
     }
@@ -348,10 +347,10 @@ class KafkaProducerWrapper<K, V> {
   private DatastreamRuntimeException generateSendFailure(Exception exception, DatastreamTask task) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
-      _log.warn("Send failed transiently with exception: ", exception);
+      _log.debug("Send failed transiently with exception: ", exception);
       return new DatastreamTransientException(exception);
     } else {
-      _log.warn("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
+      _log.debug("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
       if (_tasks.contains(task)) {
         shutdownProducer();
       }
