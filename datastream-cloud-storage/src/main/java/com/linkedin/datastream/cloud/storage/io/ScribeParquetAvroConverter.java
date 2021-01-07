@@ -61,7 +61,7 @@ public class ScribeParquetAvroConverter {
                             .doc(field.doc())
                             .type()
                             .optional()
-                            .type(elementTypeSchema);
+                            .array().items(elementTypeSchema);
                       } else {
                         fieldAssembler.name(field.name())
                             .doc(field.doc())
