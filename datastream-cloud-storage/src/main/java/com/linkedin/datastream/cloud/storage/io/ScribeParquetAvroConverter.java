@@ -2,13 +2,17 @@ package com.linkedin.datastream.cloud.storage.io;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.ListIterator;
 
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.nifi.serialization.record.RecordSchema;
 
 /**
  * ScribeParquetAvroConverter handles the conversion of avro to parquet compatible avro schema
@@ -39,23 +43,40 @@ public class ScribeParquetAvroConverter {
         Schema parquetAvroSchema;
 
         SchemaBuilder.FieldAssembler<Schema> fieldAssembler = SchemaBuilder.record(eventName)
-                .namespace("scribe.events")
+                .namespace(schema.getNamespace())
                 .doc(schema.getDoc())
                 .fields();
 
         List<Schema.Field> fields = schema.getFields();
         for (Schema.Field field : fields) {
-            Schema fieldSchema = field.schema();
+          Schema fieldSchema = field.schema();
             for (Schema typeSchema : fieldSchema.getTypes()) {
                 if (!typeSchema.getType().getName().equalsIgnoreCase("null")) {
                     String typeName = typeSchema.getType().name();
                     if (typeName.equalsIgnoreCase("ARRAY")) {
-                        // This is for remaining types i.e list of primitive types
-                            fieldAssembler.name(field.name())
-                                    .doc(field.doc())
-                                    .type()
-                                    .optional()
-                                    .type(typeSchema);
+                      // For list of nested objects
+                      if (typeSchema.getElementType().getType().getName().equalsIgnoreCase("RECORD")) {
+                        Schema elementTypeSchema = generateParquetStructuredAvroSchema(typeSchema.getElementType(), typeSchema.getElementType().getName());
+                        fieldAssembler.name(field.name())
+                            .doc(field.doc())
+                            .type()
+                            .optional()
+                            .type(elementTypeSchema);
+                      } else {
+                        fieldAssembler.name(field.name())
+                            .doc(field.doc())
+                            .type()
+                            .optional()
+                            .type(typeSchema);
+                      }
+                    } else if (typeName.equalsIgnoreCase("RECORD")) {
+                      // For nested objects
+                      Schema recordSchema = generateParquetStructuredAvroSchema(typeSchema, typeSchema.getName());
+                      fieldAssembler.name(field.name())
+                          .doc(field.doc())
+                          .type()
+                          .optional()
+                          .type(recordSchema);
                     } else if (typeName.equalsIgnoreCase("LONG")) {
                       // converting avro long to parquet string type for eventtimestamp only
                       // for testing scribe 1.0 events as there won't be fields of type timestamp/ Datetime
@@ -97,7 +118,7 @@ public class ScribeParquetAvroConverter {
      * @return GenericRecord the record converted to match the new schema
      * @throws Exception
      */
-    public static GenericRecord generateParquetStructuredAvroData(Schema schema, String event, GenericRecord avroRecord) {
+    public static GenericRecord generateParquetStructuredAvroData(Schema schema, GenericRecord avroRecord) {
         GenericRecord record = new GenericData.Record(schema);
 
         // Get fields from schema
@@ -108,7 +129,24 @@ public class ScribeParquetAvroConverter {
           for (Schema avroTypeSchema : avroFieldSchemaTypes) {
               if (!avroTypeSchema.getType().getName().equalsIgnoreCase("null")) {
                 String avroTypeName = avroTypeSchema.getType().name();
-                if (avroTypeName.equalsIgnoreCase("LONG")) {
+                if (avroTypeName.equalsIgnoreCase("ARRAY")) {
+                  if (avroTypeSchema.getElementType().getType().getName().equalsIgnoreCase("RECORD")) {
+                    // get schema of nested obj and generic record
+                    List<GenericRecord> nestedObjectArray = new ArrayList<GenericRecord>();
+                    GenericArray array = (GenericArray) avroRecord.get(fieldName);
+                    if (array != null) {
+                      ListIterator<GenericRecord> it = array.listIterator();
+                      while (it.hasNext()) {
+                        GenericRecord nestedObjectRecord = it.next();
+                        GenericRecord parquetFormatRecord = generateParquetStructuredAvroData(avroTypeSchema.getElementType(), nestedObjectRecord);
+                        nestedObjectArray.add(parquetFormatRecord);
+                      }
+                    }
+                    record.put(fieldName, nestedObjectArray);
+                  } else {
+                    record.put(fieldName, avroRecord.get(fieldName));
+                  }
+                } else if (avroTypeName.equalsIgnoreCase("LONG")) {
                   // For timestamp fields we need to check for logical type in avroschema, to convert to string in parquet
                   // for testing with 1.0 events hardcoded eventTimestamp in order to make it human readable
                   if (field.name().equalsIgnoreCase("eventTimestamp") ||

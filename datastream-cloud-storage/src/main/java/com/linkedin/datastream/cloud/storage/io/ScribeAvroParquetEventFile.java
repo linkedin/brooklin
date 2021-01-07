@@ -116,7 +116,7 @@ public class ScribeAvroParquetEventFile implements File {
         GenericRecord deserializedAvroGenericRecord = (GenericRecord) _deserializer.deserialize(
             aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
         GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
-            scribeParquetSchema, eventName, deserializedAvroGenericRecord);
+            scribeParquetSchema, deserializedAvroGenericRecord);
         // _parquetWriter.write((GenericRecord) _deserializer.deserialize(
         //      aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue()));
         _parquetWriter.write(avroParquetRecord);
