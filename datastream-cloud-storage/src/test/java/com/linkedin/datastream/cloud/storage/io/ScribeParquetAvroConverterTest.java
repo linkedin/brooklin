@@ -54,6 +54,21 @@ public class ScribeParquetAvroConverterTest {
   }
 
   @Test
+  public void testAdTechProductPricingGenerateParquetStructuredAvroSchema() throws Exception {
+    // Nested object schema
+    Schema OrderCancellationConfirmationSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/AdTechProductPricingEvent.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(OrderCancellationConfirmationSchema, "AdTechProductPricingEvent");
+
+    Schema expected = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductPricingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+    );
+    assertEquals(expected, actual);
+  }
+
+  @Test
   public void testAtlasDecisionGenerateParquetStructuredAvroSchema() throws Exception {
     Schema AtlasDecisionSchema = schemaParser.parse(
         Resources.toString(Resources.getResource("avroschemas/AtlasDecisionEvent.avsc"), StandardCharsets.UTF_8)
@@ -292,49 +307,49 @@ public class ScribeParquetAvroConverterTest {
     Schema nestedSplitOrderProduct = getSchemaForNestedObjects(avroOrderCancellationConfirmationSchema, "splitOrderProducts");
     Schema nestedCancelledClearanceOrderProducts = getSchemaForNestedObjects(avroOrderCancellationConfirmationSchema, "cancelledClearanceOrderProducts");
 
-    GenericRecord orderProductinput = null;
+    GenericRecord orderProductInput = null;
     if (nested != null) {
-      orderProductinput = new GenericData.Record(nested);
-      orderProductinput.put("orderProductId", 56656L);
-      orderProductinput.put("quantity", 5L);
-      orderProductinput.put("discontinued", true);
-      orderProductinput.put("returnGroupId", 556L);
-      orderProductinput.put("deliveryStatus", "pending");
-      orderProductinput.put("estimatedDeliveryDate", 1494843212576L);
+      orderProductInput = new GenericData.Record(nested);
+      orderProductInput.put("orderProductId", 56656L);
+      orderProductInput.put("quantity", 5L);
+      orderProductInput.put("discontinued", true);
+      orderProductInput.put("returnGroupId", 556L);
+      orderProductInput.put("deliveryStatus", "pending");
+      orderProductInput.put("estimatedDeliveryDate", 1494843212576L);
     }
 
-    GenericRecord splitOrderProductinput = null;
+    GenericRecord splitOrderProductInput = null;
     if (nestedSplitOrderProduct != null) {
-      splitOrderProductinput = new GenericData.Record(nestedSplitOrderProduct);
-      splitOrderProductinput.put("orderProductId", 556L);
-      splitOrderProductinput.put("quantity", 58L);
-      splitOrderProductinput.put("discontinued", false);
-      splitOrderProductinput.put("returnGroupId", 556L);
-      splitOrderProductinput.put("deliveryStatus", "pending");
-      splitOrderProductinput.put("estimatedDeliveryDate", 1494843212576L);
+      splitOrderProductInput = new GenericData.Record(nestedSplitOrderProduct);
+      splitOrderProductInput.put("orderProductId", 556L);
+      splitOrderProductInput.put("quantity", 58L);
+      splitOrderProductInput.put("discontinued", false);
+      splitOrderProductInput.put("returnGroupId", 556L);
+      splitOrderProductInput.put("deliveryStatus", "pending");
+      splitOrderProductInput.put("estimatedDeliveryDate", 1494843212576L);
     }
 
-    GenericRecord cancelledClearanceOrderProductinput = null;
+    GenericRecord cancelledClearanceOrderProductInput = null;
     if (nestedCancelledClearanceOrderProducts != null) {
-      cancelledClearanceOrderProductinput = new GenericData.Record(nestedCancelledClearanceOrderProducts);
-      cancelledClearanceOrderProductinput.put("orderProductId", 111556L);
-      cancelledClearanceOrderProductinput.put("quantity", 9L);
-      cancelledClearanceOrderProductinput.put("discontinued", true);
-      cancelledClearanceOrderProductinput.put("returnGroupId", 556L);
-      cancelledClearanceOrderProductinput.put("deliveryStatus", "pending");
-      cancelledClearanceOrderProductinput.put("estimatedDeliveryDate", 1494843212576L);
+      cancelledClearanceOrderProductInput = new GenericData.Record(nestedCancelledClearanceOrderProducts);
+      cancelledClearanceOrderProductInput.put("orderProductId", 111556L);
+      cancelledClearanceOrderProductInput.put("quantity", 9L);
+      cancelledClearanceOrderProductInput.put("discontinued", true);
+      cancelledClearanceOrderProductInput.put("returnGroupId", 556L);
+      cancelledClearanceOrderProductInput.put("deliveryStatus", "pending");
+      cancelledClearanceOrderProductInput.put("estimatedDeliveryDate", 1494843212576L);
     }
 
     List<GenericRecord> list = new ArrayList<>();
-    list.add(orderProductinput);
+    list.add(orderProductInput);
     GenericArray<GenericRecord> orderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("orderProducts").schema()), list);
 
     List<GenericRecord> splitOrderProductList = new ArrayList<>();
-    splitOrderProductList.add(splitOrderProductinput);
+    splitOrderProductList.add(splitOrderProductInput);
     GenericArray<GenericRecord> splitOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("splitOrderProducts").schema()), splitOrderProductList);
 
     List<GenericRecord> cancelledClearanceOrderProductsList = new ArrayList<>();
-    cancelledClearanceOrderProductsList.add(cancelledClearanceOrderProductinput);
+    cancelledClearanceOrderProductsList.add(cancelledClearanceOrderProductInput);
     GenericArray<GenericRecord> cancelledClearanceOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("cancelledClearanceOrderProducts").schema()), cancelledClearanceOrderProductsList);
 
 
@@ -443,6 +458,125 @@ public class ScribeParquetAvroConverterTest {
     expected.put("originTimestamp", "2020-07-01 16:01:39.000 -0400");
     expected.put("staging", true);
     expected.put("notificationType", "Test123");
+
+
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testAdTechProductPricingEventGenerateParquetStructuredAvroData() throws Exception {
+    Schema avroOrderCancellationConfirmationSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/AdTechProductPricingEvent.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema nestedItem = getSchemaForNestedObjects(avroOrderCancellationConfirmationSchema, "item");
+    Schema nestedMinimumOrderQuantity = getSchemaForNestedObjects(avroOrderCancellationConfirmationSchema, "minimumOrderQuantity");
+    Schema nestedUnit = getSchemaForNestedObjects(avroOrderCancellationConfirmationSchema, "unit");
+
+    GenericRecord productPriceItemInput = null;
+    if (nestedItem != null) {
+      productPriceItemInput = new GenericData.Record(nestedItem);
+      productPriceItemInput.put("salePriceInCents", 56656L);
+      productPriceItemInput.put("b2bPriceInCents", 5L);
+      productPriceItemInput.put("listPriceInCents", 56656L);
+      productPriceItemInput.put("clearancePriceInCents", 556L);
+      productPriceItemInput.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord productPriceMinimumOrderQuantityInput = null;
+    if (nestedMinimumOrderQuantity != null) {
+      productPriceMinimumOrderQuantityInput = new GenericData.Record(nestedMinimumOrderQuantity);
+      productPriceMinimumOrderQuantityInput.put("salePriceInCents", 56656L);
+      productPriceMinimumOrderQuantityInput.put("b2bPriceInCents", 5L);
+      productPriceMinimumOrderQuantityInput.put("listPriceInCents", 56656L);
+      productPriceMinimumOrderQuantityInput.put("clearancePriceInCents", 556L);
+      productPriceMinimumOrderQuantityInput.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord productPriceUnitInput = null;
+    if (nestedUnit != null) {
+      productPriceUnitInput = new GenericData.Record(nestedUnit);
+      productPriceUnitInput.put("salePriceInCents", 56656L);
+      productPriceUnitInput.put("b2bPriceInCents", 5L);
+      productPriceUnitInput.put("listPriceInCents", 56656L);
+      productPriceUnitInput.put("clearancePriceInCents", 556L);
+      productPriceUnitInput.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord input = new GenericData.Record(avroOrderCancellationConfirmationSchema);
+
+    input.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    input.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    input.put("platform", "WEB");
+    input.put("storeId", 49);
+    input.put("eventTimestamp", 1494843212576L);
+    input.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    input.put("optionCombinationId", 4075458971L);
+    input.put("sku", "SKU123");
+    input.put("brandCatalogId", 4075458971L);
+    input.put("source", "SOURCE");
+    input.put("isOnCloseOutSale", true);
+    input.put("isOnSale", false);
+    input.put("item", productPriceItemInput);
+    input.put("minimumOrderQuantity", productPriceMinimumOrderQuantityInput);
+    input.put("unit", productPriceUnitInput);
+
+    Schema parquetAvroAdTechProductPricingSchema = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductPricingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema nestedParqueItem = getSchemaForNestedObjects(parquetAvroAdTechProductPricingSchema, "item");
+    Schema nestedParquetMinimumOrderQuantity = getSchemaForNestedObjects(parquetAvroAdTechProductPricingSchema, "minimumOrderQuantity");
+    Schema nestedParquetUnit = getSchemaForNestedObjects(parquetAvroAdTechProductPricingSchema, "unit");
+
+    GenericRecord expectedItem = null;
+    if (nestedParqueItem != null) {
+      expectedItem = new GenericData.Record(nestedParqueItem);
+      expectedItem.put("salePriceInCents", 56656L);
+      expectedItem.put("b2bPriceInCents", 5L);
+      expectedItem.put("listPriceInCents", 56656L);
+      expectedItem.put("clearancePriceInCents", 556L);
+      expectedItem.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord expectedMinimumOrderQuantity = null;
+    if (nestedParquetMinimumOrderQuantity != null) {
+      expectedMinimumOrderQuantity = new GenericData.Record(nestedParquetMinimumOrderQuantity);
+      expectedMinimumOrderQuantity.put("salePriceInCents", 56656L);
+      expectedMinimumOrderQuantity.put("b2bPriceInCents", 5L);
+      expectedMinimumOrderQuantity.put("listPriceInCents", 56656L);
+      expectedMinimumOrderQuantity.put("clearancePriceInCents", 556L);
+      expectedMinimumOrderQuantity.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord expectedUnit = null;
+    if (nestedParquetUnit != null) {
+      expectedUnit = new GenericData.Record(nestedParquetUnit);
+      expectedUnit.put("salePriceInCents", 56656L);
+      expectedUnit.put("b2bPriceInCents", 5L);
+      expectedUnit.put("listPriceInCents", 56656L);
+      expectedUnit.put("clearancePriceInCents", 556L);
+      expectedUnit.put("msrpRrpPriceInCents", 56656L);
+    }
+
+    GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductPricingSchema, input);
+
+    GenericRecord expected = new GenericData.Record(parquetAvroAdTechProductPricingSchema);
+    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("platform", "WEB");
+    expected.put("storeId", 49);
+    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("optionCombinationId", 4075458971L);
+    expected.put("sku", "SKU123");
+    expected.put("brandCatalogId", 4075458971L);
+    expected.put("source", "SOURCE");
+    expected.put("isOnCloseOutSale", true);
+    expected.put("isOnSale", false);
+    expected.put("item", expectedItem);
+    expected.put("minimumOrderQuantity", expectedMinimumOrderQuantity);
+    expected.put("unit", expectedUnit);
 
 
     assertEquals(expected, actual);

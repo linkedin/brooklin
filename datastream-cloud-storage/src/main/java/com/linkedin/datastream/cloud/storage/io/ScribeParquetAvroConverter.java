@@ -18,15 +18,6 @@ import org.apache.nifi.serialization.record.RecordSchema;
  * ScribeParquetAvroConverter handles the conversion of avro to parquet compatible avro schema
  */
 public class ScribeParquetAvroConverter {
-    /**
-     * Convert an avro string to a String.
-     *
-     * @param utf8 a Utf8 object
-     * @return a String; null if null is provided
-     */
-    public static String toString(Object utf8) {
-        return utf8 == null ? null : utf8.toString();
-    }
 
     /**
      * This converts the incoming avro schema to parquet-like avro schema which can be
