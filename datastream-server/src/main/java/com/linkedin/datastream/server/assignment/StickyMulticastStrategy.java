@@ -95,6 +95,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     if (_imbalanceThreshold < 1) {
       throw new IllegalArgumentException("Imbalance threshold must be larger or equal than 1");
     }
+
+    LOG.info("Elastic task assignment is {}", enableElasticTaskAssignment ? "enabled" : "disabled");
   }
 
   /**

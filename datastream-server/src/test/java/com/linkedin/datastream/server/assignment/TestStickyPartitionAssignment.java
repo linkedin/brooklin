@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,190 +43,269 @@ import static org.mockito.Mockito.when;
 public class TestStickyPartitionAssignment {
   @Test
   public void testCreateAssignmentAcrossAllTasks() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    Set<DatastreamTask> taskSet = new HashSet<>();
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
-    assignment.put("instance1", taskSet);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy =
+          new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(),
+          elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
 
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      Set<DatastreamTask> taskSet = new HashSet<>();
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 1, 3);
+      } else {
+        datastreams = generateDatastreams("ds", 1);
+      }
 
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
+      assignment.put("instance1", taskSet);
 
-    for (DatastreamTask task : assignment.get("instance1")) {
-      Assert.assertEquals(task.getPartitionsV2().size(), 1);
-    }
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+      assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+
+      for (DatastreamTask task : assignment.get("instance1")) {
+        Assert.assertEquals(task.getPartitionsV2().size(), 1);
+      }
+    });
   }
 
   @Test
   public void testAddPartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    Set<DatastreamTask> taskSet = new HashSet<>();
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
-    assignment.put("instance1", taskSet);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      Set<DatastreamTask> taskSet = new HashSet<>();
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 1, 3);
+      } else {
+        datastreams = generateDatastreams("ds", 1);
+      }
 
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, true);
+      assignment.put("instance1", taskSet);
 
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
 
-    List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t2-1", "t2-2");
-    DatastreamGroupPartitionsMetadata newPartitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+      assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
-    for (DatastreamTask task : newAssignment.get("instance0")) {
-      Assert.assertEquals(task.getPartitionsV2().size(), 2);
-    }
+      List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t2-1", "t2-2");
+      DatastreamGroupPartitionsMetadata newPartitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
 
-    Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
-    Assert.assertEquals(taskToCleanup.size(), 0);
+      Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
 
-    // Adding the dependency task as well in the assignment list to simulate the scenario where
-    // the dependency task nodes are not deleted and the leader gets interrupted, OOM or hit session expiry.
-    // The next leader should be able to identify and cleanup.
-    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
-    newAssignment.forEach((instance, taskSet1) -> taskSet1.addAll(finalAssignment.get(instance)));
+      for (DatastreamTask task : newAssignment.get("instance0")) {
+        Assert.assertEquals(task.getPartitionsV2().size(), 2);
+      }
 
-    taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
-    Assert.assertEquals(taskToCleanup.size(), 1);
-    taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
-    Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
+      Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+      Assert.assertEquals(taskToCleanup.size(), 0);
+
+      // Adding the dependency task as well in the assignment list to simulate the scenario where
+      // the dependency task nodes are not deleted and the leader gets interrupted, OOM or hit session expiry.
+      // The next leader should be able to identify and cleanup.
+      Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+      newAssignment.forEach((instance, taskSet1) -> taskSet1.addAll(finalAssignment.get(instance)));
+
+      taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+      Assert.assertEquals(taskToCleanup.size(), 1);
+      taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
+      Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
+    });
   }
 
-  @Test(expectedExceptions = DatastreamRuntimeException.class)
+  @Test
   public void testCreateAssignmentFailureDueToUnlockedTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    Set<DatastreamTask> taskSet = new HashSet<>();
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, false);
-    assignment.put("instance1", taskSet);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      Set<DatastreamTask> taskSet = new HashSet<>();
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 1, 3);
+      } else {
+        datastreams = generateDatastreams("ds", 1);
+      }
 
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 1, 3, false);
+      assignment.put("instance1", taskSet);
 
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
 
-    // Generate partition assignment
-    List<String> newPartitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0");
-    DatastreamGroupPartitionsMetadata newPartitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
 
-    strategy.assignPartitions(assignment, newPartitionsMetadata);
+      Assert.assertThrows(DatastreamRuntimeException.class,
+          () -> strategy.assignPartitions(assignment, partitionsMetadata));
+    });
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
+  @Test
   public void testAssignPartitionToInstanceWithoutTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
-    // Generate partition assignment
-    strategy.assignPartitions(new HashMap<>(), partitionsMetadata);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 2, 1);
+      } else {
+        datastreams = generateDatastreams("ds", 2);
+      }
+
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      // Generate partition assignment
+      Assert.assertThrows(IllegalArgumentException.class,
+          () -> strategy.assignPartitions(new HashMap<>(), partitionsMetadata));
+    });
   }
 
-  @Test (expectedExceptions = IllegalArgumentException.class)
+  @Test
   public void testAssignPartitionToInstanceWithoutTaskForDatastreamGroup() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(1), partitions);
-    // Generate partition assignment
-    strategy.assignPartitions(assignment, partitionsMetadata);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 2, 2);
+      } else {
+        datastreams = generateDatastreams("ds", 2);
+      }
+
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(1), partitions);
+      // Generate partition assignment
+      Assert.assertThrows(IllegalArgumentException.class,
+          () -> strategy.assignPartitions(assignment, partitionsMetadata));
+    });
   }
 
   @Test
   public void testMovePartition() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7");
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
-    // Generate partition assignment
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    Map<String, Set<String>> targetAssignment = new HashMap<>();
-    targetAssignment.put("instance2", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
-    targetAssignment.put("instance1", ImmutableSet.of("t-0", "t-10"));
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 2, 2);
+      } else {
+        datastreams = generateDatastreams("ds", 2);
+      }
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7");
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      // Generate partition assignment
+      assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
-    assignment = strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
+      Map<String, Set<String>> targetAssignment = new HashMap<>();
+      targetAssignment.put("instance2", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
+      targetAssignment.put("instance1", ImmutableSet.of("t-0", "t-10"));
 
-    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-1"));
-    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-2"));
-    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-3"));
-    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-5"));
+      assignment = strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
 
-    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance1")).contains("t-0"));
-    Assert.assertFalse(getPartitionsFromTask(assignment.get("instance1")).contains("t-10"));
+      Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-1"));
+      Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-2"));
+      Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-3"));
+      Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-5"));
 
-    Assert.assertEquals(getTotalPartitions(assignment), 8);
+      Assert.assertTrue(getPartitionsFromTask(assignment.get("instance1")).contains("t-0"));
+      Assert.assertFalse(getPartitionsFromTask(assignment.get("instance1")).contains("t-10"));
+
+      Assert.assertEquals(getTotalPartitions(assignment), 8);
+    });
   }
 
-  @Test(expectedExceptions = DatastreamRuntimeException.class)
+  @Test
   public void testMovePartitionToInstanceWithoutTask() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
-    // Generate partition assignment
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
-    assignment.put("empty", Collections.emptySet());
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    Map<String, Set<String>> targetAssignment = new HashMap<>();
-    targetAssignment.put("empty", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
-    strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 2, 2);
+      } else {
+        datastreams = generateDatastreams("ds", 2);
+      }
+
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+      // Generate partition assignment
+      assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+      assignment.put("empty", Collections.emptySet());
+
+      Map<String, Set<String>> targetAssignment = new HashMap<>();
+      targetAssignment.put("empty", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
+      Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+      Assert.assertThrows(DatastreamRuntimeException.class,
+          () -> strategy.movePartitions(finalAssignment, targetAssignment, partitionsMetadata));
+    });
   }
 
   @Test
   public void testRemovePartitions() {
-    StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty());
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
-    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
 
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6");
-    DatastreamGroupPartitionsMetadata partitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
-
-    // Generate partition assignment
-    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
-
-    List<String> newPartitions = ImmutableList.of("t-1", "t-3", "t-4", "t-6");
-    DatastreamGroupPartitionsMetadata newPartitionsMetadata =
-        new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
-
-    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
-
-    List<String> remainingPartitions = new ArrayList<>();
-    for (String instance : assignment.keySet()) {
-      for (DatastreamTask task : assignment.get(instance)) {
-        remainingPartitions.addAll(task.getPartitionsV2());
+    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
+      StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+      List<DatastreamGroup> datastreams;
+      if (elasticAssignmentEnabled) {
+        datastreams = generateDatastreams("ds", 1, 2);
+      } else {
+        datastreams = generateDatastreams("ds", 1);
       }
-    }
 
-    Assert.assertEquals(new HashSet<>(remainingPartitions), new HashSet<>(newPartitions));
+      Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
+
+      List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6");
+      DatastreamGroupPartitionsMetadata partitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+      // Generate partition assignment
+      assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+
+      List<String> newPartitions = ImmutableList.of("t-1", "t-3", "t-4", "t-6");
+      DatastreamGroupPartitionsMetadata newPartitionsMetadata =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
+
+      assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+
+      List<String> remainingPartitions = new ArrayList<>();
+      for (String instance : assignment.keySet()) {
+        for (DatastreamTask task : assignment.get(instance)) {
+          remainingPartitions.addAll(task.getPartitionsV2());
+        }
+      }
+
+      Assert.assertEquals(new HashSet<>(remainingPartitions), new HashSet<>(newPartitions));
+    });
   }
 
   private  Map<String, Set<DatastreamTask>> generateEmptyAssignment(List<DatastreamGroup> datastreams,
@@ -260,12 +340,19 @@ public class TestStickyPartitionAssignment {
   }
 
   private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams) {
+    return generateDatastreams(namePrefix, numberOfDatastreams, 0);
+  }
+
+  private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams, int minTasks) {
     List<DatastreamGroup> datastreams = new ArrayList<>();
     String type = DummyConnector.CONNECTOR_TYPE;
     for (int index = 0; index < numberOfDatastreams; index++) {
       Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
       ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
       ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
+      if (minTasks > 0) {
+        ds.getMetadata().put(StickyMulticastStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
+      }
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
     return datastreams;
