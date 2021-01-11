@@ -308,6 +308,288 @@ public class TestStickyPartitionAssignment {
     });
   }
 
+  @Test
+  public void testElasticTaskPartitionAssignmentFailsOnTooFewTasks() {
+    int minTasks = 2;
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
+    // tasks are 50% full.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    Assert.assertThrows(DatastreamRuntimeException.class,
+        () -> strategy.assignPartitions(finalAssignment, partitionsMetadata));
+  }
+
+  @Test
+  public void testElasticTaskPartitionAssignmentCorrectlyAdjustsNumTasks() {
+    int minTasks = 3;
+    int partitionsPerTask = 4;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 4 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t1-1", "t1-2", "t0-3");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
+    // tasks are 50% full. This should set the correct number of tasks needed so that the next assign() call creates
+    // the correct number of tasks.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    Assert.assertThrows(DatastreamRuntimeException.class,
+        () -> strategy.assignPartitions(finalAssignment, partitionsMetadata));
+
+    // The assign call should create the expected number of tasks as set by partition assignment
+    assignment = strategy.assign(datastreams, instances, assignment);
+    int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
+    int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
+        + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    setupTaskLockForAssignment(assignment);
+
+    // Partition assignment should go through
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+  }
+
+  @Test
+  public void testElasticTaskPartitionAssignmentRepeatedPartitionAssignments() {
+    int minTasks = 3;
+    int partitionsPerTask = 4;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 4 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t1-1", "t1-2", "t0-3");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
+    // tasks are 50% full. This should set the correct number of tasks needed so that the next assign() call creates
+    // the correct number of tasks.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    DatastreamGroupPartitionsMetadata finalPartitionsMetadata = partitionsMetadata;
+    Assert.assertThrows(DatastreamRuntimeException.class,
+        () -> strategy.assignPartitions(finalAssignment, finalPartitionsMetadata));
+
+    // The assign call should create the expected number of tasks as set by partition assignment
+    assignment = strategy.assign(datastreams, instances, assignment);
+    int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
+    int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
+        + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    setupTaskLockForAssignment(assignment);
+
+    // Partition assignment should go through
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    // Decrease the number of partitions such that the partitions per task is now smaller than the fullness factor.
+    // The number of tasks should remain the same.
+    partitions = ImmutableList.of("t-0", "t-1", "t1-0");
+    partitionsMetadata = new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    // Increase the number of partitions such that the partitions per task is now larger than the configured partitions
+    // per task. The number of tasks should remain the same.
+    partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t1-1", "t1-2", "t0-3", "t42-0", "t2-1", "t21-0",
+        "t22-0", "t21-1", "t21-2", "t20-3", "t3-0", "t3-1", "t31-0", "t32-0", "t31-1", "t31-2");
+    partitionsMetadata = new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    maxPartitionsPerTask = partitions.size() / numTasksNeeded + (partitions.size() % numTasksNeeded == 0 ? 0 : 1);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    // Pass an empty assignment to simulate a datastream restart which wipes out the tasks. The number of tasks needed
+    // should be reassessed.
+    assignment = Collections.emptyMap();
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+
+    // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
+    // tasks are 50% full. This should set the correct number of tasks needed so that the next assign() call creates
+    // the correct number of tasks.
+    Map<String, Set<DatastreamTask>> finalAssignment1 = assignment;
+    DatastreamGroupPartitionsMetadata finalPartitionsMetadata1 = partitionsMetadata;
+    Assert.assertThrows(DatastreamRuntimeException.class,
+        () -> strategy.assignPartitions(finalAssignment1, finalPartitionsMetadata1));
+
+    // The assign call should create the expected number of tasks as set by partition assignment, and this should not
+    // match the numTasksNeeded from the previous set of assignments.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
+    int originalNumTasksNeeded = numTasksNeeded;
+    numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
+        + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    Assert.assertNotEquals(originalNumTasksNeeded, numTasksNeeded);
+    setupTaskLockForAssignment(assignment);
+
+    // Partition assignment should go through
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+  }
+
+  @Test
+  public void testElasticTaskPartitionAssignmentCreatesMinTasksEvenForSmallPartitionCount() {
+    int minTasks = 3;
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+    setupTaskLockForAssignment(assignment);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should pass since we have enough tasks for the given partitions.
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+    int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
+  }
+
+  @Test
+  public void testElasticTaskPartitionAssignmentCreatesAtMostMaxTasks() {
+    int minTasks = 3;
+    int maxTasks = 5;
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
+        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), minTasks);
+    setupTaskLockForAssignment(assignment);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t1-1", "t2-0", "t2-1", "t3-0", "t3-1", "t4-0",
+        "t4-1", "t5-0", "t5-1", "t6-1");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
+    // tasks are 50% full. This should set the correct number of tasks needed so that the next assign() call creates
+    // the correct number of tasks.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    Assert.assertThrows(DatastreamRuntimeException.class,
+        () -> strategy.assignPartitions(finalAssignment, partitionsMetadata));
+
+    // The assign call should create the only maxTasks number of tasks as set by partition assignment rather than the
+    // expected number of tasks.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
+    int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
+        + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
+    Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
+    Assert.assertTrue(numTasksNeeded > maxTasks);
+    setupTaskLockForAssignment(assignment);
+
+    // Partition assignment should go through
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    maxPartitionsPerTask = partitions.size() / maxTasks  + (partitions.size() % maxTasks == 0 ? 0 : 1);
+    validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
+  }
+
+  private void setupTaskLockForAssignment(Map<String, Set<DatastreamTask>> assignment) {
+    for (String instance : assignment.keySet()) {
+      for (DatastreamTask task : assignment.get(instance)) {
+        ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
+        ((DatastreamTaskImpl) task).setZkAdapter(mockZkAdapter);
+        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(true);
+      }
+    }
+  }
+
+  private void validatePartitionAssignment(Map<String, Set<DatastreamTask>> assignment, List<String> partitions,
+      int maxPartitionsPerTask, int numTasksNeeded) {
+    Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
+
+    int numPartitions = 0;
+    Set<String> partitionsFound = new HashSet<>();
+    for (DatastreamTask task : assignment.get("instance1")) {
+      Assert.assertTrue(task.getPartitionsV2().size() <= maxPartitionsPerTask);
+      numPartitions += task.getPartitionsV2().size();
+      partitionsFound.addAll(task.getPartitionsV2());
+    }
+    Assert.assertEquals(numPartitions, partitions.size());
+    Assert.assertEquals(new HashSet<>(partitions), partitionsFound);
+  }
+
   private  Map<String, Set<DatastreamTask>> generateEmptyAssignment(List<DatastreamGroup> datastreams,
       int instanceNum, int taskNum, boolean isTaskLocked) {
     Map<String, Set<DatastreamTask>> assignment = new HashMap<>();

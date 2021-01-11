@@ -180,9 +180,10 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
           .filter(dg::belongsTo).collect(Collectors.toSet());
       unallocatedTasks.removeAll(allAliveTasks);
       tasksNeedToRelocate.put(dg, new ArrayList<>(unallocatedTasks));
-      if (behaveAsNormalAssignment && (numTasks > 0)) {
-        // If either elastic task assignment is disabled, or a non-zero value for originalNumTasks was found, we
-        // calculate the number of unallocated tasks that need to be created to match the expected number of tasks.
+      if (behaveAsNormalAssignment && (numTasksFound > 0 || !enableElasticTaskAssignment) && (numTasks > 0)) {
+        // If either elastic task assignment is disabled, or a non-zero value for originalNumTasks was found and
+        // existing tasks were found, we calculate the number of unallocated tasks that need to be created to match the
+        // expected number of tasks.
         unallocated.put(dg, numTasks);
       } else if (enableElasticTaskAssignment) {
         int numTotalTasks = originalNumTasks;
