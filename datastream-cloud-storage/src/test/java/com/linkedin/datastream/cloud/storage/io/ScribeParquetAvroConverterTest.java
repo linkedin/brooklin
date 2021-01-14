@@ -651,6 +651,8 @@ public class ScribeParquetAvroConverterTest {
     );
 
     Schema nestedManufacturerPart = getSchemaForNestedObjects(avroAdTechProductCatalogSchema, "manufacturerPart");
+    Schema nestedManufacturer = getSchemaForNestedObjects(avroAdTechProductCatalogSchema, "manufacturer");
+
 
     GenericRecord productCatalogManufacturerPartInput = null;
     if (nestedManufacturerPart != null) {
@@ -658,6 +660,14 @@ public class ScribeParquetAvroConverterTest {
       productCatalogManufacturerPartInput.put("id", 56656L);
       productCatalogManufacturerPartInput.put("partNumber", "test123");
       productCatalogManufacturerPartInput.put("customerFacingUpc", "yes");
+    }
+
+    GenericRecord productCatalogManufacturerInput = null;
+    if (nestedManufacturer != null) {
+      productCatalogManufacturerInput = new GenericData.Record(nestedManufacturer);
+      productCatalogManufacturerInput.put("id", 88890L);
+      productCatalogManufacturerInput.put("name", "manufacturerName");
+      productCatalogManufacturerInput.put("viewTimestamp", 1494843212576L);
     }
 
     GenericRecord input = new GenericData.Record(avroAdTechProductCatalogSchema);
@@ -699,7 +709,7 @@ public class ScribeParquetAvroConverterTest {
     input.put("productClasses", null);
     input.put("options",  null);
     input.put("productDimensions",  null);
-    input.put("manufacturer", null);
+    input.put("manufacturer", productCatalogManufacturerInput);
     input.put("manufacturerPart", productCatalogManufacturerPartInput);
     input.put("supplierParts",  null);
     input.put("promotion",  null);
@@ -715,6 +725,17 @@ public class ScribeParquetAvroConverterTest {
     Schema parquetAvroAdTechProductCatalogFlattenedSchema = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogFlattenedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
     );
+
+    Schema nestedManufacturerExpected = getSchemaForNestedObjects(parquetAvroAdTechProductCatalogFlattenedSchema, "manufacturer");
+
+
+    GenericRecord expectedManufacturer = null;
+    if (nestedManufacturerExpected != null) {
+      expectedManufacturer = new GenericData.Record(nestedManufacturerExpected);
+      expectedManufacturer.put("id", 88890L);
+      expectedManufacturer.put("name", "manufacturerName");
+      expectedManufacturer.put("viewTimestamp", "2017-05-15 06:13:32.576 -0400");
+    }
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogFlattenedSchema, input);
 
@@ -756,7 +777,7 @@ public class ScribeParquetAvroConverterTest {
     expected.put("productClasses", null);
     expected.put("options",  null);
     expected.put("productDimensions",  null);
-    expected.put("manufacturer", null);
+    expected.put("manufacturer", expectedManufacturer);
 
     // exploded nested object
     expected.put("id", 56656L);
