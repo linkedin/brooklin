@@ -21,16 +21,15 @@ import org.apache.nifi.serialization.record.RecordSchema;
 public class ScribeParquetAvroConverter {
 
   /**
-   *
-   * @param isNotNullable
-   * @param fieldSchema
-   * @param field
-   * @param fieldAssembler
+   * Converts field avro schema to parquet compatible format and handles special cases like timestamp, Arrays, Records.
+   * @param isNotNullable  Whether the field is required or not
+   * @param fieldSchema    Schema of the field
+   * @param field          Field
+   * @param fieldAssembler FieldAssembler
    * @return
    */
   public static SchemaBuilder.FieldAssembler<Schema> getFieldAssembler(Boolean isNotNullable, Schema fieldSchema, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     String typeName = fieldSchema.getType().name();
-    //Boolean isNotNullable = field.getObjectProp("isRequired") != null ?(Boolean) field.getObjectProp("isRequired") : false;
     if (typeName.equalsIgnoreCase("ARRAY")) {
       // For list of nested objects
       if (fieldSchema.getElementType().getType().getName().equalsIgnoreCase("RECORD")) {
@@ -66,8 +65,6 @@ public class ScribeParquetAvroConverter {
       }
     } else if (typeName.equalsIgnoreCase("LONG")) {
       // converting avro long to parquet string type for eventtimestamp only
-      // for testing scribe 1.0 events as there won't be fields of type timestamp/ Datetime
-
       // For timestamp fields we need to add logical type in avroschema, so that it can be converted to string in parquet
       if (field.name().equalsIgnoreCase("eventTimestamp") ||
           (fieldSchema.getLogicalType() != null && fieldSchema.getLogicalType().getName().equalsIgnoreCase("timestamp-millis"))) {
@@ -82,11 +79,11 @@ public class ScribeParquetAvroConverter {
     }
 
   /**
-   *
-   * @param isNotNullable
-   * @param typeName
-   * @param field
-   * @param fieldAssembler
+   * FieldAssmebler for primitive types
+   * @param isNotNullable  Whether the field is required or not
+   * @param typeName       Field type
+   * @param field          Field
+   * @param fieldAssembler FieldAssembler
    */
     public static void getFieldAssemblerForPrimitives(Boolean isNotNullable, String typeName, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
       if (isNotNullable) {
@@ -104,11 +101,11 @@ public class ScribeParquetAvroConverter {
     }
 
   /**
-   *
-   * @param isNotNullable
-   * @param fieldSchema
-   * @param field
-   * @param fieldAssembler
+   * FieldAssembler for record types
+   * @param isNotNullable  Whether the field is required or not
+   * @param fieldSchema    Schema of the record
+   * @param field          Field
+   * @param fieldAssembler FieldAssembler
    */
   public static void getFieldAssemblerForRecord(Boolean isNotNullable, Schema fieldSchema, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     if (isNotNullable) {
@@ -127,9 +124,7 @@ public class ScribeParquetAvroConverter {
 
   /**
    * This converts the incoming avro schema to parquet-like avro schema which can be
-   * used to write records in parquet format. The fields in the records previously
-   * written in binary format will be converted to string. This eliminates the use of
-   * creating views in the HIVE.
+   * used to write records in parquet format.
    *
    * @param schema incoming avro schema
    * @param eventName event to be written to hdfs
@@ -164,9 +159,9 @@ public class ScribeParquetAvroConverter {
   }
 
   /**
-   *
-   * @param fieldName
-   * @param avroRecord
+   * Gets the schema types from the field avro schema.
+   * @param fieldName  the field name
+   * @param avroRecord the incoming record
    * @return
    */
   public static List<Schema> getSchemaTypes(String fieldName, GenericRecord avroRecord) {
@@ -176,7 +171,7 @@ public class ScribeParquetAvroConverter {
   }
     /**
      * The incoming records need to be converted to match the schema being converted
-     * in the above function. This function iterates all the fields in the event class
+     * in the `generateParquetStructuredAvroSchema` function. This function iterates all the fields in the event schema
      * and converts it to necessary data types to conform to the schema in the argument.
      *
      * @param schema parquet compatible avro schema
@@ -260,9 +255,9 @@ public class ScribeParquetAvroConverter {
     }
 
   /**
-   *
-   * @param value
-   * @return
+   * Convert long epoch timestamp value to String date time format
+   * @param value long epoch timestamp
+   * @return String datetime format
    */
   private static String convertDateTimeToString(Long value) {
     DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS ZZ");

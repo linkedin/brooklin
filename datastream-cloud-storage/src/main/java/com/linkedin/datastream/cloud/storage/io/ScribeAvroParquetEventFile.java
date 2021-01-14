@@ -70,6 +70,11 @@ public class ScribeAvroParquetEventFile implements File {
         this._deserializer = new KafkaAvroDeserializer(_schemaRegistryClient);
     }
 
+    /**
+     * Get Schema by kafka topic name
+     * @param topic kafka topic
+     * @return
+     */
     private Schema getSchemaByTopic(String topic) {
         String key = _schemaRegistryURL + "-" + topic;
         Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
@@ -90,10 +95,7 @@ public class ScribeAvroParquetEventFile implements File {
 
         try {
           // call the function to generate parquet compatible avro schema
-            //scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
-
-            // Testing with exploded nested object
-            scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
+          scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
           return scribeParquetSchema;
         } catch (Exception e) {
           LOG.error("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
