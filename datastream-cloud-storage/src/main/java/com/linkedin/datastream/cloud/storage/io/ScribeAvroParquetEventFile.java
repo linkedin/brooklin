@@ -34,10 +34,13 @@ public class ScribeAvroParquetEventFile implements File {
     private final static Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
 
     private static final String CONFIG_SCHEMA_REGISTRY_URL = "schemaRegistryURL";
-    private static final String CONFIG_SCHEMA_NAME_SUFFIX = "schemaNameSuffix";
+    private static final String CONFIG_SCHEMA_NAME_PREFIX = "schemaNamePrefix";
     private static final String CONFIG_PAGE_SIZE = "pageSize";
 
-    private static final String DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX = "-value";
+    // 2.0 prefix
+    private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.v2.events.";
+    //private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.events.";
+
     private static final int DEFAULT_PAGE_SIZE = 64 * 1024;
 
     private static final CompressionCodecName COMPRESSION_TYPE = CompressionCodecName.SNAPPY;
@@ -47,7 +50,7 @@ public class ScribeAvroParquetEventFile implements File {
     private ParquetWriter<GenericRecord> _parquetWriter;
 
     private KafkaAvroDeserializer _deserializer;
-    private String _schemaNameSuffix;
+    private String _schemaNamePrefix;
     private SchemaRegistryClient _schemaRegistryClient;
     private int _pageSize;
     private Schema scribeParquetSchema;
@@ -65,13 +68,16 @@ public class ScribeAvroParquetEventFile implements File {
         this._parquetWriter = null;
         this._schemaRegistryURL = props.getString(CONFIG_SCHEMA_REGISTRY_URL);
         this._schemaRegistryClient = new CachedSchemaRegistryClient(_schemaRegistryURL, Integer.MAX_VALUE);
-        this._schemaNameSuffix = props.getString(CONFIG_SCHEMA_NAME_SUFFIX, DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX);
+        this._schemaNamePrefix = props.getString(CONFIG_SCHEMA_NAME_PREFIX, DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX);
         this._pageSize = props.getInt(CONFIG_PAGE_SIZE, DEFAULT_PAGE_SIZE);
         this._deserializer = new KafkaAvroDeserializer(_schemaRegistryClient);
     }
 
     /**
      * Get Schema by kafka topic name
+     * Sample subject name in schema registry for scribe 2.0 events: scribe.v2.events.domain.eventName
+     * For example: scribe.v2.events.SupplyChain.ItemReturnRoutesRequested, SupplyChain is domain name and ItemReturnRoutesRequested is the eventname
+     * SupplyChain.ItemReturnRoutesRequested is the topic name for above subject
      * @param topic kafka topic
      * @return
      */
@@ -79,7 +85,7 @@ public class ScribeAvroParquetEventFile implements File {
         String key = _schemaRegistryURL + "-" + topic;
         Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
             try {
-                String schemaName = topic + _schemaNameSuffix;
+                String schemaName = _schemaNamePrefix + topic ;
                 return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
             } catch (Exception e) {
                 LOG.error("Unable to find schema for {} - {}", key, e);
@@ -90,8 +96,8 @@ public class ScribeAvroParquetEventFile implements File {
         if (schema == null) {
             throw new IllegalStateException("Avro schema not found for topic " + topic);
         }
-        // need to change according to scribe 2.0 kafka topic naming
-        eventName = topic.replace("scribe", "") + "Event";
+        // Extract event name from topic. Example : ItemReturnRoutesRequested from SupplyChain.ItemReturnRoutesRequested
+        eventName = topic.substring(topic.indexOf(".")+1, topic.length()-1);
 
         try {
           // call the function to generate parquet compatible avro schema

@@ -30,7 +30,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/LandingEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema, "LandingEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema, "Landing");
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/LandingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
