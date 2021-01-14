@@ -93,7 +93,7 @@ public class ScribeAvroParquetEventFile implements File {
             //scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
 
             // Testing with exploded nested object
-            scribeParquetSchema =  ScribeParquetAvroConverter.generateFlattenedHeaderParquetStructuredAvroSchema(schema, eventName);
+            scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
           return scribeParquetSchema;
         } catch (Exception e) {
           LOG.error("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);

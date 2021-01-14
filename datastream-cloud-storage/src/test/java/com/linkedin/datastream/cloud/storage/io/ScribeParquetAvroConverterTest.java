@@ -44,7 +44,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/LandingEventWithHeader.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateFlattenedHeaderParquetStructuredAvroSchema(landingSchema, "LandingEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema, "LandingEvent");
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/LandingWithHeaderParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -104,7 +104,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/AdTechProductCatalogEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateFlattenedHeaderParquetStructuredAvroSchema(AdTectProductCatalogFlattenedSchema, "AdTechProductCatalogEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTectProductCatalogFlattenedSchema, "AdTechProductCatalogEvent");
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogFlattenedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -346,11 +346,13 @@ public class ScribeParquetAvroConverterTest {
     Schema nested = null;
     for (Schema.Field field: schema.getFields()) {
       if (field.name().equalsIgnoreCase(nestedFieldName)) {
-        Schema nestedSchema = field.schema().getTypes().get(1);
+        Schema nestedSchema = field.schema().isUnion() ? field.schema().getTypes().get(1) : field.schema();
         if (nestedSchema.getType().toString().equalsIgnoreCase("array")) {
           nested = nestedSchema.getElementType();
+          break;
         } else {
           nested = nestedSchema;
+          break;
         }
       }
     }
