@@ -267,7 +267,7 @@ class KafkaProducerWrapper<K, V> {
             }
           });
         } else {
-          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task));
+          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task.getDatastreamTaskName()));
         }
 
         retry = false;
@@ -295,7 +295,10 @@ class KafkaProducerWrapper<K, V> {
               producerRecord.partition(), numberOfAttempt, MAX_SEND_ATTEMPTS, _sendFailureRetryWaitTimeMs), e);
           Thread.sleep(_sendFailureRetryWaitTimeMs);
         }
+      } catch (DatastreamRuntimeException e) {
+        throw generateSendFailure(e, task);
       } catch (Exception e) {
+        _log.error(String.format("Send failed for partition %d with an exception", producerRecord.partition()), e);
         throw generateSendFailure(e, task);
       }
     }

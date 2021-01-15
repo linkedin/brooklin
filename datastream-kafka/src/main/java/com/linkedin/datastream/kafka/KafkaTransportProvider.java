@@ -175,7 +175,7 @@ public class KafkaTransportProvider implements TransportProvider {
           if (exception != null) {
             if (_isUnassigned) {
               LOG.debug("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
-                      + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName(), exception);
+                      + "threw an exception {}.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName(), exception);
             } else {
               LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
                       + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName(), exception);
