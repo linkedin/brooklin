@@ -752,9 +752,7 @@ public class ZkAdapter {
    */
   public void removeTaskNodes(Map<String, List<DatastreamTask>> tasksByInstance) {
     for (String instance : tasksByInstance.keySet()) {
-      tasksByInstance.get(instance).forEach(task -> {
-        removeTaskNode(instance, task.getDatastreamTaskName());
-      });
+      tasksByInstance.get(instance).forEach(task -> removeTaskNode(instance, task.getDatastreamTaskName()));
     }
   }
 
@@ -1428,17 +1426,17 @@ public class ZkAdapter {
   }
 
   /**
-   * Parse the Zk instance (ex. hostname-0000) into hostname
+   * parse the hostname from the Zk instance (ex. hostname-0000)
    */
   public static String parseHostnameFromZkInstance(String instance) {
     return instance.substring(0, instance.lastIndexOf('-'));
   }
 
   /**
-   * Parse the Zk instance (ex. hostname-0000) into liveinstance
+   * Parse the liveInstance Id from Zk instance (ex. hostname-0000)
    */
   public static String parseLiveInstanceFromZkInstance(String instance) {
-    return instance.substring(instance.lastIndexOf('-') + 1, instance.length());
+    return instance.substring(instance.lastIndexOf('-') + 1);
   }
 
   /**
