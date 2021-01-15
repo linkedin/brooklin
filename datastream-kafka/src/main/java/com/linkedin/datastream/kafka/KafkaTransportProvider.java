@@ -173,12 +173,12 @@ public class KafkaTransportProvider implements TransportProvider {
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
+            String msg = String.format("Sending a message with source checkpoint %s to topic %s partition %d for datastream task %s "
+                + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName());
             if (_isUnassigned) {
-              LOG.debug("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
-                      + "threw an exception {}.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName(), exception);
+              LOG.debug(msg, exception);
             } else {
-              LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
-                      + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName(), exception);
+              LOG.error(msg, exception);
             }
           }
           doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex, sourcePartition);
