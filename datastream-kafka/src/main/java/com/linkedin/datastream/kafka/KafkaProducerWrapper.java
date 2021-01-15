@@ -77,7 +77,6 @@ class KafkaProducerWrapper<K, V> {
 
   private static final int CLOSE_TIMEOUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
-  private static final Duration PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
 
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
