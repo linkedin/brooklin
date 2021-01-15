@@ -297,7 +297,7 @@ class KafkaProducerWrapper<K, V> {
       } catch (DatastreamRuntimeException e) {
         throw generateSendFailure(e, task);
       } catch (Exception e) {
-        _log.error(String.format("Send failed for partition %d with an exception", producerRecord.partition()), e);
+        _log.error(String.format("Send failed for partition %d with an exception: ", producerRecord.partition()), e);
         throw generateSendFailure(e, task);
       }
     }
