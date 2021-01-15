@@ -39,7 +39,6 @@ public class ScribeAvroParquetEventFile implements File {
 
     // 2.0 prefix
     private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.v2.events.";
-    //private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.events.";
 
     private static final int DEFAULT_PAGE_SIZE = 64 * 1024;
 
@@ -76,13 +75,13 @@ public class ScribeAvroParquetEventFile implements File {
     /**
      * Get Schema by kafka topic name
      * Sample subject name in schema registry for scribe 2.0 events: scribe.v2.events.domain.eventName
-     * For example: scribe.v2.events.SupplyChain.ItemReturnRoutesRequested, SupplyChain is domain name and ItemReturnRoutesRequested is the eventname
-     * SupplyChain.ItemReturnRoutesRequested is the topic name for above subject
+     * For example: scribe.v2.events.supply_chain.item_return_routes_requested, supply_chain is domain name and item_return_routes_requested is the eventname
+     * supply_chain-item_return_routes_requested is the topic name for above subject
      * @param topic kafka topic
      * @return
      */
     private Schema getSchemaByTopic(String topic) {
-        String key = _schemaRegistryURL + "-" + topic;
+        String key = _schemaRegistryURL + "-" + (topic.replace("-","."));
         Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
             try {
                 String schemaName = _schemaNamePrefix + topic ;
@@ -96,12 +95,10 @@ public class ScribeAvroParquetEventFile implements File {
         if (schema == null) {
             throw new IllegalStateException("Avro schema not found for topic " + topic);
         }
-        // Extract event name from topic. Example : ItemReturnRoutesRequested from SupplyChain.ItemReturnRoutesRequested
-        eventName = topic.substring(topic.indexOf(".")+1, topic.length()-1);
 
         try {
           // call the function to generate parquet compatible avro schema
-          scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema, eventName);
+          scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema);
           return scribeParquetSchema;
         } catch (Exception e) {
           LOG.error("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
@@ -128,8 +125,6 @@ public class ScribeAvroParquetEventFile implements File {
             aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
         GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
             scribeParquetSchema, deserializedAvroGenericRecord);
-        // _parquetWriter.write((GenericRecord) _deserializer.deserialize(
-        //      aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue()));
         _parquetWriter.write(avroParquetRecord);
       } catch (Exception e) {
         LOG.error("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);

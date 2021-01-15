@@ -30,7 +30,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/LandingEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema, "Landing");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/LandingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -44,7 +44,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/LandingEventWithHeader.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema, "LandingEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/LandingWithHeaderParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -59,7 +59,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/OrderCancellationConfirmationEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(OrderCancellationConfirmationSchema, "OrderCancellationConfirmationEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(OrderCancellationConfirmationSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/OrderCancellationConfirmationParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -74,40 +74,10 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/AdTechProductPricingEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTectProductPricingSchema, "AdTechProductPricingEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTectProductPricingSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductPricingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
-    );
-    assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testAdTechProductCatalogGenerateParquetStructuredAvroSchema() throws Exception {
-    // Nested object schema
-    Schema AdTectProductCatalogSchema = schemaParser.parse(
-        Resources.toString(Resources.getResource("avroschemas/AdTechProductCatalogEvent.avsc"), StandardCharsets.UTF_8)
-    );
-
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTectProductCatalogSchema, "AdTechProductCatalogEvent");
-
-    Schema expected = new Schema.Parser().parse(
-        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
-    );
-    assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testAdTechProductCatalogFlattenedGenerateParquetStructuredAvroSchema() throws Exception {
-    // Nested object schema
-    Schema AdTectProductCatalogFlattenedSchema = schemaParser.parse(
-        Resources.toString(Resources.getResource("avroschemas/AdTechProductCatalogEvent.avsc"), StandardCharsets.UTF_8)
-    );
-
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTectProductCatalogFlattenedSchema, "AdTechProductCatalogEvent");
-
-    Schema expected = new Schema.Parser().parse(
-        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogFlattenedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
     );
     assertEquals(expected, actual);
   }
@@ -118,7 +88,7 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("avroschemas/AtlasDecisionEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AtlasDecisionSchema, "AtlasDecisionEvent");
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AtlasDecisionSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AtlasDecisionParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -624,160 +594,6 @@ public class ScribeParquetAvroConverterTest {
     expected.put("minimumOrderQuantity", expectedMinimumOrderQuantity);
     expected.put("unit", expectedUnit);
 
-
-    assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testAdTechProductCatalogEventGenerateFlattenedParquetStructuredAvroData() throws Exception {
-    Schema avroAdTechProductCatalogSchema = schemaParser.parse(
-        Resources.toString(Resources.getResource("avroschemas/AdTechProductCatalogEvent.avsc"), StandardCharsets.UTF_8)
-    );
-
-    Schema nestedManufacturerPart = getSchemaForNestedObjects(avroAdTechProductCatalogSchema, "manufacturerPart");
-    Schema nestedManufacturer = getSchemaForNestedObjects(avroAdTechProductCatalogSchema, "manufacturer");
-
-
-    GenericRecord productCatalogManufacturerPartInput = null;
-    if (nestedManufacturerPart != null) {
-      productCatalogManufacturerPartInput = new GenericData.Record(nestedManufacturerPart);
-      productCatalogManufacturerPartInput.put("id", 56656L);
-      productCatalogManufacturerPartInput.put("partNumber", "test123");
-      productCatalogManufacturerPartInput.put("customerFacingUpc", "yes");
-    }
-
-    GenericRecord productCatalogManufacturerInput = null;
-    if (nestedManufacturer != null) {
-      productCatalogManufacturerInput = new GenericData.Record(nestedManufacturer);
-      productCatalogManufacturerInput.put("id", 88890L);
-      productCatalogManufacturerInput.put("name", "manufacturerName");
-      productCatalogManufacturerInput.put("viewTimestamp", 1494843212576L);
-    }
-
-    GenericRecord input = new GenericData.Record(avroAdTechProductCatalogSchema);
-
-    input.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    input.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
-    input.put("platform", "WEB");
-    input.put("storeId", 49);
-    input.put("eventTimestamp", 1494843212576L);
-    input.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    input.put("optionCombinationId", 4075458971L);
-    input.put("sku", "SKU123");
-    input.put("brandCatalogId", 4075458971L);
-    input.put("source", "SOURCE");
-    input.put("displaySku", "sku876");
-    input.put("name", "nametest");
-    input.put("marketingCategory", "testCategory");
-    input.put("status", 4L);
-
-    input.put("statusFlag", "statusTemp");
-    input.put("webDescription", "describe lklmk");
-    input.put("romanceCopy", "romanceCopy");
-    input.put("reviewRating", 4.4);
-    input.put("reviewRating2", 3.9);
-    input.put("numberOfRatings", 100L);
-    input.put("salesCount", 9988L);
-    input.put("currency", "dollars");
-
-    input.put("skuManufacturerPartNumber", "statusTemp");
-    input.put("whiteLabelPartNumber", "describe lklmk");
-    input.put("isNew", true);
-    input.put("isKit", true);
-    input.put("isB2BOnly", false);
-    input.put("isFindable", true);
-    input.put("isAutoCreate", false);
-    input.put("hasFreeGroundShipping", false);
-    // nested objects
-    input.put("masterClass", null);
-    input.put("productClasses", null);
-    input.put("options",  null);
-    input.put("productDimensions",  null);
-    input.put("manufacturer", productCatalogManufacturerInput);
-    input.put("manufacturerPart", productCatalogManufacturerPartInput);
-    input.put("supplierParts",  null);
-    input.put("promotion",  null);
-
-    input.put("isAdminOnly", true);
-    input.put("prRestrictionsBitmap", null);
-    input.put("pwrBayesianRating", 4.3);
-    input.put("isSwatchOrderable", false);
-    input.put("dimensionalInfo", null);
-    input.put("proProduct", null);
-    input.put("exposureWarning", null);
-
-    Schema parquetAvroAdTechProductCatalogFlattenedSchema = new Schema.Parser().parse(
-        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogFlattenedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
-    );
-
-    Schema nestedManufacturerExpected = getSchemaForNestedObjects(parquetAvroAdTechProductCatalogFlattenedSchema, "manufacturer");
-
-
-    GenericRecord expectedManufacturer = null;
-    if (nestedManufacturerExpected != null) {
-      expectedManufacturer = new GenericData.Record(nestedManufacturerExpected);
-      expectedManufacturer.put("id", 88890L);
-      expectedManufacturer.put("name", "manufacturerName");
-      expectedManufacturer.put("viewTimestamp", "2017-05-15 06:13:32.576 -0400");
-    }
-
-    GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogFlattenedSchema, input);
-
-    GenericRecord expected = new GenericData.Record(parquetAvroAdTechProductCatalogFlattenedSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
-    expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("optionCombinationId", 4075458971L);
-    expected.put("sku", "SKU123");
-    expected.put("brandCatalogId", 4075458971L);
-    expected.put("source", "SOURCE");
-    expected.put("displaySku", "sku876");
-    expected.put("name", "nametest");
-    expected.put("marketingCategory", "testCategory");
-    expected.put("status", 4L);
-
-    expected.put("statusFlag", "statusTemp");
-    expected.put("webDescription", "describe lklmk");
-    expected.put("romanceCopy", "romanceCopy");
-    expected.put("reviewRating", 4.4);
-    expected.put("reviewRating2", 3.9);
-    expected.put("numberOfRatings", 100L);
-    expected.put("salesCount", 9988L);
-    expected.put("currency", "dollars");
-
-    expected.put("skuManufacturerPartNumber", "statusTemp");
-    expected.put("whiteLabelPartNumber", "describe lklmk");
-    expected.put("isNew", true);
-    expected.put("isKit", true);
-    expected.put("isB2BOnly", false);
-    expected.put("isFindable", true);
-    expected.put("isAutoCreate", false);
-    expected.put("hasFreeGroundShipping", false);
-    // nested objects
-    expected.put("masterClass", null);
-    expected.put("productClasses", null);
-    expected.put("options",  null);
-    expected.put("productDimensions",  null);
-    expected.put("manufacturer", expectedManufacturer);
-
-    // exploded nested object
-    expected.put("id", 56656L);
-    expected.put("partNumber", "test123");
-    expected.put("customerFacingUpc", "yes");
-
-    expected.put("supplierParts",  null);
-    expected.put("promotion",  null);
-
-    expected.put("isAdminOnly", true);
-    expected.put("prRestrictionsBitmap", null);
-    expected.put("pwrBayesianRating", 4.3);
-    expected.put("isSwatchOrderable", false);
-    expected.put("dimensionalInfo", null);
-    expected.put("proProduct", null);
-    expected.put("exposureWarning", null);
 
     assertEquals(expected, actual);
   }
