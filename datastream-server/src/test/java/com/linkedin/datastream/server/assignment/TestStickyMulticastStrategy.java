@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,128 +45,82 @@ public class TestStickyMulticastStrategy {
   @Test
   public void testCreateAssignmentAcrossAllInstances()  {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    for (String instance : instances) {
+      Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
+    }
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, instances.length);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
-
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      for (String instance : instances) {
-        Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
-      }
-
-      // test with strategy where dsTaskLimitPerInstance is greater than 1
-      int maxTasksConfig = 12;
-      if (elasticAssignmentEnabled) {
-        for (DatastreamGroup datastream : datastreams) {
-          datastream.getDatastreams().get(0).getMetadata().put(StickyMulticastStrategy.CFG_MIN_TASKS,
-              String.valueOf(maxTasksConfig));
-        }
-      }
-      strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty(), elasticAssignmentEnabled);
-      assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      int expected = datastreams.size() * maxTasksConfig / instances.length;
-      for (String instance : instances) {
-        Assert.assertEquals(assignment.get(instance).size(), expected);
-      }
-    });
+    // test with strategy where dsTaskLimitPerInstance is greater than 1
+    int maxTasksConfig = 12;
+    strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty());
+    assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    int expected = datastreams.size() * maxTasksConfig / instances.length;
+    for (String instance : instances) {
+      Assert.assertEquals(assignment.get(instance).size(), expected);
+    }
   }
 
   @Test
   public void testCreateNewAssignmentRandomlyEachTime() {
     String[] instances = new String[]{"instance1", "instance2", "instance3", "instance4", "instance5"};
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds1", 3);
+    List<DatastreamGroup> datastreams2 = generateDatastreams("ds2", 1);
+    datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
+    datastreams2.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      List<DatastreamGroup> datastreams;
-      List<DatastreamGroup> datastreams2;
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> originalAssignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
 
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds1", 3, 13);
-        datastreams2 = generateDatastreams("ds2", 1, 13);
+    System.out.println(originalAssignment);
+
+    datastreams.addAll(datastreams2);
+
+    Map<String, Set<DatastreamTask>> newAssignment1 =
+        strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+
+
+    Map<String, Set<DatastreamTask>> newAssignment2 =
+        strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+
+
+    List<Integer> assignment1Size = newAssignment1.values().stream().map(Set::size).collect(Collectors.toList());
+    List<Integer> assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
+
+    //Since this is random shuffling, there is still a chance that we have the same results, we compute multiple times
+    //to avoid the same assignment
+    final int maxAttempts = 100;
+    for (int i = 0; i < maxAttempts; ++i) {
+      if (!assignment1Size.equals(assignment2Size)) {
+        break;
       } else {
-        datastreams = generateDatastreams("ds1", 3);
-        datastreams2 = generateDatastreams("ds2", 1);
-        datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
-        datastreams2.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "13");
+        newAssignment2 =
+            strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
+        assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
       }
+    }
 
-      Map<String, Set<DatastreamTask>> originalAssignment =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-
-      System.out.println(originalAssignment);
-
-      datastreams.addAll(datastreams2);
-
-      Map<String, Set<DatastreamTask>> newAssignment1 =
-          strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
-
-      Map<String, Set<DatastreamTask>> newAssignment2 =
-          strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
-
-      List<Integer> assignment1Size = newAssignment1.values().stream().map(Set::size).collect(Collectors.toList());
-      List<Integer> assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
-
-      // Since this is random shuffling, there is still a chance that we have the same results, we compute multiple
-      // times to avoid the same assignment
-      final int maxAttempts = 100;
-      for (int i = 0; i < maxAttempts; ++i) {
-        if (!assignment1Size.equals(assignment2Size)) {
-          break;
-        } else {
-          newAssignment2 =
-              strategy.assign(datastreams, Arrays.asList(instances), originalAssignment);
-          assignment2Size = newAssignment2.values().stream().map(Set::size).collect(Collectors.toList());
-        }
-      }
-
-      Assert.assertNotEquals(assignment1Size, assignment2Size);
-    });
+    Assert.assertNotEquals(assignment1Size, assignment2Size);
   }
 
+
   @Test
-  public void testNumTasks() {
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+  public void testMaxTasks() {
+    int numDatastreams = 10;
+    int numInstances = 20;
+    int maxTasks = 7;
+    int expectedTotalTasks = numDatastreams * maxTasks;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    doTestMaxTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      int numDatastreams = 10;
-      int numInstances = 20;
-      int numTasks = 7;
-      int expectedTotalTasks = numDatastreams * numTasks;
-
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", numDatastreams, numTasks);
-      } else {
-        datastreams = generateDatastreams("ds", numDatastreams);
-      }
-
-      doTestExpectedNumberOfTasks(
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled), numInstances,
-          expectedTotalTasks, datastreams);
-
-      // test with strategy where dsTaskLimitPerInstance is greater than 1
-      numInstances = 7;
-      numTasks = 20;
-      expectedTotalTasks = numDatastreams * numTasks;
-      int finalNumTasks = numTasks;
-      datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-          .put(StickyMulticastStrategy.CFG_MIN_TASKS, String.valueOf(finalNumTasks)));
-
-      doTestExpectedNumberOfTasks(
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled), numInstances,
-          expectedTotalTasks, datastreams);
-    });
+    // test with strategy where dsTaskLimitPerInstance is greater than 1
+    numInstances = 7;
+    maxTasks = 20;
+    expectedTotalTasks = numDatastreams * maxTasks;
+    doTestMaxTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
   }
 
   @Test
@@ -179,17 +132,17 @@ public class TestStickyMulticastStrategy {
     datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, "18");
 
     int expectedTotalTasks = numDatastreams * maxTasks + (18 - maxTasks);
-    doTestExpectedNumberOfTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
 
     // test with strategy where dsTaskLimitPerInstance is greater than 1
     numInstances = 6;
     maxTasks = 32;
     expectedTotalTasks = numDatastreams * maxTasks - (maxTasks - 18);
-    doTestExpectedNumberOfTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
+    doTestMaxTasks(new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()), numInstances, expectedTotalTasks, datastreams);
   }
 
 
-  private void doTestExpectedNumberOfTasks(StickyMulticastStrategy strategy, int numInstances, int expectedTotalTasks,
+  private void doTestMaxTasks(StickyMulticastStrategy strategy, int numInstances, int expectedTotalTasks,
       List<DatastreamGroup> datastreams) {
     String[] instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).toArray(String[]::new);
     Map<String, Set<DatastreamTask>> assignment =
@@ -207,106 +160,77 @@ public class TestStickyMulticastStrategy {
   public void testEditDiff() {
     int numDatastreams = 11;
     int numInstances = 20;
-    int numTasks = 7;
-    int expectedTotalTasks = numDatastreams * numTasks;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    int maxTasks = 7;
+    int expectedTotalTasks = numDatastreams * maxTasks;
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", numDatastreams, numTasks);
-      } else {
-        datastreams = generateDatastreams("ds", numDatastreams);
-      }
-      List<String> instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).collect(Collectors.toList());
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    List<String> instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).collect(Collectors.toList());
 
-      Map<String, Set<DatastreamTask>> assignment1 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment1 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, new HashMap<>());
 
-      Assert.assertEquals(getFullTaskList(assignment1).size(), expectedTotalTasks);
-      Assert.assertEquals(editDiff(assignment1, new HashMap<>()), expectedTotalTasks);
+    Assert.assertEquals(getFullTaskList(assignment1).size(), expectedTotalTasks);
+    Assert.assertEquals(editDiff(assignment1, new HashMap<>()), expectedTotalTasks);
 
-      // Test instance goes down
-      Random rnd = new Random();
-      String instanceDown = instances.remove(rnd.nextInt(instances.size()));
-      int numTasksInInstanceDown = assignment1.get(instanceDown).size();
+    // Test instance goes down
+    Random rnd = new Random();
+    String instanceDown = instances.remove(rnd.nextInt(instances.size()));
+    int numTasksInInstanceDown = assignment1.get(instanceDown).size();
 
-      Map<String, Set<DatastreamTask>> assignment2 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, assignment1);
-      Assert.assertTrue(editDiff(assignment1, assignment2) / (numTasksInInstanceDown + 1) <= 2);
+    Map<String, Set<DatastreamTask>> assignment2 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, assignment1);
+    Assert.assertTrue(editDiff(assignment1, assignment2) / (numTasksInInstanceDown + 1) <= 2);
 
-      // Test instance coming up
-      instances.add(instanceDown);
-      Map<String, Set<DatastreamTask>> assignment3 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, assignment2);
-      int numTasksInNewInstance = assignment3.get(instanceDown).size();
-      Assert.assertTrue(numTasksInNewInstance <= numTasksInInstanceDown);
-      Assert.assertEquals(editDiff(assignment2, assignment3), numTasksInNewInstance * 2);
-    });
+    // Test instance coming up
+    instances.add(instanceDown);
+    Map<String, Set<DatastreamTask>> assignment3 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, assignment2);
+    int numTasksInNewInstance = assignment3.get(instanceDown).size();
+    Assert.assertTrue(numTasksInNewInstance <= numTasksInInstanceDown);
+    Assert.assertEquals(editDiff(assignment2, assignment3), numTasksInNewInstance * 2);
   }
 
   @Test
   public void testEditDiffWithLargeMaxTasks() {
     int numDatastreams = 2;
     int numInstances = 10;
-    int numTasks = 30;
-    int expectedTotalTasks = numDatastreams * numTasks;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    int maxTasks = 30;
+    int expectedTotalTasks = numDatastreams * maxTasks;
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", numDatastreams, numTasks);
-      } else {
-        datastreams = generateDatastreams("ds", numDatastreams);
-      }
-      List<String> instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).collect(Collectors.toList());
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    List<String> instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).collect(Collectors.toList());
 
-      Map<String, Set<DatastreamTask>> assignment1 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment1 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, new HashMap<>());
 
-      Assert.assertEquals(getFullTaskList(assignment1).size(), expectedTotalTasks);
-      Assert.assertEquals(editDiff(assignment1, new HashMap<>()), expectedTotalTasks);
+    Assert.assertEquals(getFullTaskList(assignment1).size(), expectedTotalTasks);
+    Assert.assertEquals(editDiff(assignment1, new HashMap<>()), expectedTotalTasks);
 
-      // Test instance goes down
-      Random rnd = new Random();
-      String instanceDown = instances.remove(rnd.nextInt(instances.size()));
-      int numTasksInInstanceDown = assignment1.get(instanceDown).size();
+    // Test instance goes down
+    Random rnd = new Random();
+    String instanceDown = instances.remove(rnd.nextInt(instances.size()));
+    int numTasksInInstanceDown = assignment1.get(instanceDown).size();
 
-      Map<String, Set<DatastreamTask>> assignment2 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, assignment1);
-      Assert.assertTrue(editDiff(assignment1, assignment2) / (numTasksInInstanceDown + 1) <= 2);
+    Map<String, Set<DatastreamTask>> assignment2 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, assignment1);
+    Assert.assertTrue(editDiff(assignment1, assignment2) / (numTasksInInstanceDown + 1) <= 2);
 
-      // Test instance coming up
-      instances.add(instanceDown);
-      Map<String, Set<DatastreamTask>> assignment3 =
-          new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(), elasticAssignmentEnabled)
-              .assign(datastreams, instances, assignment2);
-      int numTasksInNewInstance = assignment3.get(instanceDown).size();
-      Assert.assertTrue(numTasksInNewInstance <= numTasksInInstanceDown);
-      Assert.assertEquals(editDiff(assignment2, assignment3), numTasksInNewInstance * 2);
-    });
+    // Test instance coming up
+    instances.add(instanceDown);
+    Map<String, Set<DatastreamTask>> assignment3 =
+        new StickyMulticastStrategy(Optional.of(maxTasks), Optional.empty()).assign(datastreams, instances, assignment2);
+    int numTasksInNewInstance = assignment3.get(instanceDown).size();
+    Assert.assertTrue(numTasksInNewInstance <= numTasksInInstanceDown);
+    Assert.assertEquals(editDiff(assignment2, assignment3), numTasksInNewInstance * 2);
   }
 
   private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams) {
-    return generateDatastreams(namePrefix, numberOfDatastreams, 0);
-  }
-
-  private List<DatastreamGroup> generateDatastreams(String namePrefix, int numberOfDatastreams, int minTasks) {
     List<DatastreamGroup> datastreams = new ArrayList<>();
     String type = DummyConnector.CONNECTOR_TYPE;
     for (int index = 0; index < numberOfDatastreams; index++) {
       Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
       ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
       ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
-      if (minTasks > 0) {
-        ds.getMetadata().put(StickyMulticastStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
-      }
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
     return datastreams;
@@ -315,232 +239,152 @@ public class TestStickyMulticastStrategy {
   @Test
   public void testDontCreateNewTasksWhenCalledSecondTime() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
+      LOG.info("New assignment : " + newAssignmentTasks);
+      LOG.info("Old assignment : " + oldAssignmentTasks);
+      Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
+    }
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, instances.length);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
-
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
-        LOG.info("New assignment : " + newAssignmentTasks);
-        LOG.info("Old assignment : " + oldAssignmentTasks);
-        Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
-      }
-
-      // test with strategy where dsTaskLimitPerInstance is greater than 1
-      datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-          .put(StickyMulticastStrategy.CFG_MIN_TASKS, String.valueOf(12)));
-      strategy = new StickyMulticastStrategy(Optional.of(12), Optional.empty(), elasticAssignmentEnabled);
-      assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
-        LOG.info("New assignment : " + newAssignmentTasks);
-        LOG.info("Old assignment : " + oldAssignmentTasks);
-        Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
-      }
-    });
+    // test with strategy where dsTaskLimitPerInstance is greater than 1
+    strategy = new StickyMulticastStrategy(Optional.of(12), Optional.empty());
+    assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size(), newAssignmentTasks.size());
+      LOG.info("New assignment : " + newAssignmentTasks);
+      LOG.info("Old assignment : " + oldAssignmentTasks);
+      Assert.assertTrue(newAssignmentTasks.containsAll(oldAssignmentTasks));
+    }
   }
 
   @Test
   public void testDontCreateNewTasksWhenInstanceChanged() {
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    instances = new String[]{"instance1", "instance2"};
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      String[] instances = new String[]{"instance1", "instance2", "instance3"};
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, instances.length);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
-
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      instances = new String[]{"instance1", "instance2"};
-
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-      Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
-      Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
-      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
-    });
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
   }
 
   @Test
   public void testSameTaskIsNotAssignedToMoreThanOneInstance() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     int numDatastreams = 5;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", numDatastreams);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    // Copying the assignment to simulate the scenario where two instances have the same task,
+    // which is possible when the previous leader gets interrupted while updating the assignment.
+    assignment.get("instance1").addAll(assignment.get("instance2"));
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", numDatastreams, instances.length);
-      } else {
-        datastreams = generateDatastreams("ds", numDatastreams);
-      }
-
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      // Copying the assignment to simulate the scenario where two instances have the same task,
-      // which is possible when the previous leader gets interrupted while updating the assignment.
-      assignment.get("instance1").addAll(assignment.get("instance2"));
-
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
-      Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
-      List<DatastreamTask> newAssignmentTasksList = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toList());
-      Assert.assertEquals(newAssignmentTasks.size(), newAssignmentTasksList.size());
-      Assert.assertEquals(newAssignmentTasks.size(), instances.length * numDatastreams);
-    });
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    List<DatastreamTask> newAssignmentTasksList = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toList());
+    Assert.assertEquals(newAssignmentTasks.size(), newAssignmentTasksList.size());
+    Assert.assertEquals(newAssignmentTasks.size(), instances.length * numDatastreams);
   }
 
   @Test
   public void testRemoveDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, instances.size());
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    datastreams.remove(0);
 
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
 
-      datastreams.remove(0);
+    // Ensure that the datastream tasks for the existing instances didn't change.
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() - 1, newAssignmentTasks.size());
+    }
 
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    // test with strategy where dsTaskLimitPerInstance is greater than 1
+    int maxTasksConfig = 12;
+    datastreams = generateDatastreams("ds", 5);
+    strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty());
+    assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
-      // Ensure that the datastream tasks for the existing instances didn't change.
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size() - 1, newAssignmentTasks.size());
-      }
+    datastreams.remove(0);
 
-      // test with strategy where dsTaskLimitPerInstance is greater than 1
-      int maxTasksConfig = 12;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, maxTasksConfig);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    newAssignment = strategy.assign(datastreams, instances, assignment);
 
-      strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty(), elasticAssignmentEnabled);
-      assignment = strategy.assign(datastreams, instances, new HashMap<>());
-
-      datastreams.remove(0);
-
-      newAssignment = strategy.assign(datastreams, instances, assignment);
-
-      // Ensure that the datastream tasks for the existing instances didn't change.
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size() - (maxTasksConfig / instances.size()),
-            newAssignmentTasks.size());
-      }
-    });
+    // Ensure that the datastream tasks for the existing instances didn't change.
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() - (maxTasksConfig / instances.size()),
+          newAssignmentTasks.size());
+    }
   }
 
   @Test
   public void testCreateNewTasksOnlyForNewDatastreamWhenDatastreamIsCreated() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, instances.size());
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
+    DatastreamGroup newDatastream = generateDatastreams("newds", 1).get(0);
+    newDatastreams.add(newDatastream);
 
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
 
-      List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
-      DatastreamGroup newDatastream;
-      if (elasticAssignmentEnabled) {
-        newDatastream = generateDatastreams("newds", 1, instances.size()).get(0);
-      } else {
-        newDatastream = generateDatastreams("newds", 1).get(0);
-      }
-      newDatastreams.add(newDatastream);
+    // Ensure that the datastream tasks for the existing instances didn't change.
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() + 1, newAssignmentTasks.size());
+      Assert.assertTrue(oldAssignmentTasks.stream()
+          .allMatch(x -> x.getTaskPrefix().equals(newDatastream.getTaskPrefix()) || newAssignmentTasks.contains(x)));
+    }
 
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
+    // test with strategy where dsTaskLimitPerInstance is greater than 1
+    int maxTasksConfig = 12;
+    datastreams = generateDatastreams("ds", 5);
+    strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty());
+    assignment = strategy.assign(datastreams, instances, new HashMap<>());
 
-      // Ensure that the datastream tasks for the existing instances didn't change.
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size() + 1, newAssignmentTasks.size());
-        Assert.assertTrue(oldAssignmentTasks.stream()
-            .allMatch(x -> x.getTaskPrefix().equals(newDatastream.getTaskPrefix()) || newAssignmentTasks.contains(x)));
-      }
+    newDatastreams = new ArrayList<>(datastreams);
+    DatastreamGroup newDatastream1 = generateDatastreams("newds", 1).get(0);
+    newDatastreams.add(newDatastream1);
 
-      // test with strategy where dsTaskLimitPerInstance is greater than 1
-      int maxTasksConfig = 12;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, maxTasksConfig);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    newAssignment = strategy.assign(newDatastreams, instances, assignment);
 
-      strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty(),
-          elasticAssignmentEnabled);
-      assignment = strategy.assign(datastreams, instances, new HashMap<>());
-
-      newDatastreams = new ArrayList<>(datastreams);
-      DatastreamGroup newDatastream1;
-      if (elasticAssignmentEnabled) {
-        newDatastream1 = generateDatastreams("newds", 1, maxTasksConfig).get(0);
-      } else {
-        newDatastream1 = generateDatastreams("newds", 1).get(0);
-      }
-      newDatastreams.add(newDatastream1);
-
-      newAssignment = strategy.assign(newDatastreams, instances, assignment);
-
-      // Ensure that the datastream tasks for the existing instances didn't change.
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size() + (maxTasksConfig / instances.size()),
-            newAssignmentTasks.size());
-        Assert.assertTrue(oldAssignmentTasks.stream()
-            .allMatch(x -> x.getTaskPrefix().equals(newDatastream1.getTaskPrefix()) || newAssignmentTasks.contains(x)));
-      }
-    });
+    // Ensure that the datastream tasks for the existing instances didn't change.
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() + (maxTasksConfig / instances.size()),
+          newAssignmentTasks.size());
+      Assert.assertTrue(oldAssignmentTasks.stream()
+          .allMatch(x -> x.getTaskPrefix().equals(newDatastream1.getTaskPrefix()) || newAssignmentTasks.contains(x)));
+    }
   }
 
   @Test
   public void testCreateNewTasksOnlyForNewInstanceWhenInstanceIsAdded() {
-    // Elastic Task Assignment requires a minTasks datatream metadata, which will always override the instance count.
-    // So this test is not relevant for this feature.
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
@@ -565,140 +409,95 @@ public class TestStickyMulticastStrategy {
   public void testStickyFairDistributionWhenNewInstanceIsAdded() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     String instance4 = "instance4";
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     int maxTasksConfig = 12;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    List<String> newInstances = new ArrayList<>(instances);
+    newInstances.add(instance4);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, maxTasksConfig);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    // Ensure that the datastream tasks for the existing instances were sticky
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(oldAssignmentTasks.size() - datastreams.size(), newAssignmentTasks.size());
+      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
+    }
 
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
-      List<String> newInstances = new ArrayList<>(instances);
-      newInstances.add(instance4);
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
-
-      // Ensure that the datastream tasks for the existing instances were sticky
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(oldAssignmentTasks.size() - datastreams.size(), newAssignmentTasks.size());
-        Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
-      }
-
-      Assert.assertEquals(newAssignment.get(instance4).size(),
-          maxTasksConfig * datastreams.size() / newInstances.size());
-    });
+    Assert.assertEquals(newAssignment.get(instance4).size(),
+        maxTasksConfig * datastreams.size() / newInstances.size());
   }
 
   @Test
   public void testDontRebalanceWhenDeletingDatastream() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     int imbalanceThreshold = 2;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     int maxTasksConfig = 4;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig), Optional.of(2));
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    // Remove some data streams to create a hole, it may or may not cause the imbalance, but rebalance shouldn't happen
+    datastreams.remove(3);
+    datastreams.remove(0);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, maxTasksConfig);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
+    // Ensure that the datastream tasks for the existing instances were sticky
+    for (String instance : instances) {
+      Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
+      Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
+      Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
+    }
 
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig),
-          Optional.of(imbalanceThreshold), elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
-      // Remove some data streams to create a hole, it may or may not cause the imbalance, but rebalance shouldn't happen
-      datastreams.remove(3);
-      datastreams.remove(0);
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
-
-      // Ensure that the datastream tasks for the existing instances were sticky
-      for (String instance : instances) {
-        Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
-        Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
-        Assert.assertTrue(oldAssignmentTasks.containsAll(newAssignmentTasks));
-      }
-
-      List<String> instancesBySize = new ArrayList<>(instances);
-      instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
-      Assert.assertTrue(newAssignment.get(instancesBySize.get(instances.size() - 1)).size() -
-          newAssignment.get(instancesBySize.get(0)).size() <= imbalanceThreshold);
-    });
+    List<String> instancesBySize = new ArrayList<>(instances);
+    instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+    Assert.assertTrue(newAssignment.get(instancesBySize.get(instances.size() - 1)).size() -
+        newAssignment.get(instancesBySize.get(0)).size() <= imbalanceThreshold);
   }
 
   @Test
   public void testTriggerRebalanceWhenDeletingDatastream() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     int imbalanceThreshold = 1;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     int maxTasksConfig = 4;
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig),
+        Optional.of(imbalanceThreshold));
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    // Remove some data streams to create a hole, causing an imbalance
+    datastreams.remove(3);
+    datastreams.remove(0);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
 
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
-
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", 5, maxTasksConfig);
-      } else {
-        datastreams = generateDatastreams("ds", 5);
-      }
-
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(maxTasksConfig),
-          Optional.of(imbalanceThreshold), elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
-      // Remove some data streams to create a hole, causing an imbalance
-      datastreams.remove(3);
-      datastreams.remove(0);
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
-
-      List<String> instancesBySize = new ArrayList<>(instances);
-      instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
-      Assert.assertEquals(newAssignment.get(instancesBySize.get(0)).size(),
-          newAssignment.get(instancesBySize.get(instances.size() - 1)).size());
-    });
+    List<String> instancesBySize = new ArrayList<>(instances);
+    instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
+    Assert.assertEquals(newAssignment.get(instancesBySize.get(0)).size(),
+        newAssignment.get(instancesBySize.get(instances.size() - 1)).size());
   }
 
   @Test
   public void testExtraTasksAreNotAssignedDuringReassignment() {
     String[] instances = new String[]{"instance1"};
-    int numTasks = 4;
-    int numDatastreams = 5;
-    Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(4), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment1 =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment2 =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
 
-    elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
-      List<DatastreamGroup> datastreams;
-      if (elasticAssignmentEnabled) {
-        datastreams = generateDatastreams("ds", numDatastreams, numTasks);
-      } else {
-        datastreams = generateDatastreams("ds", numDatastreams);
-      }
-      StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(numTasks), Optional.empty(),
-          elasticAssignmentEnabled);
-      Map<String, Set<DatastreamTask>> assignment1 =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-      Map<String, Set<DatastreamTask>> assignment2 =
-          strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    for (String instance : instances) {
+      Set<DatastreamTask> assignmentTasks1 = assignment1.get(instance);
+      Set<DatastreamTask> assignmentTasks2 = assignment2.get(instance);
+      Assert.assertEquals(assignmentTasks1.size(), assignmentTasks2.size());
+      Assert.assertEquals(assignmentTasks1.size(), 4 * 5);
+      assignmentTasks1.addAll(assignmentTasks2);
+    }
 
-      for (String instance : instances) {
-        Set<DatastreamTask> assignmentTasks1 = assignment1.get(instance);
-        Set<DatastreamTask> assignmentTasks2 = assignment2.get(instance);
-        Assert.assertEquals(assignmentTasks1.size(), assignmentTasks2.size());
-        Assert.assertEquals(assignmentTasks1.size(), numTasks * numDatastreams);
-        assignmentTasks1.addAll(assignmentTasks2);
-      }
-
-      Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment1);
-      for (String instance : instances) {
-        Set<DatastreamTask> newassignmentTasks = newAssignment.get(instance);
-        Assert.assertEquals(newassignmentTasks.size(), numTasks * numDatastreams);
-      }
-    });
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment1);
+    for (String instance : instances) {
+      Set<DatastreamTask> newassignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(newassignmentTasks.size(), 4 * 5);
+    }
   }
 
   private static String assignmentToString(Map<String, Set<DatastreamTask>> assignment) {

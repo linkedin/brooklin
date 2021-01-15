@@ -46,14 +46,22 @@ import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmen
  * takes place, based on the "partitionsPerTask" and "partitionFullnessFactorPct", the number of tasks needed to host
  * the partitions is determined. An in-memory map tracking the number of tasks per DatastreamGroup is updated and a
  * DatastreamRuntimeException is thrown to retry task assignment with the updated number of tasks. The next partition
- * assignment should determine that the number of tasks are sufficient, and should go through successfully. After the
+ * assignment should determine that the number of tasks are sufficient and should go through successfully. After the
  * initial determination, the number of tasks does not change, task and partition assignment proceed as usual.
+ *
+ * When elastic task assignment is enabled, the "maxTasks" datastream metadata is used as an upper bound on the number
+ * of tasks we can create to prevent unbounded task creation which can overwhelm the hosts in the cluster. This
+ * semantics is different when elastic task assignment is disabled, where "maxTasks" is treated as the number of
+ * tasks to create.
  */
 public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
+  public static final String CFG_MIN_TASKS = "minTasks";
+
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
   private static final Integer DEFAULT_PARTITIONS_PER_TASK = 50;
   private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
 
+  private final boolean _enableElasticTaskAssignment;
   private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
@@ -73,7 +81,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param enableElasticTaskAssignment A boolean indicating whether elastic task assignment is enabled or not. If
    *                                    enabled, the number of tasks to assign will be determined by a minTasks
    *                                    datastream metadata property, and may be increased based on the number of tasks
-   *                                    determined by partition assignment, if enabled.
+   *                                    determined during partition assignment.
    * @param partitionsPerTask If elastic task assignment is enabled, this is used to determine the number of partitions
    *                          allowed in each task when determining the number of tasks for the first time. The default
    *                          is {@value DEFAULT_PARTITIONS_PER_TASK}.
@@ -85,14 +93,17 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
       Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
       Optional<Integer> partitionFullnessFactorPct) {
-    super(maxTasks, imbalanceThreshold, enableElasticTaskAssignment);
+    super(maxTasks, imbalanceThreshold);
+    _enableElasticTaskAssignment = enableElasticTaskAssignment;
     _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
     _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
     _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
+
+    LOG.info("Elastic task assignment is {}", _enableElasticTaskAssignment ? "enabled" : "disabled");
   }
 
   /**
-   * Constructor for StickyPartitionAssignmentStrategy which disables elastic task assignment
+   * Constructor for StickyPartitionAssignmentStrategy with elastic task assignment disabled
    * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
    *                 of any {@link com.linkedin.datastream.common.Datastream}
    *                 if no value is specified for the "maxTasks" config property
@@ -117,6 +128,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param datastreamPartitions the subscribed partitions for the particular datastream group
    * @return new assignment mapping
    */
+  @Override
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String,
       Set<DatastreamTask>> currentAssignment, DatastreamGroupPartitionsMetadata datastreamPartitions) {
 
@@ -138,7 +150,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    int minTasks = getMinTasks(datastreamPartitions.getDatastreamGroup());
+    int minTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MIN_TASKS, 0);
     if (getEnableElasticTaskAssignment(minTasks) && assignedPartitions.isEmpty()) {
       // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
       // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
@@ -151,15 +163,14 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
               + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
           partitionFullnessFactorPct, _partitionFullnessFactorPct);
-      int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) / 100;
+      int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100 ?
+          (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
       int totalPartitions = datastreamPartitions.getPartitions().size();
       int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
           + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
       int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
       if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
-        // Only have the maxTasks override kick in if it's present as part of the datastream metadata. If elastic task
-        // assignment is enabled, maxTasks takes a different meaning than if this is disabled. If disabled, maxTasks
-        // actually behaves as number of tasks and is based off of config, datastream metadata, and number of instances.
+        // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
         LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
             + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
             partitionFullnessFactorPct, maxTasks);
@@ -171,6 +182,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
             String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
                 totalTaskCount, numTasksNeeded, totalPartitions));
       }
+      LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
     }
 
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
@@ -253,6 +265,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param partitionsMetadata the subscribed partitions metadata received from connector
    * @return new assignment
    */
+  @Override
   public Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
 
@@ -402,6 +415,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param currentAssignment existing assignment
    * @return  list of datastream tasks mapped by instance that need to be cleaned up.
    */
+  @Override
   public Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreamGroups,
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
@@ -431,17 +445,52 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     return tasksToCleanUp;
   }
 
-  private int resolveConfigWithMetadata(DatastreamGroup dg, String configName, int defaultValue) {
-    // Look for a 'configName' metadata override in any of the datastreams, and pick up the largest if present.
-    // Default to 'defaultValue' if none are found.
-    return dg.getDatastreams()
-        .stream()
-        .map(ds -> Objects.requireNonNull(ds.getMetadata()).get(configName))
-        .filter(Objects::nonNull)
-        .mapToInt(Integer::valueOf)
-        .filter(x -> x > 0)
-        .max()
-        .orElse(defaultValue);
+  @Override
+  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
+      Map<String, Set<DatastreamTask>> currentAssignmentCopy) {
+    // Count the number of tasks present for this datastream
+    Set<DatastreamTask> allAliveTasks = new HashSet<>();
+    for (String instance : instances) {
+      List<DatastreamTask> foundDatastreamTasks =
+          Optional.ofNullable(currentAssignmentCopy.get(instance)).map(c ->
+              c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
+                  .collect(Collectors.toList())).orElse(Collections.emptyList());
+      allAliveTasks.addAll(foundDatastreamTasks);
+    }
+
+    int minTasks = resolveConfigWithMetadata(dg, CFG_MIN_TASKS, 0);
+    boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(minTasks);
+    // TODO: Fetch the number of tasks in ZK if needed
+    int numTasks = enableElasticTaskAssignment ? _taskCountPerDatastreamGroup.getOrDefault(dg, 0) :
+        getNumTasks(dg, instances.size());
+
+    // Case 1: Elastic task assignment is disabled. Return getNumTasks() number of tasks.
+    int expectedNumberOfTasks = numTasks;
+    if (enableElasticTaskAssignment) {
+      if (numTasks > 0) {
+        // Case 2: elastic task enabled, numTasks > 0. This indicates that we already know how many tasks we should
+        // have. Return max(numTasks, minTasks) to ensure we have at least minTasks.
+        expectedNumberOfTasks = Math.max(numTasks, minTasks);
+      } else {
+        // Case 3: elastic task enabled, numTasks == 0. This can occur either on leader change, or if a datastream
+        // is added/restarted. On leadership change, we expect to find existing tasks, whereas for new/restarted
+        // datastreams we will have 0 tasks.
+        //
+        // In the current state, we trust the size of allAliveTasks() if present as the source of truth for the
+        // expected number of tasks. This may not always be correct, and this will be corrected by persisting the
+        // number of tasks to ZK when this value changes.
+        expectedNumberOfTasks = Math.max(allAliveTasks.size(), minTasks);
+      }
+    }
+
+    // TODO: Store the number of tasks to ZK if needed
+    return expectedNumberOfTasks;
+  }
+
+  private boolean getEnableElasticTaskAssignment(int minTasks) {
+    // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
+    // and is greater than 0
+    return _enableElasticTaskAssignment && (minTasks > 0);
   }
 
   /**

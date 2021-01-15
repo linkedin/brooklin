@@ -60,15 +60,13 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  * </ul>
  */
 public class StickyMulticastStrategy implements AssignmentStrategy {
-  public static final String CFG_MIN_TASKS = "minTasks";
-
   private static final Logger LOG = LoggerFactory.getLogger(StickyMulticastStrategy.class.getName());
   private static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   private final Optional<Integer> _maxTasks;
   private final Integer _imbalanceThreshold;
 
-  protected final boolean _enableElasticTaskAssignment;
+  // In-memory cache for the expected number of task for each DatastreamGroup
   protected final Map<DatastreamGroup, Integer> _taskCountPerDatastreamGroup = new ConcurrentHashMap<>();
 
   /**
@@ -81,37 +79,14 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
    *                           between any two {@link com.linkedin.datastream.server.Coordinator}
    *                           instances, before triggering a rebalance. The default is
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
-   * @param enableElasticTaskAssignment A boolean indicating whether elastic task assignment is enabled or not. If
-   *                                    enabled, the number of tasks to assign will be determined by a minTasks
-   *                                    datastream metadata property, and may be increased based on the number of tasks
-   *                                    determined by partition assignment, if enabled.
    */
-  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      boolean enableElasticTaskAssignment) {
+  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
     _maxTasks = maxTasks;
     _imbalanceThreshold = imbalanceThreshold.orElse(DEFAULT_IMBALANCE_THRESHOLD);
-    _enableElasticTaskAssignment = enableElasticTaskAssignment;
 
     if (_imbalanceThreshold < 1) {
       throw new IllegalArgumentException("Imbalance threshold must be larger or equal than 1");
     }
-
-    LOG.info("Elastic task assignment is {}", enableElasticTaskAssignment ? "enabled" : "disabled");
-  }
-
-  /**
-   * Constructor for StickyMulticastStrategy which disables elastic task assignment
-   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
-   *                 of any {@link com.linkedin.datastream.common.Datastream}
-   *                 if no value is specified for the "maxTasks" config property
-   *                 at an individual datastream level.
-   * @param imbalanceThreshold The maximum allowable difference in the number of tasks assigned
-   *                           between any two {@link com.linkedin.datastream.server.Coordinator}
-   *                           instances, before triggering a rebalance. The default is
-   *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
-   */
-  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
-    this(maxTasks, imbalanceThreshold, false);
   }
 
   @Override
@@ -140,18 +115,21 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     Map<DatastreamGroup, Integer> unallocated = new HashMap<>();
     Map<DatastreamGroup, List<DatastreamTask>> tasksNeedToRelocate = new HashMap<>();
 
+    // Remove entries for datastreams that aren't to be assigned in this round of task assignment. This forces a
+    // recalculation if the datastream is every added back (e.g. datastream restart).
+    _taskCountPerDatastreamGroup.keySet().forEach(datastreamGroup -> {
+      if (!datastreams.contains(datastreamGroup)) {
+        _taskCountPerDatastreamGroup.remove(datastreamGroup);
+      }
+    });
+
     // STEP 1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
-      int minTasks = getMinTasks(dg);
-      boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(minTasks);
-      int numTasks = enableElasticTaskAssignment ? _taskCountPerDatastreamGroup.getOrDefault(dg, 0) :
-          getNumTasks(dg, instances.size());
-      final int originalNumTasks = numTasks;
-      boolean behaveAsNormalAssignment = !enableElasticTaskAssignment || (originalNumTasks > 0);
-      int numTasksFound = 0;
+      int numTasks = constructExpectedNumberOfTasks(dg, instances, currentAssignmentCopy);
+      _taskCountPerDatastreamGroup.put(dg, numTasks);
       Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
-        if (behaveAsNormalAssignment && (numTasks <= 0)) {
+        if (numTasks <= 0) {
           break; // exit loop;
         }
         List<DatastreamTask> foundDatastreamTasks =
@@ -162,17 +140,14 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         allAliveTasks.addAll(foundDatastreamTasks);
 
         if (!foundDatastreamTasks.isEmpty()) {
-          if (behaveAsNormalAssignment && (foundDatastreamTasks.size() > numTasks)) {
+          if (foundDatastreamTasks.size() > numTasks) {
             LOG.info("Skipping {} tasks from the previous assignment of instance {}.",
                 foundDatastreamTasks.size() - numTasks, instance);
             foundDatastreamTasks = foundDatastreamTasks.stream().limit(numTasks).collect(Collectors.toList());
           }
           newAssignment.get(instance).addAll(foundDatastreamTasks);
           currentAssignmentCopy.get(instance).removeAll(foundDatastreamTasks);
-          if (behaveAsNormalAssignment) {
-            numTasks -= foundDatastreamTasks.size();
-          }
-          numTasksFound += foundDatastreamTasks.size();
+          numTasks -= foundDatastreamTasks.size();
         }
       }
       // As StickyAssignment, we want to recycle task from dead instances
@@ -180,25 +155,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
           .filter(dg::belongsTo).collect(Collectors.toSet());
       unallocatedTasks.removeAll(allAliveTasks);
       tasksNeedToRelocate.put(dg, new ArrayList<>(unallocatedTasks));
-      if (behaveAsNormalAssignment && (numTasksFound > 0 || !enableElasticTaskAssignment) && (numTasks > 0)) {
-        // If either elastic task assignment is disabled, or a non-zero value for originalNumTasks was found and
-        // existing tasks were found, we calculate the number of unallocated tasks that need to be created to match the
-        // expected number of tasks.
+      if (numTasks > 0) {
         unallocated.put(dg, numTasks);
-      } else if (enableElasticTaskAssignment) {
-        int numTotalTasks = originalNumTasks;
-        if (numTasksFound < minTasks) {
-          // If the number of tasks found is less than minTasks, calculate the number of unallocated tasks that need to
-          // be created to ensure we have at least minTasks number of tasks.
-          unallocated.put(dg, minTasks - numTasksFound);
-          numTotalTasks = minTasks;
-        } else if ((originalNumTasks == 0) && (numTasksFound > 0)) {
-          // If tasks were found but the originalNumTasks calculated earlier was 0, this indicates that a leader change
-          // has occurred and we just set the number of tasks to the number of tasks we found as the new source of
-          // truth.
-          numTotalTasks = numTasksFound;
-        }
-        _taskCountPerDatastreamGroup.put(dg, numTotalTasks);
       }
     }
 
@@ -278,9 +236,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     List<String> validations = new ArrayList<>();
     for (DatastreamGroup dg : datastreams) {
-      int minTasks = getMinTasks(dg);
-      long numTasks = getEnableElasticTaskAssignment(minTasks) ?
-          _taskCountPerDatastreamGroup.getOrDefault(dg, minTasks) : getNumTasks(dg, instances.size());
+      long numTasks = _taskCountPerDatastreamGroup.getOrDefault(dg, 0);
       long actualNumTasks = taskCountByTaskPrefix.get(dg.getTaskPrefix());
       if (numTasks != actualNumTasks) {
         validations.add(String.format("Missing tasks for %s. Actual: %d, expected: %d", dg, actualNumTasks, numTasks));
@@ -292,34 +248,27 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     }
   }
 
-  private int getNumTasks(DatastreamGroup dg, int numInstances) {
+  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
+      Map<String, Set<DatastreamTask>> currentAssignmentCopy) {
+    return getNumTasks(dg, instances.size());
+  }
+
+  protected int getNumTasks(DatastreamGroup dg, int numInstances) {
     // Look for an override in any of the datastream. In the case of multiple overrides, select the largest.
     // If no override is present then use the default "_maxTasks" from config.
+    return resolveConfigWithMetadata(dg, CFG_MAX_TASKS, _maxTasks.orElse(numInstances));
+  }
+
+  protected int resolveConfigWithMetadata(DatastreamGroup dg, String configName, int defaultValue) {
+    // Look for a 'configName' metadata override in any of the datastreams, and pick up the largest if present.
+    // Default to 'defaultValue' if none are found.
     return dg.getDatastreams()
         .stream()
-        .map(ds -> Objects.requireNonNull(ds.getMetadata()).get(CFG_MAX_TASKS))
+        .map(ds -> Objects.requireNonNull(ds.getMetadata()).get(configName))
         .filter(Objects::nonNull)
         .mapToInt(Integer::valueOf)
         .filter(x -> x > 0)
         .max()
-        .orElse(_maxTasks.orElse(numInstances));
-  }
-
-  protected int getMinTasks(DatastreamGroup dg) {
-    // Look for a minTasks metadata in any of the datastreams, and pick up the largest if present. Otherwise set to 0.
-    return dg.getDatastreams()
-        .stream()
-        .map(ds -> Objects.requireNonNull(ds.getMetadata()).get(CFG_MIN_TASKS))
-        .filter(Objects::nonNull)
-        .mapToInt(Integer::valueOf)
-        .filter(x -> x > 0)
-        .max()
-        .orElse(0);
-  }
-
-  protected boolean getEnableElasticTaskAssignment(int minTasks) {
-    // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
-    // and is greater than 0
-    return _enableElasticTaskAssignment && (minTasks > 0);
+        .orElse(defaultValue);
   }
 }

@@ -13,9 +13,7 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
-import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT;
 
 
 /**
@@ -25,7 +23,9 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
   public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
   public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
+  public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
 
+  public static final boolean DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT = false;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {

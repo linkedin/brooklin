@@ -449,10 +449,15 @@ public class TestStickyPartitionAssignment {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
 
     // Pass an empty assignment to simulate a datastream restart which wipes out the tasks. The number of tasks needed
-    // should be reassessed.
+    // should be reassessed on the next assignment when we add the datastream back.
     assignment = Collections.emptyMap();
+    // Pass an empty datastream list, since on datastream stop, we expect the stopped datastream to be filtered out
+    // from the list of valid datastreams passed to the assign() call.
+    assignment = strategy.assign(Collections.emptyList(), instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), 0);
 
-    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
+    // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created since the previous
+    // assignment should have wiped out the previously calculated numTasks.
     assignment = strategy.assign(datastreams, instances, assignment);
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
 
@@ -633,7 +638,7 @@ public class TestStickyPartitionAssignment {
       ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
       ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
       if (minTasks > 0) {
-        ds.getMetadata().put(StickyMulticastStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
+        ds.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
       }
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
