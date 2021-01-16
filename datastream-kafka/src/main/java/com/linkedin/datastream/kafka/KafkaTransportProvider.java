@@ -59,6 +59,8 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
 
+  private boolean _isUnassigned;
+
   /**
    * Constructor for KafkaTransportProvider.
    * @param datastreamTask the {@link DatastreamTask} to which this transport provider is being assigned
@@ -81,6 +83,7 @@ public class KafkaTransportProvider implements TransportProvider {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
+    _isUnassigned = false;
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -140,6 +143,15 @@ public class KafkaTransportProvider implements TransportProvider {
       Validate.notNull(record, "null event record.");
       Validate.notNull(record.getEvents(), "null datastream events.");
 
+      // if the transport provider is already unassigned, the send should fail.
+      if (_isUnassigned) {
+        _eventTransportErrorRate.mark();
+        _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, topicName, EVENT_TRANSPORT_ERROR_RATE, 1);
+        String msg = String.format(
+            "Sending DatastreamRecord (%s) to topic %s, partition %s, Kafka cluster %s failed. Transport Provider already unassigned.", record,
+            topicName, record.getPartition().orElse(-1), destinationUri);
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg);
+      }
 
       LOG.debug("Sending Datastream event record: {}", record);
 
@@ -161,8 +173,13 @@ public class KafkaTransportProvider implements TransportProvider {
         producer.send(_datastreamTask, outgoing, (metadata, exception) -> {
           int partition = metadata != null ? metadata.partition() : -1;
           if (exception != null) {
-            LOG.error("Sending a message with source checkpoint {} to topic {} partition {} for datastream task {} "
-                    + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask, exception);
+            String msg = String.format("Sending a message with source checkpoint %s to topic %s partition %d for datastream task %s "
+                + "threw an exception.", record.getCheckpoint(), topicName, partition, _datastreamTask.getDatastreamTaskName());
+            if (_isUnassigned) {
+              LOG.debug(msg, exception);
+            } else {
+              LOG.error(msg, exception);
+            }
           }
           doOnSendCallback(record, onSendComplete, metadata, exception, eventIndex, sourcePartition);
         });
@@ -193,6 +210,10 @@ public class KafkaTransportProvider implements TransportProvider {
   @Override
   public void flush() {
     _producers.forEach(KafkaProducerWrapper::flush);
+  }
+
+  void setUnassigned() {
+    _isUnassigned = true;
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,
