@@ -53,6 +53,21 @@ public class ScribeParquetAvroConverterTest {
   }
 
   @Test
+  public void testSupplyChainItemsReturnsFoundGenerateParquetStructuredAvroSchema() throws Exception {
+    Schema itemsReturnRoutesFoundSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/SupplyChainItemsReturnRoutesFound.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(itemsReturnRoutesFoundSchema);
+
+    Schema expected = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+    );
+
+    assertEquals(expected, actual);
+  }
+
+  @Test
   public void testOrderCancellationConfirmationGenerateParquetStructuredAvroSchema() throws Exception {
     // Nested object schema
     Schema OrderCancellationConfirmationSchema = schemaParser.parse(
@@ -190,6 +205,30 @@ public class ScribeParquetAvroConverterTest {
     assertEquals(expected, actual);
   }
 
+//  @Test
+//  public void testSupplyChainItemRequestReturnRouteFoundRGenerateParquetStructuredAvroData() throws Exception {
+//    Schema avroItemsRequestReturnRouteSchema = schemaParser.parse(
+//        Resources.toString(Resources.getResource("avroschemas/SupplyChainItemsReturnRoutesFound.avsc"), StandardCharsets.UTF_8)
+//    );
+//
+//    GenericRecord input = new GenericData.Record(avroItemsRequestReturnRouteSchema);
+//
+//    input.put("eventName", "ItemsReturnRoutesFound");
+//    input.put("scribeEventId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+//    input.put("eventTimestamp", 1494843212576L);
+//    input.put("eventTimestamp", 1494843212576L);
+//
+//    input.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
+//    input.put("transactionId", "CuQGyFkZf0yoRHA+R4BzAg==");
+//    input.put("referringTransactionId", "CuQGyHkZf0yoRHA+R4BzAg==");
+//    input.put("datacenter", "test");
+//    input.put("visitGuid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
+//    input.put("deviceGuid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
+//
+//
+//  }
+
+
   @Test
   public void testAtlasDecisionGenerateParquetStructuredAvroData() throws Exception {
 
@@ -222,19 +261,19 @@ public class ScribeParquetAvroConverterTest {
     listLong.add(12345678L);
     listLong.add(87654321L);
     GenericArray<Long> placementIds = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.LONG)), listLong);
-    input.put("placementIds",  placementIds);
+    input.put("placementIds", placementIds);
 
     GenericArray<Long> campaignIds = new GenericData.Array<Long>(Schema.createArray(Schema.create(Schema.Type.LONG)), listLong);
-    input.put("campaignIds",  campaignIds);
+    input.put("campaignIds", campaignIds);
 
     GenericArray<Long> creativeIds = new GenericData.Array<Long>(Schema.createArray(Schema.create(Schema.Type.LONG)), listLong);
-    input.put("creativeIds",  creativeIds);
+    input.put("creativeIds", creativeIds);
 
     List<Utf8> list = new ArrayList<>();
     list.add(new Utf8("e82f044e-4e98-3f9e-a1e4-9a3809d075b8"));
     list.add(new Utf8("01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
     GenericArray<Utf8> segmentGuids = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
-    input.put("segmentGuids",  segmentGuids);
+    input.put("segmentGuids", segmentGuids);
 
     input.put("kairosTopFunctionalNeed", "kairos");
     input.put("kairosTopNeedId", 1234567L);
@@ -246,16 +285,16 @@ public class ScribeParquetAvroConverterTest {
     input.put("inMarketClassIds", inMarketClassIds);
 
     GenericArray<Utf8> impressionIds = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
-    input.put("impressionIds",  impressionIds);
+    input.put("impressionIds", impressionIds);
 
     GenericArray<Utf8> requestTokens = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
-    input.put("requestTokens",  requestTokens);
+    input.put("requestTokens", requestTokens);
 
     GenericArray<Utf8> arbitraryContentGuids = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
-    input.put("arbitraryContentGuids",  arbitraryContentGuids);
+    input.put("arbitraryContentGuids", arbitraryContentGuids);
 
     GenericArray<Utf8> externalCreativeIds = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
-    input.put("externalCreativeIds",  externalCreativeIds);
+    input.put("externalCreativeIds", externalCreativeIds);
 
     Schema atlasDecisionParquetAvroSchema = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AtlasDecisionParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -281,7 +320,7 @@ public class ScribeParquetAvroConverterTest {
     expected.put("idfv", "0ae406c8-58de-49ce-9d4a-481a2a300902");
     expected.put("atlasPlatformId", 1234567L);
     expected.put("atlasChannelId", 324L);
-    expected.put("placementIds",  Arrays.asList(12345678L, 87654321L));
+    expected.put("placementIds", Arrays.asList(12345678L, 87654321L));
     expected.put("campaignIds", Arrays.asList(12345678L, 87654321L));
     expected.put("creativeIds", Arrays.asList(12345678L, 87654321L));
     expected.put("segmentGuids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
@@ -298,7 +337,7 @@ public class ScribeParquetAvroConverterTest {
 
   public Schema getSchemaForNestedObjects(Schema schema, String nestedFieldName) {
     Schema nested = null;
-    for (Schema.Field field: schema.getFields()) {
+    for (Schema.Field field : schema.getFields()) {
       if (field.name().equalsIgnoreCase(nestedFieldName)) {
         Schema nestedSchema = field.schema().isUnion() ? field.schema().getTypes().get(1) : field.schema();
         if (nestedSchema.getType().toString().equalsIgnoreCase("array")) {
@@ -596,5 +635,242 @@ public class ScribeParquetAvroConverterTest {
 
 
     assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testItemReturnRoutesFoundGenerateParquetStructuredAvroData() throws Exception {
+    Schema avroItemReturnRoutesFoundSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/SupplyChainItemsReturnRoutesFound.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema nestedscribeHeader = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "scribeHeader");
+    Schema nestedUpdatedRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "addedRoutes");
+    //Schema nestedUpdatedRoute = getSchemaForNestedObjects(nestedAddedRoute, "updated_route");
+
+    Schema nestedRoute = getSchemaForNestedObjects(nestedUpdatedRoute, "route");
+    Schema nestedFinalRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "finalRoutes");
+
+
+    GenericRecord scribeHeaderInput = null;
+    if (nestedscribeHeader != null) {
+      scribeHeaderInput = new GenericData.Record(nestedscribeHeader);
+      scribeHeaderInput.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+      scribeHeaderInput.put("eventName", "item_return_routes_found");
+      scribeHeaderInput.put("eventTimestamp", 1494843212576L);
+      scribeHeaderInput.put("receivedTimestamp", 1494843212579L);
+      scribeHeaderInput.put("dataClassification", 1);
+      scribeHeaderInput.put("productApplicationToken", "token");
+      scribeHeaderInput.put("domain", "supplychain");
+      scribeHeaderInput.put("avroSchemaVersion", 2);
+      scribeHeaderInput.put("scribeClientVersion", "trail_1");
+    }
+
+    GenericRecord routesInput = null;
+    if (nestedRoute != null) {
+      routesInput = new GenericData.Record(nestedRoute);
+      routesInput.put("destinationId", 90);
+      routesInput.put("destinationTypeId", 67);
+      routesInput.put("thirdPartyCarrierId", 14);
+      routesInput.put("rsId", 4);
+    }
+
+
+    GenericRecord updatedRoutesInput = null;
+    if (nestedUpdatedRoute != null) {
+      updatedRoutesInput = new GenericData.Record(nestedUpdatedRoute);
+      updatedRoutesInput.put("route", routesInput);
+      updatedRoutesInput.put("reason", "reson");
+    }
+
+
+    List<GenericRecord> addedRoutesArray = new ArrayList<>();
+    addedRoutesArray.add(updatedRoutesInput);
+    GenericArray<GenericRecord>  addedRoutesInput = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("addedRoutes").schema()), addedRoutesArray);
+
+
+
+    List<GenericRecord> filteredRoutesArray = new ArrayList<>();
+    filteredRoutesArray.add(updatedRoutesInput);
+    GenericArray<GenericRecord>  filteredRoutesInput = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("filteredRoutes").schema()), filteredRoutesArray);
+
+    GenericRecord finalRoutesInput = null;
+    if (nestedFinalRoute != null) {
+      finalRoutesInput = new GenericData.Record(nestedFinalRoute);
+      finalRoutesInput.put("route", routesInput);
+      finalRoutesInput.put("expectedNetRecovery", 3.4f);
+      finalRoutesInput.put("grossRecovery", 1.3f);
+      finalRoutesInput.put("cost", 389.67f);
+      finalRoutesInput.put("currency", "dollars");
+      finalRoutesInput.put("carrierShipCost", 10.99f);
+      finalRoutesInput.put("marketingCategoryId", 11);
+      finalRoutesInput.put("openBoxDiscount", 7.60f);
+      finalRoutesInput.put("liquidationTransferFee", 9f);
+      finalRoutesInput.put("gradeProbabilityNew", 11f);
+      finalRoutesInput.put("gradeProbabilityOpenBox", 9.67f);
+      finalRoutesInput.put("gradeProbabilityLiquidation", 2.3f);
+      finalRoutesInput.put("gradeProbabilityJunk", 1.99f);
+      finalRoutesInput.put("junkGradeDisposalFee", 1.1f);
+      finalRoutesInput.put("warehouseProcessingCost", 3.3f);
+      finalRoutesInput.put("liquidationDiscountRate", 10.99f);
+      finalRoutesInput.put("openBoxDiscount", 7.60f);
+      finalRoutesInput.put("liquidationTransferFee", 9f);
+      finalRoutesInput.put("wholesalePrice", 200f);
+      finalRoutesInput.put("salePrice", 299f);
+      finalRoutesInput.put("volumeSteeringConstant", 2.3f);
+      finalRoutesInput.put("boxCountMultiplier", 0.99f);
+      finalRoutesInput.put("productStatusMultiplier", 11f);
+      finalRoutesInput.put("adjustmentMultiplier", 7.60f);
+      finalRoutesInput.put("returnReasonMultiplier", 9f);
+      finalRoutesInput.put("highDamageMultiplier", 200f);
+      finalRoutesInput.put("repackMultiplier", 299f);
+      finalRoutesInput.put("disassemblyMultiplier", 2.3f);
+    }
+
+    List<GenericRecord> finalRoutesArray = new ArrayList<>();
+    finalRoutesArray.add(finalRoutesInput);
+    GenericArray<GenericRecord>  finalRoutes = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesArray);
+
+    List<Integer> listOfInt = new ArrayList<Integer>();
+    listOfInt.add(1234567);
+    listOfInt.add(87654);
+    GenericArray<Integer> supplierAllowanceType = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.INT)), listOfInt);
+
+    GenericRecord input = new GenericData.Record(avroItemReturnRoutesFoundSchema);
+
+    input.put("scribeHeader", scribeHeaderInput);
+    input.put("requestId", "test_id");
+    input.put("orderProductId", 1234L);
+    input.put("isIncident", false);
+    input.put("canItemBeReturnedToSupplier", true);
+    input.put("isFedexPickupAvailable", false);
+    input.put("isFedexLocationAvailable", true);
+    input.put("supplierTakeReturns", true);
+    input.put("supplierCountryId", 12);
+    input.put("supplierReturnCountryId", 34);
+    input.put("supplierAllowanceType", supplierAllowanceType);
+    input.put("supplierReturnAuthorizationMethod", "method");
+    input.put("supplierCastleGateWarehouseId", 123);
+    input.put("isWayfairCarrier", true);
+    input.put("addedRoutes", addedRoutesInput);
+    input.put("filteredRoutes", filteredRoutesInput);
+    input.put("finalRoutes", finalRoutes);
+
+    Schema parquetAvroItemsReturnRequestRouteSchema = new Schema.Parser().parse(
+            Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+    );
+//    Schema nestedscribeHeaderExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "scribeHeader");
+    Schema nestedUpdatedRouteExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "addedRoutes");
+
+    Schema nestedRouteExpected = getSchemaForNestedObjects(nestedUpdatedRouteExpected, "route");
+    Schema nestedFinalRouteExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "finalRoutes");
+    GenericRecord routesExpected = null;
+    if (nestedRouteExpected != null) {
+      routesExpected = new GenericData.Record(nestedRouteExpected);
+      routesExpected.put("destinationId", 90);
+      routesExpected.put("destinationTypeId", 67);
+      routesExpected.put("thirdPartyCarrierId", 14);
+      routesExpected.put("rsId", 4);
+    }
+
+
+    GenericRecord updatedRoutesExpected = null;
+    if (nestedUpdatedRouteExpected != null) {
+      updatedRoutesExpected = new GenericData.Record(nestedUpdatedRouteExpected);
+      updatedRoutesExpected.put("route", routesExpected);
+      updatedRoutesExpected.put("reason", "reson");
+    }
+
+
+    List<GenericRecord> addedRoutesArrayExpected = new ArrayList<>();
+    addedRoutesArrayExpected.add(updatedRoutesExpected);
+    GenericArray<GenericRecord>  addedRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("addedRoutes").schema()), addedRoutesArrayExpected);
+
+
+
+    List<GenericRecord> filteredRoutesArrayExpected = new ArrayList<>();
+    filteredRoutesArrayExpected.add(updatedRoutesExpected);
+    GenericArray<GenericRecord>  filteredRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("filteredRoutes").schema()), filteredRoutesArrayExpected);
+
+    GenericRecord finalRoutesExpected = null;
+    if (nestedFinalRouteExpected != null) {
+      finalRoutesExpected = new GenericData.Record(nestedFinalRoute);
+      finalRoutesExpected.put("route", routesInput);
+      finalRoutesExpected.put("expectedNetRecovery", 3.4f);
+      finalRoutesExpected.put("grossRecovery", 1.3f);
+      finalRoutesExpected.put("cost", 389.67f);
+      finalRoutesExpected.put("currency", "dollars");
+      finalRoutesExpected.put("carrierShipCost", 10.99f);
+      finalRoutesExpected.put("marketingCategoryId", 11);
+
+      finalRoutesExpected.put("openBoxDiscount", 7.60f);
+      finalRoutesExpected.put("liquidationTransferFee", 9f);
+      finalRoutesExpected.put("gradeProbabilityNew", 11f);
+      finalRoutesExpected.put("gradeProbabilityOpenBox", 9.67f);
+      finalRoutesExpected.put("gradeProbabilityLiquidation", 2.3f);
+      finalRoutesExpected.put("gradeProbabilityJunk", 1.99f);
+      finalRoutesExpected.put("junkGradeDisposalFee", 1.1f);
+
+      finalRoutesExpected.put("warehouseProcessingCost", 3.3f);
+      finalRoutesExpected.put("liquidationDiscountRate", 10.99f);
+      finalRoutesExpected.put("openBoxDiscount", 7.60f);
+      finalRoutesExpected.put("liquidationTransferFee", 9f);
+      finalRoutesExpected.put("wholesalePrice", 200f);
+      finalRoutesExpected.put("salePrice", 299f);
+      finalRoutesExpected.put("volumeSteeringConstant", 2.3f);
+      finalRoutesExpected.put("boxCountMultiplier", 0.99f);
+      finalRoutesExpected.put("productStatusMultiplier", 11f);
+
+
+      finalRoutesExpected.put("adjustmentMultiplier", 7.60f);
+      finalRoutesExpected.put("returnReasonMultiplier", 9f);
+      finalRoutesExpected.put("highDamageMultiplier", 200f);
+      finalRoutesExpected.put("repackMultiplier", 299f);
+      finalRoutesExpected.put("disassemblyMultiplier", 2.3f);
+
+    }
+
+    List<GenericRecord> finalRoutesListExpected = new ArrayList<>();
+    finalRoutesListExpected.add(finalRoutesExpected);
+    GenericArray<GenericRecord>  finalRoutesArrayExpected = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesListExpected);
+
+    List<Integer> listOfIntExpected = new ArrayList<Integer>();
+    listOfIntExpected.add(1234567);
+    listOfIntExpected.add(87654);
+    GenericArray<Integer> supplierAllowanceTypeExpected = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.INT)), listOfInt);
+
+    GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroItemsReturnRequestRouteSchema, input);
+
+
+    GenericRecord expected = new GenericData.Record(parquetAvroItemsReturnRequestRouteSchema);
+    //exploded header fields
+    expected.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("eventName", "item_return_routes_found");
+    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("receivedTimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("dataClassification", 1);
+    expected.put("productApplicationToken", "token");
+    expected.put("domain", "supplychain");
+    expected.put("avroSchemaVersion", 2);
+    expected.put("scribeClientVersion", "trail_1");
+
+    expected.put("requestId", "test_id");
+    expected.put("orderProductId", 1234L);
+    expected.put("isIncident", false);
+    expected.put("canItemBeReturnedToSupplier", true);
+    expected.put("isFedexPickupAvailable", false);
+    expected.put("isFedexLocationAvailable", true);
+    expected.put("supplierTakeReturns", true);
+    expected.put("supplierCountryId", 12);
+    expected.put("supplierReturnCountryId", 34);
+    expected.put("supplierAllowanceType", supplierAllowanceTypeExpected);
+    expected.put("supplierReturnAuthorizationMethod", "method");
+    expected.put("supplierCastleGateWarehouseId", 123);
+    expected.put("isWayfairCarrier", true);
+    expected.put("addedRoutes", addedRoutesExpected);
+    expected.put("filteredRoutes", filteredRoutesExpected);
+    expected.put("finalRoutes", finalRoutesArrayExpected);
+
+    assertEquals(expected, actual);
+
   }
 }

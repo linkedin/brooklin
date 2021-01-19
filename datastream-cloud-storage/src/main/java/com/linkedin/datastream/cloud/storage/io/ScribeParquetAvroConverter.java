@@ -18,6 +18,7 @@ import org.apache.avro.generic.GenericRecord;
  * ScribeParquetAvroConverter handles the conversion of avro to parquet compatible avro schema
  */
 public class ScribeParquetAvroConverter {
+  public static final String SCRIBE_HEADER = "scribeHeader";
 
   /**
    * Converts field avro schema to parquet compatible format and handles special cases like timestamp, Arrays, Records.
@@ -43,7 +44,7 @@ public class ScribeParquetAvroConverter {
       }
     } else if (typeName.equalsIgnoreCase("RECORD")) {
       // Replace with header name
-      if (fieldSchema.getName().equalsIgnoreCase("ScribeHeader")) {
+      if (fieldSchema.getName().equalsIgnoreCase("scribe_header")) {
         List<Schema.Field> headerFields = fieldSchema.getFields();
         for (Schema.Field headerField : headerFields) {
           Boolean isHeaderFieldNotNullable = headerField.getObjectProp("isRequired") != null ?(Boolean) headerField.getObjectProp("isRequired") : false;
@@ -163,9 +164,9 @@ public class ScribeParquetAvroConverter {
    * @return
    */
   public static List<Schema> getSchemaTypes(String fieldName, GenericRecord avroRecord) {
-    return ((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema().isUnion() ?
-        ((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema().getTypes() :
-        Arrays.asList(((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema());
+    return avroRecord.getSchema().getField(fieldName).schema().isUnion() ?
+        avroRecord.getSchema().getField(fieldName).schema().getTypes() :
+        Arrays.asList(avroRecord.getSchema().getField(fieldName).schema());
   }
 
   /**
@@ -180,6 +181,10 @@ public class ScribeParquetAvroConverter {
    */
   public static GenericRecord generateParquetStructuredAvroData(Schema schema, GenericRecord avroRecord) {
       GenericRecord record = new GenericData.Record(schema);
+      GenericRecord scribeHeaderRecord = null;
+      if (avroRecord.get(SCRIBE_HEADER) != null) {
+        scribeHeaderRecord = getScribeHeaderParquetData(avroRecord);
+      }
 
       // Get fields from schema
       List<Schema.Field> fields = schema.getFields();
@@ -189,10 +194,10 @@ public class ScribeParquetAvroConverter {
         // replace with scribe header fieldName
         if (avroRecord.get(fieldName) != null) {
           avroFieldSchemaTypes = getSchemaTypes(fieldName, avroRecord);
-        } else if (avroRecord.get(fieldName) == null && ((GenericData.Record) avroRecord).getSchema().getField(fieldName) != null){
+        } else if (avroRecord.get(fieldName) == null && avroRecord.getSchema().getField(fieldName) != null){
           continue;
-        } else if(avroRecord.get("scribeHeader") != null && avroRecord.get("scribeHeader").getClass().getSimpleName().equalsIgnoreCase("Record")){
-          avroFieldSchemaTypes = getSchemaTypes("scribeHeader", avroRecord);
+        } else if(avroRecord.get(SCRIBE_HEADER) != null && avroRecord.get(SCRIBE_HEADER).getClass().getSimpleName().equalsIgnoreCase("Record")){
+          avroFieldSchemaTypes = getSchemaTypes(SCRIBE_HEADER, avroRecord);
         }
         for (Schema avroTypeSchema : avroFieldSchemaTypes) {
             if (!avroTypeSchema.getType().getName().equalsIgnoreCase("null")) {
@@ -232,9 +237,8 @@ public class ScribeParquetAvroConverter {
                   record.put(fieldName, avroRecord.get(fieldName));
                 }
                 //Replace with header name for 2.0
-              } else if (avroTypeName.equalsIgnoreCase("RECORD") && avroTypeSchema.getName().equalsIgnoreCase("ScribeHeader")) {
-                GenericRecord nestedRecord = (GenericRecord) avroRecord.get("scribeHeader");
-                record.put(fieldName, nestedRecord.get(fieldName));
+              } else if (avroTypeName.equalsIgnoreCase("RECORD") && avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
+                record.put(fieldName, scribeHeaderRecord.get(fieldName));
               } else if (avroTypeName.equalsIgnoreCase("RECORD")) {
                 //convert fields inside nested object to parquet data
                 GenericRecord nestedRecord = (GenericRecord) avroRecord.get(fieldName);
@@ -249,6 +253,18 @@ public class ScribeParquetAvroConverter {
           }
       }
       return record;
+  }
+
+  /**
+   * Get Parquet formatted scribe header data
+   * @param avroRecord
+   * @return Parquet-format record
+   */
+  public static GenericRecord getScribeHeaderParquetData(GenericRecord avroRecord) {
+    Schema scribeHeaderSchema = avroRecord.getSchema().getField(SCRIBE_HEADER).schema();
+    Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) : scribeHeaderSchema;
+
+    return generateParquetStructuredAvroData(scribeHeaderTypeSchema, (GenericRecord) avroRecord.get(SCRIBE_HEADER));
   }
 
   /**
