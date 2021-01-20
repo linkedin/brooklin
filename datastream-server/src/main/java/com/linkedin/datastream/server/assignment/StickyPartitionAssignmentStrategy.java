@@ -99,7 +99,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
     _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
 
-    LOG.info("Elastic task assignment is {}", _enableElasticTaskAssignment ? "enabled" : "disabled");
+    LOG.info("Elastic task assignment is {}, partitionsPerTask: {}, partitionFullnessFactorPct: {}, "
+            + "maxPartitionPerTask: {}", _enableElasticTaskAssignment ? "enabled" : "disabled", _partitionsPerTask,
+        _partitionFullnessFactorPct, _maxPartitionPerTask);
   }
 
   /**
@@ -151,37 +153,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
     if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup()) && assignedPartitions.isEmpty()) {
-      // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
-      // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
-      // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
-      // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
-      int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-          CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
-      int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-          CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
-      LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
-              + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
-          partitionFullnessFactorPct, _partitionFullnessFactorPct);
-      int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100 ?
-          (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
-      int totalPartitions = datastreamPartitions.getPartitions().size();
-      int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
-          + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
-      int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
-      if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
-        // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
-        LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
-            + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
-            partitionFullnessFactorPct, maxTasks);
-        numTasksNeeded = maxTasks;
-      }
-      if (numTasksNeeded > totalTaskCount) {
-        _taskCountPerDatastreamGroup.put(datastreamPartitions.getDatastreamGroup(), numTasksNeeded);
-        throw new DatastreamRuntimeException(
-            String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
-                totalTaskCount, numTasksNeeded, totalPartitions));
-      }
-      LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
+      performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
     }
 
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
@@ -446,23 +418,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
   @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignmentCopy) {
-    // Count the number of tasks present for this datastream
-    Set<DatastreamTask> allAliveTasks = new HashSet<>();
-    for (String instance : instances) {
-      List<DatastreamTask> foundDatastreamTasks =
-          Optional.ofNullable(currentAssignmentCopy.get(instance)).map(c ->
-              c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
-                  .collect(Collectors.toList())).orElse(Collections.emptyList());
-      allAliveTasks.addAll(foundDatastreamTasks);
-    }
-
+      Map<String, Set<DatastreamTask>> currentAssignment) {
     boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
     // TODO: Fetch the number of tasks in ZK if needed
-    int numTasks = enableElasticTaskAssignment ? _taskCountPerDatastreamGroup.getOrDefault(dg, 0) :
+    int numTasks = enableElasticTaskAssignment ? getTaskCountForDatastreamGroup(dg.getTaskPrefix()) :
         getNumTasks(dg, instances.size());
 
-    // Case 1: Elastic task assignment is disabled. Return getNumTasks() number of tasks.
+    // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
     int expectedNumberOfTasks = numTasks;
     if (enableElasticTaskAssignment) {
       int minTasks = resolveConfigWithMetadata(dg, CFG_MIN_TASKS, 0);
@@ -478,12 +440,60 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
         // In the current state, we trust the size of allAliveTasks() if present as the source of truth for the
         // expected number of tasks. This may not always be correct, and this will be corrected by persisting the
         // number of tasks to ZK when this value changes.
+
+        // Count the number of tasks present for this datastream
+        Set<DatastreamTask> allAliveTasks = new HashSet<>();
+        for (String instance : instances) {
+          List<DatastreamTask> foundDatastreamTasks =
+              Optional.ofNullable(currentAssignment.get(instance)).map(c ->
+                  c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
+                      .collect(Collectors.toList())).orElse(Collections.emptyList());
+          allAliveTasks.addAll(foundDatastreamTasks);
+        }
         expectedNumberOfTasks = Math.max(allAliveTasks.size(), minTasks);
       }
     }
 
+    LOG.info("Elastic task assignment is {} for datastream group {}, expected number of tasks {}",
+        enableElasticTaskAssignment ? "enabled" : "disabled", dg, expectedNumberOfTasks);
+
     // TODO: Store the number of tasks to ZK if needed
     return expectedNumberOfTasks;
+  }
+
+  private void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+      int totalTaskCount) {
+    // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
+    // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
+    // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
+    // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
+    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+        CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
+    LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
+            + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
+        partitionFullnessFactorPct, _partitionFullnessFactorPct);
+    int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100 ?
+        (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
+    int totalPartitions = datastreamPartitions.getPartitions().size();
+    int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
+        + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
+    int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
+    if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
+      // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
+      LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
+              + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
+          partitionFullnessFactorPct, maxTasks);
+      numTasksNeeded = maxTasks;
+    }
+    if (numTasksNeeded > totalTaskCount) {
+      setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+      throw new DatastreamRuntimeException(
+          String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
+              totalTaskCount, numTasksNeeded, totalPartitions));
+    }
+    LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
   }
 
   private boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {

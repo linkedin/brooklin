@@ -66,8 +66,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   private final Optional<Integer> _maxTasks;
   private final Integer _imbalanceThreshold;
 
-  // In-memory cache for the expected number of task for each DatastreamGroup
-  protected final Map<DatastreamGroup, Integer> _taskCountPerDatastreamGroup = new ConcurrentHashMap<>();
+  // In-memory cache for the expected number of task for each DatastreamGroup (keyed by the datastream task prefix)
+  private final Map<String, Integer> _taskCountPerDatastreamGroup = new ConcurrentHashMap<>();
 
   /**
    * Constructor for StickyMulticastStrategy
@@ -116,17 +116,19 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     Map<DatastreamGroup, List<DatastreamTask>> tasksNeedToRelocate = new HashMap<>();
 
     // Remove entries for datastreams that aren't to be assigned in this round of task assignment. This forces a
-    // recalculation if the datastream is every added back (e.g. datastream restart).
-    _taskCountPerDatastreamGroup.keySet().forEach(datastreamGroup -> {
-      if (!datastreams.contains(datastreamGroup)) {
-        _taskCountPerDatastreamGroup.remove(datastreamGroup);
+    // recalculation if the datastream is ever added back (e.g. datastream restart).
+    Set<String> datastreamTaskPrefixes = datastreams.stream().map(DatastreamGroup::getTaskPrefix)
+        .collect(Collectors.toSet());
+    _taskCountPerDatastreamGroup.keySet().forEach(datastreamTaskPrefix -> {
+      if (!datastreamTaskPrefixes.contains(datastreamTaskPrefix)) {
+        _taskCountPerDatastreamGroup.remove(datastreamTaskPrefix);
       }
     });
 
     // STEP 1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
-      int numTasks = constructExpectedNumberOfTasks(dg, instances, currentAssignmentCopy);
-      _taskCountPerDatastreamGroup.put(dg, numTasks);
+      int numTasks = constructExpectedNumberOfTasks(dg, instances, Collections.unmodifiableMap(currentAssignmentCopy));
+      setTaskCountForDatastreamGroup(dg.getTaskPrefix(), numTasks);
       Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
         if (numTasks <= 0) {
@@ -236,7 +238,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     List<String> validations = new ArrayList<>();
     for (DatastreamGroup dg : datastreams) {
-      long numTasks = _taskCountPerDatastreamGroup.getOrDefault(dg, 0);
+      long numTasks = getTaskCountForDatastreamGroup(dg.getTaskPrefix());
       long actualNumTasks = taskCountByTaskPrefix.get(dg.getTaskPrefix());
       if (numTasks != actualNumTasks) {
         validations.add(String.format("Missing tasks for %s. Actual: %d, expected: %d", dg, actualNumTasks, numTasks));
@@ -270,5 +272,13 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         .filter(x -> x > 0)
         .max()
         .orElse(defaultValue);
+  }
+
+  protected void setTaskCountForDatastreamGroup(String taskPrefix, int taskCount) {
+    _taskCountPerDatastreamGroup.put(taskPrefix, taskCount);
+  }
+
+  protected int getTaskCountForDatastreamGroup(String taskPrefix) {
+    return _taskCountPerDatastreamGroup.getOrDefault(taskPrefix, 0);
   }
 }

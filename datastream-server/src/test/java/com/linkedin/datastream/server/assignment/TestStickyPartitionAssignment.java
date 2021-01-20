@@ -570,6 +570,42 @@ public class TestStickyPartitionAssignment {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
   }
 
+  @Test
+  public void testNegativeMinTasks() {
+    int minTasks = -3;
+    int maxTasks = 5;
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+    // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
+    StickyPartitionAssignmentStrategy strategy =
+        new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
+        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+    List<String> instances = new ArrayList<>();
+    instances.add("instance1");
+
+    // Assign tasks for 1 datastream to 1 instance. Validate maxTasks number of tasks are created, since negative
+    // minTasks should disable elastic task assignment for this datastream group.
+    assignment = strategy.assign(datastreams, instances, assignment);
+    Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
+    setupTaskLockForAssignment(assignment);
+
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t1-1", "t2-0", "t2-1", "t3-0", "t3-1", "t4-0",
+        "t4-1", "t5-0", "t5-1", "t6-1");
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
+
+    // Partition assignment should pass, since elastic task assignment is disabled for a datastream group with only
+    // negative minTasks
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+    Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
+  }
+
   private void setupTaskLockForAssignment(Map<String, Set<DatastreamTask>> assignment) {
     for (String instance : assignment.keySet()) {
       for (DatastreamTask task : assignment.get(instance)) {
@@ -637,7 +673,7 @@ public class TestStickyPartitionAssignment {
       Datastream ds = DatastreamTestUtils.createDatastream(type, namePrefix + index, "DummySource");
       ds.getMetadata().put(DatastreamMetadataConstants.OWNER_KEY, "person_" + index);
       ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
-      if (minTasks > 0) {
+      if (minTasks != 0) {
         ds.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
       }
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
