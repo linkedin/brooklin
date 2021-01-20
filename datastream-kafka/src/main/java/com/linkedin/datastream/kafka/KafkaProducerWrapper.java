@@ -77,7 +77,6 @@ class KafkaProducerWrapper<K, V> {
 
   private static final int CLOSE_TIMEOUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
-  private static final Duration PRODUCER_CLOSE_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
 
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
@@ -267,7 +266,7 @@ class KafkaProducerWrapper<K, V> {
             }
           });
         } else {
-          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task));
+          throw new DatastreamRuntimeException(String.format("kafka producer not available for the task: %s", task.getDatastreamTaskName()));
         }
 
         retry = false;
@@ -295,8 +294,10 @@ class KafkaProducerWrapper<K, V> {
               producerRecord.partition(), numberOfAttempt, MAX_SEND_ATTEMPTS, _sendFailureRetryWaitTimeMs), e);
           Thread.sleep(_sendFailureRetryWaitTimeMs);
         }
+      } catch (DatastreamRuntimeException e) {
+        throw generateSendFailure(e, task);
       } catch (Exception e) {
-        _log.error(String.format("Send failed for partition %d with an exception", producerRecord.partition()), e);
+        _log.error(String.format("Send failed for partition %d with an exception: ", producerRecord.partition()), e);
         throw generateSendFailure(e, task);
       }
     }
@@ -348,10 +349,10 @@ class KafkaProducerWrapper<K, V> {
   private DatastreamRuntimeException generateSendFailure(Exception exception, DatastreamTask task) {
     _dynamicMetricsManager.createOrUpdateMeter(_metricsNamesPrefix, AGGREGATE, PRODUCER_ERROR, 1);
     if (exception instanceof IllegalStateException) {
-      _log.warn("Send failed transiently with exception: ", exception);
+      _log.debug("Send failed transiently with exception: ", exception);
       return new DatastreamTransientException(exception);
     } else {
-      _log.warn("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
+      _log.debug("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
       if (_tasks.contains(task)) {
         shutdownProducer();
       }
