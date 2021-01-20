@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -50,6 +51,7 @@ import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
@@ -58,7 +60,6 @@ import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
 import com.linkedin.datastream.server.api.transport.SendCallback;
-
 
 
 /**
@@ -84,7 +85,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_PARTITION = "kafka-origin-partition";
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
-  private static final String NUM_LOCK_FAILS = "numLockFails";
+  private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
+
+  private static final String DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT = "%s-%s";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -102,9 +105,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   public static final String DOMAIN_TOPIC_MANAGER = "topicManager";
   public static final String TOPIC_MANAGER_METRICS_PREFIX = "TopicManager";
 
+  protected final DynamicMetricsManager _dynamicMetricsManager;
+  protected final String _connectorName;
+
   private final KafkaConsumerFactory<?, ?> _consumerFactory;
   private final KafkaConnectionString _mirrorMakerSource;
-  private final DynamicMetricsManager _dynamicMetricsManager;
 
   // Topic manager can be used to handle topic related tasks that mirror maker connector needs to do.
   // Topic manager is invoked every time there is a new partition assignment (for both partitions assigned and revoked),
@@ -115,6 +120,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private final boolean _isFlushlessModeEnabled;
   private final boolean _isIdentityMirroringEnabled;
   private final boolean _enablePartitionAssignment;
+  // If enabled, this appends the datastream name to the consumer client.id. This can be useful to differentiate
+  // among Kafka consumer client metrics for different datastreams.
+  private final boolean _includeDatastreamNameInConsumerClientId;
   private final String _destinationTopicPrefix;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
@@ -138,8 +146,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _mirrorMakerSource = KafkaConnectionString.valueOf(_datastreamTask.getDatastreamSource().getConnectionString());
 
     _isFlushlessModeEnabled = isFlushlessModeEnabled;
+    _connectorName = connectorName;
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
+    _includeDatastreamNameInConsumerClientId = config.getIncludeDatastreamNameInConsumerClientId();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -158,8 +168,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       _minInFlightMessagesThreshold =
           config.getConnectorProps().getLong(CONFIG_MIN_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MIN_IN_FLIGHT_MSGS_THRESHOLD);
       LOG.info("Flushless mode is enabled for task: {}, with flowControlEnabled={}, minInFlightMessagesThreshold={}, "
-              + "maxInFlightMessagesThreshold={}", task, _flowControlEnabled, _minInFlightMessagesThreshold,
-          _maxInFlightMessagesThreshold);
+              + "maxInFlightMessagesThreshold={}", task.getDatastreamTaskName(), _flowControlEnabled,
+          _minInFlightMessagesThreshold, _maxInFlightMessagesThreshold);
     }
 
     // create topic manager
@@ -195,7 +205,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     properties.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST);
     properties.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG,
         getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, LOG));
-    LOG.info("Creating Kafka consumer for task {} with properties {}", _datastreamTask, properties);
+    if (_includeDatastreamNameInConsumerClientId) {
+      String clientId = properties.getProperty(ConsumerConfig.CLIENT_ID_CONFIG, "");
+      properties.put(ConsumerConfig.CLIENT_ID_CONFIG,
+          String.format(DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT, clientId, _datastreamName));
+    }
+    LOG.info("Creating Kafka consumer for task {} with properties {}, include datastream name in client.id: {}",
+        _datastreamTask, properties, _includeDatastreamNameInConsumerClientId);
     return _consumerFactory.createConsumer(properties);
   }
 
@@ -236,7 +252,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     String offsetStr = String.valueOf(offset);
     metadata.put(KAFKA_ORIGIN_OFFSET, offsetStr);
     metadata.put(BrooklinEnvelopeMetadataConstants.EVENT_TIMESTAMP, String.valueOf(eventsSourceTimestamp));
-    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null, metadata);
+    metadata.put(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, partitionStr);
+    BrooklinEnvelope envelope = new BrooklinEnvelope(fromKafka.key(), fromKafka.value(), null,
+        fromKafka.headers(), metadata);
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
@@ -263,10 +281,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(),
           ((metadata, exception) -> {
             if (exception != null) {
-              _logger.warn(
-                  String.format("Detected exception being throw from callback for src partition: %s while sending producer "
-                      + "record: %s, exception: ", srcTopicPartition, datastreamProducerRecord), exception);
-              rewindAndPausePartitionOnException(srcTopicPartition, exception);
+              LOG.warn(String.format("Detected exception being throw from flushless send callback for source "
+                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata), exception);
+              updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
             } else {
               _consumerMetrics.updateBytesProcessedRate(numBytes);
             }
@@ -319,7 +336,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         _datastreamTask.acquire(LOCK_ACQUIRE_TIMEOUT);
       } catch (DatastreamRuntimeException ex) {
         LOG.error(String.format("Failed to acquire lock for datastreamTask %s", _datastreamTask), ex);
-        _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, NUM_LOCK_FAILS, 1);
+        _dynamicMetricsManager.createOrUpdateMeter(generateMetricsPrefix(_connectorName, CLASS_NAME), _datastreamName,
+            TASK_LOCK_ACQUIRE_ERROR_RATE, 1);
         throw ex;
       }
     }
@@ -356,9 +374,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_isFlushlessModeEnabled) {
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
-        _datastreamTask.getEventProducer().flush();
-        commitSafeOffsets(consumer);
-
+        try {
+          _datastreamTask.getEventProducer().flush();
+        } finally {
+          // Flushless mode tracks the successfully received acks, so it is safe to commit offsets even if flush throws
+          // an exception. Commit the safe offsets to reduce send duplication.
+          commitSafeOffsets(consumer);
+        }
         // clear the flushless producer state after flushing all messages and checkpointing
         _flushlessProducer.clear();
       } else if (isTimeToCommit) { // soft commit (no flush, just commit checkpoints)
@@ -382,10 +404,30 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   protected void postShutdownHook() {
     if (_enablePartitionAssignment) {
-      // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
-      // consume any further). The shutdown process must complete and the consumer must be closed.
-      LOG.info("Releasing the lock on datastreamTask: {}", _datastreamTask);
-      _datastreamTask.release();
+      boolean resetInterrupted = false;
+      try {
+        for (int numAttempts = 1; numAttempts <= 3; ++numAttempts) {
+          try {
+            // The task lock should only be released when it is absolutely safe (we can guarantee that the task cannot
+            // consume any further). The shutdown process must complete and the consumer must be closed.
+            LOG.info("Releasing the lock on datastreamTask: {}, was thread interrupted: {}, attempt: {}",
+                _datastreamTask, resetInterrupted, numAttempts);
+            _datastreamTask.release();
+            break;
+          } catch (ZkInterruptedException e) {
+            LOG.warn("Releasing the task lock failed for datastreamTask: {}, retrying", _datastreamTask);
+            if (Thread.currentThread().isInterrupted()) {
+              // The interrupted status of the current thread must be reset to allow the task lock to be released
+              resetInterrupted = Thread.interrupted();
+            }
+          }
+        }
+      } finally {
+        if (resetInterrupted) {
+          // Setting the status of the thread back to interrupted
+          Thread.currentThread().interrupt();
+        }
+      }
     }
   }
 
@@ -396,18 +438,18 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.addAll(AbstractKafkaBasedConnectorTask.getMetricInfos(
         generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX));
+    metrics.add(new BrooklinMeterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + MetricsAware.KEY_REGEX
+        + TASK_LOCK_ACQUIRE_ERROR_RATE));
     // As topic manager is plugged in as part of task creation, one can't know
     // what topic manager is being used (and hence metrics topic manager emits), until task is initiated.
     // Hack is all topic managers should use same prefix for metrics they emit (TOPIC_MANAGER_METRICS_PREFIX)
     // and return here different types of metrics with that prefix.
-    // For now, only adding BrooklinCounterInfo. In case more types (for example, BrooklinMeterInfo) is emitted by
-    // topic manager, add that type here.
-    metrics.add(new BrooklinCounterInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
-    metrics.add(new BrooklinGaugeInfo(
-        generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX + MetricsAware.KEY_REGEX
-            + ".*"));
+    // for every metrics type emitted by Topic manager, it should be added here.
+    // Any metrics emitted should match exactly one metrics regex otherwise it results in Sensor errors.
+    metrics.add(new BrooklinCounterInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.COUNTER + MetricsAware.KEY_REGEX + ".*"));
+    metrics.add(new BrooklinGaugeInfo(generateMetricsPrefix(connectorName, CLASS_NAME) + TOPIC_MANAGER_METRICS_PREFIX
+        + "." + TopicManager.GAUGE + MetricsAware.KEY_REGEX + ".*"));
     return metrics;
   }
 
@@ -438,6 +480,32 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     return new KafkaDatastreamStatesResponse(_datastreamName, _autoPausedSourcePartitions, _pausedPartitionsConfig,
         _consumerAssignment,
         _isFlushlessModeEnabled ? _flushlessProducer.getInFlightMessagesCounts() : Collections.emptyMap());
+  }
+
+  @VisibleForTesting
+  protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+    try {
+      super.seekToLastCheckpoint(topicPartitions);
+    } catch (Exception e) {
+      commitSafeOffsets(_consumer);
+      throw e;
+    }
+  }
+
+  @Override
+  protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+      Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+    if (_isFlushlessModeEnabled) {
+      // Flushless mode tracks the successfully received acks, so it is safe to rewind to that offsets rather than
+      // last committed offset
+      _flushlessProducer.getAckCheckpoint(tp.topic(), tp.partition())
+          .ifPresent(o -> lastCheckpoint.put(tp, new OffsetAndMetadata(o + 1)));
+      if (!lastCheckpoint.containsKey(tp)) {
+        super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+      }
+    } else {
+      super.getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp);
+    }
   }
 
   @VisibleForTesting

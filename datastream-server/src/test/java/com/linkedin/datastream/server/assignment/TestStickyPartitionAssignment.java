@@ -14,8 +14,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -42,9 +40,6 @@ import static org.mockito.Mockito.when;
  * Tests for {@link StickyPartitionAssignmentStrategy}
  */
 public class TestStickyPartitionAssignment {
-
-  private static final Logger LOG = LoggerFactory.getLogger(TestStickyPartitionAssignment.class.getName());
-
   @Test
   public void testCreateAssignmentAcrossAllTasks() {
     StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
@@ -66,7 +61,6 @@ public class TestStickyPartitionAssignment {
     }
   }
 
-
   @Test
   public void testAddPartitions() {
     StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
@@ -87,13 +81,26 @@ public class TestStickyPartitionAssignment {
     DatastreamGroupPartitionsMetadata newPartitionsMetadata =
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
 
-    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
 
-    for (DatastreamTask task : assignment.get("instance1")) {
+    for (DatastreamTask task : newAssignment.get("instance0")) {
       Assert.assertEquals(task.getPartitionsV2().size(), 2);
     }
-  }
 
+    Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+    Assert.assertEquals(taskToCleanup.size(), 0);
+
+    // Adding the dependency task as well in the assignment list to simulate the scenario where
+    // the dependency task nodes are not deleted and the leader gets interrupted, OOM or hit session expiry.
+    // The next leader should be able to identify and cleanup.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+    newAssignment.forEach((instance, taskSet1) -> taskSet1.addAll(finalAssignment.get(instance)));
+
+    taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+    Assert.assertEquals(taskToCleanup.size(), 1);
+    taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
+    Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
+  }
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testCreateAssignmentFailureDueToUnlockedTask() {
@@ -116,7 +123,7 @@ public class TestStickyPartitionAssignment {
     DatastreamGroupPartitionsMetadata newPartitionsMetadata =
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
 
-    assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+    strategy.assignPartitions(assignment, newPartitionsMetadata);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
@@ -150,26 +157,28 @@ public class TestStickyPartitionAssignment {
         Optional.empty(), Optional.empty());
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 2);
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 3, 2, true);
-    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4");
+    List<String> partitions = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7");
     DatastreamGroupPartitionsMetadata partitionsMetadata =
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
 
-
     Map<String, Set<String>> targetAssignment = new HashMap<>();
     targetAssignment.put("instance2", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
-    targetAssignment.put("instance1", ImmutableSet.of("t-0"));
+    targetAssignment.put("instance1", ImmutableSet.of("t-0", "t-10"));
 
     assignment = strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
 
     Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-1"));
     Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-2"));
     Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-3"));
+    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance2")).contains("t-5"));
 
-    Assert.assertEquals(getTotalPartitions(assignment), 5);
+    Assert.assertTrue(getPartitionsFromTask(assignment.get("instance1")).contains("t-0"));
+    Assert.assertFalse(getPartitionsFromTask(assignment.get("instance1")).contains("t-10"));
+
+    Assert.assertEquals(getTotalPartitions(assignment), 8);
   }
-
 
   @Test(expectedExceptions = DatastreamRuntimeException.class)
   public void testMovePartitionToInstanceWithoutTask() {
@@ -182,13 +191,12 @@ public class TestStickyPartitionAssignment {
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
     // Generate partition assignment
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
-    assignment.put("empty", new HashSet<DatastreamTask>());
+    assignment.put("empty", Collections.emptySet());
 
     Map<String, Set<String>> targetAssignment = new HashMap<>();
     targetAssignment.put("empty", ImmutableSet.of("t-3", "t-2", "t-1", "t-5"));
-    assignment = strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
+    strategy.movePartitions(assignment, targetAssignment, partitionsMetadata);
   }
-
 
   @Test
   public void testRemovePartitions() {
@@ -207,7 +215,6 @@ public class TestStickyPartitionAssignment {
     List<String> newPartitions = ImmutableList.of("t-1", "t-3", "t-4", "t-6");
     DatastreamGroupPartitionsMetadata newPartitionsMetadata =
         new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions);
-
 
     assignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
 
@@ -230,7 +237,7 @@ public class TestStickyPartitionAssignment {
         DatastreamTaskImpl task = new DatastreamTaskImpl(datastreams.get(0).getDatastreams());
         ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
         task.setZkAdapter(mockZkAdapter);
-        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString())).thenReturn(isTaskLocked);
+        when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(isTaskLocked);
         set.add(task);
       }
       assignment.put("instance" + i, set);
@@ -243,7 +250,6 @@ public class TestStickyPartitionAssignment {
     tasks.forEach(t -> partitions.addAll(t.getPartitionsV2()));
     return partitions;
   }
-
 
   private int getTotalPartitions(Map<String, Set<DatastreamTask>> assignment) {
     int count = 0;
@@ -264,5 +270,4 @@ public class TestStickyPartitionAssignment {
     }
     return datastreams;
   }
-
 }

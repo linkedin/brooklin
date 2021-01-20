@@ -74,6 +74,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST = "latest";
   public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST = "earliest";
+  public static final String CONSUMER_AUTO_OFFSET_RESET_CONFIG_NONE = "none";
 
   protected long _lastCommittedTime = System.currentTimeMillis();
   protected int _eventsProcessedCount = 0;
@@ -89,6 +90,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   private volatile Thread _connectorTaskThread;
   protected volatile boolean _shutdown = false;
   protected volatile long _lastPolledTimeMillis = System.currentTimeMillis();
+  protected volatile long _lastPollCompletedTimeMillis = 0;
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
 
@@ -102,12 +104,18 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final boolean _pausePartitionOnError;
   protected final Duration _pauseErrorPartitionDuration;
   protected final long _processingDelayLogThresholdMillis;
-  protected final Optional<Map<Integer, Long>> _startOffsets;
+  protected final boolean _enableAdditionalMetrics;
+  protected final Map<Integer, Long> _startOffsets;
 
   protected volatile String _taskName;
   protected final DatastreamEventProducer _producer;
   protected Consumer<?, ?> _consumer;
   protected final Set<TopicPartition> _consumerAssignment = new HashSet<>();
+
+  // TopicPartitions which have seen exceptions on send. Access to this map must be synchronized.
+  // A ConcurrentHashMap is not used here due to the need for having more than one operation performed together as an
+  // atomic block
+  private final Map<TopicPartition, Exception> _sendFailureTopicPartitionExceptionMap = new HashMap<>();
 
   // Datastream task updates that need to be processed
   protected final Set<DatastreamConstants.UpdateType> _taskUpdates = Sets.newConcurrentHashSet();
@@ -140,12 +148,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _taskName = task.getDatastreamTaskName();
 
     _consumerProps = config.getConsumerProps();
-    if (_datastream.getMetadata().containsKey(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY)) {
-      String strategy = _datastream.getMetadata().get(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY);
-      _logger.info("Datastream contains consumer config override for {} with value {}",
-          ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
-      _consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
-    }
+
     if (Boolean.TRUE.toString()
         .equals(_datastream.getMetadata().get(KafkaDatastreamMetadataConstants.USE_PASSTHROUGH_COMPRESSION))) {
       _consumerProps.put("enable.shallow.iterator", Boolean.TRUE.toString());
@@ -157,19 +160,50 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _maxRetryCount = config.getRetryCount();
     _pausePartitionOnError = config.getPausePartitionOnError();
     _pauseErrorPartitionDuration = config.getPauseErrorPartitionDuration();
-    _startOffsets = Optional.ofNullable(_datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION))
-        .map(json -> JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
-        }));
+    _enableAdditionalMetrics = config.getEnableAdditionalMetrics();
+
+    _startOffsets = new HashMap<>();
+    String json = _datastream.getMetadata().get(DatastreamMetadataConstants.START_POSITION);
+    if (StringUtils.isNotBlank(json)) {
+      _startOffsets.putAll(JsonUtils.fromJson(json, new TypeReference<Map<Integer, Long>>() {
+      }));
+    }
+
+    // if this datastream wants to use specific start offsets, we need to have the auto.offset.reset config
+    // set to "none" in the kafka consumer configs, so that the Kafka consumer throws NoOffsetForPartitionException
+    // upon first poll, to be handled by seeking to the startOffsets
+    if (!_startOffsets.isEmpty()) {
+      if (_datastream.getMetadata().containsKey(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY)) {
+        _logger.info("Datastream contains metadata for both {} and {}, which are mutually exclusive. Ignoring the "
+                + "{}=\"{}\" metadata, as start offsets require it to be set to \"none\"",
+            DatastreamMetadataConstants.START_POSITION,
+            KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY,
+            KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY,
+            _datastream.getMetadata().get(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY));
+      }
+      _logger.info("Datastream contains startOffsets, setting {} = \"{}\" in consumer configs "
+              + "(overriding the configs value of \"{}\")",
+          ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_NONE,
+          getConsumerAutoOffsetResetConfig());
+      _consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_NONE);
+    } else if (_datastream.getMetadata().containsKey(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY)) {
+        String strategy = _datastream.getMetadata().get(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY);
+        _logger.info("Datastream contains consumer config override for {} with value {}",
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
+        _consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, strategy);
+    }
+
     _offsetCommitInterval = config.getCommitIntervalMillis();
     _pollTimeoutMillis = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
-    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger);
+    _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
+        _enableAdditionalMetrics);
 
     _pollAttempts = new AtomicInteger();
     _groupIdConstructor = groupIdConstructor;
     _kafkaTopicPartitionTracker = new KafkaTopicPartitionTracker(
-        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, logger));
+        getKafkaGroupId(_datastreamTask, _groupIdConstructor, _consumerMetrics, logger), _datastreamName);
   }
 
   protected static String generateMetricsPrefix(String connectorName, String simpleClassName) {
@@ -177,9 +211,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected KafkaBasedConnectorTaskMetrics createKafkaBasedConnectorTaskMetrics(String metricsPrefix, String key,
-      Logger errorLogger) {
+      Logger errorLogger, boolean enableAdditionalMetrics) {
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger);
+        new KafkaBasedConnectorTaskMetrics(metricsPrefix, key, errorLogger, enableAdditionalMetrics);
     consumerMetrics.createEventProcessingMetrics();
     consumerMetrics.createPollMetrics();
     consumerMetrics.createPartitionMetrics();
@@ -224,13 +258,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * @param records the Kafka consumer records
    * @param readTime the instant the records were successfully polled from the Kafka source
    */
-  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) {
+  protected void translateAndSendBatch(ConsumerRecords<?, ?> records, Instant readTime) throws Exception {
     // iterate through each topic partition one at a time, for better isolation
     for (TopicPartition topicPartition : records.partitions()) {
       for (ConsumerRecord<?, ?> record : records.records(topicPartition)) {
         try {
-          if (_autoPausedSourcePartitions.containsKey(topicPartition)) {
-            _logger.warn("Abort sending as {} is auto-paused, rewind offset", topicPartition);
+          boolean partitionPaused;
+          boolean sendFailure;
+          synchronized (_sendFailureTopicPartitionExceptionMap) {
+            partitionPaused = _autoPausedSourcePartitions.containsKey(topicPartition);
+            sendFailure = _sendFailureTopicPartitionExceptionMap.containsKey(topicPartition);
+          }
+          if (partitionPaused || sendFailure) {
+            _logger.warn("Abort sending for {}, auto-paused: {}, send failure: {}, rewind offset", topicPartition,
+                partitionPaused, sendFailure);
             seekToLastCheckpoint(Collections.singleton(topicPartition));
             break;
           } else {
@@ -240,6 +281,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           }
         } catch (Exception e) {
           _logger.warn(String.format("Got exception while sending record %s, exception: ", record), e);
+          if (_shutdown && !(e instanceof WakeupException)) {
+            throw e;
+          }
           rewindAndPausePartitionOnException(topicPartition, e);
           // skip other messages for this partition, but can continue processing other partitions
           break;
@@ -251,21 +295,44 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void rewindAndPausePartitionOnException(TopicPartition srcTopicPartition, Exception ex) {
     _consumerMetrics.updateErrorRate(1);
     Instant start = Instant.now();
-    // seek to previous checkpoints for this topic partition
-    boolean partitionRewound = false;
+    // Seek to previous checkpoints for this topic partition
     try {
       seekToLastCheckpoint(Collections.singleton(srcTopicPartition));
-      partitionRewound = true;
     } catch (Exception e) {
-      _logger.error("Partition rewind failed due to ", e);
+      // Seek to last checkpoint failed. Throw an exception to avoid any data loss scenarios where the consumed
+      // offset can be committed even though the send for that offset has failed.
+      String errorMessage = String.format("Partition rewind for %s failed due to ", srcTopicPartition);
+      throw new DatastreamRuntimeException(errorMessage, e);
     }
-    if (_pausePartitionOnError && (!partitionRewound || !containsTransientException(ex))) {
-      // if doesn't contain DatastreamTransientException and it's configured to pause partition on error conditions,
-      // add to auto-paused set
+    if (_pausePartitionOnError && !containsTransientException(ex)) {
+      // If the exception is not of type DatastreamTransientException and it is configured
+      // to pause partition on error conditions, add it to the auto-paused set
       _logger.warn("Adding source topic partition {} to auto-pause set", srcTopicPartition);
       _autoPausedSourcePartitions.put(srcTopicPartition,
           PausedSourcePartitionMetadata.sendError(start, _pauseErrorPartitionDuration, ex));
       _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+    }
+  }
+
+  protected void rewindAndPausePartitionsOnSendException() {
+    // For all topic partitions which have seen send exceptions, attempt to rewind them to the last checkpoint.
+    // The outcome of the rewind can fall into three categories:
+    // 1) The rewind is successful and the Exception returned by the SendCallback is transient. This TopicPartition is
+    //    not added to the auto-pause list.
+    // 2) The rewind is successful and the Exception returned by the SendCallback is non-transient. This TopicPartition
+    //    is added to the auto-pause list with SEND_ERROR as the reason.
+    // 3) The rewind itself failed. An exception is thrown and the connector task is brought down to avoid committing
+    //    incorrect checkpoints.
+    //
+    // If the same TopicPartition sees send failures across multiple calls of this function, the attempt to rewind
+    // it to the last committed offset may be performed multiple times. The auto-pause list can potentially be
+    // checked, and a subset of such superfluous rewinds can be avoided (i.e. TopicPartitions which fall under
+    // case (2)).
+    // TODO: Check if a TopicPartition already exists on the auto-pause list and avoid re-rewinding it if its
+    // auto-pause reason is SEND_ERROR.
+    synchronized (_sendFailureTopicPartitionExceptionMap) {
+      _sendFailureTopicPartitionExceptionMap.forEach(this::rewindAndPausePartitionOnException);
+      _sendFailureTopicPartitionExceptionMap.clear();
     }
   }
 
@@ -279,14 +346,20 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     return false;
   }
 
+  protected void updateSendFailureTopicPartitionExceptionMap(TopicPartition topicPartition, Exception exception) {
+    synchronized (_sendFailureTopicPartitionExceptionMap) {
+      _sendFailureTopicPartitionExceptionMap.put(topicPartition, exception);
+    }
+  }
+
   protected void sendDatastreamProducerRecord(DatastreamProducerRecord datastreamProducerRecord,
       TopicPartition srcTopicPartition, int numBytes, SendCallback sendCallback) {
     _producer.send(datastreamProducerRecord, ((metadata, exception) -> {
       if (exception != null) {
-        String msg = String.format("Detect exception being thrown from callback for src partition: %s while "
-            + "sending, metadata: %s , exception: ", srcTopicPartition, metadata);
+        String msg = String.format("Detected exception being thrown from send callback for source topic-partition: %s "
+            + "with metadata: %s, exception: ", srcTopicPartition, metadata);
         _logger.warn(msg, exception);
-        rewindAndPausePartitionOnException(srcTopicPartition, exception);
+        updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
       } else {
         _consumerMetrics.updateBytesProcessedRate(numBytes);
       }
@@ -308,6 +381,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
     try {
       _consumer = createKafkaConsumer(_consumerProps);
+      _consumerMetrics.registerKafkaConsumerMetrics(_consumer,
+          _consumerProps.getProperty(ConsumerConfig.CLIENT_ID_CONFIG));
       consumerSubscribe();
 
       ConsumerRecords<?, ?> records;
@@ -326,8 +401,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
         int recordsPolled = 0;
         if (records != null && !records.isEmpty()) {
+          // update consumer offsets
+          _kafkaTopicPartitionTracker.onPartitionsPolled(records);
+
           Instant readTime = Instant.now();
-          processRecords(records, readTime);
+          processRecords(records, readTime, System.nanoTime());
           recordsPolled = records.count();
         }
         maybeCommitOffsets(_consumer, false);
@@ -350,7 +428,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _datastreamTask.setStatus(DatastreamTaskStatus.error(e.toString() + ExceptionUtils.getFullStackTrace(e)));
       throw new DatastreamRuntimeException(e);
     } finally {
-      _stoppedLatch.countDown();
       if (null != _consumer) {
         try {
           _consumer.close();
@@ -359,6 +436,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       postShutdownHook();
+      _stoppedLatch.countDown();
       _logger.info("{} stopped", _taskName);
     }
   }
@@ -423,8 +501,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     try {
       long curPollTime = System.currentTimeMillis();
       _lastPolledTimeMillis = curPollTime;
+      if (_enableAdditionalMetrics && _lastPollCompletedTimeMillis != 0) {
+        _consumerMetrics.updateTimeSpentBetweenPollsMs(curPollTime - _lastPollCompletedTimeMillis);
+      }
       records = consumerPoll(pollInterval);
-      long pollDurationMillis = System.currentTimeMillis() - curPollTime;
+      _lastPollCompletedTimeMillis = System.currentTimeMillis();
+      long pollDurationMillis = _lastPollCompletedTimeMillis - curPollTime;
       if (pollDurationMillis > pollInterval + POLL_BUFFER_TIME_MILLIS) {
         // record poll time exceeding client poll timeout
         _logger.warn("ConsumerId: {}, Kafka client poll took {} ms (> poll timeout {} + buffer time {} ms)", _taskName,
@@ -433,6 +515,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
       _consumerMetrics.updateNumPolls(1);
       _consumerMetrics.updateEventCountsPerPoll(records.count());
+      if (_enableAdditionalMetrics) {
+        _consumerMetrics.updatePollDurationMs(pollDurationMillis);
+      }
       if (!records.isEmpty()) {
         _consumerMetrics.updateEventsProcessedRate(records.count());
         _consumerMetrics.updateLastEventReceivedTime(Instant.now());
@@ -459,13 +544,22 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * Processes the Kafka consumer records by translating them and sending them to the event producer.
    * @param records the Kafka consumer records
    * @param readTime the time at which the records were successfully polled from Kafka
+   * @param readTimeInNanos the time at which the records were successfully polled from Kafka in nanoseconds. This can
+   *                        only be used for elapsed time calculations and has no meaning by itself
    */
-  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime) {
+  protected void processRecords(ConsumerRecords<?, ?> records, Instant readTime, long readTimeInNanos)
+      throws Exception {
     // send the batch out the other end
     translateAndSendBatch(records, readTime);
 
-    if (System.currentTimeMillis() - readTime.toEpochMilli() > _processingDelayLogThresholdMillis) {
+    if ((System.currentTimeMillis() - readTime.toEpochMilli()) > _processingDelayLogThresholdMillis) {
       _consumerMetrics.updateProcessingAboveThreshold(1);
+    }
+
+    if (_enableAdditionalMetrics) {
+      // Using millisecond precision is not good enough here. Per event processing time can be less than a millisecond
+      long processingTimeNanos = System.nanoTime() - readTimeInNanos;
+      _consumerMetrics.updatePerEventProcessingTimeNanos(records.count() == 0 ? 0 : processingTimeNanos / records.count());
     }
   }
 
@@ -522,6 +616,11 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     if (force || timeSinceLastCommit > _offsetCommitInterval) {
       _logger.info("Trying to flush the producer and commit offsets.");
       _producer.flush();
+      // Flush may succeed even though some of the records received send failures. Flush only guarantees that all
+      // outstanding send() calls have completed, without providing any guarantees about their successful completion.
+      // Thus it is possible that some send callbacks returned an exception and such TopicPartitions must be rewound
+      // to their last committed offset to avoid data loss.
+      rewindAndPausePartitionsOnSendException();
       try {
         commitWithRetries(consumer, Optional.empty());
         _lastCommittedTime = System.currentTimeMillis();
@@ -538,10 +637,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   protected void commitWithRetries(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets)
       throws DatastreamRuntimeException {
+    preCommitHook();
     boolean result = PollUtils.poll(() -> {
       try {
         if (offsets.isPresent()) {
           consumer.commitSync(offsets.get(), _commitTimeout);
+          _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
         } else {
           consumer.commitSync(_commitTimeout);
         }
@@ -569,20 +670,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Seek to the last checkpoint for the given topicPartitions.
    */
-  void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
+  @VisibleForTesting
+  protected void seekToLastCheckpoint(Set<TopicPartition> topicPartitions) {
     _logger.info("Trying to seek to previous checkpoint for partitions: {}", topicPartitions);
     Map<TopicPartition, OffsetAndMetadata> lastCheckpoint = new HashMap<>();
     Set<TopicPartition> tpWithNoCommits = new HashSet<>();
     // construct last checkpoint
-    topicPartitions.forEach(tp -> {
-      OffsetAndMetadata offset = _consumer.committed(tp);
-      // offset can be null if there was no prior commit
-      if (offset == null) {
-        tpWithNoCommits.add(tp);
-      } else {
-        lastCheckpoint.put(tp, offset);
-      }
-    });
+    topicPartitions.forEach(tp -> getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp));
     _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
     // reset consumer to last checkpoint, by default we will rewind the checkpoint
     lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
@@ -593,12 +687,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     }
   }
 
+  protected void getLastCheckpointToSeekTo(Map<TopicPartition, OffsetAndMetadata> lastCheckpoint,
+      Set<TopicPartition> tpWithNoCommits, TopicPartition tp) {
+    OffsetAndMetadata offset = _consumer.committed(tp);
+    // offset can be null if there was no prior commit
+    if (offset == null) {
+      tpWithNoCommits.add(tp);
+    } else {
+      lastCheckpoint.put(tp, offset);
+    }
+  }
+
   private void seekToStartPosition(Consumer<?, ?> consumer, Set<TopicPartition> partitions, String strategy) {
     // We would like to consume from latest when there is no offset. However, if we rewind due to exception, we want
     // to rewind to earliest to make sure the messages which are added after we start consuming don't get skipped
-    if (_startOffsets.isPresent()) {
-      _logger.info("Datastream is configured with StartPosition. Trying to start from {}", _startOffsets.get());
-      seekToOffset(consumer, partitions, _startOffsets.get());
+    if (!_startOffsets.isEmpty()) {
+      _logger.info("Datastream is configured with StartPosition. Trying to start from {}", _startOffsets);
+      seekToOffset(consumer, partitions, _startOffsets);
     } else {
       if (CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST.equals(strategy)) {
         _logger.info("Datastream was not configured with StartPosition. Seeking to end for partitions: {}", partitions);
@@ -657,7 +762,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     this.onPartitionsAssignedInternal(partitions);
-    _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
+      _logger.info("{} Partition ownership assigned for {}.", _datastreamTask.getDatastreamTaskName(), partitions);
     _consumerMetrics.updateRebalanceRate(1);
     updateConsumerAssignment(partitions);
   }
@@ -676,6 +781,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
    * new update type when there is any update to datastream task (in method checkForUpdateTask())
    */
   protected void preConsumerPollHook() {
+    // check if any send failures were seen on the last poll and rewind them before the next poll
+    rewindAndPausePartitionsOnSendException();
+
     // check if any auto-paused partitions need to be resumed
     checkForPartitionsToAutoResume();
 
@@ -695,6 +803,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
     }
   }
+
+  /**
+   * Pre commit hook for all operations that need to be performed before committing offsets.
+   * <p>
+   *   Note: An unhandled exception in pre-commit hook may result in an interrupted commit. Classes overriding the hook
+   *   are expected to handle exceptions.
+   * </p>
+   */
+  protected void preCommitHook() { }
 
   /**
    * The method, given a datastream task - checks if there is any update in the existing task.
@@ -952,5 +1069,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       consumerMetrics.updateErrorRate(1, "Can't find group ID", e);
       throw e;
     }
+  }
+
+  @VisibleForTesting
+  public String getConsumerAutoOffsetResetConfig() {
+    return _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "");
   }
 }

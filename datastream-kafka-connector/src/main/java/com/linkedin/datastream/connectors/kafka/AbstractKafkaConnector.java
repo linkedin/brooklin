@@ -5,7 +5,9 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -28,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -47,6 +50,9 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
@@ -68,11 +74,16 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
 
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
+  private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
+  private volatile long _numTaskRestarts = 0;
+  private final String _metricsPrefix;
+
+  protected final DynamicMetricsManager _dynamicMetricsManager;
   protected final String _connectorName;
   protected final KafkaBasedConnectorConfig _config;
   protected final GroupIdConstructor _groupIdConstructor;
@@ -101,6 +112,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   enum DiagnosticsRequestType {
     DATASTREAM_STATE,
     PARTITIONS,
+    CONSUMER_OFFSETS
   }
 
   /**
@@ -118,6 +130,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _clusterName = clusterName;
     _config = new KafkaBasedConnectorConfig(config);
     _groupIdConstructor = groupIdConstructor;
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _metricsPrefix = StringUtils.isBlank(connectorName) ? this.getClass().getSimpleName()
+        : connectorName + "." + this.getClass().getSimpleName();
+    _dynamicMetricsManager.registerGauge(_metricsPrefix, NUM_TASK_RESTARTS, () -> _numTaskRestarts);
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -213,15 +229,15 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
         if (isTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
-              datastreamTask);
+              datastreamTask.getDatastreamTaskName());
           boolean stopped = stopTask(datastreamTask, connectorTaskEntry);
           if (stopped) {
             deadDatastreamTasks.add(datastreamTask);
           } else {
-            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask);
+            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
           }
         } else {
-          _logger.info("Connector task for datastream task {} is healthy", datastreamTask);
+          _logger.info("Connector task for datastream task {} is healthy", datastreamTask.getDatastreamTaskName());
         }
       });
 
@@ -229,6 +245,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         _logger.warn("Creating a new connector task for the datastream task {}", datastreamTask);
         _runningTasks.put(datastreamTask, createKafkaConnectorTask(datastreamTask));
       });
+      _numTaskRestarts = deadDatastreamTasks.size();
     }
   }
 
@@ -401,6 +418,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         String response = processTopicPartitionStatsRequest();
         _logger.trace("Query: {} returns response: {}", query, response);
         return response;
+      } else if (path != null && path.equalsIgnoreCase(DiagnosticsRequestType.CONSUMER_OFFSETS.toString())) {
+        String response = processConsumerOffsetsRequest();
+        _logger.trace("Query: {} returns response: {}", query, response);
+        return response;
       } else {
         _logger.warn("Could not process query {} with path {}", query, path);
       }
@@ -458,8 +479,32 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         datastreams.forEach(datastream -> datastreamNames.add(datastream.getName()));
 
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+
+        String hostname = null;
+        try {
+          hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException ex) {
+          _logger.warn("Hostname not found");
+        }
+
         KafkaTopicPartitionStatsResponse response = new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(),
-          tracker.getTopicPartitions(), datastreamNames);
+                hostname, tracker.getTopicPartitions(), datastreamNames);
+        serializedResponses.add(response);
+      });
+    }
+    return JsonUtils.toJson(serializedResponses);
+  }
+
+  private String processConsumerOffsetsRequest() {
+    _logger.info("process consumer stats request");
+    List<KafkaConsumerOffsetsResponse> serializedResponses = new ArrayList<>();
+
+    synchronized (_runningTasks) {
+      _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
+        KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+        KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumedOffsets(),
+            tracker.getCommittedOffsets(), tracker.getConsumptionLag(), tracker.getConsumerGroupId(),
+            tracker.getDatastreamName());
         serializedResponses.add(response);
       });
     }
@@ -491,10 +536,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       if (path != null
           && (path.equalsIgnoreCase(DiagnosticsRequestType.DATASTREAM_STATE.toString()))) {
         return JsonUtils.toJson(responses);
-      }
-      if (path != null
+      } else if (path != null
           && (path.equalsIgnoreCase(DiagnosticsRequestType.PARTITIONS.toString()))) {
         return KafkaConnectorDiagUtils.reduceTopicPartitionStatsResponses(responses, _logger);
+      } else if (path != null
+          && (path.equalsIgnoreCase(DiagnosticsRequestType.CONSUMER_OFFSETS.toString()))) {
+        return KafkaConnectorDiagUtils.reduceConsumerOffsetsResponses(responses, _logger);
       }
     } catch (Exception e) {
       _logger.warn("Failed to reduce responses from query {}: {}", query, e.getMessage());
@@ -552,5 +599,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     public AbstractKafkaBasedConnectorTask getConnectorTask() {
       return _task;
     }
+  }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    metrics.add(new BrooklinGaugeInfo(buildMetricName(_metricsPrefix, NUM_TASK_RESTARTS)));
+
+    return Collections.unmodifiableList(metrics);
   }
 }

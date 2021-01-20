@@ -64,6 +64,11 @@ public class DummyBootstrapConnector implements Connector {
   }
 
   @Override
+  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+  }
+
+  @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return null;
   }

@@ -6,11 +6,10 @@
 
 package com.linkedin.datastream.connectors.kafka;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.type.TypeReference;
@@ -27,8 +26,9 @@ public class KafkaConnectorDiagUtils {
    * Reduce/Merge the KafkaTopicPartitionStatsResponse responses of a collection of host/instance into one response
    */
   public static String reduceTopicPartitionStatsResponses(Map<String, String> responses, Logger logger) {
-    Map<String, KafkaTopicPartitionStatsResponse> result = new HashMap<>();
+    List<KafkaTopicPartitionStatsResponse> result = new ArrayList<>();
 
+    // flatten responses from all hosts
     responses.forEach((instance, json) -> {
       List<KafkaTopicPartitionStatsResponse> responseList;
       try {
@@ -38,24 +38,58 @@ public class KafkaConnectorDiagUtils {
         logger.error("Invalid response {} from instance {}", json, instance);
         return;
       }
+      result.addAll(responseList);
+    });
+
+    return JsonUtils.toJson(result);
+  }
+
+  /**
+   * Reduce/Merge the KafkaConsumerOffsetsResponse responses of a collection of hosts/instances into one response
+   */
+  public static String reduceConsumerOffsetsResponses(Map<String, String> responses, Logger logger) {
+    Map<String, KafkaConsumerOffsetsResponse> result = new HashMap<>();
+
+    responses.forEach((instance, json) -> {
+      List<KafkaConsumerOffsetsResponse> responseList;
+      try {
+        responseList = JsonUtils.fromJson(json, new TypeReference<List<KafkaConsumerOffsetsResponse>>() {
+        });
+      } catch (Exception e) {
+        logger.error("Invalid response {} from instance {}", json, instance);
+        return;
+      }
 
       responseList.forEach(response -> {
-        if (response.getTopicPartitions() == null || StringUtils.isBlank(response.getConsumerGroupId())
-            || response.getDatastreams() == null) {
-          logger.warn("Empty topic partition stats map from instance {}. Ignoring the result", instance);
-          return;
+        if (response.getConsumedOffsets() == null || response.getConsumedOffsets().isEmpty()) {
+          logger.warn("Empty consumer offset map from instance {}. Ignoring the result", instance);
+        } else if (StringUtils.isBlank(response.getDatastreamName())) {
+          logger.warn("Invalid datastream name from instance {}, Ignoring the result", instance);
+        } else {
+          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getDatastreamName(),
+              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId(), response.getDatastreamName()));
+
+          Map<String, Map<Integer, Long>> consumedOffsets = response.getConsumedOffsets();
+          consumedOffsets.forEach((topic, partitionOffsets) -> {
+            Map<String, Map<Integer, Long>> reducedConsumedOffsets = reducedResponse.getConsumedOffsets();
+            Map<Integer, Long> reducedPartitionOffsets = reducedConsumedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionOffsets.putAll(partitionOffsets);
+          });
+
+          Map<String, Map<Integer, Long>> committedOffsets = response.getCommittedOffsets();
+          committedOffsets.forEach((topic, partitionOffsets) -> {
+            Map<String, Map<Integer, Long>> reducedCommittedOffsets = reducedResponse.getCommittedOffsets();
+            Map<Integer, Long> reducedPartitionOffsets = reducedCommittedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionOffsets.putAll(partitionOffsets);
+          });
+
+          Map<String, Map<Integer, Long>> consumptionLagMap = response.getConsumptionLagMap();
+          consumptionLagMap.forEach((topic, partitionLag) -> {
+            Map<String, Map<Integer, Long>> reducedConsumptionLagMap = reducedResponse.getConsumptionLagMap();
+            Map<Integer, Long> reducedPartitionLags = reducedConsumptionLagMap.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionLags.putAll(partitionLag);
+          });
         }
-
-        KafkaTopicPartitionStatsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-            k -> new KafkaTopicPartitionStatsResponse(response.getConsumerGroupId()));
-        reducedResponse.getDatastreams().addAll(response.getDatastreams());
-
-        Map<String, Set<Integer>> topicPartitions = response.getTopicPartitions();
-        topicPartitions.forEach((topic, partitions) -> {
-          Map<String, Set<Integer>> reducedTopicPartitions = reducedResponse.getTopicPartitions();
-          Set<Integer> reducedPartitions = reducedTopicPartitions.computeIfAbsent(topic, k -> new HashSet<>());
-          reducedPartitions.addAll(partitions);
-        });
       });
     });
 

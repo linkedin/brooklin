@@ -47,6 +47,7 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.kafka.KafkaDatastreamMetadataConstants;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
 import com.linkedin.datastream.server.DatastreamEventProducer;
@@ -117,7 +118,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(datastream1, datastream2));
     KafkaBasedConnectorTaskMetrics consumerMetrics =
-        new KafkaBasedConnectorTaskMetrics(TestKafkaConnectorTask.class.getName(), "testConsumer", LOG);
+        new KafkaBasedConnectorTaskMetrics(TestKafkaConnectorTask.class.getName(), "testConsumer", LOG, true);
     consumerMetrics.createEventProcessingMetrics();
 
     String defaultGrpId =
@@ -146,7 +147,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
-  public void testConsumeWithStartingOffset() throws Exception {
+  public void testConsumeWithStartingOffsetAndNoResetStrategy() throws Exception {
     String topic = "pizza1";
     createTopic(_zkUtils, topic);
 
@@ -170,7 +171,57 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     task.setEventProducer(datastreamProducer);
 
-    KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
+    KafkaConnectorTask connectorTask = createKafkaConnectorTaskWithAutoOffsetResetConfig(task, "earliest");
+
+    // validate auto.offset.reset config is overridden to none (given the start offsets)
+    Assert.assertEquals(connectorTask.getConsumerAutoOffsetResetConfig(), "none");
+
+
+    LOG.info("Sending third set of events");
+
+    //send 100 more msgs
+    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
+  public void testConsumeWithStartingOffsetAndResetStrategy() throws Exception {
+    String topic = "pizza1";
+    createTopic(_zkUtils, topic);
+
+    LOG.info("Sending first set of events");
+
+    //produce 100 msgs to topic before start
+    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 100);
+    Map<Integer, Long> startOffsets = Collections.singletonMap(0, 100L);
+
+    LOG.info("Sending second set of events");
+
+    //produce 100 msgs to topic before start
+    produceEvents(_kafkaCluster, _zkUtils, topic, 100, 100);
+
+    //start
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    Datastream datastream = getDatastream(_broker, topic);
+    // set system.start.position in the metadata
+    datastream.getMetadata().put(DatastreamMetadataConstants.START_POSITION, JsonUtils.toJson(startOffsets));
+    // set system.auto.offset.reset strategy in metadata to ensure it is ignored in presence of start offsets
+    datastream.getMetadata().put(KafkaDatastreamMetadataConstants.CONSUMER_OFFSET_RESET_STRATEGY, "earliest");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    task.setEventProducer(datastreamProducer);
+
+    KafkaConnectorTask connectorTask = createKafkaConnectorTaskWithAutoOffsetResetConfig(task, "earliest");
+
+    // validate auto.offset.reset config is overridden to none (given the start offsets)
+    Assert.assertEquals(connectorTask.getConsumerAutoOffsetResetConfig(), "none");
+
 
     LOG.info("Sending third set of events");
 
@@ -446,6 +497,14 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     datastream.setMetadata(new StringMap());
     datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
     return datastream;
+  }
+
+  private KafkaConnectorTask createKafkaConnectorTaskWithAutoOffsetResetConfig(DatastreamTaskImpl task,
+      String autoOffsetResetStrategy) throws InterruptedException {
+    Properties consumerProperties = new Properties();
+    consumerProperties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetResetStrategy);
+    return createKafkaConnectorTask(task, new KafkaBasedConnectorConfigBuilder()
+        .setConsumerProps(consumerProperties).build());
   }
 
   private KafkaConnectorTask createKafkaConnectorTask(DatastreamTaskImpl task) throws InterruptedException {

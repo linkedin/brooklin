@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -166,10 +167,28 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     Validate.notNull(task, "null task");
     if (_transportProviders.containsKey(task)) {
       KafkaTransportProvider transportProvider = _transportProviders.remove(task);
+      transportProvider.setUnassigned();
       transportProvider.getProducers().forEach(p -> p.unassignTask(task));
     } else {
       LOG.warn("Trying to unassign already unassigned transport provider.");
     }
+  }
+
+  @Override
+  public void unassignTransportProvider(List<DatastreamTask> taskList) {
+    Validate.notNull(taskList, "null task list");
+    Set<KafkaProducerWrapper<byte[], byte[]>> producers = new HashSet<>();
+    for (DatastreamTask task : taskList) {
+      if (_transportProviders.containsKey(task)) {
+        KafkaTransportProvider transportProvider = _transportProviders.remove(task);
+        transportProvider.setUnassigned();
+        producers.addAll(transportProvider.getProducers());
+      } else {
+        LOG.warn("Trying to unassign already unassigned transport provider for task {}.", task);
+      }
+    }
+
+    producers.forEach(p -> p.unassignTasks(taskList));
   }
 
   @Override

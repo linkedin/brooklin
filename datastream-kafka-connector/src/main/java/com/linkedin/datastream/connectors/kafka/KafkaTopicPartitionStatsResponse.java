@@ -19,6 +19,8 @@ import org.codehaus.jackson.annotate.JsonProperty;
  */
 public class KafkaTopicPartitionStatsResponse {
 
+  private final String _sourceInstance;
+
   private final String _consumerGroupId;
 
   private final Map<String, Set<Integer>> _topicPartitions;
@@ -32,6 +34,7 @@ public class KafkaTopicPartitionStatsResponse {
     _consumerGroupId = consumerGroupId;
     _topicPartitions = new HashMap<>();
     _datastreams = new HashSet<>();
+    _sourceInstance = null;
   }
 
   /**
@@ -41,15 +44,21 @@ public class KafkaTopicPartitionStatsResponse {
    */
   @JsonCreator
   public KafkaTopicPartitionStatsResponse(@JsonProperty("consumerGroupId") String consumerGroupId,
+      @JsonProperty("sourceInstance") String sourceInstance,
       @JsonProperty("topicPartitions") Map<String, Set<Integer>> topicPartitions,
       @JsonProperty("datastreams") Set<String> datastreams) {
     _consumerGroupId = consumerGroupId;
+    _sourceInstance = sourceInstance;
     _topicPartitions = topicPartitions;
     _datastreams = datastreams;
   }
 
   public String getConsumerGroupId() {
     return _consumerGroupId;
+  }
+
+  public String getSourceInstance() {
+    return _sourceInstance;
   }
 
   public Map<String, Set<Integer>> getTopicPartitions() {

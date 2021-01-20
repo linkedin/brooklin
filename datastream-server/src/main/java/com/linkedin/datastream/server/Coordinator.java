@@ -8,6 +8,7 @@ package com.linkedin.datastream.server;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
@@ -39,13 +41,14 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
-import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
@@ -66,7 +69,6 @@ import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
-import com.linkedin.datastream.server.api.transport.TransportException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -78,6 +80,7 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
+import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
 
 
 /**
@@ -133,9 +136,9 @@ import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
  * │              │       │ │          │  ┌────────────────────┐    │    │                 │
  * │              │       │ │          ├──▶ onDatastreamUpdate ├────┼────▶                 │
  * │              │       │ │          │  └────────────────────┘    │    │                 │
- * │              │       │ └──────────┘                            │    │                 │
- * │              │       │                                         │    │                 │
- * └──────────────┘       │                                         │    │                 │
+ * │              │       │ |          |  ┌────────────────────┐    │    │                 │
+ * │              │       │ |          |──▶ onSessionExpired   ├────┼────▶                 │
+ * └──────────────┘       │ └──────────┘  └────────────────────┘    │    │                 │
  *                        └─────────────────────────────────────────┘    └─────────────────┘
  *
  */
@@ -152,26 +155,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
-  private static final String MODULE = Coordinator.class.getSimpleName();
   private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 30000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
-  private static final String NUM_REBALANCES = "numRebalances";
-  private static final String NUM_ERRORS = "numErrors";
-  private static final String NUM_RETRIES = "numRetries";
-  private static final String NUM_HEARTBEATS = "numHeartbeats";
-  private static final String NUM_ASSIGNMENT_CHANGES = "numAssignmentChanges";
-  private static final String NUM_PARTITION_ASSIGNMENTS = "numPartitionAssignments";
-  private static final String NUM_PARTITION_MOVEMENTS = "numPartitionMovements";
-  private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
-  private static final String NUM_ORPHAN_CONNECTOR_TASKS = "numOrphanConnectorTasks";
-  private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
-  private static final String IS_LEADER = "isLeader";
-
-  // Connector common metrics
-  private static final String NUM_DATASTREAMS = "numDatastreams";
-  private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -182,7 +169,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final CheckpointProvider _cpProvider;
   private final Map<String, TransportProviderAdmin> _transportProviderAdmins = new HashMap<>();
   private final CoordinatorEventBlockingQueue _eventQueue;
-  private final CoordinatorEventProcessor _eventThread;
+  private final CoordinatorMetrics _metrics;
   private final Map<String, ExecutorService> _assignmentChangeThreadPool = new ConcurrentHashMap<>();
   private final String _clusterName;
   private final CoordinatorConfig _config;
@@ -194,9 +181,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // Currently assigned datastream tasks by taskName
   private final Map<String, DatastreamTask> _assignedDatastreamTasks = new ConcurrentHashMap<>();
 
-  private final List<BrooklinMetricInfo> _metrics = new ArrayList<>();
-  private final DynamicMetricsManager _dynamicMetricsManager;
-
   // One coordinator heartbeat per minute, heartbeat helps detect dead/live-lock
   // where no events can be handled if coordinator locks up. This can happen because
   // handleEvent is synchronized and downstream code can misbehave.
@@ -206,21 +190,26 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
-  private final AtomicBoolean leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
+  private final AtomicBoolean _leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
 
   // make sure the scheduled retries are not duplicated
-  private final AtomicBoolean leaderDoAssignmentScheduled = new AtomicBoolean(false);
+  private final AtomicBoolean _leaderDoAssignmentScheduled = new AtomicBoolean(false);
 
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
+
+  private CoordinatorEventProcessor _eventThread;
+  private Future<?> _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
+  private Future<?> _leaderDoAssignmentScheduledFuture = null;
+  private volatile boolean _zkSessionExpired = false;
+
   /**
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
    * @param config Config properties to use while creating coordinator.
-   * @throws DatastreamException if coordinator creation fails.
    */
-  public Coordinator(CachedDatastreamReader datastreamCache, Properties config) throws DatastreamException {
+  public Coordinator(CachedDatastreamReader datastreamCache, Properties config) {
     this(datastreamCache, new CoordinatorConfig(config));
   }
 
@@ -229,7 +218,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
    * @param config Coordinator config to use while creating coordinator.
    */
-  public Coordinator(CachedDatastreamReader datastreamCache, CoordinatorConfig config) throws DatastreamException {
+  public Coordinator(CachedDatastreamReader datastreamCache, CoordinatorConfig config) {
     _datastreamCache = datastreamCache;
     _config = config;
     _clusterName = _config.getCluster();
@@ -238,28 +227,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _adapter = createZkAdapter();
 
     _eventQueue = new CoordinatorEventBlockingQueue();
-    _eventThread = new CoordinatorEventProcessor();
-    _eventThread.setDaemon(true);
-
-    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _dynamicMetricsManager.registerGauge(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get);
-    _dynamicMetricsManager.registerGauge(MODULE, IS_LEADER, () -> getIsLeader().getAsBoolean() ? 1 : 0);
-    _dynamicMetricsManager.registerGauge(MODULE, MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get);
+    createEventThread();
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
-
     _eventProducerConfig = coordinatorProperties.getDomainProperties(EVENT_PRODUCER_CONFIG_DOMAIN);
 
     _cpProvider = new ZookeeperCheckpointProvider(_adapter);
-    Optional.ofNullable(_cpProvider.getMetricInfos()).ifPresent(_metrics::addAll);
-
-    _metrics.addAll(EventProducer.getMetricInfos());
+    _metrics = new CoordinatorMetrics(this);
   }
 
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), _config.getDebounceTimerMs(), this);
   }
 
   /**
@@ -267,7 +247,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public void start() {
     _log.info("Starting coordinator");
-    _eventThread.start();
+    startEventThread();
     _adapter.connect();
 
     for (String connectorType : _connectors.keySet()) {
@@ -299,6 +279,41 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
+  private synchronized void createEventThread() {
+    _eventThread = new CoordinatorEventProcessor();
+    _eventThread.setDaemon(true);
+  }
+
+  private synchronized void startEventThread() {
+    if (!_shutdown) {
+      _eventThread.start();
+    }
+  }
+
+  private synchronized boolean stopEventThread() {
+    // interrupt the thread if it's not gracefully shutdown
+    while (_eventThread.isAlive()) {
+      try {
+        _eventThread.interrupt();
+        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
+      } catch (InterruptedException e) {
+        _log.warn("Exception caught while interrupting the event thread", e);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private synchronized boolean waitForEventThreadToJoin() {
+    try {
+      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
+    } catch (InterruptedException e) {
+      _log.warn("Exception caught while waiting the event thread to stop", e);
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Stop coordinator (and all connectors)
    */
@@ -311,22 +326,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.NO_OP_EVENT);
 
     // wait for eventThread to gracefully finish
-    try {
-      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
-    } catch (InterruptedException e) {
-      _log.warn("Exception caught while waiting event thread to stop", e);
+    if (waitForEventThreadToJoin()) {
       return;
     }
 
-    // interrupt the thread if it's not gracefully shutdown
-    while (_eventThread.isAlive()) {
-      try {
-        _eventThread.interrupt();
-        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
-      } catch (InterruptedException e) {
-        _log.warn("Exception caught while stopping coordinator", e);
-        return;
-      }
+    if (stopEventThread()) {
+      return;
     }
 
     // Stopping all the connectors so that they stop producing.
@@ -342,7 +347,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // Shutdown the event producer.
     for (DatastreamTask task : _assignedDatastreamTasks.values()) {
-      ((EventProducer) task.getEventProducer()).shutdown();
+      ((EventProducer) task.getEventProducer()).shutdown(false);
     }
     _adapter.disconnect();
     _log.info("Coordinator stopped");
@@ -375,7 +380,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // when an instance becomes a leader, make sure we don't miss new datastreams and
     // new assignment tasks that was not finished by the previous leader
     _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
-    // verify/cleanup the orphan task nodes under connector should be called only once after becoming leader,
+    // verify/clean up the orphan task nodes under connector should be called only once after becoming leader,
     // since it is an expensive operation. So, passing cleanUpOrphanNodes = true only on onBecomeLeader.
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     _log.info("Coordinator::onBecomeLeader completed successfully");
@@ -440,6 +445,97 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
     _log.info("Coordinator::onPartitionMovement completed successfully");
   }
+
+  /**
+   * {@inheritDoc}
+   * Stop all the tasks and wait for new session to connect.
+   */
+  @Override
+  public void onSessionExpired() {
+    _log.info("Coordinator::onSessionExpired is called");
+
+    if (_zkSessionExpired) {
+      _log.info("session expiry is already handled. return");
+      return;
+    }
+    _zkSessionExpired = true;
+
+    if (_shutdown) {
+      return;
+    }
+    stopEventThread();
+
+    _leaderDatastreamAddOrDeleteEventScheduled.set(false);
+    if (_leaderDatastreamAddOrDeleteEventScheduledFuture != null) {
+      _leaderDatastreamAddOrDeleteEventScheduledFuture.cancel(true);
+      _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
+    }
+
+    _leaderDoAssignmentScheduled.set(false);
+    if (_leaderDoAssignmentScheduledFuture != null) {
+      _leaderDoAssignmentScheduledFuture.cancel(true);
+      _leaderDoAssignmentScheduledFuture = null;
+    }
+
+    _eventQueue.clear();
+
+    // Stopping all the connectors so that they stop producing.
+    List<Future<Boolean>> assignmentChangeFutures = _connectors.keySet().stream()
+        .map(connectorType -> {
+          _assignmentChangeThreadPool.get(connectorType).shutdownNow();
+          _assignmentChangeThreadPool.put(connectorType, Executors.newSingleThreadExecutor());
+          return dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>(), false, false);
+        })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
+
+    onDatastreamChange(new ArrayList<>());
+    // Shutdown the event producer to stop any further production of records.
+    // Event producer shutdown sequence does not need to wait for onAssignmentChange to complete.
+    // This will ensure that even if any task thread does not respond to thread interruption, it will
+    // still not be able to produce any records to destination.
+    for (DatastreamTask task : _assignedDatastreamTasks.values()) {
+      // skipping the checkpoint update as zookeeper session has expired and the current thread will
+      // get stuck waiting for zookeeper session to be connected. So, skipping the checkpoint update.
+      ((EventProducer) task.getEventProducer()).shutdown(true);
+    }
+
+    // Wait till all the futures are complete or timeout.
+    ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(1);
+    threadPoolExecutor.submit(() -> {
+      Instant start = Instant.now();
+      try {
+        getAssignmentsFuture(assignmentChangeFutures, start);
+      } catch (Exception e) {
+        _log.warn("Hit exception while clearing the assignment list", e);
+      } finally {
+        assignmentChangeFutures.forEach(future -> future.cancel(true));
+      }
+    });
+
+    _assignedDatastreamTasks.clear();
+    _log.info("Coordinator::onSessionExpired completed successfully.");
+  }
+
+  @VisibleForTesting
+  boolean isZkSessionExpired() {
+    return _zkSessionExpired;
+  }
+
+  private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)
+      throws TimeoutException, InterruptedException {
+    for (Future<Boolean> assignmentChangeFuture : assignmentChangeFutures) {
+      if (Duration.between(start, Instant.now()).compareTo(ASSIGNMENT_TIMEOUT) > 0) {
+        throw new TimeoutException("Timeout doing assignment");
+      }
+      try {
+        assignmentChangeFuture.get(ASSIGNMENT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+      } catch (ExecutionException e) {
+        _log.warn("onAssignmentChange call threw exception", e);
+      }
+    }
+  }
+
   /**
    * {@inheritDoc}
    *
@@ -503,30 +599,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     List<String> deactivated = new ArrayList<>(oldConnectorList);
     deactivated.removeAll(newConnectorList);
     List<Future<Boolean>> assignmentChangeFutures = deactivated.stream()
-        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>(), isDatastreamUpdate))
+        .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, new ArrayList<>(), isDatastreamUpdate, true))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
     // case (2) - Dispatch all the assignment changes in a separate thread
     assignmentChangeFutures.addAll(newConnectorList.stream()
         .map(connectorType -> dispatchAssignmentChangeIfNeeded(connectorType, currentAssignment.get(connectorType),
-            isDatastreamUpdate))
+            isDatastreamUpdate, true))
         .filter(Objects::nonNull)
         .collect(Collectors.toList()));
 
     // Wait till all the futures are complete or timeout.
     Instant start = Instant.now();
     try {
-      for (Future<Boolean> assignmentChangeFuture : assignmentChangeFutures) {
-        if (Duration.between(start, Instant.now()).compareTo(ASSIGNMENT_TIMEOUT) > 0) {
-          throw new TimeoutException("Timeout doing assignment");
-        }
-        try {
-          assignmentChangeFuture.get(ASSIGNMENT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-          _log.warn("onAssignmentChange call threw exception", e);
-        }
-      }
+      getAssignmentsFuture(assignmentChangeFutures, start);
     } catch (TimeoutException e) {
       // if it's timeout then we will retry
       _log.warn("Timeout when doing the assignment", e);
@@ -549,10 +636,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .flatMap(Collection::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
 
-    long endAt = System.currentTimeMillis();
-
-    _log.info(String.format("END: Coordinator::handleAssignmentChange, Duration: %d milliseconds", endAt - startAt));
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_ASSIGNMENT_CHANGES, 1);
+    _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
+        System.currentTimeMillis() - startAt);
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ASSIGNMENT_CHANGES, 1);
   }
 
   private DatastreamTask getDatastreamTask(String taskName) {
@@ -576,7 +662,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private Future<Boolean> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment,
-      boolean isDatastreamUpdate) {
+      boolean isDatastreamUpdate, boolean retryAndSaveError) {
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
@@ -596,35 +682,51 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (isDatastreamUpdate || !addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(this::initializeTask);
+      return submitAssignment(connectorType, assignment, isDatastreamUpdate, connector, removedTasks, retryAndSaveError);
+    }
 
-      // Dispatch the onAssignmentChange to the connector in a separate thread.
-      return _assignmentChangeThreadPool.get(connectorType).submit(() -> {
-        try {
-          connector.onAssignmentChange(assignment);
-          // Unassign tasks with producers
-          removedTasks.forEach(this::uninitializeTask);
-        } catch (Exception ex) {
-          _log.warn(String.format("connector.onAssignmentChange for connector %s threw an exception, "
-              + "Queuing up a new onAssignmentChange event for retry.", connectorType), ex);
+    return null;
+  }
+
+  private Future<Boolean> submitAssignment(String connectorType, List<DatastreamTask> assignment,
+      boolean isDatastreamUpdate, ConnectorWrapper connector, List<DatastreamTask> removedTasks, boolean retryAndSaveError) {
+    // Dispatch the onAssignmentChange to the connector in a separate thread.
+    return _assignmentChangeThreadPool.get(connectorType).submit(() -> {
+      try {
+        // Send a new copy of assignment to connector to ensure that assignment is not modified.
+        // Any modification to assignment object directly will cause discrepancy in the current assignment list
+        connector.onAssignmentChange(new ArrayList<>(assignment));
+        // Unassign tasks with producers
+        uninitializeTasks(removedTasks);
+      } catch (Exception ex) {
+        String err = String.format("connector.onAssignmentChange for connector %s threw an exception", connectorType);
+        if (retryAndSaveError) {
+          err += " Queuing up a new onAssignmentChange event for retry.";
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
           if (isDatastreamUpdate) {
             _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
           } else {
             _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
           }
-          return false;
         }
-        return true;
-      });
-    }
-
-    return null;
+        _log.warn(err, ex);
+        return false;
+      }
+      return true;
+    });
   }
 
-  private void uninitializeTask(DatastreamTask t) {
-    TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(t.getTransportProviderName());
-    tpAdmin.unassignTransportProvider(t);
-    _cpProvider.unassignDatastreamTask(t);
+  private void uninitializeTasks(List<DatastreamTask> tasks) {
+
+    Map<String, List<DatastreamTask>> datastreamTasksPerTransportProvider =
+        tasks.stream().collect(Collectors.groupingBy(DatastreamTask::getTransportProviderName, Collectors.toList()));
+
+    datastreamTasksPerTransportProvider.forEach((transportProviderName, datastreamTaskList) -> {
+      TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(transportProviderName);
+      tpAdmin.unassignTransportProvider(datastreamTaskList);
+    });
+
+    tasks.forEach(_cpProvider::unassignDatastreamTask);
   }
 
   private void initializeTask(DatastreamTask task) {
@@ -646,9 +748,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
 
     Datastream datastream = task.getDatastreams().get(0);
-    if (datastream.hasMetadata()
-        && datastream.getMetadata().containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
-      customCheckpointing = Boolean.valueOf(
+    if (datastream.hasMetadata() &&
+        Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
+      customCheckpointing = Boolean.parseBoolean(
           datastream.getMetadata().get(DatastreamMetadataConstants.CUSTOM_CHECKPOINT));
       _log.info(String.format("Custom checkpointing overridden by metadata to be: %b for datastream: %s",
           customCheckpointing, datastream));
@@ -686,7 +788,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
-
+    boolean isLeader = _adapter.isLeader();
+    if (!isLeader && isLeaderEvent(event.getType())) {
+      _log.info("Skipping event {} isLeader: false", event.getType());
+      return;
+    }
     try {
       switch (event.getType()) {
         case LEADER_DO_ASSIGNMENT:
@@ -737,11 +843,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           break;
       }
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleEvent-" + event.getType(), NUM_ERRORS, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(event.getType()), 1);
       _log.error("ERROR: event + " + event + " failed.", e);
     }
 
     _log.info("END: Handle event " + event);
+  }
+
+  private boolean isLeaderEvent(CoordinatorEvent.EventType eventType) {
+    switch (eventType) {
+      case LEADER_DO_ASSIGNMENT:
+      case HANDLE_ADD_OR_DELETE_DATASTREAM:
+      case LEADER_PARTITION_ASSIGNMENT:
+      case LEADER_PARTITION_MOVEMENT:
+        return true;
+      default:
+        return false;
+    }
   }
 
   // when we encounter an error, we need to persist the error message in ZooKeeper. We only persist the
@@ -757,7 +875,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * Increment a heartbeat counter as a way to report liveliness of the coordinator
    */
   private void handleHeartbeat() {
-    _dynamicMetricsManager.createOrUpdateCounter(MODULE, NUM_HEARTBEATS, 1);
+    _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_HEARTBEATS, 1);
   }
 
   /**
@@ -767,7 +885,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean isExpired = false;
 
     // Check TTL
-    if (stream.getMetadata().containsKey(TTL_MS) && stream.getMetadata().containsKey(CREATION_MS)) {
+    if (Objects.requireNonNull(stream.getMetadata()).containsKey(TTL_MS) && stream.getMetadata().containsKey(CREATION_MS)) {
       try {
         long ttlMs = Long.parseLong(stream.getMetadata().get(TTL_MS));
         long creationMs = Long.parseLong(stream.getMetadata().get(CREATION_MS));
@@ -840,17 +958,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (shouldRetry) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleDatastreamAddOrDelete", NUM_RETRIES, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_DATASTREAM_ADD_OR_DELETE_NUM_RETRIES, 1);
 
       // If there are any failure, we will need to schedule retry if
       // there is no pending retry scheduled already.
-      if (leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
+      if (_leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
-        _executor.schedule(() -> {
+        _leaderDatastreamAddOrDeleteEventScheduledFuture = _executor.schedule(() -> {
           _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
 
           // Allow further retry scheduling
-          leaderDatastreamAddOrDeleteEventScheduled.set(false);
+          _leaderDatastreamAddOrDeleteEventScheduled.set(false);
         }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
       }
     }
@@ -885,12 +1003,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _adapter.deleteDatastream(ds.getName());
   }
 
-  private String createTopic(Datastream datastream) throws TransportException {
+  private void createTopic(Datastream datastream) {
     _transportProviderAdmins.get(datastream.getTransportProviderName()).createDestination(datastream);
 
     // For deduped datastreams, all destination-related metadata have been copied by
     // populateDatastreamDestinationFromExistingDatastream().
-    if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
+    if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.DESTINATION_CREATION_MS)) {
       // Set destination creation time and retention
       datastream.getMetadata()
           .put(DatastreamMetadataConstants.DESTINATION_CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
@@ -905,8 +1023,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _log.warn("Transport doesn't support mechanism to get retention, Unable to populate retention in datastream", e);
       }
     }
-
-    return datastream.getDestination().getConnectionString();
   }
 
   private void deleteTopic(Datastream datastream) {
@@ -956,10 +1072,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /*
-   * If cleanUpOrphanConnectorTasks is set to true, it cleans up the orphan connector tasks not assigned to
+   * If cleanUpOrphanNodes is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
    */
-  private void handleLeaderDoAssignment(boolean cleanUpOrphanConnectorTasks) {
+  private void handleLeaderDoAssignment(boolean cleanUpOrphanNodes) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -969,6 +1085,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
 
       onDatastreamChange(datastreamGroups);
+
+      if (cleanUpOrphanNodes) {
+        performPreAssignmentCleanup(datastreamGroups);
+      }
 
       _log.debug("handleLeaderDoAssignment: final datastreams for task assignment: {}", datastreamGroups);
 
@@ -998,24 +1118,57 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (succeeded) {
       List<String> instances = new ArrayList<>(liveInstances);
       instances.add(PAUSED_INSTANCE);
-      _adapter.cleanupDeadInstanceAssignments(instances);
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
-      if (cleanUpOrphanConnectorTasks) {
-        performCleanupOrphanConnectorTasks();
+      _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
+          newAssignmentsByInstance, instances);
+      if (cleanUpOrphanNodes) {
+        performCleanupOrphanNodes();
       }
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_REBALANCES, 1);
+      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
     }
 
     // schedule retry if failure
-    if (!succeeded && !leaderDoAssignmentScheduled.get()) {
+    if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
       _log.info("Schedule retry for leader assigning tasks");
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderDoAssignment", NUM_RETRIES, 1);
-      leaderDoAssignmentScheduled.set(true);
-      _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanConnectorTasks));
-        leaderDoAssignmentScheduled.set(false);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
+      _leaderDoAssignmentScheduled.set(true);
+      _leaderDoAssignmentScheduledFuture = _executor.schedule(() -> {
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
+        _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
+  }
+
+  private void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+
+    // Map between instance to tasks assigned to the instance.
+    Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+
+    _log.info("performPreAssignmentCleanup: start");
+    _log.debug("performPreAssignmentCleanup: assignment before cleanup: " + previousAssignmentByInstance);
+
+    for (String connectorType : _connectors.keySet()) {
+      AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
+      List<DatastreamGroup> datastreamsPerConnectorType = datastreamGroups.stream()
+          .filter(x -> x.getConnectorName().equals(connectorType))
+          .collect(Collectors.toList());
+
+      Map<String, List<DatastreamTask>> tasksToCleanupMap = strategy.getTasksToCleanUp(datastreamsPerConnectorType,
+          previousAssignmentByInstance);
+
+      if (tasksToCleanupMap.size() > 0) {
+        for (String instance : tasksToCleanupMap.keySet()) {
+          List<String> tasksToCleanupList = tasksToCleanupMap.get(instance)
+              .stream().map(DatastreamTask::getDatastreamTaskName).collect(Collectors.toList());
+          _log.warn("Tasks to cleanup for connector {} on instance {} : {}", connectorType, instance, tasksToCleanupList);
+        }
+        if (_config.getPerformPreAssignmentCleanup()) {
+          _adapter.removeTaskNodes(tasksToCleanupMap);
+        }
+      }
+
+    }
+
+    _log.info("performPreAssignmentCleanup: completed");
   }
 
   /**
@@ -1024,7 +1177,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param datastreamGroupName the datastreamGroup that needs to perform the partition assignment
    */
   private void performPartitionAssignment(String datastreamGroupName) {
-    boolean succeeded = false;
+    boolean succeeded;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
@@ -1073,11 +1226,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     // schedule retry if failure
     if (succeeded) {
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.cleanUpOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_ASSIGNMENTS, 1);
+      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_PARTITION_ASSIGNMENTS, 1);
     } else {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionAssignment", NUM_RETRIES, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES, 1);
       _executor.schedule(() -> {
         _log.warn("Retry scheduled for leader partition assignment, dg {}", datastreamGroupName);
         // We need to schedule both LEADER_DO_ASSIGNMENT and leader partition assignment in case the tasks are
@@ -1101,7 +1254,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
 
   private void onDatastreamChange(List<DatastreamGroup> datastreamGroups) {
-    //We need to perform handleDatastream only active datastream for partition listening
+    //We need to perform handleDatastream only on active datastreams for partition listening
     List<DatastreamGroup> activeDataStreams = datastreamGroups.stream().filter(dg -> !dg.isPaused()).collect(Collectors.toList());
 
     for (String connectorType : _connectors.keySet()) {
@@ -1126,7 +1279,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     try {
       Map<String, Set<DatastreamTask>> assignmentByInstance = new HashMap<>(previousAssignmentByInstance);
-      List<DatastreamGroup> toCleanup = new ArrayList<>();
+      List<DatastreamGroup> toCleanUp = new ArrayList<>();
 
       for (String connectorType : _connectors.keySet()) {
         AssignmentStrategy strategy = _connectors.get(connectorType).getAssignmentStrategy();
@@ -1153,7 +1306,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // both partition assignment info and the target assignment
         List<DatastreamGroup> toProcessedDatastreamGroups =
             liveDatastreamGroups.stream().filter(group2 -> toMoveDatastream.contains(group2.getName()))
-                .filter(group3 -> datastreamPartitions.keySet().contains(group3.getName()))
+                .filter(group3 -> datastreamPartitions.containsKey(group3.getName()))
                 .collect(Collectors.toList());
 
         for (DatastreamGroup dg : toProcessedDatastreamGroups) {
@@ -1165,7 +1318,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
               _adapter.getPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
           assignmentByInstance = strategy.movePartitions(assignmentByInstance, suggestedAssignment,
               subscribedPartitions);
-          toCleanup.add(dg);
+          toCleanUp.add(dg);
         }
       }
 
@@ -1176,7 +1329,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _adapter.updateAllAssignments(newAssignmentsByInstance);
 
       //clean up stored target assignment after the assignment is updated
-      for (DatastreamGroup dg : toCleanup) {
+      for (DatastreamGroup dg : toCleanUp) {
         _adapter.cleanUpPartitionMovement(dg.getConnectorName(), dg.getName(), notifyTimestamp);
       }
 
@@ -1192,19 +1345,36 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // request is completed by query the assignment
 
       _log.error("Partition movement failed, Exception: ", ex);
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_ERRORS, 1);
-
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_PARTITION_MOVEMENT_NUM_ERRORS, 1);
     }
     if (!shouldRetry) {
-      _adapter.cleanupOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
+      _adapter.cleanUpOldUnusedTasksFromConnector(previousAssignmentByInstance, newAssignmentsByInstance);
       updateCounterForMaxPartitionInTask(newAssignmentsByInstance);
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, NUM_PARTITION_MOVEMENTS, 1);
+      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_PARTITION_MOVEMENTS, 1);
     }  else {
       _log.info("Schedule retry for leader movement tasks");
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "handleLeaderPartitionMovement", NUM_RETRIES, 1);
-      _executor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp));
-      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES, 1);
+      _executor.schedule(() ->
+          _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp)), _config.getRetryIntervalMs(),
+          TimeUnit.MILLISECONDS);
+    }
+  }
+
+  @VisibleForTesting
+  void validateNewAssignment(Map<String, List<DatastreamTask>> newAssignmentsByInstance) {
+    if (_config.getMaxDatastreamTasksPerInstance() > 0) {
+      // If the cluster is configured to limit the max tasks per instance, check if any instances have a higher
+      // number of tasks than expected, and fail the leader assignment on violation of this limit. This can be useful
+      // to prevent other issues such as OOMs due to high memory usage which may be seen if we exceed the supportable
+      // number of tasks per instance.
+      Map<String, Integer> instancesWithTaskCountAboveThreshold = newAssignmentsByInstance.entrySet().stream()
+          .filter(e -> !e.getKey().equals(PAUSED_INSTANCE) && (e.getValue().size() > _config.getMaxDatastreamTasksPerInstance()))
+          .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+      if (instancesWithTaskCountAboveThreshold.size() > 0) {
+        throw new DatastreamRuntimeException(String.format("Too many tasks assigned to some instances, max tasks per "
+                + "instance: %d, instances above the threshold: %s", _config.getMaxDatastreamTasksPerInstance(),
+            instancesWithTaskCountAboveThreshold));
+      }
     }
   }
 
@@ -1256,14 +1426,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     }
 
+    validateNewAssignment(newAssignmentsByInstance);
+
     return newAssignmentsByInstance;
   }
 
-  void performCleanupOrphanConnectorTasks() {
-    _log.info("performCleanupOrphanConnectorTasks called");
+  void performCleanupOrphanNodes() {
+    _log.info("performCleanupOrphanNodes called");
     int orphanCount = _adapter.cleanUpOrphanConnectorTasks(_config.getZkCleanUpOrphanConnectorTask());
-    _dynamicMetricsManager.createOrUpdateMeter(MODULE, "performCleanupOrphanConnectorTasks",
-        NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASKS, orphanCount);
+    int orphanLockCount = _adapter.cleanUpOrphanConnectorTaskLocks(_config.getZkCleanUpOrphanConnectorTaskLock());
+    _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ORPHAN_CONNECTOR_TASK_LOCKS, orphanLockCount);
   }
 
   /**
@@ -1316,10 +1489,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       throw new IllegalArgumentException(err);
     }
 
-    Optional<List<BrooklinMetricInfo>> connectorMetrics = Optional.ofNullable(connector.getMetricInfos());
-    connectorMetrics.ifPresent(_metrics::addAll);
-
-
     connector.onPartitionChange(datastreamGroup ->
       _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getName()))
     );
@@ -1328,16 +1497,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, _cpProvider, deduper, authorizerName);
     _connectors.put(connectorName, connectorInfo);
 
-    // Register common connector metrics
-    // Use connector name for the metrics, as there can be multiple connectors specified in the config that use
-    // same connector class.
-    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAMS,
-        () -> connectorInfo.getConnector().getNumDatastreams());
-    _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
-        () -> connectorInfo.getConnector().getNumDatastreamTasks());
-
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAMS)));
-    _metrics.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
+    _metrics.addConnectorMetrics(connectorInfo);
   }
 
   /**
@@ -1361,7 +1521,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
               .filter(d -> d.getConnectorName().equals(connectorName))
               .collect(Collectors.toList()));
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "validateDatastreamsUpdate", NUM_ERRORS, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.VALIDATE_DATASTREAMS_UPDATE_NUM_ERRORS, 1);
       throw e;
     }
   }
@@ -1389,7 +1549,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
 
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isPartitionAssignmentSupported", NUM_ERRORS, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.IS_PARTITION_ASSIGNMENT_SUPPORTED_NUM_ERRORS, 1);
       throw e;
     }
   }
@@ -1416,7 +1576,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
                 updateType, datastream.getName(), connectorName));
       }
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "isDatastreamUpdateTypeSupported", NUM_ERRORS, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.IS_DATASTREAM_UPDATE_TYPE_SUPPORTED_NUM_ERRORS, 1);
       throw e;
     }
   }
@@ -1471,7 +1631,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         // Security principals are passed in through OWNER metadata
         // DatastreamResources has validated OWNER key is present
-        String principal = datastream.getMetadata().get(DatastreamMetadataConstants.OWNER_KEY);
+        String principal = Objects.requireNonNull(datastream.getMetadata()).get(DatastreamMetadataConstants.OWNER_KEY);
 
         // CREATE is already verified through the SSL layer of the HTTP framework (optional)
         // READ is the operation for datastream source-level authorization
@@ -1488,11 +1648,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       initializeDatastreamDestination(connector, datastream, deduper, allDatastreams);
       connector.postDatastreamInitialize(datastream, allDatastreams);
     } catch (Exception e) {
-      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "initializeDatastream", NUM_ERRORS, 1);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.INITIALIZE_DATASTREAM_NUM_ERRORS, 1);
       throw e;
     }
 
-    datastream.getMetadata().putIfAbsent(CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
+    Objects.requireNonNull(datastream.getMetadata()).putIfAbsent(CREATION_MS, String.valueOf(Instant.now().toEpochMilli()));
   }
 
   private void initializeDatastreamDestination(ConnectorWrapper connector, Datastream datastream,
@@ -1508,7 +1668,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (DatastreamUtils.isUserManagedDestination(datastream)) {
       List<Datastream> sameDestinationDatastreams = allDatastreams.stream()
           .filter(
-              ds -> ds.getDestination().getConnectionString().equals(datastream.getDestination().getConnectionString()))
+              ds -> Objects.requireNonNull(ds.getDestination())
+                  .getConnectionString().equals(Objects.requireNonNull(datastream.getDestination()).getConnectionString()))
           .collect(Collectors.toList());
       if (!sameDestinationDatastreams.isEmpty()) {
         String datastreamNames = sameDestinationDatastreams.stream()
@@ -1533,7 +1694,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _transportProviderAdmins.get(datastream.getTransportProviderName())
           .initializeDestinationForDatastream(datastream, destinationName);
       // Populate the task prefix if it is not already present.
-      if (!datastream.getMetadata().containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
+      if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
         datastream.getMetadata()
             .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
       }
@@ -1548,9 +1709,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     datastream.setDestination(destination);
 
     // Copy destination-related metadata
-    existingStream.getMetadata().entrySet().stream()
+    Objects.requireNonNull(existingStream.getMetadata()).entrySet().stream()
         .filter(e -> e.getKey().startsWith(SYSTEM_DESTINATION_PREFIX))
-        .forEach(e -> datastream.getMetadata().put(e.getKey(), e.getValue()));
+        .forEach(e -> Objects.requireNonNull(datastream.getMetadata()).put(e.getKey(), e.getValue()));
 
     // If the existing datastream group is paused, also pause this datastream.
     // This is to avoid the creation of a datastream to RESUME event production.
@@ -1558,25 +1719,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       datastream.setStatus(DatastreamStatus.PAUSED);
     }
 
-    datastream.getMetadata()
+    Objects.requireNonNull(datastream.getMetadata())
         .put(DatastreamMetadataConstants.TASK_PREFIX,
             existingStream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
   }
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_REBALANCES)));
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_ASSIGNMENT_CHANGES)));
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_PARTITION_ASSIGNMENTS)));
-    _metrics.add(new BrooklinMeterInfo(buildMetricName(MODULE, NUM_PARTITION_MOVEMENTS)));
-    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, MAX_PARTITION_COUNT_IN_TASK)));
-    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_ERRORS));
-    _metrics.add(new BrooklinMeterInfo(getDynamicMetricPrefixRegex(MODULE) + NUM_RETRIES));
-    _metrics.add(new BrooklinCounterInfo(buildMetricName(MODULE, NUM_HEARTBEATS)));
-    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, NUM_PAUSED_DATASTREAMS_GROUPS)));
-    _metrics.add(new BrooklinGaugeInfo(buildMetricName(MODULE, IS_LEADER)));
-
-    return Collections.unmodifiableList(_metrics);
+    return _metrics.getMetricInfos();
   }
 
   /**
@@ -1586,6 +1736,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _clusterName;
   }
 
+  @VisibleForTesting
+  CoordinatorEventProcessor getEventThread() {
+    return _eventThread;
+  }
+
+
   /**
    * Add a transport provider that the coordinator can assign to datastreams it creates.
    * @param transportProviderName Name of transport provider.
@@ -1593,9 +1749,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public void addTransportProvider(String transportProviderName, TransportProviderAdmin admin) {
     _transportProviderAdmins.put(transportProviderName, admin);
-
-    Optional<List<BrooklinMetricInfo>> transportProviderMetrics = Optional.ofNullable(admin.getMetricInfos());
-    transportProviderMetrics.ifPresent(_metrics::addAll);
+    _metrics.addMetricInfos(admin);
   }
 
   /**
@@ -1627,7 +1781,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     _authorizers.put(name, authorizer);
     if (authorizer instanceof MetricsAware) {
-      Optional.ofNullable(((MetricsAware) authorizer).getMetricInfos()).ifPresent(_metrics::addAll);
+      _metrics.addMetricInfos((MetricsAware) authorizer);
     }
   }
 
@@ -1653,6 +1807,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return null;
     }
     return _connectors.get(name).getConnector().getConnectorInstance();
+  }
+
+  @VisibleForTesting
+  CachedDatastreamReader getDatastreamCache() {
+    return _datastreamCache;
   }
 
   private class CoordinatorEventProcessor extends Thread {
@@ -1684,5 +1843,267 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   CoordinatorConfig getConfig() {
     return _config;
+  }
+
+  /**
+   * Encapsulates metric registration and update for the {@link Coordinator}
+   */
+  private static class CoordinatorMetrics {
+    private static final String MODULE = Coordinator.class.getSimpleName();
+
+    private static final String NUM_RETRIES = "numRetries";
+    private static final String NUM_ERRORS = "numErrors";
+    private static final String HANDLE_EVENT_PREFIX = "handleEvent";
+
+    // Gauge metrics
+    private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
+    private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
+    private static final String IS_LEADER = "isLeader";
+    private static final String ZK_SESSION_EXPIRED = "zkSessionExpired";
+
+    // Connector common metrics
+    private static final String NUM_DATASTREAMS = "numDatastreams";
+    private static final String NUM_DATASTREAM_TASKS = "numDatastreamTasks";
+
+    private final Coordinator _coordinator;
+    private final List<BrooklinMetricInfo> _metricInfos;
+    private final DynamicMetricsManager _dynamicMetricsManager;
+
+    public CoordinatorMetrics(Coordinator coordinator) {
+      _coordinator = coordinator;
+      _metricInfos = new ArrayList<>();
+      _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+
+      addComponentMetricInfos();
+
+      registerMeterMetrics();
+      registerKeyedMeterMetrics();
+      registerGaugeMetrics();
+      registerCounterMetrics();
+    }
+
+    public void addMetricInfos(MetricsAware metricsAware) {
+      Optional.ofNullable(metricsAware.getMetricInfos()).ifPresent(_metricInfos::addAll);
+    }
+
+    public void addConnectorMetrics(ConnectorInfo connectorInfo) {
+      addMetricInfos(connectorInfo.getConnector().getConnectorInstance());
+
+      // Register common connector metrics
+      // Use connector name for the metrics, as there can be multiple connectors specified in the config that use
+      // same connector class.
+      String connectorName = connectorInfo.getConnectorType();
+
+      _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAMS,
+          () -> connectorInfo.getConnector().getNumDatastreams());
+      _metricInfos.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAMS)));
+
+      _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
+          () -> connectorInfo.getConnector().getNumDatastreamTasks());
+      _metricInfos.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
+    }
+
+    public List<BrooklinMetricInfo> getMetricInfos() {
+      return Collections.unmodifiableList(_metricInfos);
+    }
+
+    public void updateMeter(Meter metric, int value) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, metric.getName(), value);
+    }
+
+    public void updateKeyedMeter(KeyedMeter metric, int value) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, metric.getKey(), metric.getName(), value);
+    }
+
+    public void updateCounter(Counter metric, int value) {
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), value);
+    }
+
+    public static KeyedMeter getKeyedMeter(EventType eventType) {
+      switch (eventType) {
+        case LEADER_DO_ASSIGNMENT:
+          return KeyedMeter.LEADER_DO_ASSIGNMENT_NUM_ERRORS;
+        case LEADER_PARTITION_ASSIGNMENT:
+          return KeyedMeter.LEADER_PARTITION_ASSIGNMENT_NUM_ERRORS;
+        case LEADER_PARTITION_MOVEMENT:
+          return KeyedMeter.LEADER_PARTITION_MOVEMENT_NUM_ERRORS;
+        case HANDLE_ASSIGNMENT_CHANGE:
+          return KeyedMeter.HANDLE_ASSIGNMENT_CHANGE_NUM_ERRORS;
+        case HANDLE_DATASTREAM_CHANGE_WITH_UPDATE:
+          return KeyedMeter.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_NUM_ERRORS;
+        case HANDLE_ADD_OR_DELETE_DATASTREAM:
+          return KeyedMeter.HANDLE_ADD_OR_DELETE_DATASTREAM_NUM_ERRORS;
+        case HANDLE_INSTANCE_ERROR:
+          return KeyedMeter.HANDLE_INSTANCE_ERROR_NUM_ERRORS;
+        case HEARTBEAT:
+          return KeyedMeter.HEARTBEAT_NUM_ERRORS;
+        case NO_OP:
+          return KeyedMeter.NO_OP_NUM_ERRORS;
+        default:
+          throw new IllegalArgumentException("Unexpected Coordinator event type: " + eventType);
+      }
+    }
+
+    private void addComponentMetricInfos() {
+      // CheckpointProvider metrics
+      addMetricInfos(_coordinator._cpProvider);
+
+      // EventProducer metrics
+      _metricInfos.addAll(EventProducer.getMetricInfos());
+    }
+
+    private void registerMeterMetrics() {
+      // These metrics are eagerly created (i.e. they are registered with _dynamicMetricsManager
+      // even before they are ever updated + we use BrooklinMeterInfos that specify metrics by full name)
+      Arrays.stream(Meter.values()).forEach(this::registerMeter);
+    }
+
+    private void registerKeyedMeterMetrics() {
+      // Our intent is to create KeyedMeter metrics lazily (i.e. only create the JMX metrics
+      // when the metrics are actually updated), unless their isEagerlyRegister flag is set to true.
+      //
+      // To accomplish creating metrics lazily, we:
+      //   - Refrain from registering metrics with _dynamicMetricsManager,
+      //     and rely on createOrUpdate*() methods so they are created upon
+      //     update instead.
+      //   - Return regex-based BrooklinMeterInfo as opposed to ones that
+      //     specify metrics by their full names
+
+      // We register some KeyedMeter metrics eagerly
+      for (KeyedMeter keyedMeter : KeyedMeter.values()) {
+        if (keyedMeter.isEagerlyRegistered()) {
+          _dynamicMetricsManager.registerMetric(MODULE, keyedMeter.getKey(), keyedMeter.getName(),
+              com.codahale.metrics.Meter.class);
+        }
+      }
+
+      // All KeyedMeter metrics are covered by these two regex-based BrooklinMeterInfo objects
+      String prefix = _coordinator.getDynamicMetricPrefixRegex();
+      _metricInfos.add(new BrooklinMeterInfo(prefix + NUM_ERRORS));
+      _metricInfos.add(new BrooklinMeterInfo(prefix + NUM_RETRIES));
+    }
+
+    private void registerGaugeMetrics() {
+      // Gauges must be eagerly created
+      ImmutableMap<String, Supplier<?>> gaugeMetrics = ImmutableMap.<String, Supplier<?>>builder()
+          .put(MAX_PARTITION_COUNT_IN_TASK, MAX_PARTITION_COUNT::get)
+          .put(NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get)
+          .put(IS_LEADER, () -> _coordinator.getIsLeader().getAsBoolean() ? 1 : 0)
+          .put(ZK_SESSION_EXPIRED, () -> _coordinator.isZkSessionExpired() ? 1 : 0)
+          .build();
+      gaugeMetrics.forEach(this::registerGauge);
+    }
+
+    private void registerCounterMetrics() {
+      // These metrics are eagerly created
+      Arrays.stream(Counter.values()).forEach(this::registerCounter);
+    }
+
+    private void registerMeter(Meter metric) {
+      String metricName = metric.getName();
+      _dynamicMetricsManager.registerMetric(MODULE, metricName, com.codahale.metrics.Meter.class);
+      _metricInfos.add(new BrooklinMeterInfo(_coordinator.buildMetricName(MODULE, metricName)));
+    }
+
+    private void registerGauge(String metricName, Supplier<?> valueSupplier) {
+      _dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier);
+      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
+    }
+
+    private void registerCounter(Counter metric) {
+      String metricName = metric.getName();
+      _dynamicMetricsManager.registerMetric(MODULE, metricName, com.codahale.metrics.Counter.class);
+      _metricInfos.add(new BrooklinCounterInfo(_coordinator.buildMetricName(MODULE, metricName)));
+    }
+
+    /**
+     * Coordinator metrics of type {@link com.codahale.metrics.Meter}
+     */
+    public enum Meter {
+      NUM_REBALANCES("numRebalances"),
+      NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
+      NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
+      NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
+      NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
+
+      private final String _name;
+
+      Meter(String name) {
+        _name = name;
+      }
+
+      public String getName() {
+        return _name;
+      }
+    }
+
+    /**
+     * Keyed Coordinator metrics of type {@link com.codahale.metrics.Meter}
+     */
+    public enum KeyedMeter {
+      HANDLE_DATASTREAM_ADD_OR_DELETE_NUM_RETRIES("handleDatastreamAddOrDelete", NUM_RETRIES),
+      HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES("handleLeaderDoAssignment", NUM_RETRIES, true),
+      HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES("handleLeaderPartitionAssignment", NUM_RETRIES, true),
+      HANDLE_LEADER_PARTITION_MOVEMENT_NUM_ERRORS("handleLeaderPartitionMovement", NUM_ERRORS),
+      HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES("handleLeaderPartitionMovement", NUM_RETRIES),
+      VALIDATE_DATASTREAMS_UPDATE_NUM_ERRORS("validateDatastreamsUpdate", NUM_ERRORS),
+      IS_PARTITION_ASSIGNMENT_SUPPORTED_NUM_ERRORS("isPartitionAssignmentSupported", NUM_ERRORS),
+      IS_DATASTREAM_UPDATE_TYPE_SUPPORTED_NUM_ERRORS("isDatastreamUpdateTypeSupported", NUM_ERRORS),
+      INITIALIZE_DATASTREAM_NUM_ERRORS("initializeDatastream", NUM_ERRORS),
+      /* Coordinator event metrics */
+      LEADER_DO_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_DO_ASSIGNMENT, NUM_ERRORS),
+      LEADER_PARTITION_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_ASSIGNMENT, NUM_ERRORS),
+      LEADER_PARTITION_MOVEMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_MOVEMENT, NUM_ERRORS),
+      HANDLE_ASSIGNMENT_CHANGE_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_ASSIGNMENT_CHANGE, NUM_ERRORS),
+      HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE, NUM_ERRORS),
+      HANDLE_ADD_OR_DELETE_DATASTREAM_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_ADD_OR_DELETE_DATASTREAM, NUM_ERRORS),
+      HANDLE_INSTANCE_ERROR_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_INSTANCE_ERROR, NUM_ERRORS),
+      HEARTBEAT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HEARTBEAT, NUM_ERRORS),
+      NO_OP_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.NO_OP, NUM_ERRORS);
+
+      private final String _key;
+      private final String _name;
+      private final boolean _isEagerlyRegistered;
+
+      KeyedMeter(String key, String name) {
+        this(key, name, false);
+      }
+
+      KeyedMeter(String key, String name, boolean isEagerlyRegistered) {
+        _key = key;
+        _name = name;
+        _isEagerlyRegistered = isEagerlyRegistered;
+      }
+
+      public String getKey() {
+        return _key;
+      }
+
+      public String getName() {
+        return _name;
+      }
+
+      public boolean isEagerlyRegistered() {
+        return _isEagerlyRegistered;
+      }
+    }
+
+    /**
+     * Coordinator metrics of type {@link com.codahale.metrics.Counter}
+     */
+    public enum Counter {
+      NUM_HEARTBEATS("numHeartbeats");
+
+      private final String _name;
+
+      Counter(String name) {
+        _name = name;
+      }
+
+      public String getName() {
+        return _name;
+      }
+    }
   }
 }

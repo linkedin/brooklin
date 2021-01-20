@@ -8,6 +8,7 @@ package com.linkedin.datastream.server;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +69,10 @@ public class InMemoryTransportProviderAdmin implements TransportProviderAdmin {
 
   @Override
   public void unassignTransportProvider(DatastreamTask task) {
+  }
+
+  @Override
+  public void unassignTransportProvider(List<DatastreamTask> taskList) {
   }
 
   @Override
