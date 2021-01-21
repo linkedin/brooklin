@@ -126,7 +126,7 @@ public class ScribeAvroParquetEventFile implements File {
             scribeParquetSchema, deserializedAvroGenericRecord);
         _parquetWriter.write(avroParquetRecord);
       } catch (Exception e) {
-        LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e));
+        LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s", aPackage.getTopic(), e));
       }
     }
 
