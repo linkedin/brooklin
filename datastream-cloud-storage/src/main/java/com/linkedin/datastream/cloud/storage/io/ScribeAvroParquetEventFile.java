@@ -37,7 +37,7 @@ public class ScribeAvroParquetEventFile implements File {
     private static final String CONFIG_SCHEMA_NAME_PREFIX = "schemaNamePrefix";
     private static final String CONFIG_PAGE_SIZE = "pageSize";
 
-    // 2.0 prefix
+    // scribe 2.0 subject prefix
     private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.v2.events.";
 
     private static final int DEFAULT_PAGE_SIZE = 64 * 1024;
@@ -53,15 +53,14 @@ public class ScribeAvroParquetEventFile implements File {
     private SchemaRegistryClient _schemaRegistryClient;
     private int _pageSize;
     private Schema scribeParquetSchema;
-    private String eventName;
 
-    /**
-     * Constructor for AvroParquetFile
-     *
-     * @param path path of the file
-     * @param props io configuration options
-     * @throws IOException
-     */
+  /**
+   * Constructor for AvroParquetFile
+   *
+   * @param path path of the file
+   * @param props io configuration options
+   * @throws IOException
+   */
     public ScribeAvroParquetEventFile(String path, VerifiableProperties props) throws IOException {
         this._path = new Path(path);
         this._parquetWriter = null;
@@ -72,24 +71,24 @@ public class ScribeAvroParquetEventFile implements File {
         this._deserializer = new KafkaAvroDeserializer(_schemaRegistryClient);
     }
 
-    /**
-     * Get Schema by kafka topic name
-     * Sample subject name in schema registry for scribe 2.0 events: scribe.v2.events.domain.eventName
-     * For example: scribe.v2.events.supply_chain.item_return_routes_requested, supply_chain is domain name and item_return_routes_requested is the eventname
-     * supply_chain-item_return_routes_requested is the topic name for above subject
-     * @param topic kafka topic
-     * @return
-     */
+  /**
+   * Get Schema by kafka topic name
+   * Sample subject name in schema registry for scribe 2.0 events: scribe.v2.events.domain.eventName
+   * For example: scribe.v2.events.supply_chain.item_return_routes_requested, supply_chain is domain name and item_return_routes_requested is the eventname
+   * supply_chain-item_return_routes_requested is the topic name for above subject
+   * @param topic kafka topic
+   * @return
+   */
     private Schema getSchemaByTopic(String topic) {
         String key = _schemaRegistryURL + "-" + (topic.replace("-","."));
         Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
-            try {
-                String schemaName = _schemaNamePrefix + topic ;
-                return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
-            } catch (Exception e) {
-                LOG.error("Unable to find schema for {} - {}", key, e);
-                return null;
-            }
+          try {
+            String schemaName = _schemaNamePrefix + topic ;
+            return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
+          } catch (Exception e) {
+            LOG.error("Unable to find schema for {} - {}", key, e);
+            return null;
+          }
         });
 
         if (schema == null) {
@@ -101,7 +100,7 @@ public class ScribeAvroParquetEventFile implements File {
           scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema);
           return scribeParquetSchema;
         } catch (Exception e) {
-          LOG.error("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
+          LOG.error(String.format("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: topic: %s, exception: %s", topic, e));
           return null;
         }
     }
@@ -127,7 +126,7 @@ public class ScribeAvroParquetEventFile implements File {
             scribeParquetSchema, deserializedAvroGenericRecord);
         _parquetWriter.write(avroParquetRecord);
       } catch (Exception e) {
-        LOG.error("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e);
+        LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: event: %s, exception: %s", eventName, e));
       }
     }
 
