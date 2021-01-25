@@ -1294,6 +1294,57 @@ public class ZkAdapter {
   }
 
   /**
+   * Check if the numTasks node exists for a given datastream
+   */
+  public boolean checkIfNumTasksExistForDatastream(String stream) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, stream);
+    return _zkclient.exists(numTasksPath);
+  }
+
+  /**
+   * Create or update the numTasks node for a given datastream
+   */
+  public void createOrUpdateNumTasksForDatastream(String stream, int numTasks) {
+    _zkclient.ensurePath(KeyBuilder.datastream(_cluster, stream));
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, stream);
+    if (!_zkclient.exists(numTasksPath)) {
+      _zkclient.create(numTasksPath, String.valueOf(numTasks), CreateMode.PERSISTENT);
+      LOG.info("{} successfully created the numTasks znode for datastream {} with value {}", _instanceName, stream,
+          numTasks);
+      return;
+    }
+    _zkclient.writeData(numTasksPath, String.valueOf(numTasks));
+  }
+
+  /**
+   * Get the numTasks node for a given datastream
+   */
+  public int getNumTasksForDatastream(String stream) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, stream);
+
+    if (!_zkclient.exists(numTasksPath)) {
+      return 0;
+    }
+
+    return Integer.parseInt(_zkclient.readData(numTasksPath));
+  }
+
+  /**
+   * Delete the numTasks node for a given datastream
+   */
+  public void deleteNumTasksForDatastream(String stream) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, stream);
+
+    if (!_zkclient.exists(numTasksPath)) {
+      LOG.warn("trying to delete znode of datastream numTasks that does not exist. Datastream name: " + stream);
+      return;
+    }
+
+    LOG.info("Deleting the zk path {} ", numTasksPath);
+    _zkclient.delete(numTasksPath);
+  }
+
+  /**
    * Clean up partition movement info for a particular datastream
    * @param connectorType Connector name
    * @param datastreamGroupName the name of datastream group
