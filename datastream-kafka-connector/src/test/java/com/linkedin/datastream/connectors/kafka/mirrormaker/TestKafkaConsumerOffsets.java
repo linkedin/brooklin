@@ -86,11 +86,16 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     String instance1 = "i1";
     String instance2 = "i2";
 
+    String datastream1 = "ds1";
+    String datastream2 = "ds2";
+    String datastream3 = "ds3";
+
     // constructing instance1 consumer offsets
     List<KafkaConsumerOffsetsResponse> responseList1 = new ArrayList<>();
 
-    // instance 1 consumer group 1
+    // instance 1; datastream 1
     Map<String, Map<Integer, Long>> topicPartitionOffsets1 = new HashMap<>();
+    Map<String, Map<Integer, Long>> consumptionLagsMap1 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets1 = new HashMap<>();
     partitionOffsets1.put(0, 10L);
@@ -102,10 +107,22 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets2.put(1, 10L);
     topicPartitionOffsets1.put(topic2, partitionOffsets2);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, topicPartitionOffsets1, consumerGroup1));
+    Map<Integer, Long> partitionLagMap1 = new HashMap<>();
+    partitionLagMap1.put(0, 100L);
+    partitionLagMap1.put(1, 100L);
+    consumptionLagsMap1.put(topic1, partitionLagMap1);
 
-    // instance 1 consumer group 2
+    Map<Integer, Long> partitionLagMap2 = new HashMap<>();
+    partitionLagMap2.put(0, 50L);
+    partitionLagMap2.put(1, 100L);
+    consumptionLagsMap1.put(topic2, partitionLagMap2);
+
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets1, topicPartitionOffsets1,
+        consumptionLagsMap1, consumerGroup1, datastream1));
+
+    // instance 1; datastream 2
     Map<String, Map<Integer, Long>> topicPartitionOffsets2 = new HashMap<>();
+    Map<String, Map<Integer, Long>> consumptionLagsMap2 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets3 = new HashMap<>();
     partitionOffsets3.put(0, 20L);
@@ -117,28 +134,53 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     partitionOffsets4.put(1, 20L);
     topicPartitionOffsets2.put(topic2, partitionOffsets4);
 
-    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, topicPartitionOffsets2, consumerGroup2));
+    Map<Integer, Long> partitionLagMap3 = new HashMap<>();
+    partitionLagMap3.put(0, 100L);
+    partitionLagMap3.put(1, 100L);
+    consumptionLagsMap2.put(topic1, partitionLagMap3);
+
+    Map<Integer, Long> partitionLagMap4 = new HashMap<>();
+    partitionLagMap4.put(0, 100L);
+    partitionLagMap4.put(1, 100L);
+    consumptionLagsMap2.put(topic2, partitionLagMap4);
+
+    responseList1.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets2, topicPartitionOffsets2,
+        consumptionLagsMap2, consumerGroup2, datastream2));
 
     // constructing instance2 consumer offsets
     List<KafkaConsumerOffsetsResponse> responseList2 = new ArrayList<>();
 
-    // instance 2 consumer group 1
+    // instance 2; datastream 1
     Map<String, Map<Integer, Long>> topicPartitionOffsets3 = new HashMap<>();
+    Map<String, Map<Integer, Long>> consumptionLagsMap3 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets5 = new HashMap<>();
     partitionOffsets5.put(2, 10L);
     partitionOffsets5.put(3, 10L);
     topicPartitionOffsets3.put(topic1, partitionOffsets5);
 
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, topicPartitionOffsets3, consumerGroup1));
+    Map<Integer, Long> partitionLagMap5 = new HashMap<>();
+    partitionLagMap5.put(2, 100L);
+    partitionLagMap5.put(3, 100L);
+    consumptionLagsMap3.put(topic1, partitionLagMap5);
 
-    // instance 2 consumer group 3
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets3, topicPartitionOffsets3,
+        consumptionLagsMap3, consumerGroup1, datastream1));
+
+    // instance 2; datastream 3
     Map<String, Map<Integer, Long>> topicPartitionOffsets4 = new HashMap<>();
+    Map<String, Map<Integer, Long>> consumptionLagMap4 = new HashMap<>();
 
     Map<Integer, Long> partitionOffsets6 = new HashMap<>();
     partitionOffsets6.put(0, 30L);
     topicPartitionOffsets4.put(topic2, partitionOffsets6);
-    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, topicPartitionOffsets4, consumerGroup3));
+
+    Map<Integer, Long> partitionLagMap6 = new HashMap<>();
+    partitionLagMap6.put(0, 60L);
+    consumptionLagMap4.put(topic2, partitionLagMap6);
+
+    responseList2.add(new KafkaConsumerOffsetsResponse(topicPartitionOffsets4, topicPartitionOffsets4,
+        consumptionLagMap4, consumerGroup3, datastream3));
 
     // reducing responses and asserting correctness
     Map<String, String> responseMap = new HashMap<>();
@@ -149,35 +191,43 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     List<KafkaConsumerOffsetsResponse> responseList =
         JsonUtils.fromJson(reducedMapJson, new TypeReference<List<KafkaConsumerOffsetsResponse>>() { });
 
-    Assert.assertEquals(responseList.size(), 3); // 3 consumer groups
+    Assert.assertEquals(responseList.size(), 3); // 3 datastreams expected
 
     KafkaConsumerOffsetsResponse cg1Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup1)).findAny().orElse(null);
     Assert.assertNotNull(cg1Response);
     Assert.assertEquals(cg1Response.getConsumedOffsets().keySet().size(), 2); // cg1 consumes both topics
     Assert.assertEquals(cg1Response.getCommittedOffsets().keySet().size(), 2);
+    Assert.assertEquals(cg1Response.getConsumptionLagMap().keySet().size(), 2);
     Assert.assertEquals(cg1Response.getConsumedOffsets().get(topic1).keySet().size(), 4); // cg1 consumes 4 partitions for topic 1
     Assert.assertEquals(cg1Response.getCommittedOffsets().get(topic1).keySet().size(), 4);
+    Assert.assertEquals(cg1Response.getConsumptionLagMap().get(topic1).keySet().size(), 4);
     Assert.assertEquals(cg1Response.getConsumedOffsets().get(topic2).keySet().size(), 2); // cg1 consumes 2 partitions for topic 2
     Assert.assertEquals(cg1Response.getCommittedOffsets().get(topic2).keySet().size(), 2);
+    Assert.assertEquals(cg1Response.getConsumptionLagMap().get(topic2).keySet().size(), 2);
 
     KafkaConsumerOffsetsResponse cg2Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup2)).findAny().orElse(null);
     Assert.assertNotNull(cg2Response);
     Assert.assertEquals(cg2Response.getConsumedOffsets().keySet().size(), 2); // cg2 consumers both topics
     Assert.assertEquals(cg2Response.getCommittedOffsets().keySet().size(), 2);
+    Assert.assertEquals(cg2Response.getConsumptionLagMap().keySet().size(), 2);
     Assert.assertEquals(cg2Response.getConsumedOffsets().get(topic1).keySet().size(), 2); // cg2 consumes 2 partitions for topic 1
     Assert.assertEquals(cg2Response.getCommittedOffsets().get(topic1).keySet().size(), 2);
+    Assert.assertEquals(cg2Response.getConsumptionLagMap().get(topic1).keySet().size(), 2);
     Assert.assertEquals(cg2Response.getConsumedOffsets().get(topic2).keySet().size(), 2); // cg2 consumes 2 partitions for topic 2
     Assert.assertEquals(cg2Response.getCommittedOffsets().get(topic2).keySet().size(), 2);
+    Assert.assertEquals(cg2Response.getConsumptionLagMap().get(topic2).keySet().size(), 2);
 
     KafkaConsumerOffsetsResponse cg3Response = responseList.stream().
         filter(r -> r.getConsumerGroupId().equals(consumerGroup3)).findAny().orElse(null);
     Assert.assertNotNull(cg3Response);
     Assert.assertEquals(cg3Response.getConsumedOffsets().keySet().size(), 1); // cg3 consumes only topic 2
     Assert.assertEquals(cg3Response.getCommittedOffsets().keySet().size(), 1);
+    Assert.assertEquals(cg3Response.getConsumptionLagMap().keySet().size(), 1);
     Assert.assertEquals(cg3Response.getConsumedOffsets().get(topic2).size(), 1); // cg3 consumes 1 partition for topic 2
     Assert.assertEquals(cg3Response.getCommittedOffsets().get(topic2).size(), 1);
+    Assert.assertEquals(cg3Response.getConsumptionLagMap().get(topic2).size(), 1);
   }
 
   private boolean testConsumerOffsetsAreUpdated(KafkaMirrorMakerConnector connector) {

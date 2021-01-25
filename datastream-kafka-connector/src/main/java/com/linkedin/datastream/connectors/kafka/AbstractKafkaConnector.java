@@ -229,15 +229,15 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
         if (isTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
-              datastreamTask);
+              datastreamTask.getDatastreamTaskName());
           boolean stopped = stopTask(datastreamTask, connectorTaskEntry);
           if (stopped) {
             deadDatastreamTasks.add(datastreamTask);
           } else {
-            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask);
+            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
           }
         } else {
-          _logger.info("Connector task for datastream task {} is healthy", datastreamTask);
+          _logger.info("Connector task for datastream task {} is healthy", datastreamTask.getDatastreamTaskName());
         }
       });
 
@@ -503,7 +503,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
         KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
         KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumedOffsets(),
-            tracker.getCommittedOffsets(), tracker.getConsumerGroupId());
+            tracker.getCommittedOffsets(), tracker.getConsumptionLag(), tracker.getConsumerGroupId(),
+            tracker.getDatastreamName());
         serializedResponses.add(response);
       });
     }

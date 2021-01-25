@@ -63,11 +63,11 @@ public class KafkaConnectorDiagUtils {
       responseList.forEach(response -> {
         if (response.getConsumedOffsets() == null || response.getConsumedOffsets().isEmpty()) {
           logger.warn("Empty consumer offset map from instance {}. Ignoring the result", instance);
-        } else if (StringUtils.isBlank(response.getConsumerGroupId())) {
-          logger.warn("Invalid consumer group id from instance {}, Ignoring the result", instance);
+        } else if (StringUtils.isBlank(response.getDatastreamName())) {
+          logger.warn("Invalid datastream name from instance {}, Ignoring the result", instance);
         } else {
-          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getConsumerGroupId(),
-              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId()));
+          KafkaConsumerOffsetsResponse reducedResponse = result.computeIfAbsent(response.getDatastreamName(),
+              k -> new KafkaConsumerOffsetsResponse(response.getConsumerGroupId(), response.getDatastreamName()));
 
           Map<String, Map<Integer, Long>> consumedOffsets = response.getConsumedOffsets();
           consumedOffsets.forEach((topic, partitionOffsets) -> {
@@ -81,6 +81,13 @@ public class KafkaConnectorDiagUtils {
             Map<String, Map<Integer, Long>> reducedCommittedOffsets = reducedResponse.getCommittedOffsets();
             Map<Integer, Long> reducedPartitionOffsets = reducedCommittedOffsets.computeIfAbsent(topic, k -> new HashMap<>());
             reducedPartitionOffsets.putAll(partitionOffsets);
+          });
+
+          Map<String, Map<Integer, Long>> consumptionLagMap = response.getConsumptionLagMap();
+          consumptionLagMap.forEach((topic, partitionLag) -> {
+            Map<String, Map<Integer, Long>> reducedConsumptionLagMap = reducedResponse.getConsumptionLagMap();
+            Map<Integer, Long> reducedPartitionLags = reducedConsumptionLagMap.computeIfAbsent(topic, k -> new HashMap<>());
+            reducedPartitionLags.putAll(partitionLag);
           });
         }
       });

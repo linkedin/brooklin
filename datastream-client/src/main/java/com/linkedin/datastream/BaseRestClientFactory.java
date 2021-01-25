@@ -167,9 +167,12 @@ public final class BaseRestClientFactory<T> {
   private void initHttpClientFactory() {
     ThreadFactory eventLoopThreadFactory = new DaemonNamedThreadFactory("R2 Nio Event Loop");
     ThreadFactory schedExecThreadFactory = new DaemonNamedThreadFactory("R2 Netty Scheduler");
+    ThreadFactory callbackThreadFactory = new DaemonNamedThreadFactory("R2 Callback");
+
     _httpClientFactory = new HttpClientFactory.Builder()
         .setNioEventLoopGroup(new NioEventLoopGroup(0, eventLoopThreadFactory))
         .setScheduleExecutorService(Executors.newSingleThreadScheduledExecutor(schedExecThreadFactory))
+        .setCallbackExecutor(Executors.newSingleThreadExecutor(callbackThreadFactory))
         .build();
   }
 

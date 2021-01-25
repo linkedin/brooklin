@@ -43,7 +43,7 @@ public class TestStickyMulticastStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(TestBroadcastStrategy.class.getName());
 
   @Test
-  public void testCreateAssignmentAcrossAllInstances() {
+  public void testCreateAssignmentAcrossAllInstances()  {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), Optional.empty());
@@ -473,6 +473,31 @@ public class TestStickyMulticastStrategy {
     instancesBySize.sort(Comparator.comparing(x -> newAssignment.get(x).size()));
     Assert.assertEquals(newAssignment.get(instancesBySize.get(0)).size(),
         newAssignment.get(instancesBySize.get(instances.size() - 1)).size());
+  }
+
+  @Test
+  public void testExtraTasksAreNotAssignedDuringReassignment() {
+    String[] instances = new String[]{"instance1"};
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.of(4), Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment1 =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment2 =
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+
+    for (String instance : instances) {
+      Set<DatastreamTask> assignmentTasks1 = assignment1.get(instance);
+      Set<DatastreamTask> assignmentTasks2 = assignment2.get(instance);
+      Assert.assertEquals(assignmentTasks1.size(), assignmentTasks2.size());
+      Assert.assertEquals(assignmentTasks1.size(), 4 * 5);
+      assignmentTasks1.addAll(assignmentTasks2);
+    }
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment1);
+    for (String instance : instances) {
+      Set<DatastreamTask> newassignmentTasks = newAssignment.get(instance);
+      Assert.assertEquals(newassignmentTasks.size(), 4 * 5);
+    }
   }
 
   private static String assignmentToString(Map<String, Set<DatastreamTask>> assignment) {
