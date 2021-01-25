@@ -35,7 +35,11 @@ public class ScribeAvroParquetEventFile implements File {
 
     private static final String CONFIG_SCHEMA_REGISTRY_URL = "schemaRegistryURL";
     private static final String CONFIG_SCHEMA_NAME_PREFIX = "schemaNamePrefix";
-    private static final String CONFIG_PAGE_SIZE = "pageSize";
+//    private static final String CONFIG_SCHEMA_NAME_SUFFIX = "schemaNameSuffix";
+//    private static final String DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX = "-value";
+
+
+  private static final String CONFIG_PAGE_SIZE = "pageSize";
 
     // scribe 2.0 subject prefix
     private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.v2.events.";
@@ -50,6 +54,8 @@ public class ScribeAvroParquetEventFile implements File {
 
     private KafkaAvroDeserializer _deserializer;
     private String _schemaNamePrefix;
+    private String _schemaNameSuffix;
+
     private SchemaRegistryClient _schemaRegistryClient;
     private int _pageSize;
     private Schema scribeParquetSchema;
@@ -66,7 +72,8 @@ public class ScribeAvroParquetEventFile implements File {
         this._parquetWriter = null;
         this._schemaRegistryURL = props.getString(CONFIG_SCHEMA_REGISTRY_URL);
         this._schemaRegistryClient = new CachedSchemaRegistryClient(_schemaRegistryURL, Integer.MAX_VALUE);
-        this._schemaNamePrefix = props.getString(CONFIG_SCHEMA_NAME_PREFIX, DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX);
+        //this._schemaNameSuffix = props.getString(CONFIG_SCHEMA_NAME_SUFFIX, DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX);
+        //this._schemaNamePrefix = props.getString(CONFIG_SCHEMA_NAME_PREFIX, DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX);
         this._pageSize = props.getInt(CONFIG_PAGE_SIZE, DEFAULT_PAGE_SIZE);
         this._deserializer = new KafkaAvroDeserializer(_schemaRegistryClient);
     }
@@ -76,17 +83,44 @@ public class ScribeAvroParquetEventFile implements File {
    * Sample subject name in schema registry for scribe 2.0 events: scribe.v2.events.domain.eventName
    * For example: scribe.v2.events.supply_chain.item_return_routes_requested, supply_chain is domain name and item_return_routes_requested is the eventname
    * supply_chain-item_return_routes_requested is the topic name for above subject
+   * scribe.v2.events.scribe_internal.test
    * @param topic kafka topic
    * @return
    */
     private Schema getSchemaByTopic(String topic) {
-        String key = _schemaRegistryURL + "-" + (topic.replace("-","."));
-        Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
+//      String key = _schemaRegistryURL + "-" + topic;
+//      Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
+//        try {
+//          String schemaName = topic + _schemaNameSuffix;
+//          return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
+//        } catch (Exception e) {
+//          LOG.error("Unable to find schema for {} - {}", key, e);
+//          return null;
+//        }
+//      });
+//      if (schema == null) {
+//        throw new IllegalStateException("Avro schema not found for topic " + topic);
+//      }
+//      try {
+//        // call the function to generate parquet compatible avro schema
+//        // Testing with exploded nested object
+//        scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema);
+//        return scribeParquetSchema;
+//      } catch (Exception e) {
+//        LOG.error(String.format("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: topic: %s, exception: %s", topic, e));
+//        return null;
+//      }
+
+        //String key = _schemaRegistryURL + (topic.replace("-","."));
+        String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-",".") ;
+        LOG.info("scribe kafka key: " + schemaName);
+        Schema schema =  SCHEMAS.computeIfAbsent(schemaName, (k) -> {
           try {
-            String schemaName = _schemaNamePrefix + topic ;
+            //String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-",".") ;
+            //LOG.info("scribe schemaName: " + schemaName);
             return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
           } catch (Exception e) {
-            LOG.error("Unable to find schema for {} - {}", key, e);
+            LOG.error("Unable to find schema for {} - {}", schemaName, e);
             return null;
           }
         });
@@ -120,14 +154,17 @@ public class ScribeAvroParquetEventFile implements File {
               .withPageSize(_pageSize)
               .build();
         }
+        LOG.info("Before derializing avro msg paquetWriter " + aPackage.getTopic());
         GenericRecord deserializedAvroGenericRecord = (GenericRecord) _deserializer.deserialize(
             aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
         GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
             scribeParquetSchema, deserializedAvroGenericRecord);
+        LOG.info("Before writing paquetWriter " + aPackage.getTopic());
         _parquetWriter.write(avroParquetRecord);
       } catch (Exception e) {
         LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s", aPackage.getTopic(), e));
       }
+      LOG.info("Coming out from writing paquetWriter " + aPackage.getTopic());
     }
 
     @Override

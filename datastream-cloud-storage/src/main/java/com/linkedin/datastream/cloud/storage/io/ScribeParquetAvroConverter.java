@@ -43,11 +43,14 @@ public class ScribeParquetAvroConverter {
               .type()
               .optional()
               .array().items(elementTypeSchema);
+          //LOG.info("Getting fieldAssembler for array<record> field: " + field.name());
         } else {
           getFieldAssemblerForRecord(isNotNullable, fieldSchema, field, fieldAssembler);
+          //LOG.info("Getting fieldAssembler for array field: " + field.name());
         }
       } else if (typeName.equalsIgnoreCase("MAP")) {
         getFieldAssemblerForRecord(isNotNullable, fieldSchema, field, fieldAssembler);
+        //LOG.info("Getting fieldAssembler for map field: " + field.name());
       } else if (typeName.equalsIgnoreCase("RECORD")) {
         if (fieldSchema.getName().equalsIgnoreCase("scribe_header")) {
           List<Schema.Field> headerFields = fieldSchema.getFields();
@@ -63,9 +66,16 @@ public class ScribeParquetAvroConverter {
               fieldAssembler = getFieldAssembler(isHeaderFieldNotNullable, headerField.schema(), headerField, fieldAssembler);
             }
           }
+          //LOG.info("**************SCRIBE HEADER *****************" + field.name());
         } else {
-          Schema recordSchema = generateParquetStructuredAvroSchema(fieldSchema);
-          getFieldAssemblerForRecord(isNotNullable, recordSchema, field, fieldAssembler);
+          try {
+            Schema recordSchema = generateParquetStructuredAvroSchema(fieldSchema);
+            getFieldAssemblerForRecord(isNotNullable, recordSchema, field, fieldAssembler);
+          } catch (Exception e) {
+            LOG.error("Unable to convert nested object avro schema to parquet for field: " + field.name());
+          }
+
+          //LOG.info("Getting fieldassembler for record" + field.name());
           // For nested objects
         }
       } else if (typeName.equalsIgnoreCase("LONG")) {
@@ -79,8 +89,10 @@ public class ScribeParquetAvroConverter {
         } else {
           getFieldAssemblerForPrimitives(isNotNullable, typeName, field, fieldAssembler);
         }
+        //LOG.info("Getting fieldassembler for long" + field.name());
       } else {
         getFieldAssemblerForPrimitives(isNotNullable, typeName, field, fieldAssembler);
+        //LOG.info("Getting fieldassembler for primitves" + field.name());
       }
     } catch (Exception e) {
       LOG.error(String.format("Exception in converting avro field schema to parquet in ScribeParquetAvroConverter: field: %s, exception: %s", field.name(), e));
@@ -150,7 +162,7 @@ public class ScribeParquetAvroConverter {
    */
   public static Schema generateParquetStructuredAvroSchema(Schema schema) {
     Schema parquetAvroSchema;
-
+    LOG.info("generateParquetStructuredAvroSchema schema for event: " + schema.getName());
     try {
       SchemaBuilder.FieldAssembler<Schema> fieldAssembler = SchemaBuilder.record(schema.getName())
           .namespace(schema.getNamespace())
@@ -172,6 +184,7 @@ public class ScribeParquetAvroConverter {
         }
       }
       parquetAvroSchema = fieldAssembler.endRecord();
+      //LOG.info("generateParquetStructuredAvroSchema schema for event: " + schema.getName() + "schema --->" + schema);
       return parquetAvroSchema;
     } catch (Exception e) {
       LOG.error(String.format("Exception in converting avro schema to parquet format in ScribeParquetAvroConverter: Schema: %s, exception: %s", schema.getName(), e));
@@ -208,11 +221,13 @@ public class ScribeParquetAvroConverter {
    * @throws Exception
    */
   public static GenericRecord generateParquetStructuredAvroData(Schema schema, GenericRecord avroRecord) {
+    LOG.info("Input avrorecord generateParquetStructuredAvroData for: " + avroRecord);
     GenericRecord record = new GenericData.Record(schema);
-
+    LOG.info("Strting generateParquetStructuredAvroData for: " + schema.getName());
     GenericRecord scribeHeaderRecord = null;
     if (avroRecord.get(SCRIBE_HEADER) != null) {
       scribeHeaderRecord = getScribeHeaderParquetData(avroRecord);
+      LOG.info("Getting  scribeHeaderRecord: " + scribeHeaderRecord);
     }
 
     // Get fields from schema
@@ -255,8 +270,10 @@ public class ScribeParquetAvroConverter {
                   }
                 }
                 record.put(fieldName, nestedObjectArray);
+                //LOG.info("array<nestedobject> Conversion to parquet fieldName: " + fieldName + ": " + nestedObjectArray);
               } else {
                 record.put(fieldName, avroRecord.get(fieldName));
+                //LOG.info("array<primitive> Conversion to parquet fieldName: " + fieldName + ": " + avroRecord.get(fieldName));
               }
             } else if (avroTypeName.equalsIgnoreCase("LONG")) {
               // For timestamp fields we need to check for logical type in avroschema, to convert to string in parquet
@@ -271,25 +288,31 @@ public class ScribeParquetAvroConverter {
                   result = convertDateTimeToString(value);
                 }
                 record.put(fieldName, result);
+                //LOG.info("Timestamp Conversion to parquet fieldName: " + fieldName + ": " + result);
               } else {
                 record.put(fieldName, avroRecord.get(fieldName));
+                //LOG.info("Long Conversion to parquet fieldName: " + fieldName + ": " + avroRecord.get(fieldName));
               }
             } else if (avroTypeName.equalsIgnoreCase("RECORD") && avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
               record.put(fieldName, scribeHeaderRecord.get(fieldName));
+              //LOG.info("Scribe header Conversion to parquet fieldName: " + fieldName + ": " +scribeHeaderRecord.get(fieldName));
             } else if (avroTypeName.equalsIgnoreCase("RECORD")) {
               //convert fields inside nested object to parquet data
               GenericRecord nestedRecord = (GenericRecord) avroRecord.get(fieldName);
               Schema nestedRecordschema = schema.getField(fieldName).schema().isUnion() ? schema.getField(fieldName).schema().getTypes().get(1) : schema.getField(fieldName).schema();
               record.put(fieldName, generateParquetStructuredAvroData(nestedRecordschema, nestedRecord));
+              //LOG.info("Nested object Conversion to parquet fieldName: " + fieldName + ": " +avroRecord.get(fieldName));
             } else {
               // this is for primitive data types which do not need any conversion
               record.put(fieldName, avroRecord.get(fieldName));
+              //LOG.info("Primitive Conversion to parquet fieldName: " + fieldName + ": " + avroRecord.get(fieldName));
             }
           } catch (Exception e) {
             LOG.error(String.format("Exception in converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s, field: %s, typeName: %s, exception: %s", schema.getName(), fieldName, avroTypeName, e));
           }
         }
       }
+      //LOG.info("Conversion to parquet record completed: " + record);
     }
     return record;
   }
@@ -300,9 +323,11 @@ public class ScribeParquetAvroConverter {
    * @return Parquet-format record
    */
   public static GenericRecord getScribeHeaderParquetData(GenericRecord avroRecord) {
+    LOG.info("Inside getScribeHeaderParquetData");
     Schema scribeHeaderSchema = avroRecord.getSchema().getField(SCRIBE_HEADER).schema();
+    LOG.info("Header Schema in getScribeHeaderParquetData " + scribeHeaderSchema.getName());
     Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) : scribeHeaderSchema;
-
+    LOG.info("Header Type Schema in getScribeHeaderParquetData " + scribeHeaderTypeSchema.getName());
     return generateParquetStructuredAvroData(scribeHeaderTypeSchema, (GenericRecord) avroRecord.get(SCRIBE_HEADER));
   }
 

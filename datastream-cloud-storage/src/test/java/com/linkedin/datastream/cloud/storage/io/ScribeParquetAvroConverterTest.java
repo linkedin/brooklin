@@ -41,6 +41,20 @@ public class ScribeParquetAvroConverterTest {
   }
 
   @Test
+  public void testScribeInternalTestParquetStructuredAvroSchema() throws Exception {
+    Schema scribeInternalTestSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/scribeInternalTest.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(scribeInternalTestSchema);
+
+    Schema expected = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/scribeInternalTestParquet.avsc"), StandardCharsets.UTF_8)
+    );
+    assertEquals(expected, actual);
+  }
+
+  @Test
   public void testPageViewGenerateParquetStructuredAvroSchema() throws Exception {
     Schema pageViewSchema = schemaParser.parse(
         Resources.toString(Resources.getResource("avroschemas/PageViewEvent.avsc"), StandardCharsets.UTF_8)
@@ -506,6 +520,217 @@ public class ScribeParquetAvroConverterTest {
     expected.put("staging", true);
     expected.put("notificationType", "Test123");
 
+
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testScribeInternalTestGenerateParquetStructuredAvroData() throws Exception {
+    Schema avroScribeInternalTestSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/scribeInternalTest.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema nestedscribeHeader = getSchemaForNestedObjects(avroScribeInternalTestSchema, "scribeHeader");
+    Schema testNested = getSchemaForNestedObjects(avroScribeInternalTestSchema, "requiredNested");
+    Schema testDeeplyNested = getSchemaForNestedObjects(testNested, "testDeeplyNested");
+
+    //Schema nestedRoute = getSchemaForNestedObjects(nestedUpdatedRoute, "route");
+    //Schema nestedFinalRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "finalRoutes");
+
+    List<Utf8> list = new ArrayList<>();
+    list.add(new Utf8("deepnested-1"));
+    list.add(new Utf8("deepnested-2"));
+    GenericArray<Utf8> listStringDeeplyNested = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
+
+    Map<String, String> testStringMap = new HashMap();
+    testStringMap.put("key-1", "value-1");
+    testStringMap.put("key-2", "value-2");
+
+    GenericRecord scribeHeaderInput = null;
+    if (nestedscribeHeader != null) {
+      scribeHeaderInput = new GenericData.Record(nestedscribeHeader);
+      scribeHeaderInput.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+      scribeHeaderInput.put("eventName", "test");
+      scribeHeaderInput.put("eventTimestamp", 1494843212576L);
+      scribeHeaderInput.put("receivedTimestamp", 1494843212579L);
+      scribeHeaderInput.put("dataClassification", 1);
+      scribeHeaderInput.put("domain", "scribe_internal");
+      scribeHeaderInput.put("avroSchemaVersion", 2);
+      scribeHeaderInput.put("scribeClientVersion", "trail_1");
+    }
+
+    GenericRecord testDeeplyNestedInput = null;
+    if (testDeeplyNested != null) {
+      testDeeplyNestedInput = new GenericData.Record(testDeeplyNested);
+      testDeeplyNestedInput.put("requiredTestStringDeeplyNested", "deeplyNested");
+      testDeeplyNestedInput.put("requiredTestListStringDeeplyNested", listStringDeeplyNested);
+      testDeeplyNestedInput.put("testStringDeeplyNested", "non-req");
+      testDeeplyNestedInput.put("testBooleanDeeplyNested", true);
+      testDeeplyNestedInput.put("testIntDeeplyNested", 45);
+      testDeeplyNestedInput.put("testLongDeeplyNested", 234L);
+
+      testDeeplyNestedInput.put("testDoubleDeeplyNested", 56.65);
+      testDeeplyNestedInput.put("testUuidDeeplyNested", "e82f044e-4e98-3f9e-a1e4-9a3809d075b8");
+      testDeeplyNestedInput.put("testTimestampDeeplyNested", 1494843212576L);
+      testDeeplyNestedInput.put("testListStringDeeplyNested", listStringDeeplyNested);
+      testDeeplyNestedInput.put("testListUuidDeeplyNested", listStringDeeplyNested);
+      testDeeplyNestedInput.put("testMapStringDeeplyNested", testStringMap);
+      testDeeplyNestedInput.put("testMapUuidDeeplyNested", testStringMap);
+    }
+
+    List<GenericRecord> listDeeplyNested = new ArrayList<>();
+    listDeeplyNested.add(testDeeplyNestedInput);
+    GenericArray<GenericRecord> deeplyNestedArray = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNested);
+
+
+    GenericRecord requiredNestedInput = null;
+    if (testNested != null) {
+      requiredNestedInput = new GenericData.Record(testNested);
+      requiredNestedInput.put("requiredTestStringNested", "nested");
+      requiredNestedInput.put("requiredTestListStringNested", listStringDeeplyNested);
+      requiredNestedInput.put("testDeeplyNested", testDeeplyNestedInput);
+      requiredNestedInput.put("testListDeeplyNested", deeplyNestedArray);
+      requiredNestedInput.put("testStringNested", "pending");
+      requiredNestedInput.put("testBooleanNested", false);
+
+      requiredNestedInput.put("testIntNested", 5665);
+      requiredNestedInput.put("testLongNested", 5L);
+      requiredNestedInput.put("testDoubleNested", 4.7);
+      requiredNestedInput.put("testUuidNested", "uuid");
+      requiredNestedInput.put("testTimestampNested", 1494843212579L);
+      requiredNestedInput.put("testListStringNested", listStringDeeplyNested);
+
+      requiredNestedInput.put("testListUuidNested", listStringDeeplyNested);
+      requiredNestedInput.put("testMapStringNested", testStringMap);
+      requiredNestedInput.put("testMapUuidNested", testStringMap);
+    }
+
+
+    List<GenericRecord> listTestListNested = new ArrayList<>();
+    listTestListNested.add(requiredNestedInput);
+    GenericArray<GenericRecord> listTestNestedGenericArray = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestListNested);
+
+    GenericRecord input = new GenericData.Record(avroScribeInternalTestSchema);
+
+    input.put("scribeHeader", scribeHeaderInput);
+    input.put("requiredTestString", "test_string");
+    input.put("requiredTestListString", listStringDeeplyNested);
+    input.put("requiredNested", requiredNestedInput);
+    input.put("testNested", requiredNestedInput);
+    input.put("testListNested", listTestNestedGenericArray);
+
+    input.put("testString", "testString");
+    input.put("testBoolean", true);
+    input.put("testInt", 12);
+    input.put("testLong", 34L);
+    input.put("testDouble", 23.45);
+    input.put("testUuid", "method");
+    input.put("testTimestamp", 1494843212579L);
+    input.put("testListString", listStringDeeplyNested);
+    input.put("testListUuid", listStringDeeplyNested);
+    input.put("testMapString", testStringMap);
+    input.put("testMapUuid", testStringMap);
+
+    Schema parquetScribeInternalTestSchema = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/scribeInternalTestParquet.avsc"), StandardCharsets.UTF_8)
+    );
+
+    //Schema nestedscribeHeaderExpected = getSchemaForNestedObjects(parquetScribeInternalTestSchema, "scribeHeader");
+    Schema testNestedExpected = getSchemaForNestedObjects(parquetScribeInternalTestSchema, "requiredNested");
+    Schema testDeeplyNestedExpected = getSchemaForNestedObjects(testNested, "testDeeplyNested");
+
+    List<Utf8> listExpected = new ArrayList<>();
+    listExpected.add(new Utf8("deepnested-1"));
+    listExpected.add(new Utf8("deepnested-2"));
+    GenericArray<Utf8> listStringDeeplyNestedExpected = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), listExpected);
+
+    Map<String, String> testStringMapExpected = new HashMap();
+    testStringMapExpected.put("key-1", "value-1");
+    testStringMapExpected.put("key-2", "value-2");
+
+    GenericRecord testDeeplyNestedExp = null;
+    if (testDeeplyNestedExpected != null) {
+      testDeeplyNestedExp = new GenericData.Record(testDeeplyNestedExpected);
+      testDeeplyNestedExp.put("requiredTestStringDeeplyNested", "deeplyNested");
+      testDeeplyNestedExp.put("requiredTestListStringDeeplyNested", listStringDeeplyNestedExpected);
+      testDeeplyNestedExp.put("testStringDeeplyNested", "non-req");
+      testDeeplyNestedExp.put("testBooleanDeeplyNested", true);
+      testDeeplyNestedExp.put("testIntDeeplyNested", 45);
+      testDeeplyNestedExp.put("testLongDeeplyNested", 234L);
+
+      testDeeplyNestedExp.put("testDoubleDeeplyNested", 56.65);
+      testDeeplyNestedExp.put("testUuidDeeplyNested", "e82f044e-4e98-3f9e-a1e4-9a3809d075b8");
+      testDeeplyNestedExp.put("testTimestampDeeplyNested", "2017-05-15 06:13:32.576 -0400");
+      testDeeplyNestedExp.put("testListStringDeeplyNested", listStringDeeplyNestedExpected);
+      testDeeplyNestedExp.put("testListUuidDeeplyNested", listStringDeeplyNestedExpected);
+      testDeeplyNestedExp.put("testMapStringDeeplyNested", testStringMapExpected);
+      testDeeplyNestedExp.put("testMapUuidDeeplyNested", testStringMapExpected);
+    }
+
+    List<GenericRecord> listDeeplyNestedExpected = new ArrayList<>();
+    listDeeplyNestedExpected.add(testDeeplyNestedExp);
+    GenericArray<GenericRecord> deeplyNestedArrayExpected = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNestedExpected);
+
+
+    GenericRecord requiredNestedExp = null;
+    if (testNestedExpected != null) {
+      requiredNestedExp = new GenericData.Record(testNestedExpected);
+      requiredNestedExp.put("requiredTestStringNested", "nested");
+      requiredNestedExp.put("requiredTestListStringNested", listStringDeeplyNestedExpected);
+      requiredNestedExp.put("testDeeplyNested", testDeeplyNestedExp);
+      requiredNestedExp.put("testListDeeplyNested", deeplyNestedArrayExpected);
+      requiredNestedExp.put("testStringNested", "pending");
+      requiredNestedExp.put("testBooleanNested", false);
+
+      requiredNestedExp.put("testIntNested", 5665);
+      requiredNestedExp.put("testLongNested", 5L);
+      requiredNestedExp.put("testDoubleNested", 4.7);
+      requiredNestedExp.put("testUuidNested", "uuid");
+      requiredNestedExp.put("testTimestampNested", "2017-05-15 06:13:32.579 -0400");
+      requiredNestedExp.put("testListStringNested", listStringDeeplyNestedExpected);
+
+      requiredNestedExp.put("testListUuidNested", listStringDeeplyNestedExpected);
+      requiredNestedExp.put("testMapStringNested", testStringMapExpected);
+      requiredNestedExp.put("testMapUuidNested", testStringMapExpected);
+    }
+
+
+    List<GenericRecord> listTestNested = new ArrayList<>();
+    listTestNested.add(requiredNestedExp);
+    GenericArray<GenericRecord> listTestNestedGenericArrayExp = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestNested);
+
+    GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetScribeInternalTestSchema, input);
+
+
+    GenericRecord expected = new GenericData.Record(parquetScribeInternalTestSchema);
+    //exploded header fields
+    expected.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("eventName", "test");
+    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("receivedTimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("dataClassification", 1);
+    expected.put("domain", "scribe_internal");
+    expected.put("avroSchemaVersion", 2);
+    expected.put("scribeClientVersion", "trail_1");
+
+
+    expected.put("requiredTestString", "test_string");
+    expected.put("requiredTestListString", listStringDeeplyNestedExpected);
+    expected.put("requiredNested", requiredNestedExp);
+    expected.put("testNested", requiredNestedExp);
+    expected.put("testListNested", listTestNestedGenericArrayExp);
+
+    expected.put("testString", "testString");
+    expected.put("testBoolean", true);
+    expected.put("testInt", 12);
+    expected.put("testLong", 34L);
+    expected.put("testDouble", 23.45);
+    expected.put("testUuid", "method");
+    expected.put("testTimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("testListString", listStringDeeplyNestedExpected);
+    expected.put("testListUuid", listStringDeeplyNestedExpected);
+    expected.put("testMapString", testStringMapExpected);
+    expected.put("testMapUuid", testStringMapExpected);
 
     assertEquals(expected, actual);
   }

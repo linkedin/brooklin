@@ -140,6 +140,10 @@ public class ObjectBuilder extends Thread {
                 LOG.error("Unable to write to WriteLog {}", e);
                 aPackage.getAckCallback().onCompletion(new DatastreamRecordMetadata(
                         aPackage.getCheckpoint(), aPackage.getTopic(), aPackage.getPartition()), e);
+//            } catch (Exception e) {
+//                LOG.error("Unable to write to WriteLog {}", e);
+//                aPackage.getAckCallback().onCompletion(new DatastreamRecordMetadata(
+//                          aPackage.getCheckpoint(), aPackage.getTopic(), aPackage.getPartition()), e);
             }
         }
         LOG.info("Object builder stopped.");

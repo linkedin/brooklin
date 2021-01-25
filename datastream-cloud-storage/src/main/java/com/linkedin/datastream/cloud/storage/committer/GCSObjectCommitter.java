@@ -121,12 +121,15 @@ public class GCSObjectCommitter implements ObjectCommitter {
                                         boolean isScribeParquetFileStructure) {
         String prefix = destination.substring(destination.indexOf("/") + 1);
 
-        // scribe parquet file structure: events/scribeKafkatopic/eventdate=2020-12-21/scribeKafkatopic+partition+startOffset+endOffset+suffix.parquet
-        if (isScribeParquetFileStructure) {
+      // scribe parquet file structure: events/eventName/eventdate=2020-12-21/scribeKafkatopic+partition+startOffset+endOffset+suffix.parquet
+      // scribe_internal-test
+      if (isScribeParquetFileStructure) {
+            String eventName = topic.split("-")[1];
+            LOG.info("EventName for topic in GCSObjectCommitter: " + eventName);
             return new StringBuilder()
                 .append(prefix)
                 .append("/")
-                .append(topic)
+                .append(eventName)
                 .append("/eventdate=")
                 .append(java.time.LocalDate.now())
                 .append("/")
