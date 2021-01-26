@@ -841,6 +841,81 @@ public class TestCoordinator {
     instance3.getDatastreamCache().getZkclient().close();
   }
 
+  @Test
+  public void testCoordinationWithElasticTaskAssignmentPartitionAssignment() throws Exception {
+    String testCluster = "testCoordinationSmokeElasticTask";
+    String testConnectorType = "testConnectorType";
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+    int initialDelays = 100;
+
+    List<String> partitions1 = ImmutableList.of("t-0", "t-1", "t-2", "t-3", "t-4", "t-5", "t-6", "t-7", "t-8");
+    List<String> partitions2 = ImmutableList.of("p-0", "p-1", "p-2", "p-3", "t-0");
+    Map<String, List<String>> partitions = new HashMap<>();
+    partitions.put("datastream42", partitions1);
+    partitions.put("datastream43", partitions2);
+
+    TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
+
+    int partitionsPerTask = 4;
+    int fullnessFactorPct = 50;
+    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
+        Optional.of(fullnessFactorPct)), false, new SourceBasedDeduper(), null);
+    instance1.start();
+
+    Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
+    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
+        Optional.of(fullnessFactorPct)), false, new SourceBasedDeduper(), null);
+    instance2.start();
+
+    Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
+    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.empty(),
+            Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
+            Optional.of(fullnessFactorPct)), false,
+        new SourceBasedDeduper(), null);
+    instance3.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    List<TestHookConnector> connectors = new ArrayList<>();
+    connectors.add(connector1);
+    connectors.add(connector2);
+    connectors.add(connector3);
+
+    int minTasks = 3;
+    Datastream[] datastreams = DatastreamTestUtils.createDatastreams(testConnectorType, "datastream42", "datastream43");
+    for (Datastream ds : datastreams) {
+      ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
+      ds.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
+    }
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams);
+
+    Assert.assertTrue(waitTillAssignmentIsComplete(9, WAIT_TIMEOUT_MS, connectors.toArray(new TestHookConnector[connectors.size()])));
+
+    final long interval = Math.min(WAIT_TIMEOUT_MS, 1000);
+
+    Assert.assertTrue(
+        PollUtils.poll(() -> {
+          // Verify all the partitions are assigned
+          Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
+          return assignment2.get("datastream42").size() == partitions1.size() && assignment2.get("datastream43").size() == partitions2.size();
+        }, interval, WAIT_TIMEOUT_MS));
+
+    instance1.stop();
+    instance2.stop();
+    instance3.stop();
+
+    DatastreamTestUtils.deleteDatastreamsNumTasks(zkClient, testCluster, "datastream42", "datastream43");
+
+    zkClient.close();
+    instance1.getDatastreamCache().getZkclient().close();
+    instance2.getDatastreamCache().getZkclient().close();
+    instance3.getDatastreamCache().getZkclient().close();
+  }
+
   private TestHookConnector createConnectorWithPartitionListener(String name, String connectorType,
       Map<String, List<String>> partitions, int initialDelayMs) {
     return new TestHookConnector(name, connectorType) {

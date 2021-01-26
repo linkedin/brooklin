@@ -1314,6 +1314,8 @@ public class ZkAdapter {
       return;
     }
     _zkclient.writeData(numTasksPath, String.valueOf(numTasks));
+    LOG.info("{} successfully updated the numTasks znode for datastream {} with value {}", _instanceName, stream,
+        numTasks);
   }
 
   /**
@@ -1336,7 +1338,7 @@ public class ZkAdapter {
     String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, stream);
 
     if (!_zkclient.exists(numTasksPath)) {
-      LOG.warn("trying to delete znode of datastream numTasks that does not exist. Datastream name: " + stream);
+      LOG.warn("Trying to delete znode of datastream numTasks that does not exist. Datastream name: " + stream);
       return;
     }
 

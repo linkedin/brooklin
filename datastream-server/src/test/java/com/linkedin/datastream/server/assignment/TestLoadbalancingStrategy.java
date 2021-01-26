@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,7 +71,8 @@ public class TestLoadbalancingStrategy {
     List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
     }
@@ -87,7 +89,8 @@ public class TestLoadbalancingStrategy {
     strategyProps.put(LoadbalancingStrategy.CFG_MIN_TASKS, "12");
     LoadbalancingStrategy strategy = new LoadbalancingStrategy(strategyProps);
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 4);
     }
@@ -102,7 +105,8 @@ public class TestLoadbalancingStrategy {
     List<DatastreamGroup> datastreams = Collections.singletonList(new DatastreamGroup(Collections.singletonList(ds1)));
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     List<String> sortedInstances = Arrays.asList(instances);
     Collections.sort(sortedInstances);
@@ -122,7 +126,8 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -131,7 +136,8 @@ public class TestLoadbalancingStrategy {
 
     String[] newInstances = new String[]{"instance1", "instance2"};
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+        strategy.assign(datastreams, Arrays.asList(newInstances), assignment,
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     Assert.assertEquals(newAssignment.get(newInstances[0]).size(), 3);
     Assert.assertEquals(newAssignment.get(newInstances[1]).size(), 3);
@@ -147,7 +153,8 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -157,7 +164,8 @@ public class TestLoadbalancingStrategy {
     // Simulate some data corruption.
     assignment.get(instances[0]).clear();
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(instances), assignment);
+        strategy.assign(datastreams, Arrays.asList(instances), assignment,
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     // For the moment the assumption is that the system will not create new tasks
     // and just re-distribute the existing tasks over all the instances.
@@ -176,7 +184,8 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -185,7 +194,8 @@ public class TestLoadbalancingStrategy {
 
     String[] newInstances = new String[]{"instance1", "instance2", "instance3", "instance4"};
     Map<String, Set<DatastreamTask>> newAssignment =
-        strategy.assign(datastreams, Arrays.asList(newInstances), assignment);
+        strategy.assign(datastreams, Arrays.asList(newInstances), assignment,
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : newInstances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 1);
@@ -202,7 +212,8 @@ public class TestLoadbalancingStrategy {
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 2);
@@ -215,7 +226,8 @@ public class TestLoadbalancingStrategy {
     ds2.getSource().setPartitions(12);
     datastreams.add(new DatastreamGroup(Collections.singletonList(ds2)));
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 4);
@@ -235,7 +247,8 @@ public class TestLoadbalancingStrategy {
         datastreams.stream().map(x -> new DatastreamGroup(Collections.singletonList(x))).collect(Collectors.toList());
     LoadbalancingStrategy strategy = new LoadbalancingStrategy();
     ZkAdapter adapter = createMockAdapter();
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(dgs, Arrays.asList(instances), new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(dgs, Arrays.asList(instances), new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, dgs));
 
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), 4);
@@ -245,10 +258,22 @@ public class TestLoadbalancingStrategy {
     dgs = new ArrayList<>(dgs);
     dgs.remove(1);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(dgs, Arrays.asList(instances), assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(dgs, Arrays.asList(instances), assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, dgs));
 
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 2);
     }
+  }
+
+  private Map<String, Integer> constructDatastreamGroupToNumTaskMapping(LoadbalancingStrategy strategy,
+      List<DatastreamGroup> datastreamGroups) {
+    Map<String, Integer> datastreamGroupNumTasksMap = new HashMap<>();
+    for (DatastreamGroup dg : datastreamGroups) {
+      String taskPrefix = dg.getTaskPrefix();
+      Optional<Integer> cachedNumTasks = strategy.getCachedNumTasksForDatastreamGroup(dg);
+      datastreamGroupNumTasksMap.put(taskPrefix, cachedNumTasks.orElse(0));
+    }
+    return datastreamGroupNumTasksMap;
   }
 }

@@ -1203,7 +1203,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
                   new DatastreamTransientException("Subscribed partition is not ready yet for datastream " +
                       toProcessDatastream.getName()));
 
-          assignmentByInstance = strategy.assignPartitions(assignmentByInstance, subscribes);
+          Integer originalNumTasks =
+              strategy.getCachedNumTasksForDatastreamGroup(subscribes.getDatastreamGroup()).orElse(0);
+          try {
+            assignmentByInstance = strategy.assignPartitions(assignmentByInstance, subscribes);
+          } catch (Exception e) {
+            Optional<Integer> newNumTasks =
+                strategy.getCachedNumTasksForDatastreamGroup(subscribes.getDatastreamGroup());
+            if (newNumTasks.isPresent() && !newNumTasks.get().equals(originalNumTasks)) {
+              _adapter.createOrUpdateNumTasksForDatastream(toProcessDatastream.getTaskPrefix(), newNumTasks.get());
+            }
+            throw e;
+          }
         } else {
           // The datastream group will not found only when the datastream was just paused/removed but we happened to
           // handle the scheduled LEADER_PARTITION_EVENT. In either case we should just ignore and don't retry.
@@ -1378,6 +1389,27 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
+  private Map<String, Integer> populateDatastreamGroupNumTasksMap(AssignmentStrategy strategy,
+      List<DatastreamGroup> datastreamGroups) {
+    Map<String, Integer> datastreamGroupNumTasksMap = new HashMap<>();
+    for (DatastreamGroup dg : datastreamGroups) {
+      String taskPrefix = dg.getTaskPrefix();
+      Optional<Integer> cachedNumTasks = strategy.getCachedNumTasksForDatastreamGroup(dg);
+      datastreamGroupNumTasksMap.put(taskPrefix, cachedNumTasks.orElse(_adapter.getNumTasksForDatastream(taskPrefix)));
+    }
+    return datastreamGroupNumTasksMap;
+  }
+
+  private void updateDatastreamGroupNumTasksInZooKeeper(AssignmentStrategy strategy,
+      Map<String, Integer> originalDatastreamGroupNumTasksMap, Map<String, DatastreamGroup> datastreamGroupsMap) {
+    originalDatastreamGroupNumTasksMap.forEach((taskPrefix, originalNumTasks) -> {
+      Optional<Integer> newNumTasks = strategy.getCachedNumTasksForDatastreamGroup(datastreamGroupsMap.get(taskPrefix));
+      if (newNumTasks.isPresent() && (!newNumTasks.get().equals(originalNumTasks))) {
+        _adapter.createOrUpdateNumTasksForDatastream(taskPrefix, newNumTasks.get());
+      }
+    });
+  }
+
   private Map<String, List<DatastreamTask>> performAssignment(List<String> liveInstances,
       Map<String, Set<DatastreamTask>> previousAssignmentByInstance, List<DatastreamGroup> datastreamGroups) {
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1404,11 +1436,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .filter(g -> !(pausedDatastreamGroups.contains(g)))
           .collect(Collectors.toList());
 
+      Map<String, Integer> datastreamGroupNumTasksMap = populateDatastreamGroupNumTasksMap(strategy,
+          datastreamsPerConnectorType);
+
       // Get the list of tasks per instance for the given connector type
       // We need to call assign even if the number of datastreams are empty, This is to make sure that
       // the assignments get cleaned up for the deleted datastreams.
       Map<String, Set<DatastreamTask>> tasksByConnectorAndInstance =
-          strategy.assign(datastreamsPerConnectorType, liveInstances, previousAssignmentByInstance);
+          strategy.assign(datastreamsPerConnectorType, liveInstances, previousAssignmentByInstance,
+              ImmutableMap.copyOf(datastreamGroupNumTasksMap));
+
+      Map<String, DatastreamGroup> datastreamGroupMap =
+      datastreamsPerConnectorType.stream().collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, dg -> dg));
+      updateDatastreamGroupNumTasksInZooKeeper(strategy, datastreamGroupNumTasksMap, datastreamGroupMap);
 
       for (String instance : tasksByConnectorAndInstance.keySet()) {
         newAssignmentsByInstance.computeIfAbsent(instance, (x) -> new ArrayList<>());

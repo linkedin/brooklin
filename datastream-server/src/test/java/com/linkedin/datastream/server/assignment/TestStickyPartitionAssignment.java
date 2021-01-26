@@ -325,7 +325,8 @@ public class TestStickyPartitionAssignment {
     instances.add("instance1");
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0");
@@ -356,7 +357,8 @@ public class TestStickyPartitionAssignment {
     instances.add("instance1");
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t1-1", "t1-2", "t0-3");
@@ -371,7 +373,9 @@ public class TestStickyPartitionAssignment {
         () -> strategy.assignPartitions(finalAssignment, partitionsMetadata));
 
     // The assign call should create the expected number of tasks as set by partition assignment
-    assignment = strategy.assign(datastreams, instances, assignment);
+    Optional<Integer> numTasksSetAfterAssignPartitions = strategy.getCachedNumTasksForDatastreamGroup(datastreams.get(0));
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, numTasksSetAfterAssignPartitions.orElse(0)));
     int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
         + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
@@ -401,7 +405,8 @@ public class TestStickyPartitionAssignment {
     instances.add("instance1");
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
 
     List<String> partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t1-1", "t1-2", "t0-3");
@@ -417,7 +422,9 @@ public class TestStickyPartitionAssignment {
         () -> strategy.assignPartitions(finalAssignment, finalPartitionsMetadata));
 
     // The assign call should create the expected number of tasks as set by partition assignment
-    assignment = strategy.assign(datastreams, instances, assignment);
+    Optional<Integer> numTasksSetAfterAssignPartitions = strategy.getCachedNumTasksForDatastreamGroup(datastreams.get(0));
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, numTasksSetAfterAssignPartitions.orElse(0)));
     int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
         + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
@@ -453,12 +460,15 @@ public class TestStickyPartitionAssignment {
     assignment = Collections.emptyMap();
     // Pass an empty datastream list, since on datastream stop, we expect the stopped datastream to be filtered out
     // from the list of valid datastreams passed to the assign() call.
-    assignment = strategy.assign(Collections.emptyList(), instances, assignment);
+    assignment = strategy.assign(Collections.emptyList(), instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, numTasksSetAfterAssignPartitions.orElse(0)));
     Assert.assertEquals(assignment.get("instance1").size(), 0);
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created since the previous
-    // assignment should have wiped out the previously calculated numTasks.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    // assignment should have wiped out the previously calculated numTasks. Passing the default numTasks as 0 since
+    // on STOP, we delete the numTasks znode from ZooKeeper.
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
 
     // Partition assignment should fail because insufficient tasks are present to fit the partitions such that the
@@ -471,7 +481,9 @@ public class TestStickyPartitionAssignment {
 
     // The assign call should create the expected number of tasks as set by partition assignment, and this should not
     // match the numTasksNeeded from the previous set of assignments.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    numTasksSetAfterAssignPartitions = strategy.getCachedNumTasksForDatastreamGroup(datastreams.get(0));
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, numTasksSetAfterAssignPartitions.orElse(0)));
     maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     int originalNumTasksNeeded = numTasksNeeded;
     numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
@@ -503,7 +515,8 @@ public class TestStickyPartitionAssignment {
     instances.add("instance1");
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
     setupTaskLockForAssignment(assignment);
 
@@ -538,7 +551,8 @@ public class TestStickyPartitionAssignment {
     instances.add("instance1");
 
     // Assign tasks for 1 datastream to 1 instance. Validate minTasks number of tasks are created.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
     setupTaskLockForAssignment(assignment);
 
@@ -556,7 +570,9 @@ public class TestStickyPartitionAssignment {
 
     // The assign call should create the only maxTasks number of tasks as set by partition assignment rather than the
     // expected number of tasks.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    Optional<Integer> numTasksSetAfterAssignPartitions = strategy.getCachedNumTasksForDatastreamGroup(datastreams.get(0));
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, numTasksSetAfterAssignPartitions.orElse(0)));
     int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     int numTasksNeeded = (partitions.size() / maxPartitionsPerTask)
         + (partitions.size() % maxPartitionsPerTask == 0 ? 0 : 1);
@@ -591,7 +607,8 @@ public class TestStickyPartitionAssignment {
 
     // Assign tasks for 1 datastream to 1 instance. Validate maxTasks number of tasks are created, since negative
     // minTasks should disable elastic task assignment for this datastream group.
-    assignment = strategy.assign(datastreams, instances, assignment);
+    assignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams, 0));
     Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
     setupTaskLockForAssignment(assignment);
 
@@ -679,5 +696,16 @@ public class TestStickyPartitionAssignment {
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
     return datastreams;
+  }
+
+  private Map<String, Integer> constructDatastreamGroupToNumTaskMapping(StickyPartitionAssignmentStrategy strategy,
+      List<DatastreamGroup> datastreamGroups, int numTasksDefault) {
+    Map<String, Integer> datastreamGroupNumTasksMap = new HashMap<>();
+    for (DatastreamGroup dg : datastreamGroups) {
+      String taskPrefix = dg.getTaskPrefix();
+      Optional<Integer> cachedNumTasks = strategy.getCachedNumTasksForDatastreamGroup(dg);
+      datastreamGroupNumTasksMap.put(taskPrefix, cachedNumTasks.orElse(numTasksDefault));
+    }
+    return datastreamGroupNumTasksMap;
   }
 }

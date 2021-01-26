@@ -91,7 +91,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
+      Map<String, Set<DatastreamTask>> currentAssignment, Map<String, Integer> datastreamGroupNumTasksMap) {
 
     int totalAssignedTasks = currentAssignment.values().stream().mapToInt(Set::size).sum();
     LOG.info("Begin assign {} datastreams to {} instances with {} tasks", datastreams.size(), instances.size(),
@@ -127,7 +127,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
 
     // STEP 1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
-      int numTasks = constructExpectedNumberOfTasks(dg, instances, Collections.unmodifiableMap(currentAssignmentCopy));
+      int numTasks = constructExpectedNumberOfTasks(dg, instances,
+          datastreamGroupNumTasksMap.getOrDefault(dg.getTaskPrefix(), 0));
       setTaskCountForDatastreamGroup(dg.getTaskPrefix(), numTasks);
       Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
@@ -251,7 +252,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   }
 
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignmentCopy) {
+      Integer numTasksFromCacheOrZk) {
     return getNumTasks(dg, instances.size());
   }
 

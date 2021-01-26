@@ -8,6 +8,7 @@ package com.linkedin.datastream.server.api.strategy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.apache.commons.lang.NotImplementedException;
@@ -49,9 +50,11 @@ public interface AssignmentStrategy {
    * @param datastreams all data streams defined in Datastream Management Service to be assigned
    * @param instances all live instances
    * @param currentAssignment existing assignment
+   * @param datastreamGroupNumTasksMap mapping of DatastreamGroup to its numTasks, either populated from ZK or cached
+   *                                   by the AssignmentStrategy
    */
   Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment);
+      Map<String, Set<DatastreamTask>> currentAssignment, Map<String, Integer> datastreamGroupNumTasksMap);
 
 
   /**
@@ -101,5 +104,17 @@ public interface AssignmentStrategy {
   default Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreams,
       Map<String, Set<DatastreamTask>> currentAssignment) {
     return Collections.emptyMap();
+  }
+
+  /**
+   * Get the cached number of tasks for a given DatastreamGroup. Returns 0 for assignment strategies that do not
+   * cache the number of tasks from ZK
+   *
+   * @param datastreamGroup The DatastreamGroup for which to return the cached numTasks
+   * @return the number of tasks for the DatastreamGroup cached by the assignment strategy. Returns Optional.empty() if
+   *         the DatastreamGroup's cached data is not present.
+   */
+  default Optional<Integer> getCachedNumTasksForDatastreamGroup(DatastreamGroup datastreamGroup) {
+    return Optional.of(0);
   }
 }

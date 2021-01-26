@@ -417,12 +417,22 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   @Override
+  public Optional<Integer> getCachedNumTasksForDatastreamGroup(DatastreamGroup datastreamGroup) {
+    boolean elasticTaskEnabled = getEnableElasticTaskAssignment(datastreamGroup);
+    Optional<Integer> cachedNumTasks = Optional.of(0);
+    if (elasticTaskEnabled) {
+      String taskPrefix = datastreamGroup.getTaskPrefix();
+      cachedNumTasks = getTaskCountForDatastreamGroup(taskPrefix) == 0 ? Optional.empty()
+          : Optional.of(getTaskCountForDatastreamGroup(taskPrefix));
+    }
+    return cachedNumTasks;
+  }
+
+  @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
+      Integer numTasksFromCacheOrZk) {
     boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
-    // TODO: Fetch the number of tasks in ZK if needed
-    int numTasks = enableElasticTaskAssignment ? getTaskCountForDatastreamGroup(dg.getTaskPrefix()) :
-        getNumTasks(dg, instances.size());
+    int numTasks = enableElasticTaskAssignment ? numTasksFromCacheOrZk : getNumTasks(dg, instances.size());
 
     // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
     int expectedNumberOfTasks = numTasks;
@@ -430,34 +440,21 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       int minTasks = resolveConfigWithMetadata(dg, CFG_MIN_TASKS, 0);
       if (numTasks > 0) {
         // Case 2: elastic task enabled, numTasks > 0. This indicates that we already know how many tasks we should
-        // have. Return max(numTasks, minTasks) to ensure we have at least minTasks.
+        // have (fetched either from ZK or from the assignment strategy cache). On leader change, numTasks should be
+        // fetched from ZK. Return max(numTasks, minTasks) to ensure we have at least minTasks.
         expectedNumberOfTasks = Math.max(numTasks, minTasks);
       } else {
-        // Case 3: elastic task enabled, numTasks == 0. This can occur either on leader change, or if a datastream
-        // is added/restarted. On leadership change, we expect to find existing tasks, whereas for new/restarted
-        // datastreams we will have 0 tasks.
-        //
-        // In the current state, we trust the size of allAliveTasks() if present as the source of truth for the
-        // expected number of tasks. This may not always be correct, and this will be corrected by persisting the
-        // number of tasks to ZK when this value changes.
-
-        // Count the number of tasks present for this datastream
-        Set<DatastreamTask> allAliveTasks = new HashSet<>();
-        for (String instance : instances) {
-          List<DatastreamTask> foundDatastreamTasks =
-              Optional.ofNullable(currentAssignment.get(instance)).map(c ->
-                  c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
-                      .collect(Collectors.toList())).orElse(Collections.emptyList());
-          allAliveTasks.addAll(foundDatastreamTasks);
-        }
-        expectedNumberOfTasks = Math.max(allAliveTasks.size(), minTasks);
+        // Case 3: elastic task enabled, numTasks == 0. This can occur if a datastream is added/restarted. On restart,
+        // the ZK numTasks znode is deleted. If a datastream is deleted and recreated with the same name, it will
+        // also appear as a newly added datastream, since on datastream delete, the numTasks znode will be deleted.
+        // In this situation, the expected number of tasks is set to minTasks.
+        expectedNumberOfTasks = minTasks;
       }
     }
 
     LOG.info("Elastic task assignment is {} for datastream group {}, expected number of tasks {}",
         enableElasticTaskAssignment ? "enabled" : "disabled", dg, expectedNumberOfTasks);
 
-    // TODO: Store the number of tasks to ZK if needed
     return expectedNumberOfTasks;
   }
 

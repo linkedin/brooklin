@@ -53,7 +53,7 @@ public class BroadcastStrategy implements AssignmentStrategy {
 
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
+      Map<String, Set<DatastreamTask>> currentAssignment, Map<String, Integer> datastreamGroupNumTasksMap) {
 
     int totalAssignedTasks = currentAssignment.values().stream().mapToInt(Set::size).sum();
     LOG.info("Assigning {} datastreams to {} instances with {} tasks", datastreams.size(), instances.size(),

@@ -45,7 +45,8 @@ public class TestBroadcastStrategy {
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), datastreams.size());
     }
@@ -53,7 +54,8 @@ public class TestBroadcastStrategy {
     // test with broadcast strategy where max tasks is not capped by instances size
     int maxTasksConfig = 12;
     BroadcastStrategy unlimitedStrategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
-    assignment = unlimitedStrategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+    assignment = unlimitedStrategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     int expected = datastreams.size() * maxTasksConfig / instances.length;
     for (String instance : instances) {
       Assert.assertEquals(assignment.get(instance).size(), expected);
@@ -97,7 +99,8 @@ public class TestBroadcastStrategy {
       List<DatastreamGroup> datastreams) {
     String[] instances = IntStream.range(0, numInstances).mapToObj(x -> "instance" + x).toArray(String[]::new);
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     int taskPerInstances = (int) Math.ceil((double) expectedTotalTasks / numInstances);
     int totalTasks = 0;
     for (String instance : instances) {
@@ -125,8 +128,10 @@ public class TestBroadcastStrategy {
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
@@ -139,8 +144,10 @@ public class TestBroadcastStrategy {
     // test with broadcast strategy where max tasks is not capped by instances size
     int maxTasksConfig = 12;
     strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
-    assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
-    newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    assignment = strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
+    newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     for (String instance : instances) {
       Set<DatastreamTask> oldAssignmentTasks = assignment.get(instance);
       Set<DatastreamTask> newAssignmentTasks = newAssignment.get(instance);
@@ -156,11 +163,13 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     datastreams.remove(0);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -173,11 +182,13 @@ public class TestBroadcastStrategy {
     int maxTasksConfig = 12;
     datastreams = generateDatastreams("ds", 5);
     strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
-    assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     datastreams.remove(0);
 
-    newAssignment = strategy.assign(datastreams, instances, assignment);
+    newAssignment = strategy.assign(datastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -193,13 +204,15 @@ public class TestBroadcastStrategy {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     List<DatastreamGroup> newDatastreams = new ArrayList<>(datastreams);
     DatastreamGroup newDatastream = generateDatastreams("newds", 1).get(0);
     newDatastreams.add(newDatastream);
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(newDatastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, newDatastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -214,13 +227,15 @@ public class TestBroadcastStrategy {
     int maxTasksConfig = 12;
     datastreams = generateDatastreams("ds", 5);
     strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
-    assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     newDatastreams = new ArrayList<>(datastreams);
     DatastreamGroup newDatastream1 = generateDatastreams("newds", 1).get(0);
     newDatastreams.add(newDatastream1);
 
-    newAssignment = strategy.assign(newDatastreams, instances, assignment);
+    newAssignment = strategy.assign(newDatastreams, instances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, newDatastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -239,10 +254,12 @@ public class TestBroadcastStrategy {
     String instance4 = "instance4";
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     for (String instance : instances) {
@@ -264,10 +281,12 @@ public class TestBroadcastStrategy {
     int maxTasksConfig = 12;
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.of(maxTasksConfig));
-    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>(),
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     List<String> newInstances = new ArrayList<>(instances);
     newInstances.add(instance4);
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, newInstances, assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
 
     // Ensure that the datastream tasks for the existing instances didn't change.
     int expectedNumTasksPerInstance = maxTasksConfig * datastreams.size() / newInstances.size();
@@ -287,15 +306,28 @@ public class TestBroadcastStrategy {
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
     BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
     Map<String, Set<DatastreamTask>> assignment =
-        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>());
+        strategy.assign(datastreams, Arrays.asList(instances), new HashMap<>(),
+            constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     instances = new String[]{"instance1", "instance2", "instance4"};
 
-    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment);
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, Arrays.asList(instances), assignment,
+        constructDatastreamGroupToNumTaskMapping(strategy, datastreams));
     Set<DatastreamTask> oldAssignmentTasks = assignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     Assert.assertEquals(oldAssignmentTasks, newAssignmentTasks);
     // make sure no task is assigned to more than one instance
     int totalTasks = newAssignment.values().stream().mapToInt(Set::size).sum();
     Assert.assertEquals(totalTasks, newAssignmentTasks.size());
+  }
+
+  private Map<String, Integer> constructDatastreamGroupToNumTaskMapping(BroadcastStrategy strategy,
+      List<DatastreamGroup> datastreamGroups) {
+    Map<String, Integer> datastreamGroupNumTasksMap = new HashMap<>();
+    for (DatastreamGroup dg : datastreamGroups) {
+      String taskPrefix = dg.getTaskPrefix();
+      Optional<Integer> cachedNumTasks = strategy.getCachedNumTasksForDatastreamGroup(dg);
+      datastreamGroupNumTasksMap.put(taskPrefix, cachedNumTasks.orElse(0));
+    }
+    return datastreamGroupNumTasksMap;
   }
 }
