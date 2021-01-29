@@ -973,11 +973,12 @@ public class TestCoordinator {
     connectors.add(connector2);
     connectors.add(connector3);
 
-    int minTasks = 3;
+    int minTasks = 4;
     Datastream[] datastreams = DatastreamTestUtils.createDatastreams(testConnectorType, "datastream42", "datastream43");
     for (Datastream ds : datastreams) {
       ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds));
       ds.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(minTasks));
+      ds.getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, "true");
     }
     DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams);
 
