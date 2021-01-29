@@ -797,19 +797,19 @@ public class TestCoordinator {
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
     instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), zkClient, testCluster), false, new SourceBasedDeduper(), null);
+            Optional.of(2), Optional.empty(), testCluster), false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
     instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), zkClient, testCluster), false, new SourceBasedDeduper(), null);
+            Optional.of(2), Optional.empty(), testCluster), false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
     instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), zkClient, testCluster), false,
+            Optional.of(2), Optional.empty(), testCluster), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -950,21 +950,21 @@ public class TestCoordinator {
     int fullnessFactorPct = 50;
     instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.empty(),
         Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-        Optional.of(fullnessFactorPct), zkClient, testCluster), false, new SourceBasedDeduper(), null);
+        Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
     instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.empty(),
         Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-        Optional.of(fullnessFactorPct), zkClient, testCluster), false, new SourceBasedDeduper(), null);
+        Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
     instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.empty(),
             Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-            Optional.of(fullnessFactorPct), zkClient, testCluster), false,
+            Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -1202,7 +1202,7 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     coordinator.addConnector(connectorType1, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.empty(), Optional.empty(), zkClient, testCluster), false,
+            Optional.empty(), Optional.empty(), testCluster), false,
         new SourceBasedDeduper(), null);
     coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);

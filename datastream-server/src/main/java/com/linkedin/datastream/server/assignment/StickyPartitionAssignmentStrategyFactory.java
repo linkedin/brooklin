@@ -52,13 +52,16 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
         Optional.empty();
     Optional<Integer> partitionFullnessThresholdPct = cfgPartitionFullnessThresholdPct > 0 ?
         Optional.of(cfgPartitionFullnessThresholdPct) : Optional.empty();
-    String cluster = props.getString(CFG_CLUSTER_NAME);
+    String cluster = props.getString(CFG_CLUSTER_NAME, null);
 
     // Create the ZooKeeper Client
-    String zkAddress = props.getString(CFG_ZK_ADDRESS);
-    int zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
-    int zkConnectionTimeout = props.getInt(CFG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
-    ZkClient zkClient = new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout);
+    Optional<ZkClient> zkClient = Optional.empty();
+    if (enableElasticTaskAssignment) {
+      String zkAddress = props.getString(CFG_ZK_ADDRESS);
+      int zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
+      int zkConnectionTimeout = props.getInt(CFG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+      zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
+    }
 
     return new StickyPartitionAssignmentStrategy(maxTasks, imbalanceThreshold, maxPartitions,
         enableElasticTaskAssignment, partitionsPerTask, partitionFullnessThresholdPct, zkClient, cluster);

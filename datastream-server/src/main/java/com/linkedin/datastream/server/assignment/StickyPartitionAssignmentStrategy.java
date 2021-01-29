@@ -94,22 +94,26 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param partitionFullnessFactorPct If elastic task assignment is enabled, this is used to determine how full to
    *                                   the tasks when fitting partitions into them for the first time. The default
    *                                   is {@value DEFAULT_PARTITION_FULLNESS_FACTOR_PCT}.
-   * @param zkClient The ZkClient to use for interaction with ZooKeeper
+   * @param zkClient The ZkClient to use for interaction with ZooKeeper. If elastic task assignment is enabled, a
+   *                 value must be specified, otherwise Optional.empty() can be passed.
    * @param clusterName The name of the Brooklin cluster
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
       Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
-      Optional<Integer> partitionFullnessFactorPct, ZkClient zkClient, String clusterName) {
+      Optional<Integer> partitionFullnessFactorPct, Optional<ZkClient> zkClient, String clusterName) {
     super(maxTasks, imbalanceThreshold);
     Validate.notNull(zkClient);
-    Validate.isTrue(!StringUtils.isBlank(clusterName));
+    Validate.isTrue(!enableElasticTaskAssignment || !StringUtils.isBlank(clusterName),
+        "Cluster name should not be null/blank if elastic task assignment is enabled");
+    Validate.isTrue(!enableElasticTaskAssignment || zkClient.isPresent(),
+        "ZkClient should not be null/empty if elastic task assignment is enabled");
 
     _enableElasticTaskAssignment = enableElasticTaskAssignment;
     _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
     _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
     _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
-    _zkClient = zkClient;
+    _zkClient = zkClient.orElse(null);
     _clusterName = clusterName;
 
     LOG.info("Elastic task assignment is {}, partitionsPerTask: {}, partitionFullnessFactorPct: {}, "
@@ -129,13 +133,12 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
    *                            If partitions count in task is larger than this number, Brooklin will throw an exception
-   * @param zkClient The ZkClient to use for interaction with ZooKeeper
    * @param clusterName The name of the Brooklin cluster
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask, ZkClient zkClient, String clusterName) {
-    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty(), zkClient,
+      Optional<Integer> maxPartitionPerTask, String clusterName) {
+    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty(), Optional.empty(),
         clusterName);
   }
 
@@ -550,17 +553,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   /**
-   * Check if the numTasks node exists for a given datastream
-   */
-  private boolean checkIfNumTasksExistForDatastream(String stream) {
-    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
-    return _zkClient.exists(numTasksPath);
-  }
-
-  /**
-   * Create or update the numTasks node for a given datastream
+   * Create or update the numTasks node for a given datastream. This should only be called if elastic task assignment
+   * is enabled.
    */
   private void createOrUpdateNumTasksForDatastream(String stream, int numTasks) {
+    Validate.isTrue(_enableElasticTaskAssignment);
     _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, stream));
     String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
     if (!_zkClient.exists(numTasksPath)) {
@@ -573,9 +570,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   /**
-   * Get the numTasks node for a given datastream
+   * Get the numTasks node for a given datastream. This should only be called if elastic task assignment is enabled.
    */
   private int getNumTasksForDatastream(String stream) {
+    Validate.isTrue(_enableElasticTaskAssignment);
     String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
 
     if (!_zkClient.exists(numTasksPath)) {
