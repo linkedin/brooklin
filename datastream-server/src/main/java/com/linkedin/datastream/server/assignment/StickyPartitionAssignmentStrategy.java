@@ -19,15 +19,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
+import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITIONS_PER_TASK;
@@ -65,6 +69,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
+  private final ZkClient _zkClient;
+  private final String _clusterName;
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -88,20 +94,27 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param partitionFullnessFactorPct If elastic task assignment is enabled, this is used to determine how full to
    *                                   the tasks when fitting partitions into them for the first time. The default
    *                                   is {@value DEFAULT_PARTITION_FULLNESS_FACTOR_PCT}.
+   * @param zkClient The ZkClient to use for interaction with ZooKeeper
+   * @param clusterName The name of the Brooklin cluster
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
       Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
-      Optional<Integer> partitionFullnessFactorPct) {
+      Optional<Integer> partitionFullnessFactorPct, ZkClient zkClient, String clusterName) {
     super(maxTasks, imbalanceThreshold);
+    Validate.notNull(zkClient);
+    Validate.isTrue(!StringUtils.isBlank(clusterName));
+
     _enableElasticTaskAssignment = enableElasticTaskAssignment;
     _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
     _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
     _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
+    _zkClient = zkClient;
+    _clusterName = clusterName;
 
     LOG.info("Elastic task assignment is {}, partitionsPerTask: {}, partitionFullnessFactorPct: {}, "
-            + "maxPartitionPerTask: {}", _enableElasticTaskAssignment ? "enabled" : "disabled", _partitionsPerTask,
-        _partitionFullnessFactorPct, _maxPartitionPerTask);
+            + "maxPartitionPerTask: {}, cluster: {}", _enableElasticTaskAssignment ? "enabled" : "disabled",
+        _partitionsPerTask, _partitionFullnessFactorPct, _maxPartitionPerTask, _clusterName);
   }
 
   /**
@@ -116,11 +129,14 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
    *                            If partitions count in task is larger than this number, Brooklin will throw an exception
+   * @param zkClient The ZkClient to use for interaction with ZooKeeper
+   * @param clusterName The name of the Brooklin cluster
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask) {
-    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty());
+      Optional<Integer> maxPartitionPerTask, ZkClient zkClient, String clusterName) {
+    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty(), zkClient,
+        clusterName);
   }
 
   /**
@@ -417,11 +433,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   }
 
   @Override
-  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
+  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
     boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
-    // TODO: Fetch the number of tasks in ZK if needed
-    int numTasks = enableElasticTaskAssignment ? getTaskCountForDatastreamGroup(dg.getTaskPrefix()) :
+    int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
         getNumTasks(dg, instances.size());
 
     // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
@@ -430,34 +444,26 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       int minTasks = resolveConfigWithMetadata(dg, CFG_MIN_TASKS, 0);
       if (numTasks > 0) {
         // Case 2: elastic task enabled, numTasks > 0. This indicates that we already know how many tasks we should
-        // have. Return max(numTasks, minTasks) to ensure we have at least minTasks.
+        // have (fetched either from ZK or from the assignment strategy cache). On leader change, numTasks should be
+        // fetched from ZK. Return max(numTasks, minTasks) to ensure we have at least 'minTasks' number of tasks.
         expectedNumberOfTasks = Math.max(numTasks, minTasks);
       } else {
-        // Case 3: elastic task enabled, numTasks == 0. This can occur either on leader change, or if a datastream
-        // is added/restarted. On leadership change, we expect to find existing tasks, whereas for new/restarted
-        // datastreams we will have 0 tasks.
-        //
-        // In the current state, we trust the size of allAliveTasks() if present as the source of truth for the
-        // expected number of tasks. This may not always be correct, and this will be corrected by persisting the
-        // number of tasks to ZK when this value changes.
+        // Case 3: elastic task enabled, numTasks == 0. This can occur if a datastream is added/restarted. On restart,
+        // the ZK numTasks znode is deleted. If a datastream is deleted and recreated with the same name, it will
+        // also appear as a newly added datastream since on datastream delete the numTasks znode will be deleted.
+        // In this situation, the expected number of tasks is set to minTasks.
+        expectedNumberOfTasks = minTasks;
+      }
 
-        // Count the number of tasks present for this datastream
-        Set<DatastreamTask> allAliveTasks = new HashSet<>();
-        for (String instance : instances) {
-          List<DatastreamTask> foundDatastreamTasks =
-              Optional.ofNullable(currentAssignment.get(instance)).map(c ->
-                  c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && !allAliveTasks.contains(x))
-                      .collect(Collectors.toList())).orElse(Collections.emptyList());
-          allAliveTasks.addAll(foundDatastreamTasks);
-        }
-        expectedNumberOfTasks = Math.max(allAliveTasks.size(), minTasks);
+      if (expectedNumberOfTasks != numTasks) {
+        createOrUpdateNumTasksForDatastream(dg.getTaskPrefix(), expectedNumberOfTasks);
       }
     }
 
-    LOG.info("Elastic task assignment is {} for datastream group {}, expected number of tasks {}",
-        enableElasticTaskAssignment ? "enabled" : "disabled", dg, expectedNumberOfTasks);
+    LOG.info("Elastic task assignment is {} for datastream group {}, expected number of tasks {}, original numTasks: {}",
+        enableElasticTaskAssignment ? "enabled" : "disabled", dg, expectedNumberOfTasks, numTasks);
 
-    // TODO: Store the number of tasks to ZK if needed
+    setTaskCountForDatastreamGroup(dg.getTaskPrefix(), expectedNumberOfTasks);
     return expectedNumberOfTasks;
   }
 
@@ -488,6 +494,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       numTasksNeeded = maxTasks;
     }
     if (numTasksNeeded > totalTaskCount) {
+      createOrUpdateNumTasksForDatastream(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
       setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
       throw new DatastreamRuntimeException(
           String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
@@ -501,6 +508,14 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
     return _enableElasticTaskAssignment && (minTasks > 0);
+  }
+
+  private int getNumTasksFromCacheOrZK(String taskPrefix) {
+    int numTasks = getTaskCountForDatastreamGroup(taskPrefix);
+    if (numTasks <= 0) {
+      numTasks = getNumTasksForDatastream(taskPrefix);
+    }
+    return numTasks;
   }
 
   /**
@@ -532,5 +547,42 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       LOG.error(errorMsg);
       throw new DatastreamRuntimeException(errorMsg);
     }
+  }
+
+  /**
+   * Check if the numTasks node exists for a given datastream
+   */
+  private boolean checkIfNumTasksExistForDatastream(String stream) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
+    return _zkClient.exists(numTasksPath);
+  }
+
+  /**
+   * Create or update the numTasks node for a given datastream
+   */
+  private void createOrUpdateNumTasksForDatastream(String stream, int numTasks) {
+    _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, stream));
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
+    if (!_zkClient.exists(numTasksPath)) {
+      _zkClient.create(numTasksPath, String.valueOf(numTasks), CreateMode.PERSISTENT);
+      LOG.info("Successfully created the numTasks znode for datastream {} with value {}", stream, numTasks);
+      return;
+    }
+    _zkClient.writeData(numTasksPath, String.valueOf(numTasks));
+    LOG.info("Successfully updated the numTasks znode for datastream {} with value {}", stream, numTasks);
+  }
+
+  /**
+   * Get the numTasks node for a given datastream
+   */
+  private int getNumTasksForDatastream(String stream) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
+
+    if (!_zkClient.exists(numTasksPath)) {
+      LOG.info("The numTasks znode does not exist for stream {}, returning 0", stream);
+      return 0;
+    }
+
+    return Integer.parseInt(_zkClient.readData(numTasksPath));
   }
 }
