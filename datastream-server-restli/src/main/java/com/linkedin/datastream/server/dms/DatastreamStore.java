@@ -58,7 +58,7 @@ public interface DatastreamStore {
 
   /**
    * Delete the numTasks znode of the datastream associated with the provided key
-   * @param key datastream name of the original datastream whose numTasks znode is to be deleted
+   * @param key Name of the original datastream whose numTasks znode is to be deleted
    */
   void deleteDatastreamNumTasks(String key);
 }
