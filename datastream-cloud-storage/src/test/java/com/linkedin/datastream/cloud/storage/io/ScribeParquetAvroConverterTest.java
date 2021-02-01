@@ -194,43 +194,43 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroLandingSchema, input);
 
     GenericRecord expected = new GenericData.Record(parquetAvroLandingSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("customerGuid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
-    expected.put("customerId", 4075458971L);
-    expected.put("deviceGuid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
-    expected.put("loginStatus", "RECOGNIZED");
-    expected.put("customerStatus", null);
-    expected.put("transactionId", "CuQGyFkZf0yoRHA+R4BzAg==");
-    expected.put("phpSessionId", "45crk6foph74hejr8p8s1df0c5");
-    expected.put("visitGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("employeeCustomerId", null);
-    expected.put("employeeId", null);
-    expected.put("isBot", false);
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("customerguid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
+    expected.put("customerid", 4075458971L);
+    expected.put("deviceguid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
+    expected.put("loginstatus", "RECOGNIZED");
+    expected.put("customerstatus", null);
+    expected.put("transactionid", "CuQGyFkZf0yoRHA+R4BzAg==");
+    expected.put("phpsessionid", "45crk6foph74hejr8p8s1df0c5");
+    expected.put("visitguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("employeecustomerid", null);
+    expected.put("employeeid", null);
+    expected.put("isbot", false);
     expected.put("idfa", null);
     expected.put("datacenter", "dev");
-    expected.put("pageRequestEventId", "e82f044e-4e98-3f9e-a1e4-9a3809d075b8");
-    expected.put("referringTransactionId", null);
-    expected.put("referralId", null);
-    expected.put("userAgent", "Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.0.1-development Safari/538.1");
-    expected.put("requestUrl", "https://wayfaircom.csnzoo.com/filters/Console-and-Sofa-Tables-l443-c414605-O74021~Rectangle-P86403~55~119.html?&curpage=2");
-    expected.put("referringUrl", null);
-    expected.put("clientIp", "192.168.1.1");
-    expected.put("viewTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("marketingCategoryId", "6");
-    expected.put("visitorType", "Returning");
-    expected.put("campaignCode", "Test123");
-    expected.put("emailClickTransactionId", "CuQGyRVWf0yoRHA+R4BzAg==");
-    expected.put("marketingCampaignId", "12345");
-    expected.put("marketingStrategyId", "12346");
-    expected.put("marketingCreativeId", "12347");
-    expected.put("marketingDecoder", "12348");
-    expected.put("marketingSecondary", "12349");
-    expected.put("pageId", "oIz2esfD2eDgUpbwSw55eA==");
+    expected.put("pagerequesteventid", "e82f044e-4e98-3f9e-a1e4-9a3809d075b8");
+    expected.put("referringtransactionid", null);
+    expected.put("referralid", null);
+    expected.put("useragent", "Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.0.1-development Safari/538.1");
+    expected.put("requesturl", "https://wayfaircom.csnzoo.com/filters/Console-and-Sofa-Tables-l443-c414605-O74021~Rectangle-P86403~55~119.html?&curpage=2");
+    expected.put("referringurl", null);
+    expected.put("clientip", "192.168.1.1");
+    expected.put("viewtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("marketingcategoryid", "6");
+    expected.put("visitortype", "Returning");
+    expected.put("campaigncode", "Test123");
+    expected.put("emailclicktransactionid", "CuQGyRVWf0yoRHA+R4BzAg==");
+    expected.put("marketingcampaignid", "12345");
+    expected.put("marketingstrategyid", "12346");
+    expected.put("marketingcreativeid", "12347");
+    expected.put("marketingdecoder", "12348");
+    expected.put("marketingsecondary", "12349");
+    expected.put("pageid", "oIz2esfD2eDgUpbwSw55eA==");
 
     assertEquals(expected, actual);
   }
@@ -309,34 +309,34 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(atlasDecisionParquetAvroSchema, input);
 
     GenericRecord expected = new GenericData.Record(atlasDecisionParquetAvroSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("transactionId", "CuQGyFkZf0yoRHA+R4BzAg==");
-    expected.put("referringTransactionId", "CuQGyHkZf0yoRHA+R4BzAg==");
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("transactionid", "CuQGyFkZf0yoRHA+R4BzAg==");
+    expected.put("referringtransactionid", "CuQGyHkZf0yoRHA+R4BzAg==");
     expected.put("datacenter", "test");
-    expected.put("visitGuid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
-    expected.put("deviceGuid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
-    expected.put("customerGuid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
+    expected.put("visitguid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
+    expected.put("deviceguid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
+    expected.put("customerguid", "0ae406c8-58de-49ce-9d4a-481a2a300902");
     expected.put("adid", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3");
     expected.put("idfa", "0ae406c8-58de-49ce-9d4a-481a2a300902");
     expected.put("idfv", "0ae406c8-58de-49ce-9d4a-481a2a300902");
-    expected.put("atlasPlatformId", 1234567L);
-    expected.put("atlasChannelId", 324L);
-    expected.put("placementIds", Arrays.asList(12345678L, 87654321L));
-    expected.put("campaignIds", Arrays.asList(12345678L, 87654321L));
-    expected.put("creativeIds", Arrays.asList(12345678L, 87654321L));
-    expected.put("segmentGuids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
-    expected.put("kairosTopFunctionalNeed", "kairos");
-    expected.put("kairosTopNeedId", 1234567L);
-    expected.put("inMarketClassIds", Arrays.asList(49, 450));
-    expected.put("impressionIds", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
-    expected.put("requestTokens", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
-    expected.put("arbitraryContentGuids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
-    expected.put("externalCreativeIds", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
+    expected.put("atlasplatformid", 1234567L);
+    expected.put("atlaschannelid", 324L);
+    expected.put("placementids", Arrays.asList(12345678L, 87654321L));
+    expected.put("campaignids", Arrays.asList(12345678L, 87654321L));
+    expected.put("creativeids", Arrays.asList(12345678L, 87654321L));
+    expected.put("segmentguids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
+    expected.put("kairostopfunctionalneed", "kairos");
+    expected.put("kairostopneedid", 1234567L);
+    expected.put("inmarketclassids", Arrays.asList(49, 450));
+    expected.put("impressionids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
+    expected.put("requesttokens", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
+    expected.put("arbitrarycontentguids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
+    expected.put("externalcreativeids", Arrays.asList("e82f044e-4e98-3f9e-a1e4-9a3809d075b8", "01c3f8ef-316a-42ef-93cf-eda4296d6ee3"));
 
     assertEquals(expected, actual);
   }
@@ -452,36 +452,36 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord expectedOrderProduct = null;
     if (nested != null) {
       expectedOrderProduct = new GenericData.Record(parquetNested);
-      expectedOrderProduct.put("orderProductId", 56656L);
+      expectedOrderProduct.put("orderproductid", 56656L);
       expectedOrderProduct.put("quantity", 5L);
       expectedOrderProduct.put("discontinued", true);
-      expectedOrderProduct.put("returnGroupId", 556L);
-      expectedOrderProduct.put("deliveryStatus", "pending");
+      expectedOrderProduct.put("returngroupid", 556L);
+      expectedOrderProduct.put("deliverystatus", "pending");
       // As we are testing with 1.0 events which doesn't have logical type in
       // there field schema, we are leaving the timestamp type as long itself.
-      expectedOrderProduct.put("estimatedDeliveryDate", "2017-05-15 06:13:32.576 -0400");
+      expectedOrderProduct.put("estimateddeliverydate", "2017-05-15 06:13:32.576 -0400");
     }
 
     GenericRecord expectedSplitOrderProduct = null;
     if (nestedParquetSplitOrderProduct != null) {
       expectedSplitOrderProduct = new GenericData.Record(parquetNested);
-      expectedSplitOrderProduct.put("orderProductId", 556L);
+      expectedSplitOrderProduct.put("orderproductid", 556L);
       expectedSplitOrderProduct.put("quantity", 58L);
       expectedSplitOrderProduct.put("discontinued", false);
-      expectedSplitOrderProduct.put("returnGroupId", 556L);
-      expectedSplitOrderProduct.put("deliveryStatus", "pending");
-      expectedSplitOrderProduct.put("estimatedDeliveryDate", "2017-05-15 06:13:32.576 -0400");
+      expectedSplitOrderProduct.put("returngroupid", 556L);
+      expectedSplitOrderProduct.put("deliverystatus", "pending");
+      expectedSplitOrderProduct.put("estimateddeliverydate", "2017-05-15 06:13:32.576 -0400");
     }
 
     GenericRecord expectedCancelledClearanceOrderProduct = null;
     if (nestedParquetCancelledClearanceOrderProducts != null) {
       expectedCancelledClearanceOrderProduct = new GenericData.Record(parquetNested);
-      expectedCancelledClearanceOrderProduct.put("orderProductId", 111556L);
+      expectedCancelledClearanceOrderProduct.put("orderproductid", 111556L);
       expectedCancelledClearanceOrderProduct.put("quantity", 9L);
       expectedCancelledClearanceOrderProduct.put("discontinued", true);
-      expectedCancelledClearanceOrderProduct.put("returnGroupId", 556L);
-      expectedCancelledClearanceOrderProduct.put("deliveryStatus", "pending");
-      expectedCancelledClearanceOrderProduct.put("estimatedDeliveryDate", "2017-05-15 06:13:32.576 -0400");
+      expectedCancelledClearanceOrderProduct.put("returngroupid", 556L);
+      expectedCancelledClearanceOrderProduct.put("deliverystatus", "pending");
+      expectedCancelledClearanceOrderProduct.put("estimateddeliverydate", "2017-05-15 06:13:32.576 -0400");
     }
 
     List<GenericRecord> expectedOrderProductsList = new ArrayList<GenericRecord>();
@@ -496,29 +496,29 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroOrderCancellationConfirmationSchema, input);
 
     GenericRecord expected = new GenericData.Record(parquetAvroOrderCancellationConfirmationSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("customerId", 4075458971L);
-    expected.put("orderId", 4075458971L);
-    expected.put("emailAddress", "test@gmail.com");
-    expected.put("orderCost", 128L);
-    expected.put("webLinkCancelledOrderProducts", Arrays.asList(
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("customerid", 4075458971L);
+    expected.put("orderid", 4075458971L);
+    expected.put("emailaddress", "test@gmail.com");
+    expected.put("ordercost", 128L);
+    expected.put("weblinkcancelledorderproducts", Arrays.asList(
         "XQT1565",
         "TOVF1019",
         "ANDV2130"
     ));
-    expected.put("orderProducts", expectedOrderProductsList);
-    expected.put("splitOrderProducts", expectedSplitOrderProductList);
-    expected.put("cancelledClearanceOrderProducts", expectedCancelledClearanceOrderProductList);
-    expected.put("cancelledReplacements", Arrays.asList(345, 123));
-    expected.put("issueCredit", false);
-    expected.put("originTimestamp", "2020-07-01 16:01:39.000 -0400");
+    expected.put("orderproducts", expectedOrderProductsList);
+    expected.put("splitorderproducts", expectedSplitOrderProductList);
+    expected.put("cancelledclearanceorderproducts", expectedCancelledClearanceOrderProductList);
+    expected.put("cancelledreplacements", Arrays.asList(345, 123));
+    expected.put("issuecredit", false);
+    expected.put("origintimestamp", "2020-07-01 16:01:39.000 -0400");
     expected.put("staging", true);
-    expected.put("notificationType", "Test123");
+    expected.put("notificationtype", "Test123");
 
 
     assertEquals(expected, actual);
@@ -675,23 +675,23 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord requiredNestedExp = null;
     if (testNestedExpected != null) {
       requiredNestedExp = new GenericData.Record(testNestedExpected);
-      requiredNestedExp.put("requiredTestStringNested", "nested");
-      requiredNestedExp.put("requiredTestListStringNested", listStringDeeplyNestedExpected);
-      requiredNestedExp.put("testDeeplyNested", testDeeplyNestedExp);
-      requiredNestedExp.put("testListDeeplyNested", deeplyNestedArrayExpected);
-      requiredNestedExp.put("testStringNested", "pending");
-      requiredNestedExp.put("testBooleanNested", false);
+      requiredNestedExp.put("requiredteststringnested", "nested");
+      requiredNestedExp.put("requiredtestliststringnested", listStringDeeplyNestedExpected);
+      requiredNestedExp.put("testdeeplynested", testDeeplyNestedExp);
+      requiredNestedExp.put("testlistdeeplynested", deeplyNestedArrayExpected);
+      requiredNestedExp.put("teststringnested", "pending");
+      requiredNestedExp.put("testbooleannested", false);
 
-      requiredNestedExp.put("testIntNested", 5665);
-      requiredNestedExp.put("testLongNested", 5L);
-      requiredNestedExp.put("testDoubleNested", 4.7);
-      requiredNestedExp.put("testUuidNested", "uuid");
-      requiredNestedExp.put("testTimestampNested", "2017-05-15 06:13:32.579 -0400");
-      requiredNestedExp.put("testListStringNested", listStringDeeplyNestedExpected);
+      requiredNestedExp.put("testintnested", 5665);
+      requiredNestedExp.put("testlongnested", 5L);
+      requiredNestedExp.put("testdoublenested", 4.7);
+      requiredNestedExp.put("testuuidnested", "uuid");
+      requiredNestedExp.put("testtimestampnested", "2017-05-15 06:13:32.579 -0400");
+      requiredNestedExp.put("testliststringnested", listStringDeeplyNestedExpected);
 
-      requiredNestedExp.put("testListUuidNested", listStringDeeplyNestedExpected);
-      requiredNestedExp.put("testMapStringNested", testStringMapExpected);
-      requiredNestedExp.put("testMapUuidNested", testStringMapExpected);
+      requiredNestedExp.put("testlistuuidnested", listStringDeeplyNestedExpected);
+      requiredNestedExp.put("testmapstringnested", testStringMapExpected);
+      requiredNestedExp.put("testmapuuidnested", testStringMapExpected);
     }
 
 
@@ -701,36 +701,34 @@ public class ScribeParquetAvroConverterTest {
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetScribeInternalTestSchema, input);
 
-
     GenericRecord expected = new GenericData.Record(parquetScribeInternalTestSchema);
     //exploded header fields
-    expected.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("eventName", "test");
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("receivedTimestamp", "2017-05-15 06:13:32.579 -0400");
-    expected.put("dataClassification", 1);
+    expected.put("scribeeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("eventname", "test");
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("receivedtimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("dataclassification", 1);
     expected.put("domain", "scribe_internal");
-    expected.put("avroSchemaVersion", 2);
-    expected.put("scribeClientVersion", "trail_1");
+    expected.put("avroschemaversion", 2);
+    expected.put("scribeclientversion", "trail_1");
 
+    expected.put("requiredteststring", "test_string");
+    expected.put("requiredtestliststring", listStringDeeplyNestedExpected);
+    expected.put("requirednested", requiredNestedExp);
+    expected.put("testnested", requiredNestedExp);
+    expected.put("testlistnested", listTestNestedGenericArrayExp);
 
-    expected.put("requiredTestString", "test_string");
-    expected.put("requiredTestListString", listStringDeeplyNestedExpected);
-    expected.put("requiredNested", requiredNestedExp);
-    expected.put("testNested", requiredNestedExp);
-    expected.put("testListNested", listTestNestedGenericArrayExp);
-
-    expected.put("testString", "testString");
-    expected.put("testBoolean", true);
-    expected.put("testInt", 12);
-    expected.put("testLong", 34L);
-    expected.put("testDouble", 23.45);
-    expected.put("testUuid", "method");
-    expected.put("testTimestamp", "2017-05-15 06:13:32.579 -0400");
-    expected.put("testListString", listStringDeeplyNestedExpected);
-    expected.put("testListUuid", listStringDeeplyNestedExpected);
-    expected.put("testMapString", testStringMapExpected);
-    expected.put("testMapUuid", testStringMapExpected);
+    expected.put("teststring", "testString");
+    expected.put("testboolean", true);
+    expected.put("testint", 12);
+    expected.put("testlong", 34L);
+    expected.put("testdouble", 23.45);
+    expected.put("testuuid", "method");
+    expected.put("testtimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("testliststring", listStringDeeplyNestedExpected);
+    expected.put("testlistuuid", listStringDeeplyNestedExpected);
+    expected.put("testmapstring", testStringMapExpected);
+    expected.put("testmapuuid", testStringMapExpected);
 
     assertEquals(expected, actual);
   }
@@ -804,50 +802,50 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord expectedItem = null;
     if (nestedParqueItem != null) {
       expectedItem = new GenericData.Record(nestedParqueItem);
-      expectedItem.put("salePriceInCents", 56656L);
-      expectedItem.put("b2bPriceInCents", 5L);
-      expectedItem.put("listPriceInCents", 56656L);
-      expectedItem.put("clearancePriceInCents", 556L);
-      expectedItem.put("msrpRrpPriceInCents", 56656L);
+      expectedItem.put("salepriceincents", 56656L);
+      expectedItem.put("b2bpriceincents", 5L);
+      expectedItem.put("listpriceincents", 56656L);
+      expectedItem.put("clearancepriceincents", 556L);
+      expectedItem.put("msrprrppriceincents", 56656L);
     }
 
     GenericRecord expectedMinimumOrderQuantity = null;
     if (nestedParquetMinimumOrderQuantity != null) {
       expectedMinimumOrderQuantity = new GenericData.Record(nestedParquetMinimumOrderQuantity);
-      expectedMinimumOrderQuantity.put("salePriceInCents", 56656L);
-      expectedMinimumOrderQuantity.put("b2bPriceInCents", 5L);
-      expectedMinimumOrderQuantity.put("listPriceInCents", 56656L);
-      expectedMinimumOrderQuantity.put("clearancePriceInCents", 556L);
-      expectedMinimumOrderQuantity.put("msrpRrpPriceInCents", 56656L);
+      expectedMinimumOrderQuantity.put("salepriceincents", 56656L);
+      expectedMinimumOrderQuantity.put("b2bpriceincents", 5L);
+      expectedMinimumOrderQuantity.put("listpriceincents", 56656L);
+      expectedMinimumOrderQuantity.put("clearancepriceincents", 556L);
+      expectedMinimumOrderQuantity.put("msrprrppriceincents", 56656L);
     }
 
     GenericRecord expectedUnit = null;
     if (nestedParquetUnit != null) {
       expectedUnit = new GenericData.Record(nestedParquetUnit);
-      expectedUnit.put("salePriceInCents", 56656L);
-      expectedUnit.put("b2bPriceInCents", 5L);
-      expectedUnit.put("listPriceInCents", 56656L);
-      expectedUnit.put("clearancePriceInCents", 556L);
-      expectedUnit.put("msrpRrpPriceInCents", 56656L);
+      expectedUnit.put("salepriceincents", 56656L);
+      expectedUnit.put("b2bpriceincents", 5L);
+      expectedUnit.put("listpriceincents", 56656L);
+      expectedUnit.put("clearancepriceincents", 556L);
+      expectedUnit.put("msrprrppriceincents", 56656L);
     }
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductPricingSchema, input);
 
     GenericRecord expected = new GenericData.Record(parquetAvroAdTechProductPricingSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("optionCombinationId", 4075458971L);
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("optioncombinationid", 4075458971L);
     expected.put("sku", "SKU123");
-    expected.put("brandCatalogId", 4075458971L);
+    expected.put("brandcatalogid", 4075458971L);
     expected.put("source", "SOURCE");
-    expected.put("isOnCloseOutSale", true);
-    expected.put("isOnSale", false);
+    expected.put("isoncloseoutsale", true);
+    expected.put("isonsale", false);
     expected.put("item", expectedItem);
-    expected.put("minimumOrderQuantity", expectedMinimumOrderQuantity);
+    expected.put("minimumorderquantity", expectedMinimumOrderQuantity);
     expected.put("unit", expectedUnit);
 
 
@@ -983,10 +981,10 @@ public class ScribeParquetAvroConverterTest {
     GenericRecord routesExpected = null;
     if (nestedRouteExpected != null) {
       routesExpected = new GenericData.Record(nestedRouteExpected);
-      routesExpected.put("destinationId", 90);
-      routesExpected.put("destinationTypeId", 67);
-      routesExpected.put("thirdPartyCarrierId", 14);
-      routesExpected.put("rsId", 4);
+      routesExpected.put("destinationid", 90);
+      routesExpected.put("destinationtypeid", 67);
+      routesExpected.put("thirdpartycarrierid", 14);
+      routesExpected.put("rsid", 4);
     }
 
 
@@ -1000,49 +998,49 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> addedRoutesArrayExpected = new ArrayList<>();
     addedRoutesArrayExpected.add(updatedRoutesExpected);
-    GenericArray<GenericRecord>  addedRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("addedRoutes").schema()), addedRoutesArrayExpected);
+    GenericArray<GenericRecord>  addedRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("addedroutes").schema()), addedRoutesArrayExpected);
 
 
 
     List<GenericRecord> filteredRoutesArrayExpected = new ArrayList<>();
     filteredRoutesArrayExpected.add(updatedRoutesExpected);
-    GenericArray<GenericRecord>  filteredRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("filteredRoutes").schema()), filteredRoutesArrayExpected);
+    GenericArray<GenericRecord>  filteredRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("filteredroutes").schema()), filteredRoutesArrayExpected);
 
     GenericRecord finalRoutesExpected = null;
     if (nestedFinalRouteExpected != null) {
-      finalRoutesExpected = new GenericData.Record(nestedFinalRoute);
+      finalRoutesExpected = new GenericData.Record(nestedFinalRouteExpected);
       finalRoutesExpected.put("route", routesInput);
-      finalRoutesExpected.put("expectedNetRecovery", 3.4f);
-      finalRoutesExpected.put("grossRecovery", 1.3f);
+      finalRoutesExpected.put("expectednetrecovery", 3.4f);
+      finalRoutesExpected.put("grossrecovery", 1.3f);
       finalRoutesExpected.put("cost", 389.67f);
       finalRoutesExpected.put("currency", "dollars");
-      finalRoutesExpected.put("carrierShipCost", 10.99f);
-      finalRoutesExpected.put("marketingCategoryId", 11);
+      finalRoutesExpected.put("carriershipcost", 10.99f);
+      finalRoutesExpected.put("marketingcategoryid", 11);
 
-      finalRoutesExpected.put("openBoxDiscount", 7.60f);
-      finalRoutesExpected.put("liquidationTransferFee", 9f);
-      finalRoutesExpected.put("gradeProbabilityNew", 11f);
-      finalRoutesExpected.put("gradeProbabilityOpenBox", 9.67f);
-      finalRoutesExpected.put("gradeProbabilityLiquidation", 2.3f);
-      finalRoutesExpected.put("gradeProbabilityJunk", 1.99f);
-      finalRoutesExpected.put("junkGradeDisposalFee", 1.1f);
+      finalRoutesExpected.put("openboxdiscount", 7.60f);
+      finalRoutesExpected.put("liquidationtransferfee", 9f);
+      finalRoutesExpected.put("gradeprobabilitynew", 11f);
+      finalRoutesExpected.put("gradeprobabilityopenbox", 9.67f);
+      finalRoutesExpected.put("gradeprobabilityliquidation", 2.3f);
+      finalRoutesExpected.put("gradeprobabilityjunk", 1.99f);
+      finalRoutesExpected.put("junkgradedisposalfee", 1.1f);
 
-      finalRoutesExpected.put("warehouseProcessingCost", 3.3f);
-      finalRoutesExpected.put("liquidationDiscountRate", 10.99f);
-      finalRoutesExpected.put("openBoxDiscount", 7.60f);
-      finalRoutesExpected.put("liquidationTransferFee", 9f);
-      finalRoutesExpected.put("wholesalePrice", 200f);
-      finalRoutesExpected.put("salePrice", 299f);
-      finalRoutesExpected.put("volumeSteeringConstant", 2.3f);
-      finalRoutesExpected.put("boxCountMultiplier", 0.99f);
-      finalRoutesExpected.put("productStatusMultiplier", 11f);
+      finalRoutesExpected.put("warehouseprocessingcost", 3.3f);
+      finalRoutesExpected.put("liquidationdiscountrate", 10.99f);
+      finalRoutesExpected.put("openboxdiscount", 7.60f);
+      finalRoutesExpected.put("liquidationtransferfee", 9f);
+      finalRoutesExpected.put("wholesaleprice", 200f);
+      finalRoutesExpected.put("saleprice", 299f);
+      finalRoutesExpected.put("volumesteeringconstant", 2.3f);
+      finalRoutesExpected.put("boxcountmultiplier", 0.99f);
+      finalRoutesExpected.put("productstatusmultiplier", 11f);
 
 
-      finalRoutesExpected.put("adjustmentMultiplier", 7.60f);
-      finalRoutesExpected.put("returnReasonMultiplier", 9f);
-      finalRoutesExpected.put("highDamageMultiplier", 200f);
-      finalRoutesExpected.put("repackMultiplier", 299f);
-      finalRoutesExpected.put("disassemblyMultiplier", 2.3f);
+      finalRoutesExpected.put("adjustmentmultiplier", 7.60f);
+      finalRoutesExpected.put("returnreasonmultiplier", 9f);
+      finalRoutesExpected.put("highdamagemultiplier", 200f);
+      finalRoutesExpected.put("repackmultiplier", 299f);
+      finalRoutesExpected.put("disassemblymultiplier", 2.3f);
 
     }
 
@@ -1060,32 +1058,32 @@ public class ScribeParquetAvroConverterTest {
 
     GenericRecord expected = new GenericData.Record(parquetAvroItemsReturnRequestRouteSchema);
     //exploded header fields
-    expected.put("scribeEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("eventName", "item_return_routes_found");
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("receivedTimestamp", "2017-05-15 06:13:32.579 -0400");
-    expected.put("dataClassification", 1);
-    expected.put("productApplicationToken", "token");
+    expected.put("scribeeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("eventname", "item_return_routes_found");
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("receivedtimestamp", "2017-05-15 06:13:32.579 -0400");
+    expected.put("dataclassification", 1);
+    expected.put("productapplicationtoken", "token");
     expected.put("domain", "supplychain");
-    expected.put("avroSchemaVersion", 2);
-    expected.put("scribeClientVersion", "trail_1");
+    expected.put("avroschemaversion", 2);
+    expected.put("scribeclientversion", "trail_1");
 
-    expected.put("requestId", "test_id");
-    expected.put("orderProductId", 1234L);
-    expected.put("isIncident", false);
-    expected.put("canItemBeReturnedToSupplier", true);
-    expected.put("isFedexPickupAvailable", false);
-    expected.put("isFedexLocationAvailable", true);
-    expected.put("supplierTakeReturns", true);
-    expected.put("supplierCountryId", 12);
-    expected.put("supplierReturnCountryId", 34);
-    expected.put("supplierAllowanceType", supplierAllowanceTypeExpected);
-    expected.put("supplierReturnAuthorizationMethod", "method");
-    expected.put("supplierCastleGateWarehouseId", 123);
-    expected.put("isWayfairCarrier", true);
-    expected.put("addedRoutes", addedRoutesExpected);
-    expected.put("filteredRoutes", filteredRoutesExpected);
-    expected.put("finalRoutes", finalRoutesArrayExpected);
+    expected.put("requestid", "test_id");
+    expected.put("orderproductid", 1234L);
+    expected.put("isincident", false);
+    expected.put("canitembereturnedtosupplier", true);
+    expected.put("isfedexpickupavailable", false);
+    expected.put("isfedexlocationavailable", true);
+    expected.put("suppliertakereturns", true);
+    expected.put("suppliercountryid", 12);
+    expected.put("supplierreturncountryid", 34);
+    expected.put("supplierallowancetype", supplierAllowanceTypeExpected);
+    expected.put("supplierreturnauthorizationmethod", "method");
+    expected.put("suppliercastlegatewarehouseid", 123);
+    expected.put("iswayfaircarrier", true);
+    expected.put("addedroutes", addedRoutesExpected);
+    expected.put("filteredroutes", filteredRoutesExpected);
+    expected.put("finalroutes", finalRoutesArrayExpected);
 
     assertEquals(expected, actual);
 
@@ -1126,21 +1124,34 @@ public class ScribeParquetAvroConverterTest {
     mapOfStringsExpected.put("test-1", "test-val-1");
 
     GenericRecord expected = new GenericData.Record(parquetAvroPageViewSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("customerGuid", "6956ee16-52a7-bbca-66a2-ee74a8f2b307");
-    expected.put("deviceGuid", "1956ee1a-52a7-bbca-66a2-ee74a8f2b307");
-    expected.put("transactionId", "ChgHDVWwAypCOxjlBClpAg==");
-    expected.put("externalDeviceGuid", "1956ee1a-52a7-bbca-66a2-ee74a8f2b307");
-    expected.put("canvasHashes", mapOfStringsExpected);
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("customerguid", "6956ee16-52a7-bbca-66a2-ee74a8f2b307");
+    expected.put("deviceguid", "1956ee1a-52a7-bbca-66a2-ee74a8f2b307");
+    expected.put("transactionid", "ChgHDVWwAypCOxjlBClpAg==");
+    expected.put("externaldeviceguid", "1956ee1a-52a7-bbca-66a2-ee74a8f2b307");
+    expected.put("canvashashes", mapOfStringsExpected);
 
     assertEquals(expected, actual);
   }
 
+  @Test
+  public void testAdTechProductCatalogGenerateParquetStructuredAvroSchema() throws Exception {
+    Schema landingSchema = schemaParser.parse(
+        Resources.toString(Resources.getResource("avroschemas/AdTechProductCatalogEvent.avsc"), StandardCharsets.UTF_8)
+    );
+
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(landingSchema);
+
+    Schema expected = new Schema.Parser().parse(
+        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+    );
+    assertEquals(expected, actual);
+  }
 
   @Test
   public void testAdTechProductCatalogEventGenerateFlattenedParquetStructuredAvroData() throws Exception {
@@ -1225,79 +1236,79 @@ public class ScribeParquetAvroConverterTest {
     );
 
     Schema nestedManufacturerExpected = getSchemaForNestedObjects(parquetAvroAdTechProductCatalogSchema, "manufacturer");
-    Schema nestedManufacturerPartExpected = getSchemaForNestedObjects(parquetAvroAdTechProductCatalogSchema, "manufacturerPart");
+    Schema nestedManufacturerPartExpected = getSchemaForNestedObjects(parquetAvroAdTechProductCatalogSchema, "manufacturerpart");
 
     GenericRecord expectedManufacturer = null;
     if (nestedManufacturerExpected != null) {
       expectedManufacturer = new GenericData.Record(nestedManufacturerExpected);
       expectedManufacturer.put("id", 88890L);
       expectedManufacturer.put("name", "manufacturerName");
-      expectedManufacturer.put("viewTimestamp", "2017-05-15 06:13:32.576 -0400");
+      expectedManufacturer.put("viewtimestamp", "2017-05-15 06:13:32.576 -0400");
     }
 
     GenericRecord expectedproductCatalogManufacturerPart = null;
     if (nestedManufacturerPartExpected != null) {
       expectedproductCatalogManufacturerPart = new GenericData.Record(nestedManufacturerPartExpected);
       expectedproductCatalogManufacturerPart.put("id", 56656L);
-      expectedproductCatalogManufacturerPart.put("partNumber", "test123");
-      expectedproductCatalogManufacturerPart.put("customerFacingUpc", "yes");
+      expectedproductCatalogManufacturerPart.put("partnumber", "test123");
+      expectedproductCatalogManufacturerPart.put("customerfacingupc", "yes");
     }
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogSchema, input);
     //GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogFlattenedSchema, input);
 
     GenericRecord expected = new GenericData.Record(parquetAvroAdTechProductCatalogSchema);
-    expected.put("trackingEventId", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
-    expected.put("scribeLogId", "8b1d4bac-797e-4a5f-a959-667deda80515");
+    expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
+    expected.put("scribelogid", "8b1d4bac-797e-4a5f-a959-667deda80515");
     expected.put("platform", "WEB");
-    expected.put("storeId", 49);
-    expected.put("eventTimestamp", "2017-05-15 06:13:32.576 -0400");
-    expected.put("libraGuid", "0ae406c8-5919-7c50-a927-7040475fd802");
-    expected.put("optionCombinationId", 4075458971L);
+    expected.put("storeid", 49);
+    expected.put("eventtimestamp", "2017-05-15 06:13:32.576 -0400");
+    expected.put("libraguid", "0ae406c8-5919-7c50-a927-7040475fd802");
+    expected.put("optioncombinationid", 4075458971L);
     expected.put("sku", "SKU123");
-    expected.put("brandCatalogId", 4075458971L);
+    expected.put("brandcatalogid", 4075458971L);
     expected.put("source", "SOURCE");
-    expected.put("displaySku", "sku876");
+    expected.put("displaysku", "sku876");
     expected.put("name", "nametest");
-    expected.put("marketingCategory", "testCategory");
+    expected.put("marketingcategory", "testCategory");
     expected.put("status", 4L);
-    expected.put("statusFlag", "statusTemp");
-    expected.put("webDescription", "describe lklmk");
-    expected.put("romanceCopy", "romanceCopy");
-    expected.put("reviewRating", 4.4);
-    expected.put("reviewRating2", 3.9);
-    expected.put("numberOfRatings", 100L);
-    expected.put("salesCount", 9988L);
+    expected.put("statusflag", "statusTemp");
+    expected.put("webdescription", "describe lklmk");
+    expected.put("romancecopy", "romanceCopy");
+    expected.put("reviewrating", 4.4);
+    expected.put("reviewrating2", 3.9);
+    expected.put("numberofratings", 100L);
+    expected.put("salescount", 9988L);
     expected.put("currency", "dollars");
-    expected.put("skuManufacturerPartNumber", "statusTemp");
-    expected.put("whiteLabelPartNumber", "describe lklmk");
-    expected.put("isNew", true);
-    expected.put("isKit", true);
-    expected.put("isB2BOnly", false);
-    expected.put("isFindable", true);
-    expected.put("isAutoCreate", false);
-    expected.put("hasFreeGroundShipping", false);
+    expected.put("skumanufacturerpartnumber", "statusTemp");
+    expected.put("whitelabelpartnumber", "describe lklmk");
+    expected.put("isnew", true);
+    expected.put("iskit", true);
+    expected.put("isb2bonly", false);
+    expected.put("isfindable", true);
+    expected.put("isautocreate", false);
+    expected.put("hasfreegroundshipping", false);
     // nested objects
-    expected.put("masterClass", null);
-    expected.put("productClasses", null);
+    expected.put("masterclass", null);
+    expected.put("productclasses", null);
     expected.put("options",  null);
-    expected.put("productDimensions",  null);
+    expected.put("productdimensions",  null);
     expected.put("manufacturer", expectedManufacturer);
-    expected.put("manufacturerPart", expectedproductCatalogManufacturerPart);
+    expected.put("manufacturerpart", expectedproductCatalogManufacturerPart);
 
     // exploded nested object
 //  expected.put("id", 56656L);
 //  expected.put("partNumber", "test123");
 //  expected.put("customerFacingUpc", "yes");
-    expected.put("supplierParts",  null);
+    expected.put("supplierparts",  null);
     expected.put("promotion",  null);
-    expected.put("isAdminOnly", true);
-    expected.put("prRestrictionsBitmap", null);
-    expected.put("pwrBayesianRating", 4.3);
-    expected.put("isSwatchOrderable", false);
-    expected.put("dimensionalInfo", null);
-    expected.put("proProduct", null);
-    expected.put("exposureWarning", null);
+    expected.put("isadminonly", true);
+    expected.put("prrestrictionsbitmap", null);
+    expected.put("pwrbayesianrating", 4.3);
+    expected.put("isswatchorderable", false);
+    expected.put("dimensionalinfo", null);
+    expected.put("proproduct", null);
+    expected.put("exposurewarning", null);
     assertEquals(expected, actual);
   }
 }
