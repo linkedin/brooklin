@@ -197,6 +197,21 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     }
   }
 
+  @Override
+  public void deleteDatastreamNumTasks(String key) {
+    Validate.notNull(key, "null key");
+
+    String path = KeyBuilder.datastreamNumTasks(_cluster, key);
+
+    if (!_zkClient.exists(path)) {
+      LOG.warn("Trying to delete znode of datastream for which numTasks does not exist. Datastream name: " + key);
+      return;
+    }
+
+    LOG.info("Deleting the zk path {} ", path);
+    _zkClient.delete(path);
+  }
+
   private void notifyLeaderOfDataChange() {
     String dmsPath = KeyBuilder.datastreams(_cluster);
     // Update the /dms to notify that coordinator needs to act on a deleted or changed datastream.
