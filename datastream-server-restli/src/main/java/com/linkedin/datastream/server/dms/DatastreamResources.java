@@ -409,6 +409,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         if (DatastreamStatus.READY.equals(datastream.getStatus()) || DatastreamStatus.PAUSED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.STOPPED);
           _store.updateDatastream(d.getName(), d, true);
+          _store.deleteDatastreamNumTasks(d.getName());
         } else {
           LOG.warn("Cannot stop datastream {}, as it is not in READY/PAUSED state. State: {}", d, datastream.getStatus());
         }
