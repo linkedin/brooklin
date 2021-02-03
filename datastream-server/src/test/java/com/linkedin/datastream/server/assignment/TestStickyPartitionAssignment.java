@@ -350,6 +350,7 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -381,6 +382,7 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -426,6 +428,7 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -530,6 +533,7 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -563,8 +567,11 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
-    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+    datastreams.forEach(datastreamGroup -> {
+      datastreamGroup.getDatastreams().get(0).getMetadata()
+          .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
+      _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, datastreamGroup.getTaskPrefix()));
+    });
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -615,8 +622,11 @@ public class TestStickyPartitionAssignment {
             Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
-    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+    datastreams.forEach(datastreamGroup -> {
+      datastreamGroup.getDatastreams().get(0).getMetadata()
+          .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
+      _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, datastreamGroup.getTaskPrefix()));
+    });
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();

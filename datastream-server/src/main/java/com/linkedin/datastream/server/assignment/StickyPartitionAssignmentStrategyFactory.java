@@ -12,6 +12,9 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
@@ -21,6 +24,8 @@ import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyF
  * A factory for creating {@link StickyPartitionAssignmentStrategy} instances
  */
 public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrategyFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategyFactory.class.getName());
+
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
   public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
   public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
@@ -56,8 +61,13 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
 
     // Create the ZooKeeper Client
     Optional<ZkClient> zkClient = Optional.empty();
+    String zkAddress = props.getString(CFG_ZK_ADDRESS, null);
+    if (enableElasticTaskAssignment && StringUtils.isBlank(zkAddress)) {
+      LOG.warn("Disabling elastic task assignment as zkAddress is not present or empty");
+      enableElasticTaskAssignment = false;
+    }
+
     if (enableElasticTaskAssignment) {
-      String zkAddress = props.getString(CFG_ZK_ADDRESS);
       int zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
       int zkConnectionTimeout = props.getInt(CFG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
       zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));

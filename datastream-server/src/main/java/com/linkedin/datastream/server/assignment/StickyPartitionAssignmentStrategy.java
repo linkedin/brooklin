@@ -557,8 +557,12 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * is enabled.
    */
   private void createOrUpdateNumTasksForDatastreamInZK(String stream, int numTasks) {
+    if (_zkClient == null) {
+      LOG.warn("Skip create/update of numTasks in ZK as elastic task assignment is disabled");
+      return;
+    }
+
     Validate.isTrue(_enableElasticTaskAssignment);
-    _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, stream));
     String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
     if (!_zkClient.exists(numTasksPath)) {
       _zkClient.create(numTasksPath, String.valueOf(numTasks), CreateMode.PERSISTENT);
@@ -573,6 +577,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * Get the numTasks node for a given datastream. This should only be called if elastic task assignment is enabled.
    */
   private int getNumTasksForDatastreamFromZK(String stream) {
+    if (_zkClient == null) {
+      LOG.warn("Trying to get the numTasks from ZK even though elastic task assignment is disabled");
+      return 0;
+    }
+
     Validate.isTrue(_enableElasticTaskAssignment);
     String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
 
