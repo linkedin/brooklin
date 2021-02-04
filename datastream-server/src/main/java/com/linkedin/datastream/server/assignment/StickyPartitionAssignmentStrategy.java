@@ -15,8 +15,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -27,6 +29,10 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -58,12 +64,17 @@ import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmen
  * semantics is different when elastic task assignment is disabled, where "maxTasks" is treated as the number of
  * tasks to create.
  */
-public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
+public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy implements MetricsAware {
   public static final String CFG_MIN_TASKS = "minTasks";
+
+  private static final String CLASS_NAME = StickyPartitionAssignmentStrategy.class.getSimpleName();
+  private static final String ACTUAL_PARTITIONS_PER_TASK = "actualPartitionsPerTask";
+  private static final String PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT = "partitionsPerTaskNeedsAdjustment";
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
   private static final Integer DEFAULT_PARTITIONS_PER_TASK = 50;
   private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
+  private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
   private final boolean _enableElasticTaskAssignment;
   private final Integer _maxPartitionPerTask;
@@ -71,6 +82,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
   private final Integer _partitionFullnessFactorPct;
   private final ZkClient _zkClient;
   private final String _clusterName;
+  private final ConcurrentHashMap<String, ElasticTaskAssignmentInfo> _elasticTaskAssignmentInfoHashMap = new ConcurrentHashMap<>();
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -171,8 +183,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup()) && assignedPartitions.isEmpty()) {
-      performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
+    if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup())) {
+      if (assignedPartitions.isEmpty()) {
+        performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
+      }
+      updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, totalTaskCount);
     }
 
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
@@ -435,6 +450,20 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     return tasksToCleanUp;
   }
 
+  /**
+   * Get the list of metrics maintained by the assignment strategy
+   */
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metrics = new ArrayList<>();
+    String prefix = CLASS_NAME + MetricsAware.KEY_REGEX;
+
+    metrics.add(new BrooklinGaugeInfo(prefix + ACTUAL_PARTITIONS_PER_TASK));
+    metrics.add(new BrooklinGaugeInfo(prefix + PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT));
+
+    return Collections.unmodifiableList(metrics);
+  }
+
   @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
     boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
@@ -468,6 +497,24 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     setTaskCountForDatastreamGroup(dg.getTaskPrefix(), expectedNumberOfTasks);
     return expectedNumberOfTasks;
+  }
+
+  private void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
+      int totalTaskCount) {
+    int totalPartitions = datastreamPartitions.getPartitions().size();
+    int actualPartitionsPerTask = (totalTaskCount / totalPartitions)
+        + (((totalTaskCount % totalPartitions) == 0) ? 0 : 1);
+
+    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    String taskPrefix = datastreamPartitions.getDatastreamGroup().getTaskPrefix();
+    ElasticTaskAssignmentInfo elasticTaskAssignmentInfo =
+        new ElasticTaskAssignmentInfo(actualPartitionsPerTask, actualPartitionsPerTask > partitionsPerTask);
+
+    if (!_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)) {
+      registerElasticTaskAssignmentMetrics(taskPrefix);
+    }
+    _elasticTaskAssignmentInfoHashMap.put(taskPrefix, elasticTaskAssignmentInfo);
   }
 
   private void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
@@ -591,5 +638,40 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
     }
 
     return Integer.parseInt(_zkClient.readData(numTasksPath));
+  }
+
+  /**
+   * Register metrics related to elastic task assignment
+   */
+  private void registerElasticTaskAssignmentMetrics(String taskPrefix) {
+    Supplier<Double> actualPartitionsPerTaskSupplier = () ->
+        (double) (_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)
+            ? _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getActualPartitionsPerTask() : 0);
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, ACTUAL_PARTITIONS_PER_TASK,
+        actualPartitionsPerTaskSupplier);
+
+    Supplier<Double> needsAdjustmentSupplier = () ->
+        (_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)
+            && _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getNeedsAdjustment()) ? 1.0 : 0.0;
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT,
+        needsAdjustmentSupplier);
+  }
+
+  private static class ElasticTaskAssignmentInfo {
+    private int _actualPartitionsPerTask;
+    private boolean _needsAdjustment;
+
+    ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
+      _actualPartitionsPerTask = actualPartitionsPerTask;
+      _needsAdjustment = needsAdjustment;
+    }
+
+    int getActualPartitionsPerTask() {
+      return _actualPartitionsPerTask;
+    }
+
+    boolean getNeedsAdjustment() {
+      return _needsAdjustment;
+    }
   }
 }

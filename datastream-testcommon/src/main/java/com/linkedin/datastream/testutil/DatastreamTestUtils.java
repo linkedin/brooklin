@@ -197,7 +197,6 @@ public class DatastreamTestUtils {
    */
   public static void deleteDatastreamsNumTasks(ZkClient zkClient, String cluster, String... datastreams) {
     for (String datastreamName : datastreams) {
-      zkClient.ensurePath(KeyBuilder.datastreams(cluster));
       CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
       ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
       dsStore.deleteDatastreamNumTasks(datastreamName);

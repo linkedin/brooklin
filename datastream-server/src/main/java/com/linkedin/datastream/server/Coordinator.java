@@ -1901,6 +1901,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
           () -> connectorInfo.getConnector().getNumDatastreamTasks());
       _metricInfos.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
+
+      AssignmentStrategy strategy = connectorInfo.getAssignmentStrategy();
+      if (strategy instanceof MetricsAware) {
+        addMetricInfos((MetricsAware) strategy);
+      }
     }
 
     public List<BrooklinMetricInfo> getMetricInfos() {
