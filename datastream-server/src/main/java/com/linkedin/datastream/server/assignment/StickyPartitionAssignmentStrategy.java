@@ -502,8 +502,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     int totalPartitions = datastreamPartitions.getPartitions().size();
-    int actualPartitionsPerTask = (totalTaskCount / totalPartitions)
-        + (((totalTaskCount % totalPartitions) == 0) ? 0 : 1);
+    int actualPartitionsPerTask = (totalPartitions / totalTaskCount)
+        + (((totalPartitions % totalTaskCount) == 0) ? 0 : 1);
 
     int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
         CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
