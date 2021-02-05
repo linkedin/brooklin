@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -607,5 +608,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     metrics.add(new BrooklinGaugeInfo(buildMetricName(_metricsPrefix, NUM_TASK_RESTARTS)));
 
     return Collections.unmodifiableList(metrics);
+  }
+
+  /**
+   * Gets the consumption lag map for the topic partitions processed by the specified task.
+   * @param task Task for which to get the consumption lag map.
+   * @return A map object, where the first key is the topic name, the second key is the partition, lag is the value.
+   */
+  public Map<String, Map<Integer, Long>> getConsumptionLagForTask(DatastreamTask task) throws IllegalArgumentException {
+    Validate.notNull(task);
+
+    ConnectorTaskEntry taskEntry = _runningTasks.getOrDefault(task, null);
+    if (taskEntry == null) {
+      throw new IllegalArgumentException("Task not found.");
+    }
+
+    return taskEntry.getConnectorTask().getKafkaTopicPartitionTracker().getConsumptionLag();
   }
 }
