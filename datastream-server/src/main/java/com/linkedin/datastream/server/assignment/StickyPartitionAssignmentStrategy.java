@@ -157,13 +157,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   @Override
   public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
       Map<String, Set<DatastreamTask>> currentAssignment) {
-    // Remove entries for datastreams that aren't to be assigned in this round of task assignment. This resets the
-    // metrics correctly for datastreams that were deleted / stopped. This will be recalculated on further rounds for
-    // restarted datastreams.
+    // Remove entries for datastreams that aren't to be assigned in this round of task assignment. Also unregister
+    // any metrics that were created for the unassigned datastreams. This resets the metrics correctly for datastreams
+    // that were deleted / stopped. This will be recalculated on further rounds for restarted datastreams.
     Set<String> datastreamTaskPrefixes = datastreams.stream().map(DatastreamGroup::getTaskPrefix)
         .collect(Collectors.toSet());
     _elasticTaskAssignmentInfoHashMap.keySet().forEach(datastreamTaskPrefix -> {
       if (!datastreamTaskPrefixes.contains(datastreamTaskPrefix)) {
+        DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
+        DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
         _elasticTaskAssignmentInfoHashMap.remove(datastreamTaskPrefix);
       }
     });
@@ -468,7 +470,11 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
 
   @Override
   public void cleanupStrategy() {
-    // Clear the maintained state
+    // Clear the maintained state and unregister the metrics
+    _elasticTaskAssignmentInfoHashMap.keySet().forEach(datastreamTaskPrefix -> {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
+    });
     _elasticTaskAssignmentInfoHashMap.clear();
     clearAllDatastreamGroupTaskCounts();
   }
