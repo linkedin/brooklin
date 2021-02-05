@@ -278,19 +278,25 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
           new KafkaMirrorMakerCheckpoint(datastreamProducerRecord.getCheckpoint());
       String topic = sourceCheckpoint.getTopic();
       int partition = sourceCheckpoint.getPartition();
-      _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(),
-          ((metadata, exception) -> {
-            if (exception != null) {
-              LOG.warn(String.format("Detected exception being throw from flushless send callback for source "
-                      + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata), exception);
-              updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
-            } else {
-              _consumerMetrics.updateBytesProcessedRate(numBytes);
-            }
-            if (sendCallback != null) {
-              sendCallback.onCompletion(metadata, exception);
-            }
-          }));
+      try {
+        _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(), ((metadata, exception) -> {
+          if (exception != null) {
+            LOG.warn(String.format("Detected exception being throw from flushless send callback for source "
+                + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata), exception);
+            updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
+          } else {
+            _consumerMetrics.updateBytesProcessedRate(numBytes);
+          }
+          if (sendCallback != null) {
+            sendCallback.onCompletion(metadata, exception);
+          }
+        }));
+      } catch (Exception e) {
+        LOG.warn("Hit Exception while sending records for {}-{}, inFlightMessageCount: {}",
+            topic, partition, _flushlessProducer.getInFlightCount(topic, partition));
+        commitSafeOffsets(_consumer);
+        throw e;
+      }
       if (_flowControlEnabled) {
         TopicPartition tp = new TopicPartition(topic, partition);
         long inFlightMessageCount = _flushlessProducer.getInFlightCount(topic, partition);
