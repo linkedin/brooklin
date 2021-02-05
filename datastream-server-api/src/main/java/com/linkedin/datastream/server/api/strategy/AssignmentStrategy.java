@@ -102,4 +102,10 @@ public interface AssignmentStrategy {
       Map<String, Set<DatastreamTask>> currentAssignment) {
     return Collections.emptyMap();
   }
+
+  /**
+   * Perform any strategy specific cleanup if required.
+   */
+  default void cleanupStrategy() {
+  }
 }

@@ -154,6 +154,22 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         clusterName);
   }
 
+  @Override
+  public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
+      Map<String, Set<DatastreamTask>> currentAssignment) {
+    // Remove entries for datastreams that aren't to be assigned in this round of task assignment. This resets the
+    // metrics correctly for datastreams that were deleted / stopped. This will be recalculated on further rounds for
+    // restarted datastreams.
+    Set<String> datastreamTaskPrefixes = datastreams.stream().map(DatastreamGroup::getTaskPrefix)
+        .collect(Collectors.toSet());
+    _elasticTaskAssignmentInfoHashMap.keySet().forEach(datastreamTaskPrefix -> {
+      if (!datastreamTaskPrefixes.contains(datastreamTaskPrefix)) {
+        _elasticTaskAssignmentInfoHashMap.remove(datastreamTaskPrefix);
+      }
+    });
+    return super.assign(datastreams, instances, currentAssignment);
+  }
+
   /**
    * Assign partitions to a particular datastream group
    *
@@ -450,6 +466,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return tasksToCleanUp;
   }
 
+  @Override
+  public void cleanupStrategy() {
+    // Clear the maintained state
+    _elasticTaskAssignmentInfoHashMap.clear();
+    clearAllDatastreamGroupTaskCounts();
+  }
+
   /**
    * Get the list of metrics maintained by the assignment strategy
    */
@@ -657,20 +680,23 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         needsAdjustmentSupplier);
   }
 
+  /**
+   * Contains the elastic task information for a given datastream group
+   */
   private static class ElasticTaskAssignmentInfo {
     private int _actualPartitionsPerTask;
     private boolean _needsAdjustment;
 
-    ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
+    public ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
       _actualPartitionsPerTask = actualPartitionsPerTask;
       _needsAdjustment = needsAdjustment;
     }
 
-    int getActualPartitionsPerTask() {
+    public int getActualPartitionsPerTask() {
       return _actualPartitionsPerTask;
     }
 
-    boolean getNeedsAdjustment() {
+    public boolean getNeedsAdjustment() {
       return _needsAdjustment;
     }
   }

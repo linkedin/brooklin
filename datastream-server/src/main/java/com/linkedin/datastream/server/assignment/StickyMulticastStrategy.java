@@ -281,4 +281,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
   protected int getTaskCountForDatastreamGroup(String taskPrefix) {
     return _taskCountPerDatastreamGroup.getOrDefault(taskPrefix, 0);
   }
+
+  protected void clearAllDatastreamGroupTaskCounts() {
+    _taskCountPerDatastreamGroup.clear();
+  }
 }

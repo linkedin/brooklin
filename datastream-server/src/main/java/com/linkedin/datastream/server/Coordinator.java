@@ -337,7 +337,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Stopping all the connectors so that they stop producing.
     for (String connectorType : _connectors.keySet()) {
       try {
-        _connectors.get(connectorType).getConnector().stop();
+        ConnectorInfo connectorInfo = _connectors.get(connectorType);
+        connectorInfo.getConnector().stop();
+        connectorInfo.getAssignmentStrategy().cleanupStrategy();
       } catch (Exception ex) {
         _log.warn(String.format(
             "Connector stop threw an exception for connectorType %s, " + "Swallowing it and continuing shutdown.",
@@ -490,6 +492,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
 
     onDatastreamChange(new ArrayList<>());
+
+    // Perform AssignmentStrategy cleanup for all the connectors
+    _connectors.values().forEach(connectorInfo -> {
+      connectorInfo.getAssignmentStrategy().cleanupStrategy();
+    });
+
     // Shutdown the event producer to stop any further production of records.
     // Event producer shutdown sequence does not need to wait for onAssignmentChange to complete.
     // This will ensure that even if any task thread does not respond to thread interruption, it will
