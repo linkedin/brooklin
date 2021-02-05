@@ -91,6 +91,11 @@ public final class KeyBuilder {
   private static final String TARGET_ASSIGNMENTS = TARGET_ASSIGNMENT_BASE + "/%s";
 
   /**
+   * numTasks information stored for each datastream that uses elastic task assignment
+   */
+  private static final String DATASTREAM_NUMTASKS = DATASTREAM + "/numTasks";
+
+  /**
    * Get the root level ZooKeeper znode of a Brooklin cluster
    * @param clusterName Brooklin cluster name
    */
@@ -193,6 +198,19 @@ public final class KeyBuilder {
   }
 
   /**
+   * Get the ZooKeeeper znode for numTasks of a specific datastream in a Brooklin cluster
+   * This node will only be present for datastreams that use elastic task assignment
+   *
+   * <pre>Example: /{cluster}/dms/{datastreamName}/numTasks</pre>
+   *
+   * @param cluster Brooklin cluster name
+   * @param stream Datastream name
+   */
+  public static String datastreamNumTasks(String cluster, String stream) {
+    return String.format(DATASTREAM_NUMTASKS, cluster, stream);
+  }
+
+  /**
    * Get the ZooKeeper znode for a specific connector enabled in a Brooklin cluster
    * @param cluster Brooklin cluster name
    * @param connectorType Connector
@@ -268,7 +286,6 @@ public final class KeyBuilder {
     // taskId could be empty space, which can result in "//" in the path
     return String.format(DATASTREAM_TASK_STATE_KEY, cluster, connectorType, datastreamTask, key).replaceAll("//", "/");
   }
-
 
   /**
    * Get the ZooKeeper path to store lock

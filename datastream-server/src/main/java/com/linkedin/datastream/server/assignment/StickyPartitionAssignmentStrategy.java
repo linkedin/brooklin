@@ -19,26 +19,58 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
+import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.zk.KeyBuilder;
+
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITIONS_PER_TASK;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
+
 
 /**
  *
- * The StickyPartitionAssignmentStrategy extends the StickyMulticastStrategy but allows to perform the partition
+ * The StickyPartitionAssignmentStrategy extends the StickyMulticastStrategy to allow performing the partition
  * assignment. This StickyPartitionAssignmentStrategy creates new tasks and remove old tasks to accommodate the
  * change in partition assignment. The strategy is also "Sticky", i.e., it minimizes the potential task mutations.
  * The total number of tasks is also unchanged during this process.
+ *
+ * If elastic task assignment is enabled then the initial number of tasks to create, when no tasks exist for a given
+ * DatastreamGroup, is determined by a "minTasks" datastream metadata property. When the first partition assignment
+ * takes place, based on the "partitionsPerTask" and "partitionFullnessFactorPct", the number of tasks needed to host
+ * the partitions is determined. An in-memory map tracking the number of tasks per DatastreamGroup is updated and a
+ * DatastreamRuntimeException is thrown to retry task assignment with the updated number of tasks. The next partition
+ * assignment should determine that the number of tasks are sufficient and should go through successfully. After the
+ * initial determination, the number of tasks does not change, task and partition assignment proceed as usual.
+ *
+ * When elastic task assignment is enabled, the "maxTasks" datastream metadata is used as an upper bound on the number
+ * of tasks we can create to prevent unbounded task creation which can overwhelm the hosts in the cluster. This
+ * semantics is different when elastic task assignment is disabled, where "maxTasks" is treated as the number of
+ * tasks to create.
  */
 public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
+  public static final String CFG_MIN_TASKS = "minTasks";
+
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
+  private static final Integer DEFAULT_PARTITIONS_PER_TASK = 50;
+  private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
+
+  private final boolean _enableElasticTaskAssignment;
   private final Integer _maxPartitionPerTask;
+  private final Integer _partitionsPerTask;
+  private final Integer _partitionFullnessFactorPct;
+  private final ZkClient _zkClient;
+  private final String _clusterName;
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -52,20 +84,72 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
    *                            If partitions count in task is larger than this number, Brooklin will throw an exception
+   * @param enableElasticTaskAssignment A boolean indicating whether elastic task assignment is enabled or not. If
+   *                                    enabled, the number of tasks to assign will be determined by a minTasks
+   *                                    datastream metadata property, and may be increased based on the number of tasks
+   *                                    determined during partition assignment.
+   * @param partitionsPerTask If elastic task assignment is enabled, this is used to determine the number of partitions
+   *                          allowed in each task when determining the number of tasks for the first time. The default
+   *                          is {@value DEFAULT_PARTITIONS_PER_TASK}.
+   * @param partitionFullnessFactorPct If elastic task assignment is enabled, this is used to determine how full to
+   *                                   the tasks when fitting partitions into them for the first time. The default
+   *                                   is {@value DEFAULT_PARTITION_FULLNESS_FACTOR_PCT}.
+   * @param zkClient The ZkClient to use for interaction with ZooKeeper. If elastic task assignment is enabled, a
+   *                 value must be specified, otherwise Optional.empty() can be passed.
+   * @param clusterName The name of the Brooklin cluster
    *
    */
   public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask) {
+      Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
+      Optional<Integer> partitionFullnessFactorPct, Optional<ZkClient> zkClient, String clusterName) {
     super(maxTasks, imbalanceThreshold);
+    Validate.notNull(zkClient);
+    Validate.isTrue(!enableElasticTaskAssignment || !StringUtils.isBlank(clusterName),
+        "Cluster name should not be null/blank if elastic task assignment is enabled");
+    Validate.isTrue(!enableElasticTaskAssignment || zkClient.isPresent(),
+        "ZkClient should not be null/empty if elastic task assignment is enabled");
+
+    _enableElasticTaskAssignment = enableElasticTaskAssignment;
     _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
+    _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
+    _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
+    _zkClient = zkClient.orElse(null);
+    _clusterName = clusterName;
+
+    LOG.info("Elastic task assignment is {}, partitionsPerTask: {}, partitionFullnessFactorPct: {}, "
+            + "maxPartitionPerTask: {}, cluster: {}", _enableElasticTaskAssignment ? "enabled" : "disabled",
+        _partitionsPerTask, _partitionFullnessFactorPct, _maxPartitionPerTask, _clusterName);
   }
+
   /**
-   * assign partitions to a particular datastream group
+   * Constructor for StickyPartitionAssignmentStrategy with elastic task assignment disabled
+   * @param maxTasks Maximum number of {@link DatastreamTask}s to create out
+   *                 of any {@link com.linkedin.datastream.common.Datastream}
+   *                 if no value is specified for the "maxTasks" config property
+   *                 at an individual datastream level.
+   * @param imbalanceThreshold The maximum allowable difference in the number of tasks assigned
+   *                           between any two {@link com.linkedin.datastream.server.Coordinator}
+   *                           instances, before triggering a rebalance. The default is
+   *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
+   * @param maxPartitionPerTask The maximum number of partitions allowed per task. By default it's Integer.MAX (no limit)
+   *                            If partitions count in task is larger than this number, Brooklin will throw an exception
+   * @param clusterName The name of the Brooklin cluster
+   *
+   */
+  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
+      Optional<Integer> maxPartitionPerTask, String clusterName) {
+    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty(), Optional.empty(),
+        clusterName);
+  }
+
+  /**
+   * Assign partitions to a particular datastream group
    *
    * @param currentAssignment the old assignment
    * @param datastreamPartitions the subscribed partitions for the particular datastream group
    * @return new assignment mapping
    */
+  @Override
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String,
       Set<DatastreamTask>> currentAssignment, DatastreamGroupPartitionsMetadata datastreamPartitions) {
 
@@ -87,6 +171,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
+    if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup()) && assignedPartitions.isEmpty()) {
+      performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
+    }
+
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);
 
@@ -105,7 +193,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
 
     Map<String, Set<DatastreamTask>> newAssignment = new HashMap<>();
 
-    //Step 2: generate new assignment. Assign unassigned partitions to tasks and create new task if there is
+    // Step 2: generate new assignment. Assign unassigned partitions to tasks and create new task if there is
     // a partition change
     currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> tasks = currentAssignment.get(instance);
@@ -167,6 +255,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param partitionsMetadata the subscribed partitions metadata received from connector
    * @return new assignment
    */
+  @Override
   public Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
 
@@ -316,6 +405,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
    * @param currentAssignment existing assignment
    * @return  list of datastream tasks mapped by instance that need to be cleaned up.
    */
+  @Override
   public Map<String, List<DatastreamTask>> getTasksToCleanUp(List<DatastreamGroup> datastreamGroups,
       Map<String, Set<DatastreamTask>> currentAssignment) {
 
@@ -343,6 +433,92 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       }
     }
     return tasksToCleanUp;
+  }
+
+  @Override
+  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
+    boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
+    int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
+        getNumTasks(dg, instances.size());
+
+    // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
+    int expectedNumberOfTasks = numTasks;
+    if (enableElasticTaskAssignment) {
+      int minTasks = resolveConfigWithMetadata(dg, CFG_MIN_TASKS, 0);
+      if (numTasks > 0) {
+        // Case 2: elastic task enabled, numTasks > 0. This indicates that we already know how many tasks we should
+        // have (fetched either from ZK or from the assignment strategy cache). On leader change, numTasks should be
+        // fetched from ZK. Return max(numTasks, minTasks) to ensure we have at least 'minTasks' number of tasks.
+        expectedNumberOfTasks = Math.max(numTasks, minTasks);
+      } else {
+        // Case 3: elastic task enabled, numTasks == 0. This can occur if a datastream is added/restarted. On restart,
+        // the ZK numTasks znode is deleted. If a datastream is deleted and recreated with the same name, it will
+        // also appear as a newly added datastream since on datastream delete the numTasks znode will be deleted.
+        // In this situation, the expected number of tasks is set to minTasks.
+        expectedNumberOfTasks = minTasks;
+      }
+
+      if (expectedNumberOfTasks != numTasks) {
+        createOrUpdateNumTasksForDatastreamInZK(dg.getTaskPrefix(), expectedNumberOfTasks);
+      }
+    }
+
+    LOG.info("Elastic task assignment is {} for datastream group {}, expected number of tasks {}, original numTasks: {}",
+        enableElasticTaskAssignment ? "enabled" : "disabled", dg, expectedNumberOfTasks, numTasks);
+
+    setTaskCountForDatastreamGroup(dg.getTaskPrefix(), expectedNumberOfTasks);
+    return expectedNumberOfTasks;
+  }
+
+  private void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+      int totalTaskCount) {
+    // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
+    // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
+    // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
+    // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
+    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
+        CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
+    LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
+            + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
+        partitionFullnessFactorPct, _partitionFullnessFactorPct);
+    int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100 ?
+        (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
+    int totalPartitions = datastreamPartitions.getPartitions().size();
+    int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
+        + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
+    int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
+    if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
+      // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
+      LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
+              + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
+          partitionFullnessFactorPct, maxTasks);
+      numTasksNeeded = maxTasks;
+    }
+    if (numTasksNeeded > totalTaskCount) {
+      createOrUpdateNumTasksForDatastreamInZK(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+      setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+      throw new DatastreamRuntimeException(
+          String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
+              totalTaskCount, numTasksNeeded, totalPartitions));
+    }
+    LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
+  }
+
+  private boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
+    // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
+    // and is greater than 0
+    int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
+    return _enableElasticTaskAssignment && (minTasks > 0);
+  }
+
+  private int getNumTasksFromCacheOrZK(String taskPrefix) {
+    int numTasks = getTaskCountForDatastreamGroup(taskPrefix);
+    if (numTasks <= 0) {
+      numTasks = getNumTasksForDatastreamFromZK(taskPrefix);
+    }
+    return numTasks;
   }
 
   /**
@@ -374,5 +550,46 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy {
       LOG.error(errorMsg);
       throw new DatastreamRuntimeException(errorMsg);
     }
+  }
+
+  /**
+   * Create or update the numTasks node for a given datastream. This should only be called if elastic task assignment
+   * is enabled.
+   */
+  private void createOrUpdateNumTasksForDatastreamInZK(String stream, int numTasks) {
+    if (_zkClient == null) {
+      LOG.warn("Skip create/update of numTasks in ZK as elastic task assignment is disabled");
+      return;
+    }
+
+    Validate.isTrue(_enableElasticTaskAssignment);
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
+    if (!_zkClient.exists(numTasksPath)) {
+      _zkClient.create(numTasksPath, String.valueOf(numTasks), CreateMode.PERSISTENT);
+      LOG.info("Successfully created the numTasks znode for datastream {} with value {}", stream, numTasks);
+      return;
+    }
+    _zkClient.writeData(numTasksPath, String.valueOf(numTasks));
+    LOG.info("Successfully updated the numTasks znode for datastream {} with value {}", stream, numTasks);
+  }
+
+  /**
+   * Get the numTasks node for a given datastream. This should only be called if elastic task assignment is enabled.
+   */
+  private int getNumTasksForDatastreamFromZK(String stream) {
+    if (_zkClient == null) {
+      LOG.warn("Trying to get the numTasks from ZK even though elastic task assignment is disabled");
+      return 0;
+    }
+
+    Validate.isTrue(_enableElasticTaskAssignment);
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, stream);
+
+    if (!_zkClient.exists(numTasksPath)) {
+      LOG.info("The numTasks znode does not exist for stream {}, returning 0", stream);
+      return 0;
+    }
+
+    return Integer.parseInt(_zkClient.readData(numTasksPath));
   }
 }

@@ -141,11 +141,11 @@ public class ZkAdapter {
   private ZkLeaderElectionListener _leaderElectionListener = null;
   private ZkBackedTaskListProvider _assignmentList = null;
   private ZkStateChangeListener _stateChangeListener = null;
-  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
   // only the leader should maintain this list and listen to the changes of live instances
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkTargetAssignmentProvider _targetAssignmentProvider = null;
+  private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
@@ -252,7 +252,6 @@ public class ZkAdapter {
     _zkclient = createZkClient();
     _stateChangeListener = new ZkStateChangeListener();
     _leaderElectionListener = new ZkLeaderElectionListener();
-    _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
 
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
@@ -276,6 +275,7 @@ public class ZkAdapter {
 
     _datastreamList = new ZkBackedDMSDatastreamList();
     _targetAssignmentProvider = new ZkTargetAssignmentProvider(_connectorTypes);
+    _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
 
     // Load all existing tasks when we just become the new leader. This is needed
     // for resuming working on the tasks from previous sessions.
@@ -318,11 +318,6 @@ public class ZkAdapter {
         _currentSubscription = null;
       }
 
-      if (_liveInstancesProvider != null) {
-        _liveInstancesProvider.close();
-        _liveInstancesProvider = null;
-      }
-
       // unsubscribe any other left subscription.
       _zkclient.unsubscribeAll();
     }
@@ -330,6 +325,11 @@ public class ZkAdapter {
     if (_datastreamList != null) {
       _datastreamList.close();
       _datastreamList = null;
+    }
+
+    if (_liveInstancesProvider != null) {
+      _liveInstancesProvider.close();
+      _liveInstancesProvider = null;
     }
 
     if (_targetAssignmentProvider != null) {
@@ -752,9 +752,7 @@ public class ZkAdapter {
    */
   public void removeTaskNodes(Map<String, List<DatastreamTask>> tasksByInstance) {
     for (String instance : tasksByInstance.keySet()) {
-      tasksByInstance.get(instance).forEach(task -> {
-        removeTaskNode(instance, task.getDatastreamTaskName());
-      });
+      tasksByInstance.get(instance).forEach(task -> removeTaskNode(instance, task.getDatastreamTaskName()));
     }
   }
 
@@ -1179,7 +1177,7 @@ public class ZkAdapter {
       // Only try to identify dead owners of the task lock if the timeout is greater than the debounce timer.
       if (timeoutMs >= _debounceTimerMs) {
         // check if the owner is dead.
-        if (owner != null && _liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
+        if (owner != null && !_zkclient.exists(KeyBuilder.liveInstance(_cluster, parseLiveInstanceFromZkInstance(owner)))) {
           LOG.info("dead owner {} found for the lock on the task {}", owner, task.getDatastreamTaskName());
           deadOwner = true;
         } else {
@@ -1188,7 +1186,7 @@ public class ZkAdapter {
             return;
           }
           owner = _zkclient.readData(lockPath, true);
-          if (owner != null && _liveInstancesProvider != null && !getLiveInstances().contains(owner)) {
+          if (owner != null && !_zkclient.exists(KeyBuilder.liveInstance(_cluster, parseLiveInstanceFromZkInstance(owner)))) {
             LOG.info("dead owner {} found for the lock on the task {} after waiting {} ms",
                 owner, task.getDatastreamTaskName(), timeoutMs - _debounceTimerMs);
             deadOwner = true;
@@ -1252,7 +1250,8 @@ public class ZkAdapter {
     if (_zkclient.exists(lockPath)) {
       owner = _zkclient.readData(lockPath, true);
       if (owner != null && owner.equals(_instanceName)) {
-        LOG.info("{} already owns the lock on {}", _instanceName, task);
+        LOG.info("{} already owns the lock on {}, with dependencies {}", _instanceName, task.getDatastreamTaskName(),
+            task.getDependencies());
         return;
       }
 
@@ -1261,12 +1260,14 @@ public class ZkAdapter {
 
     if (!_zkclient.exists(lockPath)) {
       _zkclient.create(lockPath, _instanceName, CreateMode.PERSISTENT);
-      LOG.info("{} successfully acquired the lock on {}", _instanceName, task);
+      LOG.info("{} successfully acquired the lock on {} with dependencies: {}", _instanceName,
+          task.getDatastreamTaskName(), task.getDependencies());
       return;
     }
 
-    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s", _instanceName, task,
-        timeout.toMillis(), owner);
+    String msg = String.format("%s failed to acquire task %s in %dms, current owner: %s, dependencies: %s",
+        _instanceName, task.getDatastreamTaskName(), timeout.toMillis(), owner,
+        String.join(",", task.getDependencies()));
     ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, msg, null);
   }
 
@@ -1390,7 +1391,15 @@ public class ZkAdapter {
       return;
     }
 
-    String owner = _zkclient.ensureReadData(lockPath);
+    String owner;
+    try {
+      owner = _zkclient.ensureReadData(lockPath);
+    } catch (ZkNoNodeException e) {
+      LOG.info("{} Lock does not exists on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
+          task.getDatastreamTaskName());
+      return;
+    }
+
     if (!owner.equals(_instanceName)) {
       LOG.warn("{} does not have the lock on {}-{}/{}", _instanceName, task.getConnectorType(), task.getTaskPrefix(),
           task.getDatastreamTaskName());
@@ -1417,10 +1426,17 @@ public class ZkAdapter {
   }
 
   /**
-   * Parse the Zk instance (ex. hostname-0000) into hostname
+   * parse the hostname from the Zk instance (ex. hostname-0000)
    */
   public static String parseHostnameFromZkInstance(String instance) {
     return instance.substring(0, instance.lastIndexOf('-'));
+  }
+
+  /**
+   * Parse the liveInstance Id from Zk instance (ex. hostname-0000)
+   */
+  public static String parseLiveInstanceFromZkInstance(String instance) {
+    return instance.substring(instance.lastIndexOf('-') + 1);
   }
 
   /**
@@ -1566,7 +1582,12 @@ public class ZkAdapter {
     private List<String> getLiveInstanceNames(List<String> nodes) {
       List<String> liveInstances = new ArrayList<>();
       for (String n : nodes) {
-        String hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        String hostname;
+        try {
+          hostname = _zkclient.ensureReadData(KeyBuilder.liveInstance(_cluster, n));
+        } catch (ZkNoNodeException e) {
+          hostname = null;
+        }
         if (hostname == null) {
           // hostname can be null if a node dies immediately after reading all live instances
           LOG.error("Node {} is dead. Likely cause it dies after reading list of nodes.", n);

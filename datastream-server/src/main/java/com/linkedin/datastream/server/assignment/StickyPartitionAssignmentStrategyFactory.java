@@ -8,7 +8,12 @@ package com.linkedin.datastream.server.assignment;
 import java.util.Optional;
 import java.util.Properties;
 
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.VerifiableProperties;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
@@ -20,8 +25,18 @@ import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyF
  * A factory for creating {@link StickyPartitionAssignmentStrategy} instances
  */
 public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrategyFactory {
-  public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
+  private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategyFactory.class.getName());
 
+  public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
+  public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
+  public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
+  public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
+  public static final String CFG_ZK_ADDRESS = "zkAddress";
+  public static final String CFG_ZK_SESSION_TIMEOUT = "zkSessionTimeout";
+  public static final String CFG_ZK_CONNECTION_TIMEOUT = "zkConnectionTimeout";
+  public static final String CFG_CLUSTER_NAME = "cluster";
+
+  public static final boolean DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT = false;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
@@ -35,6 +50,31 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
         : Optional.empty();
     Optional<Integer> maxPartitions = cfgMaxParitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) :
         Optional.empty();
-    return new StickyPartitionAssignmentStrategy(maxTasks, imbalanceThreshold, maxPartitions);
+    boolean enableElasticTaskAssignment = props.getBoolean(CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT,
+        DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT);
+    int cfgPartitionsPerTask = props.getInt(CFG_PARTITIONS_PER_TASK, 0);
+    int cfgPartitionFullnessThresholdPct = props.getIntInRange(CFG_PARTITION_FULLNESS_THRESHOLD_PCT, 0, 0, 100);
+    Optional<Integer> partitionsPerTask = cfgPartitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) :
+        Optional.empty();
+    Optional<Integer> partitionFullnessThresholdPct = cfgPartitionFullnessThresholdPct > 0 ?
+        Optional.of(cfgPartitionFullnessThresholdPct) : Optional.empty();
+    String cluster = props.getString(CFG_CLUSTER_NAME, null);
+
+    // Create the ZooKeeper Client
+    Optional<ZkClient> zkClient = Optional.empty();
+    String zkAddress = props.getString(CFG_ZK_ADDRESS, null);
+    if (enableElasticTaskAssignment && StringUtils.isBlank(zkAddress)) {
+      LOG.warn("Disabling elastic task assignment as zkAddress is not present or empty");
+      enableElasticTaskAssignment = false;
+    }
+
+    if (enableElasticTaskAssignment) {
+      int zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
+      int zkConnectionTimeout = props.getInt(CFG_ZK_CONNECTION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT);
+      zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
+    }
+
+    return new StickyPartitionAssignmentStrategy(maxTasks, imbalanceThreshold, maxPartitions,
+        enableElasticTaskAssignment, partitionsPerTask, partitionFullnessThresholdPct, zkClient, cluster);
   }
 }

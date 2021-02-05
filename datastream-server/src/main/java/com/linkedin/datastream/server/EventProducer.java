@@ -10,11 +10,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.Validate;
@@ -108,7 +108,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   private Instant _lastFlushTime = Instant.now();
   private long _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
-  private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new HashMap<>();
+  private Map<TopicPartition, Integer> _trackEventsOutsideAltSlaMap = new ConcurrentHashMap<>();
   private boolean _enableFlushOnSend = true;
 
   /**
@@ -235,7 +235,7 @@ public class EventProducer implements DatastreamEventProducer {
           (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
               recordEventsSendTimestamp));
     } catch (Exception e) {
-      String errorMessage = String.format("Failed send the event %s exception %s", record, e);
+      String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
     }
@@ -272,20 +272,27 @@ public class EventProducer implements DatastreamEventProducer {
     }
 
     if (_numEventsOutsideAltSlaLogEnabled) {
-      if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-        TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
-        int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
-        _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
-      }
+      try {
+        if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
+          TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
+          int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
+          _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
+        }
 
-      long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
-      if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
-        _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) ->
-            _logger.warn("{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
-                    + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs,
-                timeSinceLastLog, getDatastreamName()));
-        _trackEventsOutsideAltSlaMap.clear();
-        _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
+        long timeSinceLastLog = System.currentTimeMillis() - _lastEventsOutsideAltSlaLogTimeMs;
+        if (timeSinceLastLog >= _numEventsOutsideAltSlaFrequencyMs) {
+          _trackEventsOutsideAltSlaMap.forEach((topicPartition, numEvents) -> _logger.warn(
+              "{} had {} event(s) with latency greater than alternate SLA of {} ms in the last {} ms for "
+                  + "datastream {}", topicPartition, numEvents, _availabilityThresholdAlternateSlaMs, timeSinceLastLog,
+              getDatastreamName()));
+          _trackEventsOutsideAltSlaMap.clear();
+          _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
+        }
+      } catch (NullPointerException | IllegalArgumentException | ClassCastException | UnsupportedOperationException e) {
+        // Catch any exceptions that can be thrown for HashMap operations to avoid being in a situation where the
+        // send callback is unable to complete. Don't catch all exceptions as certain exceptions should be propagated
+        // up such as out of memory errors.
+        _logger.warn("Could not perform warn logging due to exception: ", e);
       }
     }
   }
@@ -367,21 +374,31 @@ public class EventProducer implements DatastreamEventProducer {
 
     SendFailedException sendFailedException = null;
 
-    if (exception != null) {
-      // If it is custom checkpointing it is up to the connector to keep track of the safe checkpoints.
-      Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
-      sendFailedException = new SendFailedException(_datastreamTask, safeCheckpoints, exception);
-    } else {
-      // Report metrics
-      checkpoint(metadata.getPartition(), metadata.getCheckpoint());
-      reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+    try {
+      if (exception != null) {
+        sendFailedException = createSendFailedException(exception);
+      } else {
+        // Report metrics
+        checkpoint(metadata.getPartition(), metadata.getCheckpoint());
+        reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+      }
+    } catch (Exception e) {
+      // Propagate the exception caught to the caller as a send callback exception to take any action such as retries.
+      sendFailedException = sendFailedException == null ? createSendFailedException(e) : sendFailedException;
+      throw e;
+    } finally {
+      // Inform the connector about the success or failure, In the case of failure,
+      // the connector is expected retry and go back to the last checkpoint.
+      if (sendCallback != null) {
+        sendCallback.onCompletion(metadata, sendFailedException);
+      }
     }
+  }
 
-    // Inform the connector about the success or failure, In the case of failure,
-    // the connector is expected retry and go back to the last checkpoint.
-    if (sendCallback != null) {
-      sendCallback.onCompletion(metadata, sendFailedException);
-    }
+  private SendFailedException createSendFailedException(Exception exception) {
+    // If it is custom checkpointing it is up to the connector to keep track of the safe checkpoints.
+    Map<Integer, String> safeCheckpoints = _checkpointProvider.getSafeCheckpoints(_datastreamTask);
+    return new SendFailedException(_datastreamTask, safeCheckpoints, exception);
   }
 
   /**
