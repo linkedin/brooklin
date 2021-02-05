@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,6 +22,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
@@ -29,6 +31,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -37,6 +40,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -58,11 +62,20 @@ public class TestStickyPartitionAssignment {
     String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(zkConnectionString);
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
   }
 
   @AfterMethod
-  public void teardown() {
+  public void teardown() throws Exception {
     _embeddedZookeeper.shutdown();
+    // A hack to force clean up DynamicMetricsManager
+    Field field = DynamicMetricsManager.class.getDeclaredField("_instance");
+    try {
+      field.setAccessible(true);
+      field.set(null, null);
+    } finally {
+      field.setAccessible(false);
+    }
   }
 
   @Test
@@ -415,6 +428,8 @@ public class TestStickyPartitionAssignment {
     // Partition assignment should go through
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -520,6 +535,8 @@ public class TestStickyPartitionAssignment {
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -553,6 +570,8 @@ public class TestStickyPartitionAssignment {
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
     int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -608,6 +627,8 @@ public class TestStickyPartitionAssignment {
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     maxPartitionsPerTask = partitions.size() / maxTasks  + (partitions.size() % maxTasks == 0 ? 0 : 1);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -647,6 +668,8 @@ public class TestStickyPartitionAssignment {
     // negative minTasks
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test

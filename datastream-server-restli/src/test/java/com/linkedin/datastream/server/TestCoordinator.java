@@ -2887,8 +2887,9 @@ public class TestCoordinator {
         new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
             DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
 
+    BroadcastStrategy mockStrategy = Mockito.spy(new BroadcastStrategy(Optional.empty()));
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
-    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+    instance1.addConnector(testConnectorType, connector1, mockStrategy, false,
         new SourceBasedDeduper(), null);
     instance1.start();
 
@@ -2905,6 +2906,7 @@ public class TestCoordinator {
     Thread t = instance1.getEventThread();
     Assert.assertFalse(t != null && t.isAlive());
     Assert.assertTrue(PollUtils.poll(instance1::isZkSessionExpired, 100, 30000));
+    verify(mockStrategy, times(1)).cleanupStrategy();
     instance1.stop();
     instance1.getDatastreamCache().getZkclient().close();
   }
