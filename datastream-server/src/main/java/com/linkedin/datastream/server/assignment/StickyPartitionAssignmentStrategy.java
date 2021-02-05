@@ -164,8 +164,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         .collect(Collectors.toSet());
     _elasticTaskAssignmentInfoHashMap.keySet().forEach(datastreamTaskPrefix -> {
       if (!datastreamTaskPrefixes.contains(datastreamTaskPrefix)) {
-        DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
-        DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
+        unregisterMetrics(datastreamTaskPrefix);
         _elasticTaskAssignmentInfoHashMap.remove(datastreamTaskPrefix);
       }
     });
@@ -471,10 +470,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   @Override
   public void cleanupStrategy() {
     // Clear the maintained state and unregister the metrics
-    _elasticTaskAssignmentInfoHashMap.keySet().forEach(datastreamTaskPrefix -> {
-      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
-      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
-    });
+    _elasticTaskAssignmentInfoHashMap.keySet().forEach(this::unregisterMetrics);
     _elasticTaskAssignmentInfoHashMap.clear();
     clearAllDatastreamGroupTaskCounts();
   }
@@ -684,6 +680,14 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
             && _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getNeedsAdjustment()) ? 1.0 : 0.0;
     DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT,
         needsAdjustmentSupplier);
+  }
+
+  /**
+   * Unregister metrics for a given datastream group
+   */
+  private void unregisterMetrics(String datastreamTaskPrefix) {
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
   }
 
   /**
