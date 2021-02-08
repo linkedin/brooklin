@@ -188,4 +188,18 @@ public class DatastreamTestUtils {
       dsStore.updateDatastream(datastream.getName(), datastream, true);
     }
   }
+
+  /**
+   * Deletes the datastreams' numTasks znode from ZooKeeper if present.
+   * @param zkClient ZooKeeper client
+   * @param cluster name of the datastream cluster
+   * @param datastreams list of datastreams
+   */
+  public static void deleteDatastreamsNumTasks(ZkClient zkClient, String cluster, String... datastreams) {
+    for (String datastreamName : datastreams) {
+      CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, cluster);
+      ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, cluster);
+      dsStore.deleteDatastreamNumTasks(datastreamName);
+    }
+  }
 }
