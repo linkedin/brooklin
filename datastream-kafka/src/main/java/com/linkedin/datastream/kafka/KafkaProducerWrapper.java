@@ -315,6 +315,11 @@ class KafkaProducerWrapper<K, V> {
     shutdownProducer(false);
   }
 
+
+  // fastClose should be set to true in the case, where the producer is already in a bad state or has returned error
+  // on send callback (to ensure that the records are produce in order). Closing the producer with a shorter timeout
+  // can result in records produced, but no delivery of acks from Kafka. This can result in overcounting and should be
+  // done only in critical cases.
   @VisibleForTesting
   void shutdownProducer(boolean fastClose) {
     Producer<K, V> producer;
