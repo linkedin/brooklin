@@ -70,7 +70,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     status.register(sourceCheckpoint);
     _eventProducer.send(record, ((metadata, exception) -> {
       if (exception != null) {
-        LOG.error("Failed to send datastream record: " + metadata, exception);
+        LOG.debug("Failed to send datastream record: " + metadata, exception);
       } else {
         status.ack(sourceCheckpoint);
       }
