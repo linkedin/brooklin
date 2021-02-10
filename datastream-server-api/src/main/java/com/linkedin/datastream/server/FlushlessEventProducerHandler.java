@@ -107,6 +107,23 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
+   * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
+   */
+  public long getAckMessagesPastCheckpointCount(String source, int sourcePartition) {
+    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    return status != null ? status.getAckMessagesPastCheckpointCount() : 0;
+  }
+
+  /**
+   * Get a map of all source partitions to their in-flight message counts
+   */
+  public Map<SourcePartition, Long> getAckMessagesPastCheckpointCounts() {
+    return _callbackStatusMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getAckMessagesPastCheckpointCount()));
+  }
+
+  /**
    * Get the smallest checkpoint acknowledged by all destinations, or an empty if no event has been acknowledged.
    * If all tasks are up to date, returns the passed {@code currentCheckpoint}
    *
@@ -175,6 +192,10 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
 
     public long getInFlightCount() {
       return _inFlight.size();
+    }
+
+    public long getAckMessagesPastCheckpointCount() {
+      return _acked.size();
     }
 
     /**
