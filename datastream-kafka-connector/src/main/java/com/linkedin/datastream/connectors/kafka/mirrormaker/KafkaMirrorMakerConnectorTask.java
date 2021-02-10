@@ -129,7 +129,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _maxInFlightMessagesThreshold;
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
-  private int _errorOnSendCallbackDuringShutdownCnt = 0;
+  private int _errorOnSendCallbackDuringShutdownCount = 0;
 
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
@@ -285,12 +285,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
             String msg = String.format("Detected exception being thrown from flushless send callback for source "
                 + "topic-partition: %s with metadata: %s, exception: %s", srcTopicPartition, metadata, exception);
             if (_shutdown) {
-              if (_errorOnSendCallbackDuringShutdownCnt == 0) {
+              if (_errorOnSendCallbackDuringShutdownCount == 0) {
                 LOG.warn(msg);
               } else {
                 LOG.debug(msg);
               }
-              _errorOnSendCallbackDuringShutdownCnt++;
+              _errorOnSendCallbackDuringShutdownCount++;
             } else {
               LOG.warn(msg);
             }
@@ -420,7 +420,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected void postShutdownHook() {
-    LOG.info("Total send callback errors during shutdown: {}", _errorOnSendCallbackDuringShutdownCnt);
+    LOG.info("Total send callback errors during shutdown: {}", _errorOnSendCallbackDuringShutdownCount);
     if (_enablePartitionAssignment) {
       boolean resetInterrupted = false;
       try {

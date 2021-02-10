@@ -335,7 +335,7 @@ class KafkaProducerWrapper<K, V> {
       // thread
       _producerCloseExecutorService.submit(() -> {
         int timeout = fastClose ? FAST_CLOSE_TIMEOUT_MS : _producerCloseTimeoutMs;
-        _log.info("KafkaProducerWrapper: Closing the Kafka Producer timeout: {}", timeout);
+        _log.info("KafkaProducerWrapper: Closing the Kafka Producer with timeout: {}", timeout);
         try {
           producer.close(timeout, TimeUnit.MILLISECONDS);
           NUM_PRODUCERS.decrementAndGet();
