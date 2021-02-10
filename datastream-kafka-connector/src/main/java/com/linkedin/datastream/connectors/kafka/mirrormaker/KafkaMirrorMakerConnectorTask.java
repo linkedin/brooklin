@@ -292,8 +292,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
           }
         }));
       } catch (Exception e) {
-        LOG.warn("Hit Exception while sending records for {}-{}, inFlightMessageCount: {}",
-            topic, partition, _flushlessProducer.getInFlightCount(topic, partition));
+        LOG.warn("Hit Exception while sending records for {}-{}, total inFlightMessageCount: {}, ackMessagesPastCheckpoint: {}",
+            topic, partition, _flushlessProducer.getInFlightMessagesCounts(), _flushlessProducer.getAckMessagesPastCheckpointCounts());
         commitSafeOffsets(_consumer);
         throw e;
       }
