@@ -184,7 +184,7 @@ class KafkaProducerWrapper<K, V> {
     }
 
     Producer<K, V> producer = _kafkaProducer;
-    if (producer == null) {
+    if (producer == null || _closeInProgress) {
       try {
         producer = initializeProducer(task);
       } catch (InterruptedException e) {
@@ -331,9 +331,6 @@ class KafkaProducerWrapper<K, V> {
       }
       producer = _kafkaProducer;
       _closeInProgress = true;
-      // Nullify first to prevent subsequent send() to use
-      // the current producer which is being shutdown.
-      _kafkaProducer = null;
 
       // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
       // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
@@ -358,6 +355,7 @@ class KafkaProducerWrapper<K, V> {
     try {
       _producerLock.lock();
       _closeInProgress = false;
+      _kafkaProducer = null;
       _waitOnProducerClose.signalAll();
     } finally {
       _producerLock.unlock();
