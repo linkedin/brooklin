@@ -88,36 +88,11 @@ public class ScribeAvroParquetEventFile implements File {
    * @return
    */
     private Schema getSchemaByTopic(String topic) {
-//      String key = _schemaRegistryURL + "-" + topic;
-//      Schema schema =  SCHEMAS.computeIfAbsent(key, (k) -> {
-//        try {
-//          String schemaName = topic + _schemaNameSuffix;
-//          return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
-//        } catch (Exception e) {
-//          LOG.error("Unable to find schema for {} - {}", key, e);
-//          return null;
-//        }
-//      });
-//      if (schema == null) {
-//        throw new IllegalStateException("Avro schema not found for topic " + topic);
-//      }
-//      try {
-//        // call the function to generate parquet compatible avro schema
-//        // Testing with exploded nested object
-//        scribeParquetSchema =  ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(schema);
-//        return scribeParquetSchema;
-//      } catch (Exception e) {
-//        LOG.error(String.format("Exception in converting avro schema to parquet in ScribeAvroParquetEventFile: topic: %s, exception: %s", topic, e));
-//        return null;
-//      }
-
-        //String key = _schemaRegistryURL + (topic.replace("-","."));
         String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-",".") ;
         LOG.info("scribe kafka key: " + schemaName);
         Schema schema =  SCHEMAS.computeIfAbsent(schemaName, (k) -> {
           try {
-            //String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-",".") ;
-            //LOG.info("scribe schemaName: " + schemaName);
+            LOG.info("scribe schemaName: " + schemaName);
             return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
           } catch (Exception e) {
             LOG.error("Unable to find schema for {} - {}", schemaName, e);
@@ -154,7 +129,7 @@ public class ScribeAvroParquetEventFile implements File {
               .withPageSize(_pageSize)
               .build();
         }
-        LOG.info("Before derializing avro msg paquetWriter " + aPackage.getTopic());
+        LOG.info("Before derializing avro msg parquetWriter " + aPackage.getTopic());
         GenericRecord deserializedAvroGenericRecord = (GenericRecord) _deserializer.deserialize(
             aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
         GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
@@ -164,7 +139,7 @@ public class ScribeAvroParquetEventFile implements File {
       } catch (Exception e) {
         LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s", aPackage.getTopic(), e));
       }
-      LOG.info("Coming out from writing paquetWriter " + aPackage.getTopic());
+      LOG.info("Coming out from writing parquetWriter " + aPackage.getTopic());
     }
 
     @Override
