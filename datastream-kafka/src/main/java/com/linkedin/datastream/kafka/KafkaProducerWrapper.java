@@ -186,7 +186,7 @@ class KafkaProducerWrapper<K, V> {
     Producer<K, V> producer = _kafkaProducer;
     if (producer == null || _closeInProgress) {
       try {
-        producer = initializeProducer(task);
+        producer = initializeProducer();
       } catch (InterruptedException e) {
         _log.warn("Got interrupted while trying to initialize the producer for task {}", task);
       }
@@ -221,7 +221,7 @@ class KafkaProducerWrapper<K, V> {
     return _tasks.size();
   }
 
-  private Producer<K, V> initializeProducer(DatastreamTask task) throws InterruptedException {
+  private Producer<K, V> initializeProducer() throws InterruptedException {
     // Must be protected by a lock to avoid creating duplicate producers when multiple concurrent
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
@@ -376,6 +376,13 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
+  /*
+   * Kafka producer throws IllegalStateException when the close is in progress. So, instead of attempting to close
+   * the producer, wait for the close to finish. If the close does not finish within the timeout or the thread gets
+   * interrupted, then throw the exception. Otherwise, consider that the flush is completed successfully.
+   *
+   * For any other exception thrown by kafka producer, shutdown the producer to avoid reusing the same producer.
+   */
   void flush() {
     Producer<K, V> producer;
     try {
@@ -388,6 +395,25 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
+      } catch (IllegalStateException e) {
+        _log.warn("Hitting IllegalStateException during kafka producer flush. Wait for the producer to close.", e);
+        _producerLock.lock();
+        try {
+          if (_closeInProgress && producer == _kafkaProducer) {
+            boolean closeCompleted = _waitOnProducerClose.await(_producerCloseTimeoutMs, TimeUnit.MILLISECONDS);
+            if (!closeCompleted) {
+              _log.warn("Producer close is taking longer than timeout:{}", _producerCloseTimeoutMs);
+            } else {
+              _log.info("Producer close completed for the kafka producer");
+              throw e;
+            }
+          }
+        } catch (InterruptedException ex) {
+          _log.warn("Hit InterruptedException while waiting for the producer to close", ex);
+          throw e;
+        } finally {
+          _producerLock.unlock();
+        }
       } catch (Exception e) {
         // The KafkaProducer object should not be reused on an interrupted/timed out flush. To be safe, we try to
         // close the producer on any exception.
