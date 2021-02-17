@@ -70,7 +70,6 @@ class KafkaProducerWrapper<K, V> {
 
   private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
   private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
-  private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   private static final AtomicInteger NUM_PRODUCERS = new AtomicInteger();
   private static final Supplier<Integer> PRODUCER_GAUGE = NUM_PRODUCERS::get;
@@ -78,6 +77,9 @@ class KafkaProducerWrapper<K, V> {
   private static final int DEFAULT_PRODUCER_CLOSE_TIMEOUT_MS = 10000;
   private static final int FAST_CLOSE_TIMEOUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
+
+  @VisibleForTesting
+  static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
@@ -226,8 +228,9 @@ class KafkaProducerWrapper<K, V> {
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
     try {
+      System.out.println("wait for lock");
       _producerLock.lock();
-
+      System.out.println("got lock");
       // make sure there is no close in progress.
       int attemptCount = 1;
       while (_closeInProgress) {
@@ -465,6 +468,11 @@ class KafkaProducerWrapper<K, V> {
     Properties props = new Properties();
     props.putAll(_props);
     return props;
+  }
+
+  @VisibleForTesting
+  void setCloseInProgress(boolean closeInProgress) {
+    _closeInProgress = closeInProgress;
   }
 
   public String getClientId() {
