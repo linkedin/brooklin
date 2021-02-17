@@ -457,8 +457,6 @@ public class ScribeParquetAvroConverterTest {
       expectedOrderProduct.put("discontinued", true);
       expectedOrderProduct.put("returngroupid", 556L);
       expectedOrderProduct.put("deliverystatus", "pending");
-      // As we are testing with 1.0 events which doesn't have logical type in
-      // there field schema, we are leaving the timestamp type as long itself.
       expectedOrderProduct.put("estimateddeliverydate", "2017-05-15 06:13:32.576 -0400");
     }
 
@@ -533,9 +531,6 @@ public class ScribeParquetAvroConverterTest {
     Schema nestedscribeHeader = getSchemaForNestedObjects(avroScribeInternalTestSchema, "scribeHeader");
     Schema testNested = getSchemaForNestedObjects(avroScribeInternalTestSchema, "requiredNested");
     Schema testDeeplyNested = getSchemaForNestedObjects(testNested, "testDeeplyNested");
-
-    //Schema nestedRoute = getSchemaForNestedObjects(nestedUpdatedRoute, "route");
-    //Schema nestedFinalRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "finalRoutes");
 
     List<Utf8> list = new ArrayList<>();
     list.add(new Utf8("deepnested-1"));
@@ -635,7 +630,6 @@ public class ScribeParquetAvroConverterTest {
         Resources.toString(Resources.getResource("parquetavroschemas/scribeInternalTestParquet.avsc"), StandardCharsets.UTF_8)
     );
 
-    //Schema nestedscribeHeaderExpected = getSchemaForNestedObjects(parquetScribeInternalTestSchema, "scribeHeader");
     Schema testNestedExpected = getSchemaForNestedObjects(parquetScribeInternalTestSchema, "requiredNested");
     Schema testDeeplyNestedExpected = getSchemaForNestedObjects(testNested, "testDeeplyNested");
 
@@ -860,7 +854,6 @@ public class ScribeParquetAvroConverterTest {
 
     Schema nestedscribeHeader = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "scribeHeader");
     Schema nestedUpdatedRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "addedRoutes");
-    //Schema nestedUpdatedRoute = getSchemaForNestedObjects(nestedAddedRoute, "updated_route");
 
     Schema nestedRoute = getSchemaForNestedObjects(nestedUpdatedRoute, "route");
     Schema nestedFinalRoute = getSchemaForNestedObjects(avroItemReturnRoutesFoundSchema, "finalRoutes");
@@ -973,7 +966,6 @@ public class ScribeParquetAvroConverterTest {
     Schema parquetAvroItemsReturnRequestRouteSchema = new Schema.Parser().parse(
             Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
     );
-//    Schema nestedscribeHeaderExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "scribeHeader");
     Schema nestedUpdatedRouteExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "addedRoutes");
 
     Schema nestedRouteExpected = getSchemaForNestedObjects(nestedUpdatedRouteExpected, "route");
@@ -1227,9 +1219,6 @@ public class ScribeParquetAvroConverterTest {
     input.put("dimensionalInfo", null);
     input.put("proProduct", null);
     input.put("exposureWarning", null);
-//    Schema parquetAvroAdTechProductCatalogFlattenedSchema = new Schema.Parser().parse(
-//        Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogFlattenedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
-//    );
 
     Schema parquetAvroAdTechProductCatalogSchema = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductCatalogParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -1255,7 +1244,6 @@ public class ScribeParquetAvroConverterTest {
     }
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogSchema, input);
-    //GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetAvroAdTechProductCatalogFlattenedSchema, input);
 
     GenericRecord expected = new GenericData.Record(parquetAvroAdTechProductCatalogSchema);
     expected.put("trackingeventid", "7ca521ae-ae7b-33a3-b876-738fc6719fdd");
@@ -1297,9 +1285,6 @@ public class ScribeParquetAvroConverterTest {
     expected.put("manufacturerpart", expectedproductCatalogManufacturerPart);
 
     // exploded nested object
-//  expected.put("id", 56656L);
-//  expected.put("partNumber", "test123");
-//  expected.put("customerFacingUpc", "yes");
     expected.put("supplierparts",  null);
     expected.put("promotion",  null);
     expected.put("isadminonly", true);

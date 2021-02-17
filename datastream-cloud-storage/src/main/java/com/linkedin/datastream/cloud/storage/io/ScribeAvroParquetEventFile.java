@@ -34,12 +34,8 @@ public class ScribeAvroParquetEventFile implements File {
     private final static Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
 
     private static final String CONFIG_SCHEMA_REGISTRY_URL = "schemaRegistryURL";
-    private static final String CONFIG_SCHEMA_NAME_PREFIX = "schemaNamePrefix";
-//    private static final String CONFIG_SCHEMA_NAME_SUFFIX = "schemaNameSuffix";
-//    private static final String DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX = "-value";
 
-
-  private static final String CONFIG_PAGE_SIZE = "pageSize";
+    private static final String CONFIG_PAGE_SIZE = "pageSize";
 
     // scribe 2.0 subject prefix
     private static final String DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX = "scribe.v2.events.";
@@ -53,8 +49,6 @@ public class ScribeAvroParquetEventFile implements File {
     private ParquetWriter<GenericRecord> _parquetWriter;
 
     private KafkaAvroDeserializer _deserializer;
-    private String _schemaNamePrefix;
-    private String _schemaNameSuffix;
 
     private SchemaRegistryClient _schemaRegistryClient;
     private int _pageSize;
@@ -72,8 +66,6 @@ public class ScribeAvroParquetEventFile implements File {
         this._parquetWriter = null;
         this._schemaRegistryURL = props.getString(CONFIG_SCHEMA_REGISTRY_URL);
         this._schemaRegistryClient = new CachedSchemaRegistryClient(_schemaRegistryURL, Integer.MAX_VALUE);
-        //this._schemaNameSuffix = props.getString(CONFIG_SCHEMA_NAME_SUFFIX, DEFAULT_CONFLUENT_SCHEMA_NAME_SUFFIX);
-        //this._schemaNamePrefix = props.getString(CONFIG_SCHEMA_NAME_PREFIX, DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX);
         this._pageSize = props.getInt(CONFIG_PAGE_SIZE, DEFAULT_PAGE_SIZE);
         this._deserializer = new KafkaAvroDeserializer(_schemaRegistryClient);
     }
