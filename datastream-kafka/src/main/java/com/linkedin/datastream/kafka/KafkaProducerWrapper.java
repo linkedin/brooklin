@@ -397,22 +397,31 @@ class KafkaProducerWrapper<K, V> {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
       } catch (IllegalStateException e) {
         _log.warn("Hitting IllegalStateException during kafka producer flush. Wait for the producer to close.", e);
-        _producerLock.lock();
+        boolean throwException = false;
         try {
-          if (_closeInProgress && producer == _kafkaProducer) {
-            boolean closeCompleted = _waitOnProducerClose.await(_producerCloseTimeoutMs, TimeUnit.MILLISECONDS);
-            if (!closeCompleted) {
-              _log.warn("Producer close is taking longer than timeout:{}", _producerCloseTimeoutMs);
+          _producerLock.lock();
+          if (producer == _kafkaProducer) {
+            if (_closeInProgress) {
+              try {
+                throwException = !(_waitOnProducerClose.await(_producerCloseTimeoutMs, TimeUnit.MILLISECONDS));
+                _log.info("Producer close completed for the kafka producer");
+              } catch (InterruptedException ex) {
+                throwException = true;
+                _log.warn("Hit InterruptedException while waiting for the producer to close", ex);
+              }
             } else {
-              _log.info("Producer close completed for the kafka producer");
-              throw e;
+              // any other exception wrapped.
+              throwException = true;
+              shutdownProducer(true);
             }
+          } else {
+            _log.info("Kafka producer is already closed.");
           }
-        } catch (InterruptedException ex) {
-          _log.warn("Hit InterruptedException while waiting for the producer to close", ex);
-          throw e;
         } finally {
           _producerLock.unlock();
+          if (throwException) {
+            throw e;
+          }
         }
       } catch (Exception e) {
         // The KafkaProducer object should not be reused on an interrupted/timed out flush. To be safe, we try to
