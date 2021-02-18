@@ -228,9 +228,7 @@ class KafkaProducerWrapper<K, V> {
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
     try {
-      System.out.println("wait for lock");
       _producerLock.lock();
-      System.out.println("got lock");
       // make sure there is no close in progress.
       int attemptCount = 1;
       while (_closeInProgress) {
@@ -380,9 +378,10 @@ class KafkaProducerWrapper<K, V> {
   }
 
   /*
-   * Kafka producer throws IllegalStateException when the close is in progress. So, instead of attempting to close
-   * the producer, wait for the close to finish. If the close does not finish within the timeout or the thread gets
-   * interrupted, then throw the exception. Otherwise, consider that the flush is completed successfully.
+   * Kafka producer wraps all the exceptions and throws IllegalStateException. So, if the close is
+   * in progress, instead of attempting to close the producer, wait for the close to finish.
+   * If the close does not finish within the timeout or the thread gets interrupted, then throw the exception.
+   * Otherwise, consider that the flush has completed successfully.
    *
    * For any other exception thrown by kafka producer, shutdown the producer to avoid reusing the same producer.
    */
@@ -399,13 +398,14 @@ class KafkaProducerWrapper<K, V> {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
       } catch (IllegalStateException e) {
-        _log.warn("Hitting IllegalStateException during kafka producer flush. Wait for the producer to close.", e);
+        _log.warn("Hitting IllegalStateException during kafka producer flush.", e);
         boolean throwException = false;
         try {
           _producerLock.lock();
           if (producer == _kafkaProducer) {
             if (_closeInProgress) {
               try {
+                _log.info("Waiting for the producer to close.");
                 throwException = !(_waitOnProducerClose.await(_producerCloseTimeoutMs, TimeUnit.MILLISECONDS));
                 _log.info("Producer close completed for the kafka producer");
               } catch (InterruptedException ex) {
@@ -413,7 +413,7 @@ class KafkaProducerWrapper<K, V> {
                 _log.warn("Hit InterruptedException while waiting for the producer to close", ex);
               }
             } else {
-              // any other exception wrapped.
+              // any other wrapped exception
               throwException = true;
               shutdownProducer(true);
             }
