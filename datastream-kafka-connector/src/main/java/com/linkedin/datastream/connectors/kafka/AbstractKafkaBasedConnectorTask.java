@@ -640,16 +640,22 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     preCommitHook();
     boolean result = PollUtils.poll(() -> {
       try {
-        if (offsets.isPresent()) {
-          consumer.commitSync(offsets.get(), _commitTimeout);
-          _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
-        } else {
-          consumer.commitSync(_commitTimeout);
-        }
+        commitSync(consumer, offsets);
         _logger.info("Commit succeeded.");
       } catch (KafkaException e) {
         if (_shutdown) {
-          _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
+          if (e instanceof WakeupException) {
+            _logger.info("Caught KafkaException in commitWithRetries while shutting down, retrying.", e);
+            try {
+              commitSync(consumer, offsets);
+              _logger.info("Commit succeeded.");
+            } catch (Exception ex) {
+              _logger.warn(String.format("Commit failed with exception on retry. DatastreamTask = %s",
+                  _datastreamTask.getDatastreamTaskName()), ex);
+            }
+          } else {
+            _logger.info("Caught KafkaException in commitWithRetries while shutting down, so exiting.", e);
+          }
           return true;
         }
         _logger.warn(String.format("Commit failed with exception. DatastreamTask = %s",
@@ -664,6 +670,15 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       String msg = "Commit failed after several retries, Giving up.";
       _logger.error(msg);
       throw new DatastreamRuntimeException(msg);
+    }
+  }
+
+  private void commitSync(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets) {
+    if (offsets.isPresent()) {
+      consumer.commitSync(offsets.get(), _commitTimeout);
+      _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
+    } else {
+      consumer.commitSync(_commitTimeout);
     }
   }
 
