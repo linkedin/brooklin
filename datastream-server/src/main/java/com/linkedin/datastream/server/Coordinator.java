@@ -155,10 +155,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
-  private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 30000L;
+  private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 90000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
 
-  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
