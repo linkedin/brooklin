@@ -64,6 +64,57 @@ public class TestKafkaProducerWrapper {
     testFlushBehaviorOnException(IllegalStateException.class, "new-topic-42");
   }
 
+  @Test
+  public void testFlushBehaviorOnCloseInProgress() throws Exception {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
+    Properties transportProviderProperties = new Properties();
+    transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
+    transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
+    transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_CLOSE_TIMEOUT_MS, "1000");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
+    String topicName = "close-in-progress-topic";
+    MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
+        new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics",
+            IllegalStateException.class);
+
+    String destinationUri = "localhost:1234/" + topicName;
+    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
+
+    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
+    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, null, null);
+    producerWrapper.assignTask(task);
+
+    // Sending first event, send should pass, none of the other methods on the producer should have been called
+    producerWrapper.send(task, producerRecord, null);
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(0);
+    producerWrapper.verifyClose(0, 0, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+
+    producerWrapper.setCloseInProgress(true);
+
+    // Calling the first flush() on a separate thread because the InterruptException calls Thread interrupt() on the
+    // currently running thread. If not run on a separate thread, the test thread itself will be interrupted.
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+    executorService.submit(() -> {
+      // Flush has been mocked to throw an InterruptException
+      Assert.assertThrows(IllegalStateException.class, producerWrapper::flush);
+    }).get();
+
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(1);
+    producerWrapper.verifyClose(0, 0, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+
+    producerWrapper.setCloseInProgress(false);
+    producerWrapper.close(task);
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(1);
+    producerWrapper.verifyClose(1, 1, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+  }
+
   private void testFlushBehaviorOnException(Class<? extends Throwable> exceptionClass, String topicName)
       throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
@@ -71,6 +122,7 @@ public class TestKafkaProducerWrapper {
     transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
     transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
     transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
 
     MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
         new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics",
@@ -140,6 +192,7 @@ public class TestKafkaProducerWrapper {
     transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
     transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_FLUSH_TIMEOUT_MS, "1");
     transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_CLOSE_TIMEOUT_MS, "200");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
 
     String topicName = "topic-43";
 
