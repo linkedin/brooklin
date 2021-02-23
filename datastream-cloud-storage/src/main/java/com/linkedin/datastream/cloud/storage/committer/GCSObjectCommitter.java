@@ -121,8 +121,13 @@ public class GCSObjectCommitter implements ObjectCommitter {
                                         boolean isScribeParquetFileStructure) {
         String prefix = destination.substring(destination.indexOf("/") + 1);
 
-      // scribe parquet file structure: events/eventName/eventdate=2020-12-21/scribeKafkatopic+partition+startOffset+endOffset+suffix.parquet
-      // scribe_internal-test
+      // isScribeParquetFileStructure flag is used to indicate whether to follow scribe 2.0 file structure or the regular one.
+
+      // Scribe 2.0 Kafka topic name format: domain_name-event_name
+      // Eg: kafka topic: scribe_internal-healthcheck_evaluated, corresponding domain name: scribe_internal and event name: healthcheck_evaluated
+
+      // scribe parquet file structure: events/event_name/eventdate=2020-12-21/scribeKafkatopic+partition+startOffset+endOffset+suffix.parquet
+      // Eg: events/healthcheck_evaluated/eventdate=2021-02-22/scribe_internal-healthcheck_evaluated+0+187535+187631+1613970121085.parquet
       if (isScribeParquetFileStructure) {
             String eventName = topic.split("-")[1];
             LOG.info("EventName for topic in GCSObjectCommitter: " + eventName);

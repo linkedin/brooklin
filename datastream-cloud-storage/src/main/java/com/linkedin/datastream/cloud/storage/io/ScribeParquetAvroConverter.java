@@ -19,11 +19,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ScribeParquetAvroConverter handles the conversion of avro to parquet compatible avro schema
+ * Provides utility methods to convert Avro schema and data into Scribe 2.0 expected format.
  */
 public class ScribeParquetAvroConverter {
   private static final Logger LOG = LoggerFactory.getLogger(ScribeParquetAvroConverter.class);
   public static final String SCRIBE_HEADER = "scribeHeader";
+  public static final String AVRO_ARRAY = "ARRAY";
+  public static final String AVRO_MAP = "MAP";
+  public static final String AVRO_RECORD = "RECORD";
+  public static final String AVRO_LONG = "LONG";
 
   /**
    * Converts field avro schema to parquet compatible format and handles special cases like timestamp, Arrays, Records.
@@ -36,9 +40,9 @@ public class ScribeParquetAvroConverter {
   public static SchemaBuilder.FieldAssembler<Schema> getFieldAssembler(Boolean isNotNullable, Schema fieldSchema, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     try {
       String typeName = fieldSchema.getType().name();
-      if (typeName.equalsIgnoreCase("ARRAY")) {
+      if (typeName.equalsIgnoreCase(AVRO_ARRAY)) {
         // For list of nested objects
-        if (fieldSchema.getElementType().getType().getName().equalsIgnoreCase("RECORD")) {
+        if (fieldSchema.getElementType().getType().getName().equalsIgnoreCase(AVRO_RECORD)) {
           Schema elementTypeSchema = generateParquetStructuredAvroSchema(fieldSchema.getElementType());
           fieldAssembler.name(field.name().toLowerCase())
               .doc(field.doc())
@@ -48,9 +52,10 @@ public class ScribeParquetAvroConverter {
         } else {
           getFieldAssemblerForRecord(isNotNullable, fieldSchema, field, fieldAssembler);
         }
-      } else if (typeName.equalsIgnoreCase("MAP")) {
+      } else if (typeName.equalsIgnoreCase(AVRO_MAP)) {
         getFieldAssemblerForRecord(isNotNullable, fieldSchema, field, fieldAssembler);
-      } else if (typeName.equalsIgnoreCase("RECORD")) {
+      } else if (typeName.equalsIgnoreCase(AVRO_RECORD)) {
+        // If the record is of type scribe header, then it is flattened out.
         if (fieldSchema.getName().equalsIgnoreCase("scribe_header")) {
           List<Schema.Field> headerFields = fieldSchema.getFields();
           for (Schema.Field headerField : headerFields) {
@@ -73,10 +78,9 @@ public class ScribeParquetAvroConverter {
             LOG.error("Unable to convert nested object avro schema to parquet for field: " + field.name());
           }
         }
-      } else if (typeName.equalsIgnoreCase("LONG")) {
+      } else if (typeName.equalsIgnoreCase(AVRO_LONG)) {
         // For timestamp fields we need to add logical type in avroschema, so that it can be converted to string in parquet
-        if (field.name().equalsIgnoreCase("eventTimestamp") ||
-            (fieldSchema.getLogicalType() != null && fieldSchema.getLogicalType().getName().equalsIgnoreCase("timestamp-millis"))) {
+        if (fieldSchema.getLogicalType() != null && fieldSchema.getLogicalType().getName().equalsIgnoreCase("timestamp-millis")) {
           getFieldAssemblerForPrimitives(isNotNullable, "string", field, fieldAssembler);
         } else {
           getFieldAssemblerForPrimitives(isNotNullable, typeName, field, fieldAssembler);
@@ -143,16 +147,23 @@ public class ScribeParquetAvroConverter {
   }
 
   /**
-   * This converts the incoming avro schema to parquet-like avro schema which can be
-   * used to write records in parquet format.
+   * This converts the incoming Avro schema to Scribe 2.0 Parquet schema which is used to write records in
+   * parquet format.
    *
-   * @param schema incoming avro schema
-   * @return Schema parquet compatible avro schema
+   * Scribe 2.0 Event Avro schemas supports all Avro primitive types, complex types and Avro logical types
+   * (primarily Timestamp and UUID). Includes scribe header nested object defined as a record in all scribe 2.0 events.
+   * Only allows adding new fields and doesn’t support field deletion yet.
+   *
+   * Persisted parquet file schemas supports all Parquet primitive types and parquet logical types(primarily UUID). Scribe Header object
+   * is flattened and not nested. Only allows adding new fields and doesn’t support field deletion yet. This parquet schema is used in
+   * creating Hive external tables and BigQuery tables
+   *
+   * @param schema incoming Avro schema
+   * @return Schema Persisted Parquet schema
    * @throws Exception
    */
   public static Schema generateParquetStructuredAvroSchema(Schema schema) {
     Schema parquetAvroSchema;
-    LOG.info("generateParquetStructuredAvroSchema schema for event: " + schema.getName());
     try {
       SchemaBuilder.FieldAssembler<Schema> fieldAssembler = SchemaBuilder.record(schema.getName())
           .namespace(schema.getNamespace())
@@ -200,9 +211,9 @@ public class ScribeParquetAvroConverter {
   }
 
   /**
-   * The incoming records need to be converted to match the schema being converted
-   * in the `generateParquetStructuredAvroSchema` function. This function iterates all the fields in the event schema
-   * and converts it to necessary data types to conform to the schema in the argument.
+   * The incoming records need to be converted to match the Parquet schema generated using
+   * `generateParquetStructuredAvroSchema` function. This function iterates all the fields in the avroRecord {@link ScribeParquetAvroConverter#generateParquetStructuredAvroSchema(Schema)}
+   * and converts them to necessary data types to conform to the target Parquet schema.
    *
    * @param schema parquet compatible avro schema
    * @param avroRecord the incoming record
@@ -210,16 +221,13 @@ public class ScribeParquetAvroConverter {
    * @throws Exception
    */
   public static GenericRecord generateParquetStructuredAvroData(Schema schema, GenericRecord avroRecord) {
-    LOG.info("Input avrorecord generateParquetStructuredAvroData for: " + avroRecord);
     GenericRecord record = new GenericData.Record(schema);
-    LOG.info("Starting generateParquetStructuredAvroData for: " + schema.getName());
     Map<String,String> avroScribeHeaderFieldNamingMap = null;
     GenericRecord scribeHeaderRecord = null;
     if (avroRecord.get(SCRIBE_HEADER) != null) {
       avroScribeHeaderFieldNamingMap = avroRecord.getSchema().getField(SCRIBE_HEADER).schema().getFields().stream()
           .collect(Collectors.toMap(avroScribeHeaderField -> avroScribeHeaderField.name().toLowerCase(), avroScribeHeaderField -> avroScribeHeaderField.name()));
       scribeHeaderRecord = getScribeHeaderParquetData(avroRecord, schema);
-      LOG.info("Getting  scribeHeaderRecord: " + scribeHeaderRecord);
     }
 
     // Get fields from schema
@@ -254,8 +262,8 @@ public class ScribeParquetAvroConverter {
             String avroTypeName = avroTypeSchema.getType().name();
             try {
 
-              if (avroTypeName.equalsIgnoreCase("ARRAY")) {
-                if (avroTypeSchema.getElementType().getType().getName().equalsIgnoreCase("RECORD")) {
+              if (avroTypeName.equalsIgnoreCase(AVRO_ARRAY)) {
+                if (avroTypeSchema.getElementType().getType().getName().equalsIgnoreCase(AVRO_RECORD)) {
                   // get schema of nested obj and generic record
                   List<GenericRecord> nestedObjectArray = new ArrayList<GenericRecord>();
                   // In order to overcome warning: [unchecked] unchecked cast, suppressing it as we are sure that it will be array<record>
@@ -273,11 +281,10 @@ public class ScribeParquetAvroConverter {
                 } else {
                   record.put(fieldName.toLowerCase(), avroRecord.get(fieldName));
                 }
-              } else if (avroTypeName.equalsIgnoreCase("LONG")) {
+              } else if (avroTypeName.equalsIgnoreCase(AVRO_LONG)) {
                 // For timestamp fields we need to check for logical type in avroschema, to convert to string in parquet
-                if (field.name().equalsIgnoreCase("eventTimestamp") ||
-                    (avroTypeSchema.getLogicalType() != null &&
-                        avroTypeSchema.getLogicalType().getName().equalsIgnoreCase("timestamp-millis"))) {
+                if (avroTypeSchema.getLogicalType() != null &&
+                        avroTypeSchema.getLogicalType().getName().equalsIgnoreCase("timestamp-millis")) {
                   String result = null;
                   if (avroRecord.get(fieldName) != null) {
                     Long value = (Long) avroRecord.get(fieldName);
@@ -287,9 +294,9 @@ public class ScribeParquetAvroConverter {
                 } else {
                   record.put(fieldName.toLowerCase(), avroRecord.get(fieldName));
                 }
-              } else if (avroTypeName.equalsIgnoreCase("RECORD") && avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
+              } else if (avroTypeName.equalsIgnoreCase(AVRO_RECORD) && avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
                 record.put(fieldName.toLowerCase(), scribeHeaderRecord.get(fieldName));
-              } else if (avroTypeName.equalsIgnoreCase("RECORD")) {
+              } else if (avroTypeName.equalsIgnoreCase(AVRO_RECORD)) {
                 //convert fields inside nested object to parquet data
                 GenericRecord nestedRecord = (GenericRecord) avroRecord.get(fieldName);
                 Schema nestedRecordschema = schema.getField(fieldName.toLowerCase()).schema().isUnion() ? schema.getField(fieldName.toLowerCase()).schema().getTypes().get(1) : schema.getField(fieldName.toLowerCase()).schema();
