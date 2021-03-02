@@ -1,4 +1,4 @@
-gradlerootProject.name = "brooklin"
+rootProject.name = "brooklin"
 
 include 'datastream-client'
 include 'datastream-common'
