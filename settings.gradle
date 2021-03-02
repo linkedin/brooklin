@@ -1,15 +1,28 @@
-rootProject.name = "brooklin"
+gradlerootProject.name = "brooklin"
 
 include 'datastream-client'
 include 'datastream-common'
 include 'datastream-directory'
 include 'datastream-file-connector'
-include 'datastream-kafka'
 include 'datastream-kafka-connector'
 include 'datastream-kafka-factory-impl'
 include 'datastream-server'
 include 'datastream-server-api'
 include 'datastream-server-restli'
-include 'datastream-testcommon'
 include 'datastream-tools'
 include 'datastream-utils'
+
+def scalaModules = [
+    'datastream-kafka',
+    'datastream-testcommon'
+] as HashSet
+
+scalaModules.each {
+  include it
+}
+
+rootProject.children.each {
+  if (scalaModules.contains(it.name)) {
+    it.name = it.name + "_" + scalaSuffix
+  }
+}
