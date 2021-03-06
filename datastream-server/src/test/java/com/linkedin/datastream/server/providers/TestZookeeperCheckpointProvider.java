@@ -27,6 +27,7 @@ import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
@@ -37,6 +38,7 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 public class TestZookeeperCheckpointProvider {
 
   private EmbeddedZookeeper _zookeeper;
+  private ZkClient _zkClient;
 
   private final String defaultTransportProviderName = "test";
   private static final long DEBOUNCE_TIMER_MS = 1000;
@@ -46,10 +48,12 @@ public class TestZookeeperCheckpointProvider {
     DynamicMetricsManager.createInstance(new MetricRegistry(), method.getName());
     _zookeeper = new EmbeddedZookeeper();
     _zookeeper.startup();
+    _zkClient = new ZkClient(_zookeeper.getConnection());
   }
 
   @AfterMethod
   public void cleanup() {
+    _zkClient.close();
     _zookeeper.shutdown();
   }
 
@@ -68,6 +72,9 @@ public class TestZookeeperCheckpointProvider {
     ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
     DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(ds2));
     datastreamTask2.setId("dt2");
+
+    _zkClient.ensurePath(KeyBuilder.connectorTask("testcluster", ds1.getConnectorName(), datastreamTask1.getDatastreamTaskName()));
+    _zkClient.ensurePath(KeyBuilder.connectorTask("testcluster", ds2.getConnectorName(), datastreamTask2.getDatastreamTaskName()));
 
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
     checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
@@ -93,6 +100,9 @@ public class TestZookeeperCheckpointProvider {
 
     DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(2)));
     datastreamTask2.setId("dt2");
+
+    _zkClient.ensurePath(KeyBuilder.connectorTask("testcluster", datastreamTask1.getConnectorType(), datastreamTask1.getDatastreamTaskName()));
+    _zkClient.ensurePath(KeyBuilder.connectorTask("testcluster", datastreamTask2.getConnectorType(), datastreamTask2.getDatastreamTaskName()));
 
     checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
     checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
