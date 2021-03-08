@@ -85,6 +85,13 @@ public class DatastreamMetadataConstants {
   public static final String DESTINATION_TOPIC_PREFIX = SYSTEM_DESTINATION_PREFIX + "destinationTopicPrefix";
 
   /**
+   * If set to true, datastream would make use of the message's source timestamp while producing record to the
+   * destination.
+   */
+  public static final String PRESERVE_EVENT_SOURCE_TIMESTAMP = SYSTEM_DESTINATION_PREFIX + "preserveEventSourceTimestamp";
+
+
+   /**
    * Timestamp of datastream creation in epoch-millis
    */
   public static final String CREATION_MS = "system.creation.ms";

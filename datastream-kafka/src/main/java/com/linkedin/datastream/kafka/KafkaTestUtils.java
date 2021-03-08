@@ -43,6 +43,15 @@ public final class KafkaTestUtils {
      */
     boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
+  /**
+   * Interface for the callback invoked whenever messages are read
+   */
+  public interface RecordReaderCallback {
+    /**
+     * Callback invoked whenever a message is read to so it can be consumed
+     */
+    boolean onMessage(ConsumerRecord<?, ?> record) throws IOException;
+  }
 
   private KafkaTestUtils() {
   }
@@ -100,6 +109,43 @@ public final class KafkaTestUtils {
     }
 
     throw new IllegalStateException("Topic was not ready within the timeout");
+  }
+
+  /**
+   * Consume messages from a given partition of a Kafka topic, using given RecordReaderCallback
+   */
+  public static void readTopic(String topic, Integer partition, String brokerList, RecordReaderCallback callback)
+          throws Exception {
+    Validate.notNull(topic);
+    Validate.notNull(partition);
+    Validate.notNull(brokerList);
+    Validate.notNull(callback);
+
+    KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
+    if (partition >= 0) {
+      List<TopicPartition> topicPartitions = Collections.singletonList(new TopicPartition(topic, partition));
+      consumer.assign(topicPartitions);
+      consumer.seekToBeginning(topicPartitions);
+    } else {
+      consumer.subscribe(Collections.singletonList(topic));
+    }
+
+    boolean keepGoing = true;
+    long now = System.currentTimeMillis();
+    do {
+      ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
+      for (ConsumerRecord<byte[], byte[]> record : records.records(topic)) {
+        if (!callback.onMessage(record)) {
+          keepGoing = false;
+          break;
+        }
+      }
+
+      // Guard against buggy test which can hang forever
+      if (System.currentTimeMillis() - now >= DEFAULT_TIMEOUT_MS) {
+        throw new TimeoutException("Timed out before reading all messages");
+      }
+    } while (keepGoing);
   }
 
   /**

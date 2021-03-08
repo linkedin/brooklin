@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.config.TopicConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -28,9 +29,11 @@ import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
 
+
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
@@ -206,6 +209,21 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testEventWithPreserveTimestampTrue() throws Exception {
+    testEventSendWithTimestamp(1, 2, -1, false, false, "test", true);
+  }
+
+  @Test
+  public void testEventWithPreserveTimestampFalse() throws Exception {
+    testEventSendWithTimestamp(1, 2, -1, false, false, "test", false);
+  }
+
+  @Test
+  public void testEventWithoutPreservingTimestamp() throws Exception {
+    testEventSendWithTimestamp(1, 2, -1, false, false, "test", null);
+  }
+
+  @Test
   public void testSendMultipleEventsInSingleDatastreamProducerRecord() throws Exception {
     String metricsPrefix = "test";
     final int numberOfEvents = 10;
@@ -280,6 +298,98 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventByteWriteRateMetricName));
     Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(producerCountMetricName));
   }
+
+  private void testEventSendWithTimestamp(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
+                             boolean includeValue, String metricsPrefix, Boolean preserveSourceEventTimestamp) throws Exception {
+    String topicName = getUniqueTopicName();
+
+    if (metricsPrefix != null) {
+      _transportProviderProperties.put(KafkaTransportProviderAdmin.CONFIG_METRICS_NAMES_PREFIX, metricsPrefix);
+    }
+    KafkaTransportProviderAdmin provider = new KafkaTransportProviderAdmin("test", _transportProviderProperties);
+
+    String destinationUri = provider.getDestination(null, topicName);
+
+    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, numberOfPartitions);
+
+    if (preserveSourceEventTimestamp != null) {
+      ds.getMetadata().put(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, preserveSourceEventTimestamp.toString());
+    }
+
+    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
+    TransportProvider transportProvider = provider.assignTransportProvider(task);
+    Properties topicProperties = new Properties();
+    topicProperties.put(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG, "CreateTime");
+    provider.createTopic(destinationUri, numberOfPartitions, topicProperties);
+
+    KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
+
+    LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, numberOfPartitions,
+            topicProperties));
+    // Specify source event timestamp for asserting
+    Long sourceTimestampBase = 1582766709000L;
+    List<Long> eventSourceTimestamps = new ArrayList<>();
+    for (int index = 0; index < numberOfEvents; ++index) {
+      eventSourceTimestamps.add(sourceTimestampBase + index);
+    }
+
+    List<DatastreamProducerRecord> datastreamEvents =
+            createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, eventSourceTimestamps);
+
+    LOG.info(String.format("Trying to send %d events to topic %s", datastreamEvents.size(), topicName));
+
+    final Integer[] callbackCalled = {0};
+    for (DatastreamProducerRecord event : datastreamEvents) {
+      transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+    }
+
+    // wait until all messages were acked, to ensure all events were successfully sent to the topic
+    Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == datastreamEvents.size(), 1000, 10000),
+            "Send callback was not called; likely topic was not created in time");
+
+    LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, partition));
+
+    List<Long> readTimestamps = new ArrayList<>();
+    KafkaTestUtils.readTopic(topicName, partition, _kafkaCluster.getBrokers(), (record) -> {
+      readTimestamps.add(record.timestamp());
+      return readTimestamps.size() < numberOfEvents;
+    });
+
+    if (preserveSourceEventTimestamp != null && preserveSourceEventTimestamp) {
+      Assert.assertEquals(readTimestamps, eventSourceTimestamps);
+    } else {
+      Assert.assertNotEquals(readTimestamps, eventSourceTimestamps);
+    }
+
+    if (metricsPrefix != null) {
+      // verify that configured metrics prefix was used
+      for (BrooklinMetricInfo metric : provider.getMetricInfos()) {
+        Assert.assertTrue(metric.getNameOrRegex().startsWith(metricsPrefix));
+      }
+
+      String eventWriteRateMetricName = new StringJoiner(".").add(metricsPrefix)
+              .add(KafkaTransportProvider.class.getSimpleName())
+              .add(KafkaTransportProvider.AGGREGATE)
+              .add(KafkaTransportProvider.EVENT_WRITE_RATE)
+              .toString();
+
+      String eventByteWriteRateMetricName = new StringJoiner(".").add(metricsPrefix)
+              .add(KafkaTransportProvider.class.getSimpleName())
+              .add(KafkaTransportProvider.AGGREGATE)
+              .add(KafkaTransportProvider.EVENT_BYTE_WRITE_RATE)
+              .toString();
+
+      String producerCountMetricName = new StringJoiner(".").add(metricsPrefix)
+              .add(KafkaProducerWrapper.class.getSimpleName())
+              .add(KafkaTransportProvider.AGGREGATE)
+              .add(KafkaProducerWrapper.PRODUCER_COUNT)
+              .toString();
+      Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventWriteRateMetricName));
+      Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(eventByteWriteRateMetricName));
+      Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(producerCountMetricName));
+    }
+  }
+
 
   private void testEventSend(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
       boolean includeValue, String metricsPrefix) throws Exception {
@@ -358,8 +468,13 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     return text.getBytes();
   }
 
+  private  List<DatastreamProducerRecord> createEvents(String topicName, int partition, int numberOfEvents,
+                                                       boolean includeKey, boolean includeValue) {
+    return createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, null);
+  }
+
   private List<DatastreamProducerRecord> createEvents(String topicName, int partition, int numberOfEvents,
-      boolean includeKey, boolean includeValue) {
+      boolean includeKey, boolean includeValue, List<Long> eventSourceTimeStamps) {
     Datastream stream = new Datastream();
     stream.setName("datastream_" + topicName);
     stream.setConnectorName("dummyConnector");
@@ -369,6 +484,10 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     destination.setConnectionString(topicName);
     destination.setPartitions(NUM_PARTITIONS);
     stream.setDestination(destination);
+
+    if (eventSourceTimeStamps != null) {
+      Assert.assertEquals(numberOfEvents, eventSourceTimeStamps.size());
+    }
 
     List<DatastreamProducerRecord> events = new ArrayList<>();
     for (int index = 0; index < numberOfEvents; index++) {
@@ -390,7 +509,8 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
       }
 
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
-      builder.setEventsSourceTimestamp(System.currentTimeMillis());
+      builder.setEventsSourceTimestamp(eventSourceTimeStamps != null ?
+              eventSourceTimeStamps.get(index) : System.currentTimeMillis());
       builder.addEvent(new BrooklinEnvelope(keyValue, payloadValue, previousPayloadValue, new HashMap<>()));
       if (partition >= 0) {
         builder.setPartition(partition);

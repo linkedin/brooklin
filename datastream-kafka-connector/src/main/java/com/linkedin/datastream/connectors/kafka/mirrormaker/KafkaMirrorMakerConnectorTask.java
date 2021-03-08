@@ -131,6 +131,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private int _flowControlTriggerCount = 0;
   private int _errorOnSendCallbackDuringShutdownCount = 0;
 
+  // variable to preserve the source event timestamp
+  private boolean _preserveEventSourceTimestamp = false;
+
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
    * @param config Task configuration properties
@@ -154,11 +157,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _preserveEventSourceTimestamp = Boolean.parseBoolean(task.getDatastreams().get(0).getMetadata()
+            .getOrDefault(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, Boolean.FALSE.toString()));
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
     }
-
+    LOG.info("Preserve event source timestamp is set to {}", _preserveEventSourceTimestamp);
     LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
 
     if (_isFlushlessModeEnabled) {
@@ -240,7 +245,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected DatastreamProducerRecord translate(ConsumerRecord<?, ?> fromKafka, Instant readTime) {
-    long eventsSourceTimestamp =
+    long eventsSourceTimestamp = _preserveEventSourceTimestamp ? fromKafka.timestamp() :
         fromKafka.timestampType() == TimestampType.LOG_APPEND_TIME ? fromKafka.timestamp() : readTime.toEpochMilli();
     HashMap<String, String> metadata = new HashMap<>();
     metadata.put(KAFKA_ORIGIN_CLUSTER, _mirrorMakerSource.getBrokerListString());

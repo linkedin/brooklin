@@ -63,12 +63,19 @@ public abstract class BaseKafkaZkTest {
     _broker = null;
   }
 
-  protected static void createTopic(ZkUtils zkUtils, String topic, int partitionCount) {
+  protected static void createTopic(ZkUtils zkUtils, String topic, int partitionCount, Properties properties) {
     if (!AdminUtils.topicExists(zkUtils, topic)) {
-      Properties properties = new Properties();
-      properties.put("message.timestamp.type", "LogAppendTime");
-      AdminUtils.createTopic(zkUtils, topic, partitionCount, 1, properties, null);
+      Properties topicConfig = properties;
+      if (topicConfig == null) {
+        topicConfig = new Properties();
+        topicConfig.put("message.timestamp.type", "LogAppendTime");
+      }
+      AdminUtils.createTopic(zkUtils, topic, partitionCount, 1, topicConfig, null);
     }
+  }
+
+  protected static void createTopic(ZkUtils zkUtils, String topic, int partitionCount) {
+      createTopic(zkUtils, topic, partitionCount, null);
   }
 
   protected static void createTopic(ZkUtils zkUtils, String topic) {

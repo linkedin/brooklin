@@ -6,6 +6,7 @@
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,8 +24,10 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
@@ -93,6 +96,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
   private static final long DEBOUNCE_TIMER_MS = 1000;
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnectorTask.class);
+  private static final String MESSAGE_TIMESTAMP_TYPE_CREATE_TIME = "CreateTime";
+  private static final String MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME = "LogAppendTime";
 
   @Test
   public void testConsumeFromMultipleTopics() throws Exception {
@@ -149,6 +154,35 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
         "did not shut down on time");
+  }
+  @Test
+  public void testPreserveSourceEventTimestampForSourceLogTimestampTypeAsCreateTime() throws Exception {
+    testEventSendWithTimestamp("topicWithCreateTime", 3, MESSAGE_TIMESTAMP_TYPE_CREATE_TIME, Boolean.TRUE);
+  }
+
+  @Test
+  public void testPreserveSourceEventTimestampForSourceLogTimestampTypeAsLogAppendTime() throws Exception {
+    testEventSendWithTimestamp("topicWithLogAppendTime", 3, MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME, Boolean.TRUE);
+  }
+
+  @Test
+  public void testPreserveSourceEventTimestampNotSetForSourceLogTimestampTypeAsLogAppendTime() throws Exception {
+    testEventSendWithTimestamp("preserveNotSet_1", 3, MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME, null);
+  }
+
+  @Test
+  public void testPreserveSourceEventTimestampSetToFalseForSourceLogTimestampTypeAsLogAppendTime() throws Exception {
+    testEventSendWithTimestamp("preserveNotSet_2", 3, MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME, Boolean.FALSE);
+  }
+
+  @Test
+  public void testPreserveSourceEventTimestampNotSetForSourceLogTimestampTypeAsCreateTime() throws Exception {
+    testEventSendWithTimestamp("preserveTsTest_3", 3, MESSAGE_TIMESTAMP_TYPE_CREATE_TIME, null);
+  }
+
+  @Test
+  public void testPreserveSourceEventTimestampSetToFalseForSourceLogTimestampTypeAsCreateTime() throws Exception {
+    testEventSendWithTimestamp("preserveTsTest_4", 3, MESSAGE_TIMESTAMP_TYPE_CREATE_TIME, Boolean.FALSE);
   }
 
   @Test
@@ -225,7 +259,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // produce an event half of the partitions
     Set<Integer> expectedPartitionsWithData = new HashSet<>();
     for (int i = 0; i < partitionCount; i += 2) {
-      KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(yummyTopic, i, 1, _kafkaCluster);
+      KafkaMirrorMakerConnectorTestUtils.produceEvents(yummyTopic, i, 1, _kafkaCluster);
       expectedPartitionsWithData.add(i);
     }
 
@@ -1376,4 +1410,65 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
             == numConfigPausedPartitions, POLL_PERIOD_MS, POLL_TIMEOUT_MS),
         "numConfigPausedPartitions metric failed to update");
   }
-}
+  private void testEventSendWithTimestamp(String topicName, int numberOfEvents, String messageTimestampType,
+      Boolean preserveSourceEventTimestamp) throws Exception {
+    Assert.assertTrue(messageTimestampType.equals("CreateTime") ||
+            messageTimestampType.equals("LogAppendTime"));
+    Properties topicProperties = new Properties();
+    topicProperties.put(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG, messageTimestampType);
+    createTopic(_zkUtils, topicName, 1, topicProperties);
+
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream(topicName + "_Stream", _broker, "^" + topicName + "$");
+    if (preserveSourceEventTimestamp != null) {
+      datastream.getMetadata().put(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, preserveSourceEventTimestamp.toString());
+    }
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    Long sourceTimestampBase = 1582766709000L;
+    List<Long> eventSourceTimestamps = new ArrayList<>();
+    for (int index = 0; index < numberOfEvents; ++index) {
+      eventSourceTimestamps.add(sourceTimestampBase + index);
+    }
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+            KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+
+    List<RecordMetadata> recordMetadataList = KafkaMirrorMakerConnectorTestUtils.produceEventsToPartitionSync(topicName,
+            null, numberOfEvents, eventSourceTimestamps, _kafkaCluster);
+
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == numberOfEvents, POLL_PERIOD_MS, POLL_TIMEOUT_MS) &&
+      recordMetadataList.size() == numberOfEvents) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    // Get the broker appended timestamps if message timestamp type is LogAppendTime
+    if (messageTimestampType == MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME) {
+      for (int index = 0; index < numberOfEvents; ++index) {
+        eventSourceTimestamps.set(index, recordMetadataList.get(index).timestamp());
+      }
+    }
+    List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
+
+    List<Long> readTimestamps = new ArrayList<>();
+
+    for (DatastreamProducerRecord record : records) {
+      readTimestamps.add(record.getEventsSourceTimestamp());
+    }
+
+    if (preserveSourceEventTimestamp != null && preserveSourceEventTimestamp) {
+      Assert.assertEquals(readTimestamps, eventSourceTimestamps, "source and destination timestamps don't match!");
+    } else if (messageTimestampType == MESSAGE_TIMESTAMP_TYPE_CREATE_TIME) {
+      Assert.assertNotEquals(readTimestamps, eventSourceTimestamps);
+    } else if (messageTimestampType == MESSAGE_TIMESTAMP_TYPE_LOG_APPEND_TIME) {
+      Assert.assertEquals(readTimestamps, eventSourceTimestamps);
+    }
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+            "did not shut down on time");
+  }
+  }

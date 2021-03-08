@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Meter;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
@@ -35,7 +36,6 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
-
 
 /**
  * This is a Kafka Transport provider that writes events to Kafka.
@@ -58,6 +58,7 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventWriteRate;
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
+  private final boolean _preserveEventSourceTimestamp;
 
   private boolean _isUnassigned;
 
@@ -84,6 +85,9 @@ public class KafkaTransportProvider implements TransportProvider {
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
     _isUnassigned = false;
+
+    _preserveEventSourceTimestamp = Boolean.parseBoolean(datastreamTask.getDatastreams().get(0).getMetadata()
+            .getOrDefault(DatastreamMetadataConstants.PRESERVE_EVENT_SOURCE_TIMESTAMP, Boolean.FALSE.toString()));
 
     // initialize metrics
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -119,15 +123,17 @@ public class KafkaTransportProvider implements TransportProvider {
       payloadValue = (byte[]) event;
     }
 
+    Long recordTimeStamp = _preserveEventSourceTimestamp ? record.getEventsSourceTimestamp() : null;
+
     if (partition.isPresent() && partition.get() >= 0) {
       // If the partition is specified. We send the record to the specific partition
-      return new ProducerRecord<>(topicName, partition.get(), keyValue, payloadValue, headers);
+      return new ProducerRecord<>(topicName, partition.get(), recordTimeStamp, keyValue, payloadValue, headers);
     } else {
       // If the partition is not specified. We use the partitionKey as the key. Kafka will use the hash of that
       // to determine the partition. If partitionKey does not exist, use the key value.
       keyValue = record.getPartitionKey().isPresent()
               ? record.getPartitionKey().get().getBytes(StandardCharsets.UTF_8) : keyValue;
-      return new ProducerRecord<>(topicName, null, keyValue, payloadValue, headers);
+      return new ProducerRecord<>(topicName, null, recordTimeStamp, keyValue, payloadValue, headers);
     }
   }
 
