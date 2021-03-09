@@ -34,6 +34,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.DatastreamTaskStatus;
 import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -967,6 +968,41 @@ public class TestZkAdapter {
     // Verify that dead instance got cleaned up.
     Assert.assertTrue(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, adapter.getInstanceName())));
     Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, "deadInstance-999")));
+
+    adapter.disconnect();
+  }
+
+  @Test
+  public void testSaveStateOnlyWhenTaskExists() {
+    String testCluster = "testSaveStateOnlyWhenTaskExists";
+    String connectorType = "connectorType";
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
+    adapter.connect();
+
+    List<DatastreamTask> tasks1 = new ArrayList<>();
+    DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
+    dsTask.setId("task1");
+    String taskPrefix = "taskPrefix1";
+    dsTask.setTaskPrefix(taskPrefix);
+    dsTask.setConnectorType(connectorType);
+    dsTask.setZkAdapter(adapter);
+    tasks1.add(dsTask);
+    Map<String, List<DatastreamTask>> oldAssignments = new HashMap<>();
+    oldAssignments.put(adapter.getInstanceName(), tasks1);
+    adapter.updateAllAssignments(oldAssignments);
+
+    Map<String, Set<DatastreamTask>> currentAssignments = adapter.getAllAssignedDatastreamTasks();
+    Assert.assertEquals(oldAssignments.keySet(), currentAssignments.keySet());
+    currentAssignments.forEach((k, v) -> Assert.assertEquals(v, new HashSet<>(oldAssignments.get(k))));
+
+    dsTask.setStatus(DatastreamTaskStatus.ok());
+    Assert.assertTrue(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
+
+    adapter.deleteTasksWithPrefix(connectorType, taskPrefix);
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
+    dsTask.setStatus(DatastreamTaskStatus.ok());
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
 
     adapter.disconnect();
   }
