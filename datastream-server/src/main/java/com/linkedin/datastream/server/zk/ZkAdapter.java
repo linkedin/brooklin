@@ -907,8 +907,12 @@ public class ZkAdapter {
   public void setDatastreamTaskStateForKey(DatastreamTask datastreamTask, String key, String value) {
     String path = KeyBuilder.datastreamTaskStateKey(_cluster, datastreamTask.getConnectorType(),
         datastreamTask.getDatastreamTaskName(), key);
-    _zkclient.ensurePath(path);
-    _zkclient.writeData(path, value);
+    String taskPath = KeyBuilder.connectorTask(_cluster, datastreamTask.getConnectorType(),
+        datastreamTask.getDatastreamTaskName());
+    if (_zkclient.exists(taskPath)) {
+      _zkclient.ensurePath(path);
+      _zkclient.writeData(path, value);
+    }
   }
 
   /**
