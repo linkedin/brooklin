@@ -255,8 +255,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         @Override
         public Consumer<byte[], byte[]> createConsumer(Properties properties) {
           Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
-          doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
-              .when(result).commitSync(any(Duration.class));
+          doAnswer(invocation -> {
+            remainingCommitSyncCalls.countDown();
+            return null;
+          }).when(result).commitSync(any(Duration.class));
           return result;
         }
       };
