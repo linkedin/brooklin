@@ -51,7 +51,7 @@ subprojects {
   checkstyle {
     configFile = file("${project.rootDir}/checkstyle/checkstyle.xml")
     sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
-    toolVersion = "6.7"
+    toolVersion = "6.11.2"
     ignoreFailures = false
   }
 

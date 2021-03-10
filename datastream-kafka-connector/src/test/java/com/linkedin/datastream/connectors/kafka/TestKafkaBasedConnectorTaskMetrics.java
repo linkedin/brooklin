@@ -128,7 +128,7 @@ public class TestKafkaBasedConnectorTaskMetrics {
     KafkaBasedConnectorTaskMetrics connectorConsumer4 =
         new KafkaBasedConnectorTaskMetrics(CLASS_NAME, CONSUMER1_NAME, LOG, true);
 
-    validatePausedPartitionsMetrics(CLASS_NAME + DELIMITED_CONSUMER1_NAME, 0, 0 , 0);
+    validatePausedPartitionsMetrics(CLASS_NAME + DELIMITED_CONSUMER1_NAME, 0, 0, 0);
     connectorConsumer4.deregisterMetrics();
   }
 
