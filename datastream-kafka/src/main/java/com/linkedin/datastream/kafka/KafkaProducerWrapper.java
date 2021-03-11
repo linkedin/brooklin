@@ -405,8 +405,12 @@ class KafkaProducerWrapper<K, V> {
         try {
           _producerLock.lock();
           if (producer == _kafkaProducer) {
-            _log.warn("Kafka producer flush may be interrupted/timed out, closing producer {}.", producer);
-            shutdownProducer(true);
+            if (_closeInProgress) {
+              _log.warn("Kafka producer flush may be interrupted/timed out, producer {} close is in progress.", producer);
+            } else {
+              _log.warn("Kafka producer flush may be interrupted/timed out, closing producer {}.", producer);
+              shutdownProducer(true);
+            }
           } else {
             _log.warn("Kafka producer flush may be interrupted/timed out, producer {} already closed.", producer);
           }
