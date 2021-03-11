@@ -397,6 +397,7 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
+        _log.info("Flush completed for the producer, closeInProgress: {}", _closeInProgress);
       } catch (Exception e) {
         _log.warn("Hitting Exception during kafka producer flush.", e);
         // The KafkaProducer object should not be reused on an interrupted/timed out flush. To be safe, we try to
