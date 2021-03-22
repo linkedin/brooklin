@@ -162,9 +162,14 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * @param partitionsV2 new partitions for this task
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
+    _dependencies = new ArrayList<>();
     if (!predecessor.isLocked()) {
-      throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
-          + "the previous assignment has not been picked up");
+      if (!predecessor._partitionsV2.isEmpty()) {
+        throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, " +
+            "the previous assignment has not been picked up");
+      }
+    } else {
+      _dependencies.add(predecessor.getDatastreamTaskName());
     }
 
     _datastreams = predecessor._datastreams;
@@ -181,8 +186,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _transportProviderName = predecessor._transportProviderName;
     _destinationSerDes = predecessor._destinationSerDes;
 
-    _dependencies = new ArrayList<>();
-    _dependencies.add(predecessor.getDatastreamTaskName());
     computeHashCode();
   }
 

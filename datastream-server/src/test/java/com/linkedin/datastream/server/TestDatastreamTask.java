@@ -57,13 +57,16 @@ public class TestDatastreamTask {
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
-    task.setPartitionsV2(ImmutableList.of("partition1"));
 
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
-
-    task.addDependency(createDependencyTask(stream, true));
     when(mockZkAdapter.checkIsTaskLocked(anyString(), anyString(), anyString())).thenReturn(false);
+
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl(task, new ArrayList<>());
+    Assert.assertEquals(new HashSet<>(task2.getDependencies()), Collections.emptySet());
+
+    task.setPartitionsV2(ImmutableList.of("partition1"));
+    task.addDependency(createDependencyTask(stream, true));
     Assert.assertThrows(DatastreamTransientException.class, () -> new DatastreamTaskImpl(task, new ArrayList<>()));
   }
 
