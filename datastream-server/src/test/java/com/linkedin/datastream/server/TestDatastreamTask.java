@@ -76,6 +76,7 @@ public class TestDatastreamTask {
     stream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(stream));
 
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(stream));
+    task.setPartitionsV2(ImmutableList.of("partition1"));
 
     ZkAdapter mockZkAdapter = mock(ZkAdapter.class);
     task.setZkAdapter(mockZkAdapter);
