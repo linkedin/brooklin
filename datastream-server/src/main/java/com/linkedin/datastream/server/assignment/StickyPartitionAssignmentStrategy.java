@@ -256,7 +256,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
             throw new DatastreamRuntimeException(errorMessage);
           }
           if (partitionChanged) {
-            return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            try {
+              return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            } catch (Exception e) {
+              LOG.error("Hit exception while creating a new task from existing task: {} assigned to instance: {}",
+                  task.getDatastreamTaskName(), instance, e);
+              throw e;
+            }
           } else {
             return task;
           }
@@ -409,9 +415,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         }
 
         if (partitionChanged) {
-          DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
-          extraDependencies.forEach(newTask::addDependency);
-          return newTask;
+          try {
+            DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            extraDependencies.forEach(newTask::addDependency);
+            return newTask;
+          } catch (Exception e) {
+            LOG.error("Hit exception while creating a new task from existing task: {} assigned to instance: {}",
+                task.getDatastreamTaskName(), instance, e);
+            throw e;
+          }
         } else {
           return task;
         }

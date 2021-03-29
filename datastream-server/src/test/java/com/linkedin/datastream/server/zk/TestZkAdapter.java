@@ -679,6 +679,7 @@ public class TestZkAdapter {
     task1.setId("3");
     task1.setConnectorType(connectorType);
     task1.setZkAdapter(adapter1);
+    task1.setPartitionsV2(ImmutableList.of("partition1"));
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task1);
