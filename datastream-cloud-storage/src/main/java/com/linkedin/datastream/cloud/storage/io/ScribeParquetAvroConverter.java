@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2020 Wayfair LLC. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.cloud.storage.io;
 
 import java.text.DateFormat;
@@ -37,7 +42,8 @@ public class ScribeParquetAvroConverter {
    * @param fieldAssembler FieldAssembler
    * @return SchemaBuilder.FieldAssembler<Schema>
    */
-  public static SchemaBuilder.FieldAssembler<Schema> getFieldAssembler(Boolean isNotNullable, Schema fieldSchema, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
+  public static SchemaBuilder.FieldAssembler<Schema> getFieldAssembler(Boolean isNotNullable, Schema fieldSchema, Schema.Field field,
+                                                                       SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     try {
       String typeName = fieldSchema.getType().name();
       if (typeName.equalsIgnoreCase(AVRO_ARRAY)) {
@@ -59,7 +65,7 @@ public class ScribeParquetAvroConverter {
         if (fieldSchema.getName().equalsIgnoreCase("scribe_header")) {
           List<Schema.Field> headerFields = fieldSchema.getFields();
           for (Schema.Field headerField : headerFields) {
-            Boolean isHeaderFieldNotNullable = headerField.getObjectProp("isRequired") != null ?(Boolean) headerField.getObjectProp("isRequired") : false;
+            Boolean isHeaderFieldNotNullable = headerField.getObjectProp("isRequired") != null ? (Boolean) headerField.getObjectProp("isRequired") : false;
             if (headerField.schema().isUnion()) {
               for (Schema headerSchema : headerField.schema().getTypes()) {
                 if (!headerSchema.getType().getName().equalsIgnoreCase("null")) {
@@ -101,7 +107,8 @@ public class ScribeParquetAvroConverter {
    * @param field          Field
    * @param fieldAssembler FieldAssembler
    */
-  public static void getFieldAssemblerForPrimitives(Boolean isNotNullable, String typeName, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
+  public static void getFieldAssemblerForPrimitives(Boolean isNotNullable, String typeName, Schema.Field field,
+                                                    SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     try {
       if (isNotNullable) {
         fieldAssembler.name(field.name().toLowerCase())
@@ -116,7 +123,8 @@ public class ScribeParquetAvroConverter {
             .type(typeName.toLowerCase());
       }
     } catch (Exception e) {
-      LOG.error(String.format("Exception in creating primitive fieldbuilder in ScribeParquetAvroConverter: field: %s, type: %s, exception: %s", field.name(), typeName, e));
+      LOG.error(String.format("Exception in creating primitive fieldbuilder in ScribeParquetAvroConverter: field: %s," +
+          " type: %s, exception: %s", field.name(), typeName, e));
     }
   }
 
@@ -127,7 +135,8 @@ public class ScribeParquetAvroConverter {
    * @param field          Field
    * @param fieldAssembler FieldAssembler
    */
-  public static void getFieldAssemblerForRecord(Boolean isNotNullable, Schema fieldSchema, Schema.Field field, SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
+  public static void getFieldAssemblerForRecord(Boolean isNotNullable, Schema fieldSchema, Schema.Field field,
+                                                SchemaBuilder.FieldAssembler<Schema> fieldAssembler) {
     try {
       if (isNotNullable) {
         fieldAssembler.name(field.name().toLowerCase())
@@ -142,7 +151,8 @@ public class ScribeParquetAvroConverter {
             .type(fieldSchema);
       }
     } catch (Exception e) {
-      LOG.error(String.format("Exception in creating record fieldbuilder in ScribeParquetAvroConverter: field: %s, fieldSchema: %s, exception: %s", field.name().toLowerCase(), fieldSchema, e));
+      LOG.error(String.format("Exception in creating record fieldbuilder in ScribeParquetAvroConverter: field: %s, fieldSchema: %s, exception: %s",
+          field.name().toLowerCase(), fieldSchema, e));
     }
   }
 
@@ -173,7 +183,7 @@ public class ScribeParquetAvroConverter {
       List<Schema.Field> fields = schema.getFields();
       for (Schema.Field field : fields) {
         Schema fieldSchema = field.schema();
-        Boolean isNotNullable = field.getObjectProp("isRequired") != null ?(Boolean) field.getObjectProp("isRequired") : false;
+        Boolean isNotNullable = field.getObjectProp("isRequired") != null ? (Boolean) field.getObjectProp("isRequired") : false;
         if (fieldSchema.isUnion()) {
           for (Schema typeSchema : fieldSchema.getTypes()) {
             if (!typeSchema.getType().getName().equalsIgnoreCase("null")) {
@@ -187,7 +197,8 @@ public class ScribeParquetAvroConverter {
       parquetAvroSchema = fieldAssembler.endRecord();
       return parquetAvroSchema;
     } catch (Exception e) {
-      LOG.error(String.format("Exception in converting avro schema to parquet format in ScribeParquetAvroConverter: Schema: %s, exception: %s", schema.getName(), e));
+      LOG.error(String.format("Exception in converting avro schema to parquet format in ScribeParquetAvroConverter: Schema: %s, exception: %s",
+          schema.getName(), e));
       return null;
     }
 
@@ -204,7 +215,7 @@ public class ScribeParquetAvroConverter {
       return ((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema().isUnion() ?
           ((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema().getTypes() :
           Arrays.asList(((GenericData.Record) avroRecord).getSchema().getField(fieldName).schema());
-    } catch (Exception e){
+    } catch (Exception e) {
       LOG.error(String.format("Exception in getting schema Types in ScribeParquetAvroConverter: field: %s, exception: %s", fieldName, e));
       return null;
     }
@@ -212,7 +223,8 @@ public class ScribeParquetAvroConverter {
 
   /**
    * The incoming records need to be converted to match the Parquet schema generated using
-   * `generateParquetStructuredAvroSchema` function. This function iterates all the fields in the avroRecord {@link ScribeParquetAvroConverter#generateParquetStructuredAvroSchema(Schema)}
+   * `generateParquetStructuredAvroSchema` function. This function iterates all the fields in the avroRecord
+   * {@link ScribeParquetAvroConverter#generateParquetStructuredAvroSchema(Schema)}
    * and converts them to necessary data types to conform to the target Parquet schema.
    *
    * @param schema parquet compatible avro schema
@@ -222,11 +234,12 @@ public class ScribeParquetAvroConverter {
    */
   public static GenericRecord generateParquetStructuredAvroData(Schema schema, GenericRecord avroRecord) {
     GenericRecord record = new GenericData.Record(schema);
-    Map<String,String> avroScribeHeaderFieldNamingMap = null;
+    Map<String, String> avroScribeHeaderFieldNamingMap = null;
     GenericRecord scribeHeaderRecord = null;
     if (avroRecord.get(SCRIBE_HEADER) != null) {
       avroScribeHeaderFieldNamingMap = avroRecord.getSchema().getField(SCRIBE_HEADER).schema().getFields().stream()
-          .collect(Collectors.toMap(avroScribeHeaderField -> avroScribeHeaderField.name().toLowerCase(), avroScribeHeaderField -> avroScribeHeaderField.name()));
+          .collect(Collectors.toMap(
+              avroScribeHeaderField -> avroScribeHeaderField.name().toLowerCase(), avroScribeHeaderField -> avroScribeHeaderField.name()));
       scribeHeaderRecord = getScribeHeaderParquetData(avroRecord, schema);
     }
 
@@ -236,13 +249,13 @@ public class ScribeParquetAvroConverter {
 
     // Map lowercase fieldnames to camelcase fieldnames.
     // The fieldnames(ex: eventname) are in lowercase in parquet schema where as in avrorecord they are camelcase(eventName)
-    Map<String,String> avroFieldNamingMap = avroRecord.getSchema().getFields().stream()
+    Map<String, String> avroFieldNamingMap = avroRecord.getSchema().getFields().stream()
         .collect(Collectors.toMap(avroField-> avroField.name().toLowerCase(), avroField-> avroField.name()));
 
     for (Schema.Field field : fields) {
       String fieldName = avroFieldNamingMap.containsKey(field.name()) ? avroFieldNamingMap.get(field.name()) : field.name();
       try {
-        if (fieldName!=null) {
+        if (fieldName != null) {
           if (avroRecord.get(fieldName) != null) {
             avroFieldSchemaTypes = getSchemaTypes(fieldName, avroRecord);
           } else if (avroRecord.get(fieldName) == null && ((GenericData.Record) avroRecord).getSchema().getField(fieldName) != null) {
@@ -253,7 +266,8 @@ public class ScribeParquetAvroConverter {
           }
         }
       } catch (Exception e) {
-        LOG.error(String.format("Exception in getting avro field schema types in ScribeParquetAvroConverter: Schema: %s, field: %s, typeName: %s, exception: %s", schema.getName(), fieldName, e));
+        LOG.error(String.format("Exception in getting avro field schema types in ScribeParquetAvroConverter: Schema: %s, field: %s, typeName: %s," +
+            " exception: %s", schema, schema.getName(), fieldName, e));
       }
 
       try {
@@ -273,7 +287,8 @@ public class ScribeParquetAvroConverter {
                     ListIterator<GenericRecord> it = array.listIterator();
                     while (it.hasNext()) {
                       GenericRecord nestedObjectRecord = it.next();
-                      GenericRecord parquetFormatRecord = generateParquetStructuredAvroData(generateParquetStructuredAvroSchema(avroTypeSchema.getElementType()), nestedObjectRecord);
+                      GenericRecord parquetFormatRecord =
+                          generateParquetStructuredAvroData(generateParquetStructuredAvroSchema(avroTypeSchema.getElementType()), nestedObjectRecord);
                       nestedObjectArray.add(parquetFormatRecord);
                     }
                   }
@@ -294,26 +309,32 @@ public class ScribeParquetAvroConverter {
                 } else {
                   record.put(fieldName.toLowerCase(), avroRecord.get(fieldName));
                 }
-              } else if (avroTypeName.equalsIgnoreCase(AVRO_RECORD) && avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
+              } else if (avroTypeName.equalsIgnoreCase(AVRO_RECORD) &&
+                  avroTypeSchema.getName().equalsIgnoreCase("scribe_header") && scribeHeaderRecord != null) {
                 record.put(fieldName.toLowerCase(), scribeHeaderRecord.get(fieldName));
               } else if (avroTypeName.equalsIgnoreCase(AVRO_RECORD)) {
                 //convert fields inside nested object to parquet data
                 GenericRecord nestedRecord = (GenericRecord) avroRecord.get(fieldName);
-                Schema nestedRecordschema = schema.getField(fieldName.toLowerCase()).schema().isUnion() ? schema.getField(fieldName.toLowerCase()).schema().getTypes().get(1) : schema.getField(fieldName.toLowerCase()).schema();
+                Schema nestedRecordschema = schema.getField(fieldName.toLowerCase()).schema().isUnion() ?
+                    schema.getField(fieldName.toLowerCase()).schema().getTypes().get(1) :
+                    schema.getField(fieldName.toLowerCase()).schema();
                 record.put(fieldName.toLowerCase(), generateParquetStructuredAvroData(nestedRecordschema, nestedRecord));
               } else {
                 // this is for primitive data types which do not need any conversion
                 record.put(fieldName.toLowerCase(), avroRecord.get(fieldName));
               }
             } catch (Exception e) {
-              LOG.error(String.format("Exception in converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s, field: %s, typeName: %s, exception: %s", schema.getName(), fieldName, avroTypeName, e));
+              LOG.error(String.format("Exception in converting avro field to parquet in ScribeParquetAvroConverter:" +
+                  " Schema: %s, field: %s, typeName: %s, exception: %s", schema.getName(), fieldName, avroTypeName, e));
             }
           }
         }
-      } catch (NullPointerException e){
-        LOG.error(String.format("NPE while converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s, field: %s", schema.getName(), fieldName));
+      } catch (NullPointerException e) {
+        LOG.error(String.format("NPE while converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s," +
+            " field: %s", schema.getName(), fieldName));
       } catch (Exception e) {
-        LOG.error(String.format("Error in converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s, field: %s", schema.getName(), fieldName));
+        LOG.error(String.format("Error in converting avro field to parquet in ScribeParquetAvroConverter: Schema: %s," +
+            " field: %s", schema.getName(), fieldName));
       }
     }
     return record;
@@ -326,8 +347,10 @@ public class ScribeParquetAvroConverter {
    */
   public static GenericRecord getScribeHeaderParquetData(GenericRecord avroRecord, Schema parquetSchema) {
     Schema scribeHeaderSchema = avroRecord.getSchema().getField(SCRIBE_HEADER).schema();
-    Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) : scribeHeaderSchema;
-    return generateParquetStructuredAvroData(generateParquetStructuredAvroSchema(scribeHeaderTypeSchema), (GenericRecord) avroRecord.get(SCRIBE_HEADER));
+    Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) :
+        scribeHeaderSchema;
+    return generateParquetStructuredAvroData(generateParquetStructuredAvroSchema(scribeHeaderTypeSchema),
+        (GenericRecord) avroRecord.get(SCRIBE_HEADER));
   }
 
   /**

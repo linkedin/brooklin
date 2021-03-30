@@ -9,21 +9,22 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.linkedin.datastream.common.Package;
-import com.linkedin.datastream.common.VerifiableProperties;
-
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.serializers.KafkaAvroDeserializer;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+
+import com.linkedin.datastream.common.Package;
+import com.linkedin.datastream.common.VerifiableProperties;
 
 /**
  * ScribeAvroParquetEventFile class writes out scribe 2.0 event data from Kafka topics which is in avro format to Parquet files into GCS
@@ -83,7 +84,7 @@ public class ScribeAvroParquetEventFile implements File {
    * @return
    */
     private Schema getSchemaByTopic(String topic) {
-        String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-",".") ;
+        String schemaName = DEFAULT_SCRIBE_CONFLUENT_SCHEMA_NAME_PREFIX + topic.replace("-", ".");
         Schema schema =  SCHEMAS.computeIfAbsent(schemaName, (k) -> {
           try {
             return new Schema.Parser().parse(_schemaRegistryClient.getLatestSchemaMetadata(schemaName).getSchema());
@@ -129,7 +130,8 @@ public class ScribeAvroParquetEventFile implements File {
             scribeParquetSchema, deserializedAvroGenericRecord);
         _parquetWriter.write(avroParquetRecord);
       } catch (Exception e) {
-        LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s", aPackage.getTopic(), e));
+        LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s",
+            aPackage.getTopic(), e));
       }
     }
 

@@ -1,6 +1,9 @@
+/**
+ *  Copyright 2020 Wayfair LLC. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.cloud.storage.io;
-
-import static org.junit.Assert.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -9,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.io.Resources;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
@@ -18,9 +20,19 @@ import org.apache.avro.util.Utf8;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+
+import com.google.common.io.Resources;
+
+/**
+ * ScribeParquetAvroConverterTest java TBD
+ */
 public class ScribeParquetAvroConverterTest {
   private Schema.Parser schemaParser;
 
+  /**
+   * setup doc
+   */
   @Before
   public void setup() {
     schemaParser = new Schema.Parser();
@@ -91,7 +103,8 @@ public class ScribeParquetAvroConverterTest {
     Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(itemsReturnRoutesFoundSchema);
 
     Schema expected = new Schema.Parser().parse(
-        Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+        Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"),
+            StandardCharsets.UTF_8)
     );
 
     assertEquals(expected, actual);
@@ -100,11 +113,11 @@ public class ScribeParquetAvroConverterTest {
   @Test
   public void testOrderCancellationConfirmationGenerateParquetStructuredAvroSchema() throws Exception {
     // Nested object schema
-    Schema OrderCancellationConfirmationSchema = schemaParser.parse(
+    Schema orderCancellationConfirmationSchema = schemaParser.parse(
         Resources.toString(Resources.getResource("avroschemas/OrderCancellationConfirmationEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(OrderCancellationConfirmationSchema);
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(orderCancellationConfirmationSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/OrderCancellationConfirmationParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -115,11 +128,11 @@ public class ScribeParquetAvroConverterTest {
   @Test
   public void testAdTechProductPricingGenerateParquetStructuredAvroSchema() throws Exception {
     // Nested object schema
-    Schema AdTechProductPricingSchema = schemaParser.parse(
+    Schema adTechProductPricingSchema = schemaParser.parse(
         Resources.toString(Resources.getResource("avroschemas/AdTechProductPricingEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AdTechProductPricingSchema);
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(adTechProductPricingSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AdTechProductPricingParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -129,11 +142,11 @@ public class ScribeParquetAvroConverterTest {
 
   @Test
   public void testAtlasDecisionGenerateParquetStructuredAvroSchema() throws Exception {
-    Schema AtlasDecisionSchema = schemaParser.parse(
+    Schema atlasDecisionSchema = schemaParser.parse(
         Resources.toString(Resources.getResource("avroschemas/AtlasDecisionEvent.avsc"), StandardCharsets.UTF_8)
     );
 
-    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(AtlasDecisionSchema);
+    Schema actual = ScribeParquetAvroConverter.generateParquetStructuredAvroSchema(atlasDecisionSchema);
 
     Schema expected = new Schema.Parser().parse(
         Resources.toString(Resources.getResource("parquetavroschemas/AtlasDecisionParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
@@ -341,6 +354,12 @@ public class ScribeParquetAvroConverterTest {
     assertEquals(expected, actual);
   }
 
+  /**
+   * getSchemaForNestedObjects java doc helper function
+   * @param schema Schema
+   * @param nestedFieldName field name
+   * @return Schema
+   */
   public Schema getSchemaForNestedObjects(Schema schema, String nestedFieldName) {
     Schema nested = null;
     for (Schema.Field field : schema.getFields()) {
@@ -403,15 +422,18 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> list = new ArrayList<>();
     list.add(orderProductInput);
-    GenericArray<GenericRecord> orderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("orderProducts").schema()), list);
+    GenericArray<GenericRecord> orderProductGenericArray = new GenericData.Array<>(Schema.createArray(
+        avroOrderCancellationConfirmationSchema.getField("orderProducts").schema()), list);
 
     List<GenericRecord> splitOrderProductList = new ArrayList<>();
     splitOrderProductList.add(splitOrderProductInput);
-    GenericArray<GenericRecord> splitOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("splitOrderProducts").schema()), splitOrderProductList);
+    GenericArray<GenericRecord> splitOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(
+        avroOrderCancellationConfirmationSchema.getField("splitOrderProducts").schema()), splitOrderProductList);
 
     List<GenericRecord> cancelledClearanceOrderProductsList = new ArrayList<>();
     cancelledClearanceOrderProductsList.add(cancelledClearanceOrderProductInput);
-    GenericArray<GenericRecord> cancelledClearanceOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(avroOrderCancellationConfirmationSchema.getField("cancelledClearanceOrderProducts").schema()), cancelledClearanceOrderProductsList);
+    GenericArray<GenericRecord> cancelledClearanceOrderProductGenericArray = new GenericData.Array<>(Schema.createArray(
+        avroOrderCancellationConfirmationSchema.getField("cancelledClearanceOrderProducts").schema()), cancelledClearanceOrderProductsList);
 
 
     GenericRecord input = new GenericData.Record(avroOrderCancellationConfirmationSchema);
@@ -447,7 +469,8 @@ public class ScribeParquetAvroConverterTest {
 
     Schema parquetNested = getSchemaForNestedObjects(parquetAvroOrderCancellationConfirmationSchema, "orderProducts");
     Schema nestedParquetSplitOrderProduct = getSchemaForNestedObjects(parquetAvroOrderCancellationConfirmationSchema, "splitOrderProducts");
-    Schema nestedParquetCancelledClearanceOrderProducts = getSchemaForNestedObjects(parquetAvroOrderCancellationConfirmationSchema, "cancelledClearanceOrderProducts");
+    Schema nestedParquetCancelledClearanceOrderProducts = getSchemaForNestedObjects(parquetAvroOrderCancellationConfirmationSchema,
+        "cancelledClearanceOrderProducts");
 
     GenericRecord expectedOrderProduct = null;
     if (nested != null) {
@@ -537,7 +560,7 @@ public class ScribeParquetAvroConverterTest {
     list.add(new Utf8("deepnested-2"));
     GenericArray<Utf8> listStringDeeplyNested = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), list);
 
-    Map<String, String> testStringMap = new HashMap();
+    Map<String, String> testStringMap = new HashMap<String, String>();
     testStringMap.put("key-1", "value-1");
     testStringMap.put("key-2", "value-2");
 
@@ -575,7 +598,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> listDeeplyNested = new ArrayList<>();
     listDeeplyNested.add(testDeeplyNestedInput);
-    GenericArray<GenericRecord> deeplyNestedArray = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNested);
+    GenericArray<GenericRecord> deeplyNestedArray = new GenericData.Array<>(Schema.createArray(
+        avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNested);
 
 
     GenericRecord requiredNestedInput = null;
@@ -603,7 +627,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> listTestListNested = new ArrayList<>();
     listTestListNested.add(requiredNestedInput);
-    GenericArray<GenericRecord> listTestNestedGenericArray = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestListNested);
+    GenericArray<GenericRecord> listTestNestedGenericArray = new GenericData.Array<>(Schema.createArray(
+        avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestListNested);
 
     GenericRecord input = new GenericData.Record(avroScribeInternalTestSchema);
 
@@ -638,7 +663,7 @@ public class ScribeParquetAvroConverterTest {
     listExpected.add(new Utf8("deepnested-2"));
     GenericArray<Utf8> listStringDeeplyNestedExpected = new GenericData.Array<>(Schema.createArray(Schema.create(Schema.Type.STRING)), listExpected);
 
-    Map<String, String> testStringMapExpected = new HashMap();
+    Map<String, String> testStringMapExpected = new HashMap<String, String>();
     testStringMapExpected.put("key-1", "value-1");
     testStringMapExpected.put("key-2", "value-2");
 
@@ -663,7 +688,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> listDeeplyNestedExpected = new ArrayList<>();
     listDeeplyNestedExpected.add(testDeeplyNestedExp);
-    GenericArray<GenericRecord> deeplyNestedArrayExpected = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNestedExpected);
+    GenericArray<GenericRecord> deeplyNestedArrayExpected = new GenericData.Array<>(Schema.createArray(
+        avroScribeInternalTestSchema.getField("requiredNested").schema().getField("testListDeeplyNested").schema()), listDeeplyNestedExpected);
 
 
     GenericRecord requiredNestedExp = null;
@@ -691,7 +717,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> listTestNested = new ArrayList<>();
     listTestNested.add(requiredNestedExp);
-    GenericArray<GenericRecord> listTestNestedGenericArrayExp = new GenericData.Array<>(Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestNested);
+    GenericArray<GenericRecord> listTestNestedGenericArrayExp = new GenericData.Array<>(
+        Schema.createArray(avroScribeInternalTestSchema.getField("requiredNested").schema()), listTestNested);
 
     GenericRecord actual = ScribeParquetAvroConverter.generateParquetStructuredAvroData(parquetScribeInternalTestSchema, input);
 
@@ -893,13 +920,15 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> addedRoutesArray = new ArrayList<>();
     addedRoutesArray.add(updatedRoutesInput);
-    GenericArray<GenericRecord>  addedRoutesInput = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("addedRoutes").schema()), addedRoutesArray);
+    GenericArray<GenericRecord>  addedRoutesInput = new GenericData.Array<>(Schema.createArray(
+        avroItemReturnRoutesFoundSchema.getField("addedRoutes").schema()), addedRoutesArray);
 
 
 
     List<GenericRecord> filteredRoutesArray = new ArrayList<>();
     filteredRoutesArray.add(updatedRoutesInput);
-    GenericArray<GenericRecord>  filteredRoutesInput = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("filteredRoutes").schema()), filteredRoutesArray);
+    GenericArray<GenericRecord>  filteredRoutesInput = new GenericData.Array<>(Schema.createArray(
+        avroItemReturnRoutesFoundSchema.getField("filteredRoutes").schema()), filteredRoutesArray);
 
     GenericRecord finalRoutesInput = null;
     if (nestedFinalRoute != null) {
@@ -936,7 +965,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> finalRoutesArray = new ArrayList<>();
     finalRoutesArray.add(finalRoutesInput);
-    GenericArray<GenericRecord>  finalRoutes = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesArray);
+    GenericArray<GenericRecord>  finalRoutes = new GenericData.Array<>(Schema.createArray(
+        avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesArray);
 
     List<Integer> listOfInt = new ArrayList<Integer>();
     listOfInt.add(1234567);
@@ -964,7 +994,8 @@ public class ScribeParquetAvroConverterTest {
     input.put("finalRoutes", finalRoutes);
 
     Schema parquetAvroItemsReturnRequestRouteSchema = new Schema.Parser().parse(
-            Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"), StandardCharsets.UTF_8)
+            Resources.toString(Resources.getResource("parquetavroschemas/SupplyChainItemsReturnRoutesFoundWithHeaderExplodedParquetAvroSchema.avsc"),
+                StandardCharsets.UTF_8)
     );
     Schema nestedUpdatedRouteExpected = getSchemaForNestedObjects(parquetAvroItemsReturnRequestRouteSchema, "addedRoutes");
 
@@ -990,13 +1021,15 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> addedRoutesArrayExpected = new ArrayList<>();
     addedRoutesArrayExpected.add(updatedRoutesExpected);
-    GenericArray<GenericRecord>  addedRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("addedroutes").schema()), addedRoutesArrayExpected);
+    GenericArray<GenericRecord>  addedRoutesExpected = new GenericData.Array<>(Schema.createArray(
+        parquetAvroItemsReturnRequestRouteSchema.getField("addedroutes").schema()), addedRoutesArrayExpected);
 
 
 
     List<GenericRecord> filteredRoutesArrayExpected = new ArrayList<>();
     filteredRoutesArrayExpected.add(updatedRoutesExpected);
-    GenericArray<GenericRecord>  filteredRoutesExpected = new GenericData.Array<>(Schema.createArray(parquetAvroItemsReturnRequestRouteSchema.getField("filteredroutes").schema()), filteredRoutesArrayExpected);
+    GenericArray<GenericRecord>  filteredRoutesExpected = new GenericData.Array<>(Schema.createArray(
+        parquetAvroItemsReturnRequestRouteSchema.getField("filteredroutes").schema()), filteredRoutesArrayExpected);
 
     GenericRecord finalRoutesExpected = null;
     if (nestedFinalRouteExpected != null) {
@@ -1038,7 +1071,8 @@ public class ScribeParquetAvroConverterTest {
 
     List<GenericRecord> finalRoutesListExpected = new ArrayList<>();
     finalRoutesListExpected.add(finalRoutesExpected);
-    GenericArray<GenericRecord>  finalRoutesArrayExpected = new GenericData.Array<>(Schema.createArray(avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesListExpected);
+    GenericArray<GenericRecord>  finalRoutesArrayExpected = new GenericData.Array<>(Schema.createArray(
+        avroItemReturnRoutesFoundSchema.getField("finalRoutes").schema()), finalRoutesListExpected);
 
     List<Integer> listOfIntExpected = new ArrayList<Integer>();
     listOfIntExpected.add(1234567);
