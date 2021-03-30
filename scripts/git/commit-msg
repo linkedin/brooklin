@@ -102,7 +102,7 @@ def print_error(msg):
 
 
 def print_warning(msg):
-    print TerminalColors.warn(msg)
+    print(TerminalColors.warn(msg))
 
 
 def process_commit_message(msg):

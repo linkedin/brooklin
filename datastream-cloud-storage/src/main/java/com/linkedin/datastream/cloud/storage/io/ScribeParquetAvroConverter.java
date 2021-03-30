@@ -230,7 +230,7 @@ public class ScribeParquetAvroConverter {
       scribeHeaderRecord = getScribeHeaderParquetData(avroRecord, schema);
     }
 
-    // Get fields from schema
+    // Get the fields from schema
     List<Schema.Field> fields = schema.getFields();
     List<Schema> avroFieldSchemaTypes = null;
 
