@@ -8,6 +8,7 @@ package com.linkedin.datastream.server;
 import java.util.Collections;
 import java.util.List;
 
+import com.linkedin.datastream.common.LogUtils;
 
 /**
  * wrap class to store partitions info for a datastream group
@@ -37,6 +38,6 @@ public class DatastreamGroupPartitionsMetadata {
 
   @Override
   public String toString() {
-    return String.format("datastream %s, partitions %s", _datastreamGroup.getName(), _partitions);
+    return String.format("datastream %s, partitions %s", _datastreamGroup.getName(), LogUtils.logSummarizedTopicPartitionsMapping(_partitions));
   }
 }

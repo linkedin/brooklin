@@ -7,7 +7,10 @@ package com.linkedin.datastream.common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,5 +64,32 @@ public class LogUtils {
       LOG.error("Failed to generate string for the int list in range", e);
       return list.toString();
     }
+  }
+
+  /**
+   * Shortening the list of topic-partition mappings by merging partitions of the same topic together. e.g.
+   * topic1-0, topic1-1, topic2-0 -> topic1:[0-1], topic2:[0]
+   * @param partitions list of strings to generate logging string for
+   * @return compacted String that merges partitions per topic
+   */
+  public static String logSummarizedTopicPartitionsMapping(List<String> partitions) {
+    if (partitions == null || partitions.isEmpty()) {
+      return "[]";
+    }
+    final Map<String, List<Integer>> topicPartitionsMap;
+    try {
+      topicPartitionsMap = partitions.stream()
+          .map(TopicPartitionUtil::createTopicPartition)
+          .collect(Collectors.groupingBy(TopicPartition::topic,
+              Collectors.mapping(TopicPartition::partition, Collectors.toList())));
+    } catch (NumberFormatException e) {
+      LOG.error(e.getMessage());
+      return String.join(",", partitions);
+    }
+    return topicPartitionsMap.keySet()
+        .stream()
+        .map(topicName -> new StringBuilder(topicName).append(":")
+            .append(logNumberArrayInRange(topicPartitionsMap.get(topicName))))
+        .collect(Collectors.joining(", "));
   }
 }

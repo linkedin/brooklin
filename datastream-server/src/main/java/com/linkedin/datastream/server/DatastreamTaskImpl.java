@@ -479,6 +479,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
       } catch (NumberFormatException e) {
         LOG.error(e.getMessage());
       }
+    } else { // this will be called for low level kafka connector.
+      partitionsV2FormatLog = LogUtils.logSummarizedTopicPartitionsMapping(_partitionsV2);
     }
     return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
         _connectorType, partitionsV2FormatLog, LogUtils.logNumberArrayInRange(_partitions),
