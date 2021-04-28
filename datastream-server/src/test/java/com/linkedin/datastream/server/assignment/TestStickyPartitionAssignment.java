@@ -187,8 +187,13 @@ public class TestStickyPartitionAssignment {
       DatastreamGroupPartitionsMetadata partitionsMetadata =
           new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
 
+      Map<String, Set<DatastreamTask>> assignment2 = strategy.assignPartitions(assignment, partitionsMetadata);
+      assignment2.put("instance2", taskSet);
+      partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0");
+      DatastreamGroupPartitionsMetadata partitionsMetadata2 =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
       Assert.assertThrows(DatastreamRuntimeException.class,
-          () -> strategy.assignPartitions(assignment, partitionsMetadata));
+          () -> strategy.assignPartitions(assignment2, partitionsMetadata2));
     });
   }
 

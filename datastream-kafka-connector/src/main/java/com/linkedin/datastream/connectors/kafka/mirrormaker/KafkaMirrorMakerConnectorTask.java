@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ReflectionUtils;
+import com.linkedin.datastream.common.TopicPartitionUtil;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.connectors.kafka.AbstractKafkaBasedConnectorTask;
 import com.linkedin.datastream.connectors.kafka.GroupIdConstructor;
@@ -47,7 +48,6 @@ import com.linkedin.datastream.connectors.kafka.KafkaBrokerAddress;
 import com.linkedin.datastream.connectors.kafka.KafkaConnectionString;
 import com.linkedin.datastream.connectors.kafka.KafkaDatastreamStatesResponse;
 import com.linkedin.datastream.connectors.kafka.PausedSourcePartitionMetadata;
-import com.linkedin.datastream.connectors.kafka.TopicPartitionUtil;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -129,6 +129,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _maxInFlightMessagesThreshold;
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
+  private int _errorOnSendCallbackDuringShutdownCount = 0;
 
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
@@ -281,8 +282,18 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       try {
         _flushlessProducer.send(datastreamProducerRecord, topic, partition, sourceCheckpoint.getOffset(), ((metadata, exception) -> {
           if (exception != null) {
-            LOG.warn(String.format("Detected exception being throw from flushless send callback for source "
-                + "topic-partition: %s with metadata: %s, exception: ", srcTopicPartition, metadata), exception);
+            String msg = String.format("Detected exception being thrown from flushless send callback for source "
+                + "topic-partition: %s with metadata: %s, exception: %s", srcTopicPartition, metadata, exception);
+            if (_shutdown) {
+              if (_errorOnSendCallbackDuringShutdownCount == 0) {
+                LOG.warn(msg);
+              } else {
+                LOG.debug(msg);
+              }
+              _errorOnSendCallbackDuringShutdownCount++;
+            } else {
+              LOG.warn(msg);
+            }
             updateSendFailureTopicPartitionExceptionMap(srcTopicPartition, exception);
           } else {
             _consumerMetrics.updateBytesProcessedRate(numBytes);
@@ -292,9 +303,9 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
           }
         }));
       } catch (Exception e) {
-        LOG.warn("Hit Exception while sending records for {}-{}, inFlightMessageCount: {}",
-            topic, partition, _flushlessProducer.getInFlightCount(topic, partition));
-        commitSafeOffsets(_consumer);
+        LOG.warn("Hit Exception while sending records for {}-{}, total inFlightMessageCount: {}, ackMessagesPastCheckpoint: {}",
+            topic, partition, _flushlessProducer.getInFlightMessagesCounts(), _flushlessProducer.getAckMessagesPastCheckpointCounts());
+        maybeCommitOffsets(_consumer, true);
         throw e;
       }
       if (_flowControlEnabled) {
@@ -409,6 +420,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   protected void postShutdownHook() {
+    LOG.info("Total send callback errors during shutdown: {}", _errorOnSendCallbackDuringShutdownCount);
     if (_enablePartitionAssignment) {
       boolean resetInterrupted = false;
       try {

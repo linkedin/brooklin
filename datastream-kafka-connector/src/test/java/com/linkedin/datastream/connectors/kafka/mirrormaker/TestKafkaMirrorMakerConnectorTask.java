@@ -301,7 +301,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // Mocking out the behavior of acquire() since it involves ZK
     doNothing().when(task).acquire(any());
     CountDownLatch releaseCall = new CountDownLatch(1);
-    doAnswer(invocation -> { releaseCall.countDown(); return null; }).when(task).release();
+    doAnswer(invocation -> {
+      releaseCall.countDown();
+      return null;
+    }).when(task).release();
     task.setEventProducer(datastreamProducer);
 
     // Set up a factory to create a Kafka consumer that tracks how many times commitSync is invoked
@@ -310,8 +313,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       @Override
       public Consumer<byte[], byte[]> createConsumer(Properties properties) {
         Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
-        doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
-            .when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        doAnswer(invocation -> {
+          remainingCommitSyncCalls.countDown();
+          return null;
+        }).when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
         doThrow(new KafkaException("Throwing close exception"))
             .when(result).close();
         return result;
@@ -519,8 +524,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       @Override
       public Consumer<byte[], byte[]> createConsumer(Properties properties) {
         Consumer<byte[], byte[]> result = spy(super.createConsumer(properties));
-        doAnswer(invocation -> { remainingCommitSyncCalls.countDown(); return null; })
-            .when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        doAnswer(invocation -> {
+          remainingCommitSyncCalls.countDown();
+          return null;
+        }).when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
         return result;
       }
     };

@@ -162,9 +162,13 @@ public class DatastreamTaskImpl implements DatastreamTask {
    * @param partitionsV2 new partitions for this task
    */
   public DatastreamTaskImpl(DatastreamTaskImpl predecessor, Collection<String> partitionsV2) {
-    if (!predecessor.isLocked()) {
-      throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
-          + "the previous assignment has not been picked up");
+    _dependencies = new ArrayList<>();
+    if (!predecessor._partitionsV2.isEmpty()) {
+      if (!predecessor.isLocked()) {
+        throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, " +
+            "the previous assignment has not been picked up");
+      }
+      _dependencies.add(predecessor.getDatastreamTaskName());
     }
 
     _datastreams = predecessor._datastreams;
@@ -181,8 +185,6 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _transportProviderName = predecessor._transportProviderName;
     _destinationSerDes = predecessor._destinationSerDes;
 
-    _dependencies = new ArrayList<>();
-    _dependencies.add(predecessor.getDatastreamTaskName());
     computeHashCode();
   }
 
@@ -477,6 +479,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
       } catch (NumberFormatException e) {
         LOG.error(e.getMessage());
       }
+    } else { // this will be called for low level kafka connector.
+      partitionsV2FormatLog = LogUtils.logSummarizedTopicPartitionsMapping(_partitionsV2);
     }
     return String.format("%s(%s), partitionsV2=%s, partitions=%s, dependencies=%s", getDatastreamTaskName(),
         _connectorType, partitionsV2FormatLog, LogUtils.logNumberArrayInRange(_partitions),

@@ -34,6 +34,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.DatastreamTaskStatus;
 import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -228,11 +229,12 @@ public class TestZkAdapter {
     }
   }
 
-  private void validateConnectorTask(String cluster, String connectorType, String task, ZkClient zkClient) {
+  private void validateConnectorTask(String cluster, String connectorType, String task, String instance, ZkClient zkClient) {
     List<String> connectorAssignment = zkClient.getChildren(KeyBuilder.connectorTask(cluster, connectorType, task));
     Assert.assertEquals(connectorAssignment.size(), 2); // state + config
     Assert.assertTrue(connectorAssignment.contains("state"));
     Assert.assertTrue(connectorAssignment.contains("config"));
+    Assert.assertEquals(instance, zkClient.ensureReadData(KeyBuilder.connectorTask(cluster, connectorType, task)));
   }
 
   // When Coordinator leader writes the assignment to a specific instance, the change is indeed
@@ -265,7 +267,7 @@ public class TestZkAdapter {
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter.getInstanceName()));
     Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 1, 100, 5000, assignment));
     Assert.assertEquals(assignment.get(0), "task1");
-    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task1", adapter.getInstanceName(), zkClient);
 
     //
     // simulate assigning two tasks [task1, task2] to the same instance
@@ -283,8 +285,8 @@ public class TestZkAdapter {
     Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 2, 100, 5000, assignment));
     Assert.assertEquals(assignment.get(0), "task1");
     Assert.assertEquals(assignment.get(1), "task2");
-    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
-    validateConnectorTask(testCluster, connectorType, "task2", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task1", adapter.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, "task2", adapter.getInstanceName(), zkClient);
 
     //
     // simulate removing task2 and adding task3 to the assignment, now the tasks are [task1, task3]
@@ -303,8 +305,8 @@ public class TestZkAdapter {
     Collections.sort(assignment);
     Assert.assertEquals(assignment.get(0), "task1");
     Assert.assertEquals(assignment.get(1), "task3");
-    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
-    validateConnectorTask(testCluster, connectorType, "task3", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task1", adapter.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, "task3", adapter.getInstanceName(), zkClient);
 
     //
     // cleanup
@@ -358,7 +360,7 @@ public class TestZkAdapter {
         zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, adapter1.getInstanceName()));
     Assert.assertTrue(PollUtils.poll((assn) -> assn.size() == 1, 100, 5000, assignment1));
     Assert.assertEquals(assignment1.get(0), "task1");
-    validateConnectorTask(testCluster, connectorType, "task1", zkClient);
+    validateConnectorTask(testCluster, connectorType, "task1", adapter1.getInstanceName(), zkClient);
 
     //
     // verify that there are 2 znode under the Zookeper /{cluster}/instances/{instance2}/
@@ -678,6 +680,7 @@ public class TestZkAdapter {
     task1.setId("3");
     task1.setConnectorType(connectorType);
     task1.setZkAdapter(adapter1);
+    task1.setPartitionsV2(ImmutableList.of("partition1"));
 
     List<DatastreamTask> tasks = new ArrayList<>();
     tasks.add(task1);
@@ -969,6 +972,99 @@ public class TestZkAdapter {
     Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, "deadInstance-999")));
 
     adapter.disconnect();
+  }
+
+  @Test
+  public void testSaveStateOnlyWhenTaskExists() {
+    String testCluster = "testSaveStateOnlyWhenTaskExists";
+    String connectorType = "connectorType";
+
+    ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster);
+    adapter.connect();
+
+    List<DatastreamTask> tasks1 = new ArrayList<>();
+    DatastreamTaskImpl dsTask = new DatastreamTaskImpl();
+    dsTask.setId("task1");
+    String taskPrefix = "taskPrefix1";
+    dsTask.setTaskPrefix(taskPrefix);
+    dsTask.setConnectorType(connectorType);
+    dsTask.setZkAdapter(adapter);
+    tasks1.add(dsTask);
+    Map<String, List<DatastreamTask>> oldAssignments = new HashMap<>();
+    oldAssignments.put(adapter.getInstanceName(), tasks1);
+    adapter.updateAllAssignments(oldAssignments);
+
+    Map<String, Set<DatastreamTask>> currentAssignments = adapter.getAllAssignedDatastreamTasks();
+    Assert.assertEquals(oldAssignments.keySet(), currentAssignments.keySet());
+    currentAssignments.forEach((k, v) -> Assert.assertEquals(v, new HashSet<>(oldAssignments.get(k))));
+
+    dsTask.setStatus(DatastreamTaskStatus.ok());
+    Assert.assertTrue(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
+
+    adapter.deleteTasksWithPrefix(connectorType, taskPrefix);
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
+    dsTask.setStatus(DatastreamTaskStatus.ok());
+    Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.datastreamTaskState(testCluster, connectorType, dsTask.getDatastreamTaskName())));
+
+    adapter.disconnect();
+  }
+
+  @Test
+  public void testTaskReassignments() {
+    String testCluster = "testTaskReassignments";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter1 = createZkAdapter(testCluster);
+    ZkAdapter adapter2 = createZkAdapter(testCluster);
+    adapter1.connect();
+    adapter2.connect();
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setTaskPrefix("task1");
+    task1.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setTaskPrefix("task2");
+    task2.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
+    task3.setTaskPrefix("task3");
+    task3.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task4 = new DatastreamTaskImpl();
+    task4.setTaskPrefix("task4");
+    task4.setConnectorType(connectorType);
+
+    //
+    // simulate assigning:
+    //   to instance1: [task1]
+    //   to instance2: [task2, task3]
+    //
+    Map<String, List<DatastreamTask>> assignmentsByInstance = new HashMap<>();
+    assignmentsByInstance.put(adapter1.getInstanceName(), Collections.singletonList(task1));
+    assignmentsByInstance.put(adapter2.getInstanceName(), Arrays.asList(task2, task3));
+
+    adapter1.updateAllAssignments(assignmentsByInstance);
+
+    validateConnectorTask(testCluster, connectorType, task1.getDatastreamTaskName(), adapter1.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, task2.getDatastreamTaskName(), adapter2.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, task3.getDatastreamTaskName(), adapter2.getInstanceName(), zkClient);
+
+    //
+    // simulate reassigning:
+    //   to instance1: [task3, task4]
+    //   to instance2: [task1, task2]
+    //
+    Map<String, List<DatastreamTask>> reassignmentsByInstance = new HashMap<>();
+    reassignmentsByInstance.put(adapter1.getInstanceName(), Arrays.asList(task3, task4));
+    reassignmentsByInstance.put(adapter2.getInstanceName(), Arrays.asList(task1, task2));
+
+    adapter1.updateAllAssignments(reassignmentsByInstance);
+
+    validateConnectorTask(testCluster, connectorType, task1.getDatastreamTaskName(), adapter2.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, task2.getDatastreamTaskName(), adapter2.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, task3.getDatastreamTaskName(), adapter1.getInstanceName(), zkClient);
+    validateConnectorTask(testCluster, connectorType, task4.getDatastreamTaskName(), adapter1.getInstanceName(), zkClient);
   }
 
   /**

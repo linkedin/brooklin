@@ -256,7 +256,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
             throw new DatastreamRuntimeException(errorMessage);
           }
           if (partitionChanged) {
-            return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            try {
+              return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            } catch (Exception e) {
+              LOG.error("Hit exception while creating a new task from existing task: {} assigned to instance: {}",
+                  task.getDatastreamTaskName(), instance, e);
+              throw e;
+            }
           } else {
             return task;
           }
@@ -264,8 +270,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
       }).collect(Collectors.toSet());
       newAssignment.put(instance, newAssignedTask);
     });
-    LOG.info("new assignment info, assignment: {}, all partitions: {}", newAssignment,
-        datastreamPartitions.getPartitions());
+    LOG.info("new assignment info, assignment: {}", newAssignment);
+    LOG.info("all datastream partitions: {}", datastreamPartitions);
 
     partitionSanityChecks(newAssignment, datastreamPartitions);
     return newAssignment;
@@ -291,9 +297,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   public Map<String, Set<DatastreamTask>> movePartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       Map<String, Set<String>> targetAssignment, DatastreamGroupPartitionsMetadata partitionsMetadata) {
 
-    LOG.info("Move partition, current assignment: {}, target assignment: {}, all partitions: {}", currentAssignment,
-        targetAssignment, partitionsMetadata.getPartitions());
-
+    LOG.info("Move partition, current assignment: {}", currentAssignment);
+    LOG.info("Move partition, target assignment: {}", targetAssignment);
+    LOG.info("all datastream partitions: {}", partitionsMetadata);
     DatastreamGroup dg = partitionsMetadata.getDatastreamGroup();
 
     Set<String> allToReassignPartitions = new HashSet<>();
@@ -409,9 +415,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         }
 
         if (partitionChanged) {
-          DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
-          extraDependencies.forEach(newTask::addDependency);
-          return newTask;
+          try {
+            DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions);
+            extraDependencies.forEach(newTask::addDependency);
+            return newTask;
+          } catch (Exception e) {
+            LOG.error("Hit exception while creating a new task from existing task: {} assigned to instance: {}",
+                task.getDatastreamTaskName(), instance, e);
+            throw e;
+          }
         } else {
           return task;
         }

@@ -70,13 +70,16 @@ class KafkaProducerWrapper<K, V> {
 
   private static final String CFG_SEND_FAILURE_RETRY_WAIT_MS = "send.failure.retry.wait.time.ms";
   private static final String CFG_KAFKA_PRODUCER_FACTORY = "kafkaProducerFactory";
-  private static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   private static final AtomicInteger NUM_PRODUCERS = new AtomicInteger();
   private static final Supplier<Integer> PRODUCER_GAUGE = NUM_PRODUCERS::get;
 
-  private static final int CLOSE_TIMEOUT_MS = 2000;
+  private static final int DEFAULT_PRODUCER_CLOSE_TIMEOUT_MS = 10000;
+  private static final int FAST_CLOSE_TIMEOUT_MS = 2000;
   private static final int MAX_SEND_ATTEMPTS = 10;
+
+  @VisibleForTesting
+  static final String CFG_RATE_LIMITER_CFG = "producerRateLimiter";
 
   @VisibleForTesting
   static final String PRODUCER_COUNT = "producerCount";
@@ -84,9 +87,13 @@ class KafkaProducerWrapper<K, V> {
   @VisibleForTesting
   static final String CFG_PRODUCER_FLUSH_TIMEOUT_MS = "producerFlushTimeoutMs";
 
+  @VisibleForTesting
+  static final String CFG_PRODUCER_CLOSE_TIMEOUT_MS = "producerCloseTimeoutMs";
+
   private final Logger _log;
   private final long _sendFailureRetryWaitTimeMs;
   private final int _producerFlushTimeoutMs;
+  private final int _producerCloseTimeoutMs;
 
   private final String _clientId;
   private final Properties _props;
@@ -150,6 +157,9 @@ class KafkaProducerWrapper<K, V> {
     _producerFlushTimeoutMs =
         transportProviderProperties.getInt(CFG_PRODUCER_FLUSH_TIMEOUT_MS, DEFAULT_PRODUCER_FLUSH_TIMEOUT_MS);
 
+    _producerCloseTimeoutMs =
+        transportProviderProperties.getInt(CFG_PRODUCER_CLOSE_TIMEOUT_MS, DEFAULT_PRODUCER_CLOSE_TIMEOUT_MS);
+
     _rateLimiter =
         RateLimiter.create(transportProviderProperties.getDouble(CFG_RATE_LIMITER_CFG, DEFAULT_RATE_LIMITER));
 
@@ -176,9 +186,9 @@ class KafkaProducerWrapper<K, V> {
     }
 
     Producer<K, V> producer = _kafkaProducer;
-    if (producer == null) {
+    if (producer == null || _closeInProgress) {
       try {
-        producer = initializeProducer(task);
+        producer = initializeProducer();
       } catch (InterruptedException e) {
         _log.warn("Got interrupted while trying to initialize the producer for task {}", task);
       }
@@ -213,17 +223,16 @@ class KafkaProducerWrapper<K, V> {
     return _tasks.size();
   }
 
-  private Producer<K, V> initializeProducer(DatastreamTask task) throws InterruptedException {
+  private Producer<K, V> initializeProducer() throws InterruptedException {
     // Must be protected by a lock to avoid creating duplicate producers when multiple concurrent
     // sends are in-flight and _kafkaProducer has been set to null as a result of previous
     // producer exception.
     try {
       _producerLock.lock();
-
       // make sure there is no close in progress.
       int attemptCount = 1;
       while (_closeInProgress) {
-        boolean closeCompleted = _waitOnProducerClose.await(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        boolean closeCompleted = _waitOnProducerClose.await(_producerCloseTimeoutMs, TimeUnit.MILLISECONDS);
         if (!closeCompleted) {
           _log.warn("Cannot initialize new producer because close is in progress. Retry again. Attempt: {}", attemptCount++);
         }
@@ -303,8 +312,17 @@ class KafkaProducerWrapper<K, V> {
     }
   }
 
+  private void shutdownProducer() {
+    shutdownProducer(false);
+  }
+
+
+  // fastClose should be set to true in the case, where the producer is already in a bad state or has returned error
+  // on send callback (to ensure that the records are produce in order). Closing the producer with a shorter timeout
+  // can result in records produced, but no delivery of acks from Kafka. This can result in overcounting and should be
+  // done only in critical cases.
   @VisibleForTesting
-  void shutdownProducer() {
+  void shutdownProducer(boolean fastClose) {
     Producer<K, V> producer;
     try {
       _producerLock.lock();
@@ -314,17 +332,15 @@ class KafkaProducerWrapper<K, V> {
       }
       producer = _kafkaProducer;
       _closeInProgress = true;
-      // Nullify first to prevent subsequent send() to use
-      // the current producer which is being shutdown.
-      _kafkaProducer = null;
 
       // This may be called from the send callback. The callbacks are called from the sender thread, and must complete
       // quickly to avoid delaying/blocking the sender thread. Thus schedule the actual producer.close() on a separate
       // thread
       _producerCloseExecutorService.submit(() -> {
-        _log.info("KafkaProducerWrapper: Closing the Kafka Producer");
+        int timeout = fastClose ? FAST_CLOSE_TIMEOUT_MS : _producerCloseTimeoutMs;
+        _log.info("KafkaProducerWrapper: Closing the Kafka Producer with timeout: {}", timeout);
         try {
-          producer.close(CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+          producer.close(timeout, TimeUnit.MILLISECONDS);
           NUM_PRODUCERS.decrementAndGet();
           _log.info("KafkaProducerWrapper: Kafka Producer is closed");
         } finally {
@@ -340,6 +356,7 @@ class KafkaProducerWrapper<K, V> {
     try {
       _producerLock.lock();
       _closeInProgress = false;
+      _kafkaProducer = null;
       _waitOnProducerClose.signalAll();
     } finally {
       _producerLock.unlock();
@@ -354,12 +371,20 @@ class KafkaProducerWrapper<K, V> {
     } else {
       _log.debug("Send failed with a non-transient exception. Shutting down producer, exception: ", exception);
       if (_tasks.contains(task)) {
-        shutdownProducer();
+        shutdownProducer(true);
       }
       return new DatastreamRuntimeException(exception);
     }
   }
 
+  /*
+   * Kafka producer wraps all the exceptions and throws IllegalStateException. So, if the close is
+   * in progress, instead of attempting to close the producer, wait for the close to finish.
+   * If the close does not finish within the timeout or the thread gets interrupted, then throw the exception.
+   * Otherwise, consider that the flush has completed successfully.
+   *
+   * For any other exception thrown by kafka producer, shutdown the producer to avoid reusing the same producer.
+   */
   void flush() {
     Producer<K, V> producer;
     try {
@@ -372,14 +397,20 @@ class KafkaProducerWrapper<K, V> {
     if (producer != null) {
       try {
         producer.flush(_producerFlushTimeoutMs, TimeUnit.MILLISECONDS);
+        _log.info("Flush completed for the producer, closeInProgress: {}", _closeInProgress);
       } catch (Exception e) {
+        _log.warn("Hitting Exception during kafka producer flush.", e);
         // The KafkaProducer object should not be reused on an interrupted/timed out flush. To be safe, we try to
         // close the producer on any exception.
         try {
           _producerLock.lock();
           if (producer == _kafkaProducer) {
-            _log.warn("Kafka producer flush may be interrupted/timed out, closing producer {}.", producer);
-            shutdownProducer();
+            if (_closeInProgress) {
+              _log.warn("Kafka producer flush may be interrupted/timed out, producer {} close is in progress.", producer);
+            } else {
+              _log.warn("Kafka producer flush may be interrupted/timed out, closing producer {}.", producer);
+              shutdownProducer(true);
+            }
           } else {
             _log.warn("Kafka producer flush may be interrupted/timed out, producer {} already closed.", producer);
           }
@@ -414,6 +445,11 @@ class KafkaProducerWrapper<K, V> {
     Properties props = new Properties();
     props.putAll(_props);
     return props;
+  }
+
+  @VisibleForTesting
+  void setCloseInProgress(boolean closeInProgress) {
+    _closeInProgress = closeInProgress;
   }
 
   public String getClientId() {
