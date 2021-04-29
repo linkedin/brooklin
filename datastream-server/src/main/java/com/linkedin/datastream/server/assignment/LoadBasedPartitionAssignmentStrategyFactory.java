@@ -1,5 +1,12 @@
 package com.linkedin.datastream.server.assignment;
 
+import java.util.Optional;
+import java.util.Properties;
+
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.FileBasedPartitionThroughputProvider;
@@ -7,16 +14,13 @@ import com.linkedin.datastream.server.PartitionThroughputProvider;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 
-import java.util.Optional;
-import java.util.Properties;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.*;
-import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.*;
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;
 
 
+/**
+ * A factory for creating {@link LoadBasedPartitionAssignmentStrategy} instances
+ */
 public class LoadBasedPartitionAssignmentStrategyFactory implements AssignmentStrategyFactory {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategyFactory.class.getName());
 

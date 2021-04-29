@@ -171,6 +171,28 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return super.assign(datastreams, instances, currentAssignment);
   }
 
+  protected List<String> getAssignedPartitionsForDatastreamGroup(Map<String, Set<DatastreamTask>> currentAssignment,
+      String datastreamGroupName) {
+    List<String> assignedPartitions = new ArrayList<>();
+    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
+      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
+          .collect(Collectors.toSet());
+      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
+    }
+    return assignedPartitions;
+  }
+
+  protected int getTaskCountForDatastreamGroup(Map<String, Set<DatastreamTask>> currentAssignment,
+      String datastreamGroupName) {
+    int taskCount = 0;
+    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
+      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
+          .collect(Collectors.toSet());
+      taskCount += dgTask.size();
+    }
+    return taskCount;
+  }
+
   /**
    * Assign partitions to a particular datastream group
    *
@@ -187,20 +209,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment.");
 
+    DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
     String dgName = datastreamPartitions.getDatastreamGroup().getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
-    List<String> assignedPartitions = new ArrayList<>();
-    int totalTaskCount = 0;
-    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
-      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> dgName.equals(t.getTaskPrefix())).collect(Collectors.toSet());
-      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
-      totalTaskCount += dgTask.size();
-    }
-
+    List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, dgName);
+    int totalTaskCount = getTaskCountForDatastreamGroup(currentAssignment, dgName);
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup())) {
+    if (getEnableElasticTaskAssignment(datastreamGroup)) {
       if (assignedPartitions.isEmpty()) {
         performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
       }
