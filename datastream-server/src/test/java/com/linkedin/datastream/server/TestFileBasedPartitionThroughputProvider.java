@@ -5,7 +5,12 @@ import java.util.HashMap;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.linkedin.datastream.server.providers.FileBasedPartitionThroughputProvider;
 
+
+/**
+ * Tests for {@link FileBasedPartitionThroughputProvider}
+ */
 public class TestFileBasedPartitionThroughputProvider {
 
   @Test

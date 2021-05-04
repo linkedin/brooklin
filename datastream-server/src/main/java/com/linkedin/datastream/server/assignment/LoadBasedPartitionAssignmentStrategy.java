@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.server.PartitionThroughputInfo;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -22,7 +21,8 @@ import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.PartitionThroughputProvider;
+import com.linkedin.datastream.server.PartitionThroughputInfo;
+import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 
 /**
@@ -122,7 +122,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         LOG.warn("Failed to fetch partition throughput info.");
         return null;
       }
-    }, Objects::nonNull,100, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
+    }, Objects::nonNull, 100, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
         .orElseThrow(RetriesExhaustedException::new);
 
     return null;

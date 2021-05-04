@@ -1,4 +1,4 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.providers;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,10 +12,13 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
 
+import com.linkedin.datastream.server.ClusterThroughputInfo;
+import com.linkedin.datastream.server.PartitionThroughputInfo;
+
 
 /**
- * An implementation of {@link PartitionThroughputProvider} which reads throughput data from a file. Used for testing
- * purposes.
+ * An implementation of {@link PartitionThroughputProvider} which reads throughput data from a resource file.
+ * Used for testing purposes.
  */
 public class FileBasedPartitionThroughputProvider implements PartitionThroughputProvider {
   private static final String RESOURCE_FILE_NAME = "partitionThroughput.json";
@@ -101,7 +104,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
         String[] tokens = StringUtils.split(value, ",");
         int bytesInRate = Integer.parseInt(StringUtils.substring(tokens[0], 11));
         int messagesInRate = Integer.parseInt(StringUtils.substring(tokens[1], 7));
-        partitionInfoMap.put(partition, new PartitionThroughputInfo(bytesInRate, messagesInRate));
+        partitionInfoMap.put(partition, new PartitionThroughputInfo(bytesInRate, messagesInRate, partition));
       }
     } catch (IOException e) {
       e.printStackTrace();

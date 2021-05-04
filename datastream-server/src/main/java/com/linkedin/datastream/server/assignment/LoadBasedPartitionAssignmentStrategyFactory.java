@@ -9,10 +9,10 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.FileBasedPartitionThroughputProvider;
-import com.linkedin.datastream.server.PartitionThroughputProvider;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
+import com.linkedin.datastream.server.providers.FileBasedPartitionThroughputProvider;
+import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.CFG_IMBALANCE_THRESHOLD;

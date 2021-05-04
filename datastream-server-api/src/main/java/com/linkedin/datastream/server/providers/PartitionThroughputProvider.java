@@ -1,5 +1,6 @@
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.providers;
 
+import com.linkedin.datastream.server.ClusterThroughputInfo;
 import java.util.HashMap;
 
 
