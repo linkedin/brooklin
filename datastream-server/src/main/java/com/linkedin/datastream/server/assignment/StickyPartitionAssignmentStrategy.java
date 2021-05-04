@@ -553,7 +553,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return expectedNumberOfTasks;
   }
 
-  private void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     int totalPartitions = datastreamPartitions.getPartitions().size();
     int actualPartitionsPerTask = (totalPartitions / totalTaskCount)
@@ -571,7 +571,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     _elasticTaskAssignmentInfoHashMap.put(taskPrefix, elasticTaskAssignmentInfo);
   }
 
-  private void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
@@ -607,7 +607,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
   }
 
-  private boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
+  protected boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
     // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);

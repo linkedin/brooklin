@@ -99,8 +99,8 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
       for (String partition : partitionStats.keySet()) {
         String value = partitionStats.get(partition);
         String[] tokens = StringUtils.split(value, ",");
-        Long bytesInRate = Long.parseLong(StringUtils.substring(tokens[0], 11));
-        Long messagesInRate = Long.parseLong(StringUtils.substring(tokens[1], 7));
+        int bytesInRate = Integer.parseInt(StringUtils.substring(tokens[0], 11));
+        int messagesInRate = Integer.parseInt(StringUtils.substring(tokens[1], 7));
         partitionInfoMap.put(partition, new PartitionThroughputInfo(bytesInRate, messagesInRate));
       }
     } catch (IOException e) {

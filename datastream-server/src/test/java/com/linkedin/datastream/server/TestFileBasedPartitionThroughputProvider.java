@@ -11,7 +11,7 @@ public class TestFileBasedPartitionThroughputProvider {
   @Test
   public void getPartitionThroughputForMetricsTest() {
     FileBasedPartitionThroughputProvider provider = new FileBasedPartitionThroughputProvider();
-    ClusterThroughputInfo stats = provider.getThroughputInfo("metrics");
+    ClusterThroughputInfo stats = provider.getThroughputInfo("cookie");
     Assert.assertNotNull(stats);
   }
 
