@@ -31,6 +31,16 @@
         "type" : "string"
       } ]
     } ],
+    "actions" : [ {
+      "name" : "getTaskAssignment",
+      "doc" : "Finds the task's assignment node which hosts the given task",
+      "parameters" : [ {
+        "name" : "task",
+        "type" : "string",
+        "doc" : "Datastream task name"
+      } ],
+      "returns" : "string"
+    } ],
     "entity" : {
       "path" : "/datastream/{datastreamId}",
       "actions" : [ {

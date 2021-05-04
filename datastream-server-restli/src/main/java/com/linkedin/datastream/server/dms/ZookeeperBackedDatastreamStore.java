@@ -61,8 +61,21 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     return KeyBuilder.datastream(_cluster, key);
   }
 
+  @Override
+  public String getConnectorTaskPath(String connector, String task) {
+    return KeyBuilder.connectorTask(_cluster, connector, task);
+  }
+
   private List<String> getInstances() {
     return _zkClient.getChildren(KeyBuilder.liveInstances(_cluster));
+  }
+
+  @Override
+  public String getRawData(String path) {
+    if (path == null) {
+      return null;
+    }
+    return _zkClient.readData(path, true);
   }
 
   @Override

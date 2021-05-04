@@ -22,6 +22,16 @@ public interface DatastreamStore {
   Datastream getDatastream(String key);
 
   /**
+   * Retrieves raw data in json from the given path.
+   */
+  String getRawData(String path);
+
+  /**
+   * Retrieves connector task path specific to the store implementation.
+   */
+  String getConnectorTaskPath(String connector, String task);
+
+  /**
    * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
    * to return a Stream and enable further filtering and transformation rather that just a List.
    * The result should be sorted so that consumers can implement paging correctly.

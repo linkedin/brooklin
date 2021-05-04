@@ -7,6 +7,7 @@ package com.linkedin.datastream.server.dms;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -32,6 +33,8 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.server.Coordinator;
+import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
@@ -151,6 +154,39 @@ public class TestDatastreamResources {
 
     Datastream ds = resource2.get("name_0");
     Assert.assertEquals(ds, datastreamToCreate);
+  }
+
+  @Test
+  public void testGettingInstanceHostingTask() {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    datastreamToCreate.getDestination()
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+
+    Assert.assertNull(resource1.create(datastreamToCreate).getError());
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    Coordinator testCoordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+    // waiting for leader to receive new datastream event
+    PollUtils.poll(() -> testCoordinator.getDatastreamTasks().size() == 1, 100, 10000);
+
+    String retrievedHost = null;
+    String actualHost = testCoordinator.getInstanceName();
+
+    Iterator<DatastreamTask> tasksIterator = testCoordinator.getDatastreamTasks().iterator();
+    if (tasksIterator.hasNext()) {
+      retrievedHost = resource2.getTaskAssignment(pathKey, tasksIterator.next().getDatastreamTaskName());
+    }
+    Assert.assertEquals(retrievedHost, actualHost);
   }
 
   @Test
