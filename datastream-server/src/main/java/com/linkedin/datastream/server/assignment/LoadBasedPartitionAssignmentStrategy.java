@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2021 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.server.assignment;
 
 import java.time.Duration;
@@ -8,7 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
@@ -20,8 +24,8 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
+import com.linkedin.datastream.server.DatastreamSourceClusterResolver;
 import com.linkedin.datastream.server.DatastreamTask;
-import com.linkedin.datastream.server.PartitionThroughputInfo;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 
@@ -31,6 +35,7 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
  */
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
   private final PartitionThroughputProvider _throughputProvider;
+  private final DatastreamSourceClusterResolver _sourceClusterResolver;
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
   private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(5).toMillis();
@@ -38,14 +43,15 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
    */
-  public LoadBasedPartitionAssignmentStrategy(PartitionThroughputProvider throughputProvider, Optional<Integer> maxTasks,
+  public LoadBasedPartitionAssignmentStrategy(PartitionThroughputProvider throughputProvider,
+      DatastreamSourceClusterResolver sourceClusterResolver, Optional<Integer> maxTasks,
       Optional<Integer> imbalanceThreshold, Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment,
       Optional<Integer> partitionsPerTask, Optional<Integer> partitionFullnessFactorPct, Optional<ZkClient> zkClient,
       String clusterName) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
-
     _throughputProvider = throughputProvider;
+    _sourceClusterResolver = sourceClusterResolver;
   }
 
   @Override
@@ -85,33 +91,24 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, taskCount);
     }
 
-    // TODO: Do partition throughput based task count estimation, then pick the max
-
     // Calculating unassigned partitions
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);
 
-    // Sorting topic partitions by throughput
-    String clusterName = getClusterNameFromDatastreamGroup(datastreamPartitions.getDatastreamGroup());
+    // Getting a task count estimate based on throughput
+    String clusterName = _sourceClusterResolver.getSourceCluster(datastreamPartitions.getDatastreamGroup());
+    LoadBasedTaskCountEstimator taskCountEstimator = new LoadBasedTaskCountEstimator();
     ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(clusterName);
-    HashMap<String, PartitionThroughputInfo> partitionInfoMap = clusterThroughputInfo.getPartitionInfoMap();
-    List<PartitionThroughputInfo> sortedPartitions = partitionInfoMap.values().stream().
-        sorted((PartitionThroughputInfo o1, PartitionThroughputInfo o2) -> {
-          if (o1.getBytesInRate() != o2.getBytesInRate()) {
-            return o1.getBytesInRate() - o2.getBytesInRate();
-          } else {
-            return o1.getMessagesInRate() - o2.getMessagesInRate();
-          }
-        }).collect(Collectors.toList());
+    int taskCount2 = taskCountEstimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
+        unassignedPartitions);
 
+    // Picking the maximum task count between elastic task count and throughput based task count estimate
+    int maxTaskCount = Math.max(taskCount, taskCount2);
 
-
-    return null;
-  }
-
-  private String getClusterNameFromDatastreamGroup(DatastreamGroup datastreamGroup) {
-    // TODO: Figure out a clean way to do this
-    return "metrics";
+    // Doing assignment
+    LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
+    return partitionAssigner.assignPartitions(clusterThroughputInfo, assignedPartitions, unassignedPartitions,
+        maxTaskCount);
   }
 
   private HashMap<String, ClusterThroughputInfo> fetchPartitionThroughputInfo() {

@@ -1,3 +1,8 @@
+/**
+ *  Copyright 2021 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.server.assignment;
 
 import java.util.Optional;
@@ -11,7 +16,7 @@ import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
-import com.linkedin.datastream.server.providers.FileBasedPartitionThroughputProvider;
+import com.linkedin.datastream.server.providers.NoOpPartitionThroughputProvider;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
@@ -70,9 +75,11 @@ public class LoadBasedPartitionAssignmentStrategyFactory implements AssignmentSt
       zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
     }
 
-    PartitionThroughputProvider provider = new FileBasedPartitionThroughputProvider();
+    // TODO Plug in an actual throughput provider implementation
+    PartitionThroughputProvider provider = new NoOpPartitionThroughputProvider();
 
-    return new LoadBasedPartitionAssignmentStrategy(provider, maxTasks, imbalanceThreshold, maxPartitions,
-        enableElasticTaskAssignment, partitionsPerTask, partitionFullnessThresholdPct, zkClient, cluster);
+    return new LoadBasedPartitionAssignmentStrategy(provider, null,
+        maxTasks, imbalanceThreshold, maxPartitions, enableElasticTaskAssignment, partitionsPerTask,
+        partitionFullnessThresholdPct, zkClient, cluster);
   }
 }
