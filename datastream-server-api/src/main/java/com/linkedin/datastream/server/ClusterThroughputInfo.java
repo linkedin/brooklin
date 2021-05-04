@@ -15,7 +15,6 @@ public class ClusterThroughputInfo {
 
   private String _clusterName;
 
-  // TODO Change key type to TopicPartition
   private HashMap<String, PartitionThroughputInfo> _partitionInfoMap;
 
   /**
