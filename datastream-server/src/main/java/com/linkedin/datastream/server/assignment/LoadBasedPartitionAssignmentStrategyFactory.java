@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.DatastreamSourceClusterResolver;
+import com.linkedin.datastream.server.DummyDatastreamSourceClusterResolver;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
 import com.linkedin.datastream.server.providers.NoOpPartitionThroughputProvider;
@@ -75,11 +77,11 @@ public class LoadBasedPartitionAssignmentStrategyFactory implements AssignmentSt
       zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
     }
 
-    // TODO Plug in an actual throughput provider implementation
+    // TODO Plug in an actual throughput provider and cluster resolver implementations
     PartitionThroughputProvider provider = new NoOpPartitionThroughputProvider();
+    DatastreamSourceClusterResolver clusterResolver = new DummyDatastreamSourceClusterResolver();
 
-    return new LoadBasedPartitionAssignmentStrategy(provider, null,
-        maxTasks, imbalanceThreshold, maxPartitions, enableElasticTaskAssignment, partitionsPerTask,
-        partitionFullnessThresholdPct, zkClient, cluster);
+    return new LoadBasedPartitionAssignmentStrategy(provider, clusterResolver, maxTasks, imbalanceThreshold,
+        maxPartitions, enableElasticTaskAssignment, partitionsPerTask, partitionFullnessThresholdPct, zkClient, cluster);
   }
 }
