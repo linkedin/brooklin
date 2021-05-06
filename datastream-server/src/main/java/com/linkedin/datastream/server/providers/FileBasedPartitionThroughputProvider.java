@@ -26,15 +26,30 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Used for testing purposes.
  */
 public class FileBasedPartitionThroughputProvider implements PartitionThroughputProvider {
-  private static final String RESOURCE_FILE_NAME = "partitionThroughput.json";
   private static final String ROOT_NODE_NAME = "stats";
 
+  private final String _fileName;
+
+  /**
+   * Creates an instance of {@link FileBasedPartitionThroughputProvider}
+   * @param fileName Resource file name
+   */
+  public FileBasedPartitionThroughputProvider(String fileName) {
+    _fileName = fileName;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public ClusterThroughputInfo getThroughputInfo(String clusterName) {
     File partitionThroughputFile = getThroughputFileFromResources();
     return readThroughputInfoFromFile(partitionThroughputFile, clusterName);
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public HashMap<String, ClusterThroughputInfo> getThroughputInfo() {
     File partitionThroughputFile = getThroughputFileFromResources();
@@ -42,7 +57,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
   }
 
   private File getThroughputFileFromResources() {
-    URL resource = getClass().getClassLoader().getResource(RESOURCE_FILE_NAME);
+    URL resource = getClass().getClassLoader().getResource(_fileName);
     File partitionThroughputFile = null;
     if (resource == null) {
       throw new IllegalArgumentException("File not found.");

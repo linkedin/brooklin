@@ -5,17 +5,17 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.HashMap;
+import java.util.Map;
 
 
 /**
- * A structure that holds per-partition throughput information for a Kafka cluster/
+ * A structure that holds per-partition throughput information for a Kafka cluster
  */
 public class ClusterThroughputInfo {
 
-  private String _clusterName;
+  private final String _clusterName;
 
-  private HashMap<String, PartitionThroughputInfo> _partitionInfoMap;
+  private final Map<String, PartitionThroughputInfo> _partitionInfoMap;
 
   /**
    * Creates an instance of {@link ClusterThroughputInfo}
@@ -23,15 +23,10 @@ public class ClusterThroughputInfo {
    * @param partitionInfoMap A map, where the key is the partition name, and the value is the
    *                         {@link PartitionThroughputInfo} for the partition.
    */
-  public ClusterThroughputInfo(String clusterName, HashMap<String, PartitionThroughputInfo> partitionInfoMap) {
+  public ClusterThroughputInfo(String clusterName, Map<String, PartitionThroughputInfo> partitionInfoMap) {
     _clusterName = clusterName;
     _partitionInfoMap = partitionInfoMap;
   }
-
-  /**
-   * Creates an instance of {@link ClusterThroughputInfo}
-   */
-  public ClusterThroughputInfo() { }
 
   /**
    * Gets the cluster name
@@ -46,24 +41,7 @@ public class ClusterThroughputInfo {
    * @return A map, where the key is the partition name, and the value is a {@link PartitionThroughputInfo} for the
    * partition
    */
-  public HashMap<String, PartitionThroughputInfo> getPartitionInfoMap() {
+  public Map<String, PartitionThroughputInfo> getPartitionInfoMap() {
     return _partitionInfoMap;
-  }
-
-  /**
-   * Sets the cluster name
-   * @param clusterName Name of the cluster
-   */
-  public void setClusterName(String clusterName) {
-    _clusterName = clusterName;
-  }
-
-  /**
-   * Sets the partition information map.
-   * @param partitionInfoMap A map, where the key is the partition name, and the value is a {@link PartitionThroughputInfo}
-   *                         for the partition
-   */
-  public void setPartitionInfoMap(HashMap<String, PartitionThroughputInfo> partitionInfoMap) {
-    _partitionInfoMap = partitionInfoMap;
   }
 }

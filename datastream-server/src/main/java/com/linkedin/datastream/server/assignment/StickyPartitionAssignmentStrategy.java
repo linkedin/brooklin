@@ -210,7 +210,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         "Zero tasks assigned. Retry leader partition assignment.");
 
     DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
-    String dgName = datastreamPartitions.getDatastreamGroup().getName();
+    String dgName = datastreamGroup.getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
     List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, dgName);
