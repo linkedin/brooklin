@@ -6,7 +6,7 @@ repositories {
         }
         // For Rest.li's (pegasus) gradle plugin
         maven {
-            url "https://linkedin.bintray.com/maven"
+            url "https://linkedin.jfrog.io/artifactory/open-source"
         }
     }
 }
@@ -14,5 +14,7 @@ repositories {
 dependencies {
     classpath 'gradle.plugin.nl.javadude.gradle.plugins:license-gradle-plugin:0.14.0'
     classpath 'com.linkedin.pegasus:gradle-plugins:29.2.3'
+    // TODO Remove this dependency
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
+    classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.21.0"
 }

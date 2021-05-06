@@ -5,6 +5,7 @@ allprojects {
 subprojects {
   apply plugin: 'maven-publish'
   apply plugin: 'com.jfrog.bintray'
+  apply plugin: 'com.jfrog.artifactory'
   apply plugin: 'pegasus'
 
   task sourcesJar(type: Jar) {
@@ -117,6 +118,32 @@ subprojects {
 
         version project.version
       }
+    }
+  }
+
+  // Artifactory publishing
+  artifactory {
+    //docs: https://www.jfrog.com/confluence/display/rtf/gradle+artifactory+plugin
+    contextUrl = 'https://linkedin.jfrog.io/artifactory'
+    publish {
+      repository {
+        repoKey = 'brooklin'
+        username = System.getenv('ARTIFACTORY_USER')
+        password = System.getenv('ARTIFACTORY_API_KEY')
+        maven = true
+      }
+
+      defaults {
+        publications('maven')
+      }
+    }
+  }
+
+  artifactoryPublish {
+    skip = project.hasProperty('artifactory.dryRun')
+
+    doFirst {
+      println "Publishing $jar.baseName to Artifactory (dryRun: $dryRun, repo: $repoName, publish: $publish)"
     }
   }
 
