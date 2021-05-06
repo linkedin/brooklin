@@ -38,7 +38,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final DatastreamSourceClusterResolver _sourceClusterResolver;
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
-  private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(5).toMillis();
+  private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(10).toMillis();
+  private static final long THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = Duration.ofSeconds(1).toMillis();
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -52,12 +53,6 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
     _sourceClusterResolver = sourceClusterResolver;
-  }
-
-  @Override
-  public Map<String, Set<DatastreamTask>> assign(List<DatastreamGroup> datastreams, List<String> instances,
-      Map<String, Set<DatastreamTask>> currentAssignment) {
-    return super.assign(datastreams, instances, currentAssignment);
   }
 
   @Override
@@ -119,7 +114,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         LOG.warn("Failed to fetch partition throughput info.");
         return null;
       }
-    }, Objects::nonNull, 100, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
+    }, Objects::nonNull, THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
         .orElseThrow(RetriesExhaustedException::new);
 
     return null;
