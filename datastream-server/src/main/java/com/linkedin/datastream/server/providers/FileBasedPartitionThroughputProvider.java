@@ -27,6 +27,8 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  */
 public class FileBasedPartitionThroughputProvider implements PartitionThroughputProvider {
   private static final String ROOT_NODE_NAME = "stats";
+  private static final String MESSAGES_IN_RATE_TOKEN = "msgIn:";
+  private static final String BYTES_IN_RATE_TOKEN = "bytesInKb:";
 
   private final String _fileName;
 
@@ -122,8 +124,8 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
       for (String partition : partitionStats.keySet()) {
         String value = partitionStats.get(partition);
         String[] tokens = StringUtils.split(value, ",");
-        int bytesInRate = Integer.parseInt(StringUtils.substring(tokens[0], 11));
-        int messagesInRate = Integer.parseInt(StringUtils.substring(tokens[1], 7));
+        int bytesInRate = Integer.parseInt(StringUtils.substring(tokens[0], BYTES_IN_RATE_TOKEN.length() + 1));
+        int messagesInRate = Integer.parseInt(StringUtils.substring(tokens[1], MESSAGES_IN_RATE_TOKEN.length() + 1));
         partitionInfoMap.put(partition, new PartitionThroughputInfo(bytesInRate, messagesInRate, partition));
       }
     } catch (IOException e) {
