@@ -34,7 +34,7 @@ import com.linkedin.datastream.testutil.BaseKafkaZkTest;
  * Tests for TopicPartitionStats diag command
  */
 @Test
-public class TestKafkaTopicPartitionInfo extends BaseKafkaZkTest {
+public class TestKafkaTopicPartitionStats extends BaseKafkaZkTest {
 
   private static final int PARTITION_COUNT = 2;
   private static final String PARTITIONS = "/partitions";
